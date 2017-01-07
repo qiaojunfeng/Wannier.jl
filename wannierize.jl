@@ -116,7 +116,7 @@ function make_wannier(J,N,nntot,filename)
     end
 
     function ensure_no_wraparound(A)
-        if(any(imag(log(eig(A)[1])) .> 3*pi/4))
+        if any(abs(imag(log(eig(A)[1]))) .> 3*pi/4)
             error("Unusually large log! Is your system a topological insulator, or your mesh too coarse? If not, please contact antoine.levitt@inria.fr")
         end
     end
