@@ -8,15 +8,16 @@ end
 
 ## Assumptions: the kpoints are contained in a NxNxN cartesian grid, the neighbor list must contain the six cartesian neighbors
 
-## J=nbbands, N1xN2xN3 grid, filename.mmn must contain the overlaps
-## nbeg and nend specify the window to wannierize. The output AMN file is J by Jreduced, padded with zeros
-function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
+## N1xN2xN3 grid, filename.mmn must contain the overlaps
+## nbeg and nend specify the window to wannierize
+## Input Mmn file is nband x nband x nkpt x nntot
+## Output is (nwannier = nend - nbeg + 1) x nband x nkpt, padded with zeros
+function make_wannier(nband,N1,N2,N3,nntot,filename,nbeg,nend)
     t1 = collect(0:N1-1)/N1
     t2 = collect(0:N2-1)/N2
     t3 = collect(0:N3-1)/N3
     Ntot = N1*N2*N3
-
-    Jorig = J #backup original J and work on a reduced J = nend - nbeg + 1
+    nwannier = nend-nbeg+1
 
     # We switch between a big index K=1:N^3 and three indices i,j,k = 1:N using these arrays
     K_to_ijk = zeros(Int64,Ntot,3)
@@ -31,8 +32,8 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
         end
     end
 
-    A = zeros(Complex128,N1,N2,N3,J,J) # unitary rotation matrix at each k-point, (i,j,k) representation
-    M = zeros(Complex128,Ntot,nntot,J,J) # overlap matrix, (K) representation
+    A = zeros(Complex128,N1,N2,N3,nwannier,nwannier) # unitary rotation matrix at each k-point, (i,j,k) representation
+    M = zeros(Complex128,Ntot,nntot,nwannier,nwannier) # overlap matrix, (K) representation
     neighbors = zeros(Int64,Ntot,nntot) # for each point, list of neighbors, (K) representation
 
 
@@ -62,27 +63,23 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
             K = parse(Int64, arr[1])
             Kpb = parse(Int64, arr[2])
             neighbors[K,nneighbor,:] = Kpb
-            for mn = 0:J^2-1
-                m,n = mod(mn,J)+1, div(mn,J)+1
+            for mn = 0:nband^2-1
+                m,n = mod(mn,nband)+1, div(mn,nband)+1
                 if (m > nend) || (m < nbeg) || (n > nend) || (n < nbeg)
+                    # ignore band not to wannierize
                     readline(mmn)
                     continue
+                else
+                    line = readline(mmn)
+                    arr = split(line)
+                    ol = parse(Float64, arr[1]) + im*parse(Float64, arr[2])
+                    M[K,nneighbor,m-nbeg+1,n-beg+1] = ol
                 end
-                line = readline(mmn)
-                arr = split(line)
-                ol = parse(Float64, arr[1]) + im*parse(Float64, arr[2])
-                # m,n = mod(mn,J)+1, div(mn,J)+1
-                M[K,nneighbor,m,n] = ol
             end
         end
     end
 
     fill!(A,NaN) #protection: A must be filled by the algorithm
-
-    # Filter out unwanted space
-    A = A[:,:,:,nbeg:nend,nbeg:nend]
-    M = M[:,:,nbeg:nend,nbeg:nend]
-    J = nend - nbeg + 1
 
     # Computes overlap between two neighboring K points
     function overlap(K1,K2)
@@ -120,31 +117,22 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     # Those must be neighbors, and only the first kpoint is assumed to have been rotated
     function propagate(A0, kpts)
         N = length(kpts)
-        As = zeros(Complex128,N,J,J)
+        As = zeros(Complex128,N,nwannier,nwannier)
         As[1,:,:] = A0
         for i=2:N
             As[i,:,:] = normalize(overlap(kpts[i],kpts[i-1])*As[i-1,:,:])
             # println("Before/After")
-            # println(norm(overlap(kpts[i],kpts[i-1])*As[i-1,:,:] - eye(Complex128,J)))
-            # println(norm(As[i,:,:]'*overlap(kpts[i],kpts[i-1])*As[i-1,:,:] - eye(Complex128,J)))
+            # println(norm(overlap(kpts[i],kpts[i-1])*As[i-1,:,:] - eye(Complex128,nwannier)))
+            # println(norm(As[i,:,:]'*overlap(kpts[i],kpts[i-1])*As[i-1,:,:] - eye(Complex128,nwannier)))
         end
         return As
     end
 
-    # disable temporarily (messes with 2D case)
-    function ensure_no_wraparound(A)
-
-        # if any(abs(imag(log(eig(A)[1]))) .> 3*pi/4)
-        #     logs = abs(imag(log(eig(A)[1])))
-        #     error("Unusually large logs $logs ! Is your system a topological insulator, or your mesh too coarse? If not, please contact antoine.levitt@inria.fr")
-        # end
-    end
-
     println("Filling (k,0,0)")
-    A[:,1,1,:,:] = propagate(eye(J), [ijk_to_K[i,1,1] for i=1:N1])
+    A[:,1,1,:,:] = propagate(eye(nwannier), [ijk_to_K[i,1,1] for i=1:N1])
 
     # for i=2:N1
-    #     println(norm(overlap_A([i-1,1,1],[i,1,1]) - eye(Complex128,J)))
+    #     println(norm(overlap_A([i-1,1,1],[i,1,1]) - eye(Complex128,nwannier)))
     # end
 
     # compute obstruction matrix
@@ -156,9 +144,9 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
 
     # # test
     # for i=2:N1
-    #     println(norm(overlap_A([i-1,1,1],[i,1,1]) - eye(Complex128,J)))
+    #     println(norm(overlap_A([i-1,1,1],[i,1,1]) - eye(Complex128,nwannier)))
     # end
-    # println(norm(overlap_A([N1,1,1],[1,1,1]) - eye(Complex128,J)))
+    # println(norm(overlap_A([N1,1,1],[1,1,1]) - eye(Complex128,nwannier)))
 
 
     println("Filling (k1,k2,0)")
@@ -170,7 +158,7 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     Obs = normalize(overlap_A([1,N2,1],[1,1,1]))
     d,V = eig(Obs)
     logd = log(d)
-    for i =1:J
+    for i=1:nwannier
         if imag(logd[i]) < -pi+.1
             logd[i] = logd[i] + 2pi
         end
@@ -184,10 +172,9 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     end
 
     # Pull back the line obstruction
-    phases = zeros(N1,J)
+    phases = zeros(N1,nwannier)
     for i=1:N1
         Obs = normalize(overlap_A([i,N2,1],[i,1,1])) #rotation at image point
-        ensure_no_wraparound(Obs)
         for j=1:N2
             A[i,j,1,:,:] = A[i,j,1,:,:]*powm(Obs,t2[j])
         end
@@ -200,7 +187,7 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     end
 
 
-    # phases = zeros(N1,J)
+    # phases = zeros(N1,nwannier)
     # for i=1:N1
     #     Obs = normalize(overlap_A([i,N2,1],[i,1,1])) #rotation at image point
     #     phases[i,:] = imag(log(eig(Obs)[1]))
@@ -213,8 +200,8 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     # for i=1:N1,j=1:N2
     #     right = i==N1 ? 1 : i+1
     #     up = j==N2 ? 1 : j+1
-    #     omegaright[i,j] = norm(overlap_A([right,j,1],[i,j,1]) - eye(Complex128,J))
-    #     omegaup[i,j] = norm(overlap_A([i,up,1],[i,j,1]) - eye(Complex128,J))
+    #     omegaright[i,j] = norm(overlap_A([right,j,1],[i,j,1]) - eye(Complex128,nwannier))
+    #     omegaup[i,j] = norm(overlap_A([i,up,1],[i,j,1]) - eye(Complex128,nwannier))
     # end
     # # figure()
     # matshow(omegaright)
@@ -226,7 +213,7 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     # Plot obstructions
     function plot_surface_obstructions()
         if DO_PLOT && N3 != 1
-            phases = zeros(N1,N2,J)
+            phases = zeros(N1,N2,nwannier)
             for i=1:N1,j=1:N2
                 Obs = normalize(overlap_A([i,j,N3],[i,j,1])) #rotation at image point
                 phases[i,j,:] = sort(imag(log(eig(Obs)[1])))
@@ -234,7 +221,7 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
             figure()
             xx = [t1[i] for i=1:N1,j=1:N2]
             yy = [t2[j] for i=1:N1,j=1:N2]
-            for n=1:J
+            for n=1:nwannier
                 plot_surface(xx,yy,phases[:,:,n],rstride=1,cstride=1)
             end
         end
@@ -251,7 +238,7 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     Obs = normalize(overlap_A([1,1,N3],[1,1,1]))
     d,V = eig(Obs)
     logd = log(d)
-    for i =1:J
+    for i =1:nwannier
         if imag(logd[i]) < -pi+.1
             logd[i] = logd[i] + 2pi
         end
@@ -267,7 +254,6 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     # Fix first edge
     for i=1:N1
         Obs = normalize(overlap_A([i,1,N3], [i,1,1]))
-        ensure_no_wraparound(Obs)
         for k=1:N3
             fixer = powm(Obs, t3[k])
             for j=1:N3
@@ -278,7 +264,6 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     # Fix second edge
     for j=1:N2
         Obs = normalize(overlap_A([1,j,N3], [1,j,1]))
-        ensure_no_wraparound(Obs)
         for k=1:N3
             fixer = powm(Obs, t3[k])
             for i=1:N1
@@ -292,7 +277,6 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     # Fix whole surface
     for i=1:N1,j=1:N2
         Obs = normalize(overlap_A([i,j,N3],[i,j,1]))
-        ensure_no_wraparound(Obs)
         for k=1:N3
             A[i,j,k,:,:] = A[i,j,k,:,:]*powm(Obs,t3[k])
         end
@@ -303,15 +287,17 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     ## Output amn file
     out = open("$filename.amn","w")
     write(out, "Created by wannierize.jl ", string(now()),"\n")
-    write(out, "$Jorig $Ntot $J\n")
+    write(out, "$nband $Ntot $nwannier\n")
     for K=1:Ntot
-        for n=1:J,m=1:Jorig
-            if (m < nbeg) || (m > nend)
-                coeff = 0
-            else
-                coeff = A[K_to_ijk[K,1], K_to_ijk[K,2], K_to_ijk[K,3],m-nbeg+1,n]
+        for n=1:nband
+            for m = 1:nwannier
+                if (m < nbeg) || (m > nend)
+                    coeff = 0 # pad with zeros
+                else
+                    coeff = A[K_to_ijk[K,1], K_to_ijk[K,2], K_to_ijk[K,3],m-nbeg+1,n]
+                end
+                write(out, "$m $n $K $(real(coeff)) $(imag(coeff))\n")
             end
-            write(out, "$m $n $K $(real(coeff)) $(imag(coeff))\n")
         end
     end
     close(out)
@@ -320,27 +306,17 @@ end
 # Get parameters from mmn file
 function read_parameters(filename, N1, N2, N3)
     mmn = open("$filename.mmn")
-    readline(mmn) # skip comments
+    readline(mmn) # skip header
     line = readline(mmn)
-    nin,N3in,nntotin = split(line)
-    nin,N3in,nntotin = parse(Int64,nin), parse(Int64,N3in), parse(Int64,nntotin)
-    J = nin
+    nbandin,N3in,nntotin = split(line)
+    nbandin,N3in,nntotin = parse(Int64,nbandin), parse(Int64,N3in), parse(Int64,nntotin)
+    nband = nbandin
     # N = Int64(round(N3in^(1/3)))
     nntot = nntotin
     @assert N1*N2*N3 == N3in
     close(mmn)
 
-    return J,nntot
-    
-    # amn = open("$filename.amn")
-    # readline(amn) # skip comment
-    # line = readline(amn) # read params
-    # nin,N3in,nin2 = split(line)
-    # nin,N3in,nin2 = parse(Int64,nin), parse(Int64,N3in), parse(Int64,nin2)
-    # @assert nin == J
-    # @assert N^3 == N3in
-    # @assert nin2 == J
-    # close(amn)
+    return nband,nntot
 end
 end
 
@@ -361,9 +337,9 @@ else
 end
 println("$filename, $N1 x $N2 x $N3")
 
-J,nntot = wannierize.read_parameters(filename,N1,N2,N3)
+nband,nntot = wannierize.read_parameters(filename,N1,N2,N3)
 if nend == Ninf
-    nend = J
+    nend = nband
 end
-println("$J bands, wannierizing from $nbeg to $nend, $N1 x $N2 x $N3 grid, $nntot neighbors")
+println("$J bands, wannierizing $nwannier from $nbeg to $nend, $N1 x $N2 x $N3 grid, $nntot neighbors")
 wannierize.make_wannier(J,N1,N2,N3,nntot,filename, nbeg, nend)
