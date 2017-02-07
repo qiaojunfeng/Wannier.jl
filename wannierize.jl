@@ -73,7 +73,7 @@ function make_wannier(nband,N1,N2,N3,nntot,filename,nbeg,nend)
                     line = readline(mmn)
                     arr = split(line)
                     ol = parse(Float64, arr[1]) + im*parse(Float64, arr[2])
-                    M[K,nneighbor,m-nbeg+1,n-beg+1] = ol
+                    M[K,nneighbor,m-nbeg+1,n-nbeg+1] = ol
                 end
             end
         end
@@ -286,11 +286,11 @@ function make_wannier(nband,N1,N2,N3,nntot,filename,nbeg,nend)
 
     ## Output amn file
     out = open("$filename.amn","w")
-    write(out, "Created by wannierize.jl ", string(now()),"\n")
+    write(out, "Created by wannierize.jl bands $nbeg:$nend", string(now()), "\n")
     write(out, "$nband $Ntot $nwannier\n")
     for K=1:Ntot
-        for n=1:nband
-            for m = 1:nwannier
+        for n=1:nwannier
+            for m = 1:nband
                 if (m < nbeg) || (m > nend)
                     coeff = 0 # pad with zeros
                 else
@@ -325,8 +325,13 @@ if(length(ARGS) >= 1)
     N1 = parse(Int64,ARGS[2])
     N2 = parse(Int64,ARGS[3])
     N3 = parse(Int64,ARGS[4])
-    nbeg = parse(Int64,ARGS[5])
-    nend = parse(Int64,ARGS[6])
+    if length(ARGS) >= 5
+        nbeg = parse(Int64,ARGS[5])
+        nend = parse(Int64,ARGS[6])
+    else
+        nbeg = 1
+        nend = Inf
+    end
 else
     filename = "95-103-wannier"
     N1 = 14
@@ -335,11 +340,10 @@ else
     nbeg = 1
     nend = Inf
 end
-println("$filename, $N1 x $N2 x $N3")
 
 nband,nntot = wannierize.read_parameters(filename,N1,N2,N3)
-if nend == Ninf
+if nend == Inf
     nend = nband
 end
-println("$J bands, wannierizing $nwannier from $nbeg to $nend, $N1 x $N2 x $N3 grid, $nntot neighbors")
-wannierize.make_wannier(J,N1,N2,N3,nntot,filename, nbeg, nend)
+println("$nband bands, wannierizing bands $nbeg:$nend, $N1 x $N2 x $N3 grid, $nntot neighbors")
+wannierize.make_wannier(nband,N1,N2,N3,nntot,filename, nbeg, nend)
