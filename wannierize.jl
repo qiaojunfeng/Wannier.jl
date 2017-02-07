@@ -9,6 +9,7 @@ end
 ## Assumptions: the kpoints are contained in a NxNxN cartesian grid, the neighbor list must contain the six cartesian neighbors
 
 ## J=nbbands, N1xN2xN3 grid, filename.mmn must contain the overlaps
+## nbeg and nend specify the window to wannierize. The output AMN file is J by Jreduced, padded with zeros
 function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     t1 = collect(0:N1-1)/N1
     t2 = collect(0:N2-1)/N2
@@ -63,11 +64,7 @@ function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
             neighbors[K,nneighbor,:] = Kpb
             for mn = 0:J^2-1
                 m,n = mod(mn,J)+1, div(mn,J)+1
-                if (m > nend) || (m < nbeg)
-                    readline(mmn)
-                    continue
-                end
-                if (n > nend) || (n < nbeg)
+                if (m > nend) || (m < nbeg) || (n > nend) || (n < nbeg)
                     readline(mmn)
                     continue
                 end
