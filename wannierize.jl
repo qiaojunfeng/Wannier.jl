@@ -1,6 +1,6 @@
 module wannierize
 
-const DO_PLOT = false # plot obstruction phases
+const DO_PLOT = true # plot obstruction phases
 
 if(DO_PLOT)
     using PyPlot
@@ -184,6 +184,7 @@ function make_wannier(nband,N1,N2,N3,nntot,filename,nbeg,nend)
     if DO_PLOT
         figure()
         plot(phases,"x")
+        savefig("wannierize_0_2D.pdf")
     end
 
 
@@ -211,7 +212,7 @@ function make_wannier(nband,N1,N2,N3,nntot,filename,nbeg,nend)
 
         
     # Plot obstructions
-    function plot_surface_obstructions()
+    function plot_surface_obstructions(suffix="")
         if DO_PLOT && N3 != 1
             phases = zeros(N1,N2,nwannier)
             for i=1:N1,j=1:N2
@@ -224,6 +225,7 @@ function make_wannier(nband,N1,N2,N3,nntot,filename,nbeg,nend)
             for n=1:nwannier
                 plot_surface(xx,yy,phases[:,:,n],rstride=1,cstride=1)
             end
+            savefig("wannierize$suffix.pdf")
         end
     end
 
@@ -232,7 +234,7 @@ function make_wannier(nband,N1,N2,N3,nntot,filename,nbeg,nend)
         A[i,j,:,:,:] = propagate(A[i,j,1,:,:], [ijk_to_K[i,j,k] for k=1:N3])
     end
 
-    plot_surface_obstructions()        
+    plot_surface_obstructions("_1_none")
 
     # Fix corner
     Obs = normalize(overlap_A([1,1,N3],[1,1,1]))
@@ -250,6 +252,8 @@ function make_wannier(nband,N1,N2,N3,nntot,filename,nbeg,nend)
             A[i,j,k,:,:] = A[i,j,k,:,:]*fixer
         end
     end
+
+    plot_surface_obstructions("_2_corners")
     
     # Fix first edge
     for i=1:N1
@@ -272,7 +276,7 @@ function make_wannier(nband,N1,N2,N3,nntot,filename,nbeg,nend)
         end
     end
     
-    plot_surface_obstructions()
+    plot_surface_obstructions("_3_edges")
     
     # Fix whole surface
     for i=1:N1,j=1:N2
@@ -282,7 +286,7 @@ function make_wannier(nband,N1,N2,N3,nntot,filename,nbeg,nend)
         end
     end
         
-    plot_surface_obstructions()
+    plot_surface_obstructions("_4_surface")
 
     ## Output amn file
     out = open("$filename.amn","w")
