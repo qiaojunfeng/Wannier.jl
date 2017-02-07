@@ -158,8 +158,9 @@ function make_wannier(nband,N1,N2,N3,nntot,filename,nbeg,nend)
     Obs = normalize(overlap_A([1,N2,1],[1,1,1]))
     d,V = eig(Obs)
     logd = log(d)
+    # Hack to avoid separating eigenvalues at -1. TODO understand that
     for i=1:nwannier
-        if imag(logd[i]) < -pi+.1
+        if imag(logd[i]) < -pi+.01
             logd[i] = logd[i] + 2pi
         end
     end
@@ -240,8 +241,9 @@ function make_wannier(nband,N1,N2,N3,nntot,filename,nbeg,nend)
     Obs = normalize(overlap_A([1,1,N3],[1,1,1]))
     d,V = eig(Obs)
     logd = log(d)
+    # Hack to avoid separating eigenvalues at -1. TODO understand that
     for i =1:nwannier
-        if imag(logd[i]) < -pi+.1
+        if imag(logd[i]) < -pi+.01
             logd[i] = logd[i] + 2pi
         end
     end
