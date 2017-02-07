@@ -9,11 +9,13 @@ end
 ## Assumptions: the kpoints are contained in a NxNxN cartesian grid, the neighbor list must contain the six cartesian neighbors
 
 ## J=nbbands, N1xN2xN3 grid, filename.mmn must contain the overlaps
-function make_wannier(J,N1,N2,N3,nntot,filename)
+function make_wannier(J,N1,N2,N3,nntot,filename,nbeg,nend)
     t1 = collect(0:N1-1)/N1
     t2 = collect(0:N2-1)/N2
     t3 = collect(0:N3-1)/N3
     Ntot = N1*N2*N3
+
+    Jorig = J #backup original J and work on a reduced J = nend - nbeg + 1
 
     # We switch between a big index K=1:N^3 and three indices i,j,k = 1:N using these arrays
     K_to_ijk = zeros(Int64,Ntot,3)
@@ -60,16 +62,30 @@ function make_wannier(J,N1,N2,N3,nntot,filename)
             Kpb = parse(Int64, arr[2])
             neighbors[K,nneighbor,:] = Kpb
             for mn = 0:J^2-1
+                m,n = mod(mn,J)+1, div(mn,J)+1
+                if (m > nend) || (m < nbeg)
+                    readline(mmn)
+                    continue
+                end
+                if (n > nend) || (n < nbeg)
+                    readline(mmn)
+                    continue
+                end
                 line = readline(mmn)
                 arr = split(line)
                 ol = parse(Float64, arr[1]) + im*parse(Float64, arr[2])
-                m,n = mod(mn,J)+1, div(mn,J)+1
+                # m,n = mod(mn,J)+1, div(mn,J)+1
                 M[K,nneighbor,m,n] = ol
             end
         end
     end
 
     fill!(A,NaN) #protection: A must be filled by the algorithm
+
+    # Filter out unwanted space
+    A = A[:,:,:,nbeg:nend,nbeg:nend]
+    M = M[:,:,nbeg:nend,nbeg:nend]
+    J = nend - nbeg + 1
 
     # Computes overlap between two neighboring K points
     function overlap(K1,K2)
@@ -289,11 +305,15 @@ function make_wannier(J,N1,N2,N3,nntot,filename)
 
     ## Output amn file
     out = open("$filename.amn","w")
-    write(out, "Created by wannierize.jl", string(now()),"\n")
-    write(out, "$J $Ntot $J\n")
+    write(out, "Created by wannierize.jl ", string(now()),"\n")
+    write(out, "$Jorig $Ntot $J\n")
     for K=1:Ntot
-        for n=1:J,m=1:J
-            coeff = A[K_to_ijk[K,1], K_to_ijk[K,2], K_to_ijk[K,3],m,n]
+        for n=1:J,m=1:Jorig
+            if (m < nbeg) || (m > nend)
+                coeff = 0
+            else
+                coeff = A[K_to_ijk[K,1], K_to_ijk[K,2], K_to_ijk[K,3],m-nbeg+1,n]
+            end
             write(out, "$m $n $K $(real(coeff)) $(imag(coeff))\n")
         end
     end
@@ -332,14 +352,21 @@ if(length(ARGS) >= 1)
     N1 = parse(Int64,ARGS[2])
     N2 = parse(Int64,ARGS[3])
     N3 = parse(Int64,ARGS[4])
+    nbeg = parse(Int64,ARGS[5])
+    nend = parse(Int64,ARGS[6])
 else
     filename = "95-103-wannier"
     N1 = 14
     N2 = 14
     N3 = 1
+    nbeg = 1
+    nend = Inf
 end
 println("$filename, $N1 x $N2 x $N3")
 
 J,nntot = wannierize.read_parameters(filename,N1,N2,N3)
-println("$J bands, $N1 x $N2 x $N3 grid, $nntot neighbors")
-wannierize.make_wannier(J,N1,N2,N3,nntot,filename)
+if nend == Ninf
+    nend = J
+end
+println("$J bands, wannierizing from $nbeg to $nend, $N1 x $N2 x $N3 grid, $nntot neighbors")
+wannierize.make_wannier(J,N1,N2,N3,nntot,filename, nbeg, nend)
