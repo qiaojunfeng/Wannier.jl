@@ -155,10 +155,18 @@ function make_wannier(J,N1,N2,N3,nntot,filename)
 
     # corner obstruction
     Obs = normalize(overlap_A([1,N2,1],[1,1,1]))
+    d,V = eig(Obs)
+    logd = log(d)
+    for i =1:J
+        if imag(logd[i]) < -pi+.1
+            logd[i] = logd[i] + 2pi
+        end
+    end
     # pull it back
     for i=1:N1
         for j=1:N2
-            A[i,j,1,:,:] = A[i,j,1,:,:]*powm(Obs,t2[j])
+            # A[i,j,1,:,:] = A[i,j,1,:,:]*powm(Obs,t2[j])
+            A[i,j,1,:,:] = A[i,j,1,:,:]*V*diagm(exp(t2[j]*logd))*V'
         end
     end
 
@@ -228,8 +236,16 @@ function make_wannier(J,N1,N2,N3,nntot,filename)
 
     # Fix corner
     Obs = normalize(overlap_A([1,1,N3],[1,1,1]))
+    d,V = eig(Obs)
+    logd = log(d)
+    for i =1:J
+        if imag(logd[i]) < -pi+.1
+            logd[i] = logd[i] + 2pi
+        end
+    end
     for k=1:N3
-        fixer = powm(Obs,t3[k])
+        # fixer = powm(Obs,t3[k])
+        fixer = V*diagm(exp(t3[k]*logd))*V'
         for i=1:N1,j=1:N2
             A[i,j,k,:,:] = A[i,j,k,:,:]*fixer
         end
