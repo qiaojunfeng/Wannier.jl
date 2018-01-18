@@ -25,7 +25,9 @@ pw2wannier90.x < $system.pw2wan.mmn > pw2wan.mmn.out
 echo "pw2wannier amn"
 pw2wannier90.x < $system.pw2wan.amn > pw2wan.amn.out
 echo "wannierize"
-julia wannierize.jl
+julia ../../run_wannierize.jl
 echo "wannier90"
 $WANNIER90 $system
+mkdir spreads
+mkdir spreads/$N
 grep SPRD $system.wout | cut -c 60-70 > spreads/$N/$system.sprd
