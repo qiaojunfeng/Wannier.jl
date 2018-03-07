@@ -5,7 +5,7 @@ Julia code for the computation of Wannier functions.
 
 (get Wannier functions for isolated bands without specifying an initial gauge)
 
-- [2] A. Damle, A. Levitt, L. Lin, "Variational formulation for Wannier functions with entangled band structure", link to come
+- [2] A. Damle, A. Levitt, L. Lin, "Variational formulation for Wannier functions with entangled band structure", https://arxiv.org/abs/1801.08572
 
 (alternative minimization algorithm to Wannier90 for both isolated and non-isolated bands)
 
