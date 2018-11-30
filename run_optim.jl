@@ -1,4 +1,5 @@
 import Optim
+using Random
 
 include("MV.jl")
 include("wannierize_utils.jl")
@@ -11,7 +12,7 @@ nfrozen = 1 #will freeze if either n <= nfrozen or eigenvalue in frozen window
 frozen_window_low = -Inf
 frozen_window_high = -Inf
 ftol = 1e-20 #tolerance on spread
-gtol = 1e-6 #tolerance on gradient
+gtol = 1e-4 #tolerance on gradient
 maxiter = 3000 #maximum optimization iterations
 m = 100 #history size of BFGS
 
@@ -21,7 +22,7 @@ do_randomize_gauge = false #randomize initial gauge
 cluster_size = 1e-6 #will also freeze additional eigenvalues if the freezing cuts a cluster. Set to 0 to disable
 only_r2 = false #only minimize sum_n <r^2>_n, not sum_n <r^2>_n - <r>_n^2
 
-srand(1)
+Random.seed!(0)
 
 p = read_system(filename,read_amn,read_eig)
 
@@ -56,8 +57,8 @@ function local_frozen_sets(p, nfrozen, i, j, k, win_low, win_high)
         while nfrozen < p.nwannier && p.eigs[K,nfrozen+1] < p.eigs[k,nfrozen]+cluster_size
             nfrozen = nfrozen + 1
         end
-        
-        l_frozen[1:nfrozen] = true
+
+        l_frozen[1:nfrozen] .= true
         l_not_frozen = .!l_frozen
     end
 
@@ -70,15 +71,15 @@ end
 # X is nw x nw, Y is nb x nw and has first block equal to [I 0]
 
 function XY_to_A(p,X,Y)
-    A = zeros(Complex128,p.nband,p.nwannier,p.N1,p.N2,p.N3)
+    A = zeros(ComplexF64,p.nband,p.nwannier,p.N1,p.N2,p.N3)
     for i=1:p.N1,j=1:p.N2,k=1:p.N3
         l_frozen, l_not_frozen = local_frozen_sets(p, nfrozen, i, j, k, frozen_window_low, frozen_window_high)
         lnf = count(l_frozen)
-        @assert Y[:,:,i,j,k]'Y[:,:,i,j,k] ≈ eye(p.nwannier)
-        @assert X[:,:,i,j,k]'X[:,:,i,j,k] ≈ eye(p.nwannier)
-        @assert Y[l_frozen,1:lnf,i,j,k] ≈ eye(lnf)
-        @assert vecnorm(Y[l_not_frozen,1:lnf,i,j,k]) ≈ 0
-        @assert vecnorm(Y[l_frozen,lnf+1:end,i,j,k]) ≈ 0
+        @assert Y[:,:,i,j,k]'Y[:,:,i,j,k] ≈ I
+        @assert X[:,:,i,j,k]'X[:,:,i,j,k] ≈ I
+        @assert Y[l_frozen,1:lnf,i,j,k] ≈ I
+        @assert norm(Y[l_not_frozen,1:lnf,i,j,k]) ≈ 0
+        @assert norm(Y[l_frozen,lnf+1:end,i,j,k]) ≈ 0
         A[:,:,i,j,k] = Y[:,:,i,j,k]*X[:,:,i,j,k]
         # @assert normalize_and_freeze(A[:,:,i,j,k],lnf) ≈ A[:,:,i,j,k] rtol=1e-4
     end
@@ -86,8 +87,8 @@ function XY_to_A(p,X,Y)
 end
 
 function A_to_XY(p,A)
-    X = zeros(Complex128,p.nwannier,p.nwannier,p.N1,p.N2,p.N3)
-    Y = zeros(Complex128,p.nband,p.nwannier,p.N1,p.N2,p.N3)
+    X = zeros(ComplexF64,p.nwannier,p.nwannier,p.N1,p.N2,p.N3)
+    Y = zeros(ComplexF64,p.nband,p.nwannier,p.N1,p.N2,p.N3)
     for i=1:p.N1,j=1:p.N2,k=1:p.N3
         l_frozen, l_not_frozen = local_frozen_sets(p, nfrozen, i, j, k, frozen_window_low, frozen_window_high)
         lnf = count(l_frozen)
@@ -99,9 +100,9 @@ function A_to_XY(p,A)
         if lnf != p.nwannier
             proj = Ar*Ar'
             proj = Hermitian((proj+proj')/2)
-            D,V = eig(proj) #sorted by increasing eigenvalue
+            D,V = eigen(proj) #sorted by increasing eigenvalue
         end
-        Y[l_frozen,1:lnf,i,j,k] = eye(lnf)
+        Y[l_frozen,1:lnf,i,j,k] = Matrix(I,lnf,lnf)
         if lnf != p.nwannier
             Y[l_not_frozen,lnf+1:end,i,j,k] = V[:,end-p.nwannier+lnf+1:end]
         end
@@ -110,19 +111,19 @@ function A_to_XY(p,A)
         Xleft, S, Xright = svd(Y[:,:,i,j,k]'*Afrozen)
         X[:,:,i,j,k] = Xleft*Xright'
 
-        @assert Y[:,:,i,j,k]'Y[:,:,i,j,k] ≈ eye(p.nwannier)
-        @assert X[:,:,i,j,k]'X[:,:,i,j,k] ≈ eye(p.nwannier)
-        @assert Y[l_frozen,1:lnf,i,j,k] ≈ eye(lnf)
-        @assert vecnorm(Y[l_not_frozen,1:lnf,i,j,k]) ≈ 0
-        @assert vecnorm(Y[l_frozen,lnf+1:end,i,j,k]) ≈ 0
+        @assert Y[:,:,i,j,k]'Y[:,:,i,j,k] ≈ I
+        @assert X[:,:,i,j,k]'X[:,:,i,j,k] ≈ I
+        @assert Y[l_frozen,1:lnf,i,j,k] ≈ I
+        @assert norm(Y[l_not_frozen,1:lnf,i,j,k]) ≈ 0
+        @assert norm(Y[l_frozen,lnf+1:end,i,j,k]) ≈ 0
         @assert Y[:,:,i,j,k]*X[:,:,i,j,k] ≈ Afrozen
     end
     X,Y
 end
 
 function XY_to_XY(p,XY) #XY to (X,Y)
-    X = zeros(Complex128,p.nwannier,p.nwannier,p.N1,p.N2,p.N3)
-    Y = zeros(Complex128,p.nband,p.nwannier,p.N1,p.N2,p.N3)
+    X = zeros(ComplexF64,p.nwannier,p.nwannier,p.N1,p.N2,p.N3)
+    Y = zeros(ComplexF64,p.nband,p.nwannier,p.N1,p.N2,p.N3)
     for i=1:p.N1,j=1:p.N2,k=1:p.N3
         XYk = XY[:,i,j,k]
         X[:,:,i,j,k] = reshape(XYk[1:p.nwannier*p.nwannier], (p.nwannier, p.nwannier))
@@ -137,16 +138,16 @@ function obj(p,X,Y)
     func = res.Ωtot
     grad = res.gradient
 
-    gradX = zeros(X)
-    gradY = zeros(Y)
+    gradX = zero(X)
+    gradY = zero(Y)
     for i=1:p.N1,j=1:p.N2,k=1:p.N3
         l_frozen, l_not_frozen = local_frozen_sets(p, nfrozen, i, j, k, frozen_window_low, frozen_window_high)
         lnf = count(l_frozen)
         gradX[:,:,i,j,k] = Y[:,:,i,j,k]'*grad[:,:,i,j,k]
         gradY[:,:,i,j,k] = grad[:,:,i,j,k]*X[:,:,i,j,k]'
 
-        gradY[l_frozen,:,i,j,k] = 0.
-        gradY[:,1:lnf,i,j,k] = 0.
+        gradY[l_frozen,:,i,j,k] .= 0
+        gradY[:,1:lnf,i,j,k] .= 0
 
         # to compute the projected gradient: redundant, taken care of by the optimizer
         # function proj_stiefel(G,X)
@@ -166,8 +167,8 @@ function minimize(p,A)
         if read_amn
             error("don't set do_randomize_gauge and read_amn")
         end
-        X0 = zeros(Complex128,p.nwannier,p.nwannier,p.N1,p.N2,p.N3)
-        Y0 = zeros(Complex128,p.nband,p.nwannier,p.N1,p.N2,p.N3)
+        X0 = zeros(ComplexF64,p.nwannier,p.nwannier,p.N1,p.N2,p.N3)
+        Y0 = zeros(ComplexF64,p.nband,p.nwannier,p.N1,p.N2,p.N3)
         for i=1:p.N1,j=1:p.N2,k=1:p.N3
             l_frozen, l_not_frozen = local_frozen_sets(p, nfrozen, i, j, k, frozen_window_low, frozen_window_high)
             lnf = count(l_frozen)
@@ -178,7 +179,7 @@ function minimize(p,A)
     end
 
     M = p.nwannier*p.nwannier+p.nband*p.nwannier
-    XY0 = zeros(Complex128, M, p.N1, p.N2, p.N3)
+    XY0 = zeros(ComplexF64, M, p.N1, p.N2, p.N3)
     for i=1:p.N1,j=1:p.N2,k=1:p.N3
         XY0[:,i,j,k] = vcat(vec(X0[:,:,i,j,k]),vec(Y0[:,:,i,j,k]))
     end
@@ -208,13 +209,13 @@ function minimize(p,A)
     end
 
     # need QR orthogonalization rather than SVD to preserve the sparsity structure of Y
-    XYkManif = Optim.ProductManifold(Optim.Stiefel_CholQR(), Optim.Stiefel_CholQR(), (p.nwannier, p.nwannier), (p.nband, p.nwannier))
+    XYkManif = Optim.ProductManifold(Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (p.nwannier, p.nwannier), (p.nband, p.nwannier))
     XYManif = Optim.PowerManifold(XYkManif, (M,), (p.N1,p.N2,p.N3))
 
     # stepsize_mult = 1
     # step = 0.5/(4*8*p.wb)*(p.N1*p.N2*p.N3)*stepsize_mult
     # ls = LineSearches.Static(step)
-    ls = LineSearches.HagerZhang()
+    ls = Optim.HagerZhang()
     # ls = LineSearches.BackTracking()
     # meth = Optim.GradientDescent
     # meth = Optim.ConjugateGradient

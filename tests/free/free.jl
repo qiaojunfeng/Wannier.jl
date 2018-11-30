@@ -1,4 +1,4 @@
-include("../../wannierize_utils.jl")
+# include("../../wannierize_utils.jl")
 
 #=
 We look at the free Hamiltonian H = -Delta in the unit cell 2pi x [-.5,.5]^d, with BZ [0,1]^d
@@ -15,11 +15,14 @@ The BZ loops are always on [0,1]^d, which is shifted by "corner" when computing 
 =#
 
 using SpecialFunctions
+using LinearAlgebra
+using Dates
+
 nwannier = 2
 # k-grid
 N1 = 1
 N2 = 1
-N3 = 40
+N3 = 20
 
 # G-grid
 L1 = 0
@@ -58,27 +61,28 @@ end
 
 k = randn(3); @assert k ≈ k_red_to_real(k_real_to_red(k)) #sanity check
 
-λ(k,Ks) = squeeze(sum(abs2, (Ks .+ k_red_to_real(k)), 1),1) #eigenvalues at k in [0,1]^d
+λ(k,Ks) = dropdims(sum(abs2, (Ks .+ k_red_to_real(k)), dims=1),dims=1) #eigenvalues at k in [0,1]^d
+
 
 nband = (2L1+1)*(2L2+1)*(2L3+1) #size of the Hamiltonian
 Ks = zeros(Int,3,nband)
-ind = 1
-for l1=-L1:L1
-    for l2=-L2:L2
-        for l3=-L3:L3
-            Ks[:,ind] = [l1, l2, l3]
-            ind += 1
+let ind = 1
+    for l1=-L1:L1
+        for l2=-L2:L2
+            for l3=-L3:L3
+                Ks[:,ind] = [l1, l2, l3]
+                ind += 1
+            end
         end
     end
 end
-
 function write_files(N1, N2, N3, L1, L2, L3, nwannier)
     nband = (2L1+1)*(2L2+1)*(2L3+1) #size of the Hamiltonian
     Ks = zeros(Int,3,nband) #list of K vectors
     Ntot = N1*N2*N3
     Ns = [N1,N2,N3]
-    R = zeros(Complex128,nband,3)
-    Rfrac = zeros(Complex128,nband,3)
+    R = zeros(ComplexF64,nband,3)
+    Rfrac = zeros(ComplexF64,nband,3)
     ind = 1
     for l1=-L1:L1
         for l2=-L2:L2
@@ -161,7 +165,7 @@ begin kpoints
     end
 
     eig = open("free.eig","w")
-    eig_allk = zeros(Complex128,nband,N1*N2*N3)
+    eig_allk = zeros(ComplexF64,nband,N1*N2*N3)
     ind = 1
     for i=0:N1-1
         for j=0:N2-1
@@ -211,14 +215,14 @@ begin kpoints
 
     # Unk and SCDM stuff
     # same for all kpoints
-    Amn = zeros(Complex128,N1,N2,N3,nband,nwannier)
+    Amn = zeros(ComplexF64,N1,N2,N3,nband,nwannier)
 
     gamma = [0.0,0.0,0.0]
     eig_k = λ(k_real_to_red(gamma),Ks) # λ is computed in reduced coordinates
     Unk = exp.(1im*R*Ks)
-    occ = (1/2)*erfc.((real(eig_k)-mu)/sigma)
+    occ = (1/2)*erfc.((real(eig_k).-mu)./sigma)
 
-    Qtemp, Rtemp, piv = qr(diagm(occ)*Unk',Val{true})
+    Qtemp, Rtemp, piv = qr(diagm(0=>occ)*Unk',Val(true))
 
     cols = piv[1:nwannier]
     min_S = Inf
@@ -234,14 +238,14 @@ begin kpoints
                 K_to_n = invperm(n_to_K)
                 eig_k = eig_k[n_to_K]
                 # Note that the order of Ks is kpt dependent
-                Unk = zeros(Complex128,nband,nband)
+                Unk = zeros(ComplexF64,nband,nband)
                 for m = 1 : nband
                     Km = n_to_K[m]
                     Unk[:,m] = exp.(1im*R*(Ks[:,Km]))
                 end
-                occ = (1/2)*erfc.((real(eig_k)-mu)/sigma)
+                occ = (1/2)*erfc.((real(eig_k).-mu)./sigma)
 
-                Y = diagm(phase)*Unk[cols,:]*diagm(occ)
+                Y = diagm(0=>phase)*Unk[cols,:]*diagm(0=>occ)
                 Y = Y'
 
                 U,S,V = svd(Y)
@@ -254,7 +258,7 @@ begin kpoints
 
     for file in ("free.amn", "free.SCDM.amn")
         out = open(file,"w")
-        write(out, "Created by free.jl ", string(now()), "\n")
+        write(out, "Created by free.jl ", string(Dates.now()), "\n")
         write(out, "$(nband) $(N1*N2*N3) $(nwannier)\n")
         for i=1:N1
             for j=1:N2
@@ -281,4 +285,4 @@ loc = omega_loc(p,A)
 # writedlm("data",loc)
 println(maximum(loc))
 println("Max loc = ", maximum(loc))
-include("../../plot_free_wannier.jl")
+include("plot_free_wannier.jl")

@@ -13,10 +13,10 @@ struct Omega_res
     frozen_weight :: Float64
     spreads :: Array{Float64,1} #nband
     centers :: Array{Float64,2} #3 x nband
-    gradient :: Array{Complex128, 5}#nband x nband x n1 x n2 x n3
+    gradient :: Array{ComplexF64, 5}#nband x nband x n1 x n2 x n3
 end
 
-imaglog(z) = atan2(imag(z), real(z))
+imaglog(z) = atan(imag(z), real(z))
 
 @views function omega(p,A,compute_grad=false,only_r2=false)
     mu=0.
@@ -26,18 +26,18 @@ imaglog(z) = atan2(imag(z), real(z))
             centers = omega(p,A,false).centers
         end
     end
-    grad = zeros(Complex128,p.nband,p.nwannier,p.N1,p.N2,p.N3)
+    grad = zeros(ComplexF64,p.nband,p.nwannier,p.N1,p.N2,p.N3)
     r = zeros(3,p.nwannier)
     r2 = zeros(p.nwannier)
     ΩI = 0.
     ΩOD = 0.
     ΩD = 0.
     frozen_weight = 0.
-    R = zeros(Complex128,p.nband,p.nwannier)
-    T = zeros(Complex128,p.nband,p.nwannier)
+    R = zeros(ComplexF64,p.nband,p.nwannier)
+    T = zeros(ComplexF64,p.nband,p.nwannier)
     b = zeros(3)
-    Mkb = zeros(Complex128,p.nwannier,p.nwannier)
-    Okb = zeros(Complex128,p.nband,p.nwannier)
+    Mkb = zeros(ComplexF64,p.nwannier,p.nwannier)
+    Okb = zeros(ComplexF64,p.nband,p.nwannier)
     for i=1:p.N1,j=1:p.N2,k=1:p.N3
         K = p.ijk_to_K[i,j,k]
 
@@ -85,11 +85,11 @@ imaglog(z) = atan2(imag(z), real(z))
                         T[m,n] = Tfac*Okb[m,n]
                     end
                 end
-                grad[:,:,i,j,k] .+= 4.*p.wb.*(R.+T)
+                grad[:,:,i,j,k] .+= 4*p.wb.*(R.+T)
             end
 
             ΩI += p.wb*(p.nwannier - sum(abs2,Mkb))
-            ΩOD += p.wb*sum(abs2,Mkb .- diagm(diag(Mkb)))
+            ΩOD += p.wb*sum(abs2,Mkb .- diagm(0=>diag(Mkb)))
             for n=1:p.nwannier
                 if !only_r2
                     r[:,n] -= p.wb*imaglog(Mkb[n,n])*b
@@ -108,7 +108,7 @@ imaglog(z) = atan2(imag(z), real(z))
     frozen_weight /= Ntot
     (grad /= Ntot)
 
-    spreads = (r2 - squeeze(sum(abs.(r).^2,1),1))
+    spreads = (r2 - dropdims(sum(abs.(r).^2,dims=1),dims=1))
     Ωtot = sum(spreads) + frozen_weight
     Ωtilde = Ωtot - ΩI
     return Omega_res(Ωtot,ΩI,ΩOD,ΩD,Ωtilde,frozen_weight,spreads,r,grad)

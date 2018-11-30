@@ -1,4 +1,7 @@
 using PyPlot
+using FFTW
+
+linspace(a,b,n) = range(a,stop=b,length=n)
 
 close("all")
 
@@ -14,20 +17,19 @@ Ks = zeros(Int,3,nband)
 Ntot = p.N1*p.N2*p.N3
 Ns = [p.N1,p.N2,p.N3]
 
-ind = 1
-for l1=-L1:L1
-    for l2=-L2:L2
-        for l3=-L3:L3
-            Ks[:,ind] = [l1, l2, l3]
-            ind += 1
+let ind = 1
+    for l1=-L1:L1
+        for l2=-L2:L2
+            for l3=-L3:L3
+                Ks[:,ind] = [l1, l2, l3]
+                ind += 1
+            end
         end
     end
 end
 
-Wfour = zeros(Complex128,nwannier,(2L1+1)*N1,(2L2+1)*N2,(2L3+1)*N3)
-H = zeros(Complex128,nwannier,nwannier,N1,N2,N3)
-
-jmax, kmax = ind2sub((N2,N3),indmax(loc))
+Wfour = zeros(ComplexF64,nwannier,(2L1+1)*N1,(2L2+1)*N2,(2L3+1)*N3)
+H = zeros(ComplexF64,nwannier,nwannier,N1,N2,N3)
 
 ijk_to_kind(i,j,k) = k + j*N3 + i*N2*N3 + 1
 for i=0:N1-1
@@ -38,8 +40,8 @@ for i=0:N1-1
             kind = ijk_to_kind(i,j,k)
             eig_k = λ(kpt,Ks)
             perm = (sortperm(eig_k))
-            H[:,:,i+1,j+1,k+1] = A[:,:,i+1,j+1,k+1]'*diagm(sort(eig_k))*A[:,:,i+1,j+1,k+1]
-            @assert A[:,:,i+1,j+1,k+1]'A[:,:,i+1,j+1,k+1] ≈ eye(nwannier)
+            H[:,:,i+1,j+1,k+1] = A[:,:,i+1,j+1,k+1]'*diagm(0=>sort(eig_k))*A[:,:,i+1,j+1,k+1]
+            @assert A[:,:,i+1,j+1,k+1]'A[:,:,i+1,j+1,k+1] ≈ I
             for iwann = 1:nwannier
                 for iband = 1:nband
                     Wfour[iwann,
@@ -59,7 +61,7 @@ for i=0:N1-1
     end
 end
 
-Wreal = zeros(Complex128, nwannier, (2L1+1)*N1,(2L2+1)*N2,(2L3+1)*N3)
+Wreal = zeros(ComplexF64, nwannier, (2L1+1)*N1,(2L2+1)*N2,(2L3+1)*N3)
 # TODO this is a huge hack because I'm too lazy to do it properly. It makes WF be real when they should be
 if do_shift == false && corner == [0.,0.,0.] && (N1 == N2 == 1)
     new_Wfour = circshift(Wfour, (0,0,0,N3/2))
@@ -74,9 +76,9 @@ end
 
 # See https://julialang.org/blog/2016/02/iteration for the trick used here for a completely generic (and fast!) multidimensional algorithm
 function four_interp(arr, fac=1)
-    R = CartesianRange(size(arr))
+    R = CartesianIndices(size(arr))
     Ns = [size(arr)...]
-    arr_fine = zeros(Complex128,(2fac-1)*Ns...)
+    arr_fine = zeros(ComplexF64,(2fac-1)*Ns...)
     shift = CartesianIndex((fac-1)*Ns...)
     # function barrier for type inference
     function fillshift!(dest,src,R,shift)
@@ -89,17 +91,17 @@ function four_interp(arr, fac=1)
 end
 
 function four_interp_ham(H, fac=1)
-    return mapslices(arr -> four_interp(arr,fac),H,3:length(size(H)))
+    return mapslices(arr -> four_interp(arr,fac),H,dims=3:length(size(H)))
 end
 
 # 1D
 if dim == 1
-    kspace = (0:N3-1)/N3 + k_red_to_real([0.,0.,0.])[3]
+    kspace = (0:N3-1)/N3 .+ k_red_to_real([0.,0.,0.])[3]
     ξspace = linspace(-L3+kspace[1],L3+kspace[end], (2L3+1)*N3) #TODO not actually linspace, but not that important
     rspace = linspace(-pi*N3,pi*N3, (2L3+1)*N3)
     # plot the gauge
     figure()
-    plot(kspace, sort(p.eigs,2))
+    plot(kspace, sort(p.eigs,dims=2))
     ylim(0,2)
     xlim(kspace[1],kspace[end])
     xlabel("k")
@@ -111,7 +113,7 @@ if dim == 1
     markers = ("s","x","o","d")
     markers = ("-x","--s","o","d")
     for n=2:2
-    # for n=1:1
+        # for n=1:1
         gca()[:set_color_cycle](nothing)
         # for m=1:p.nband
         for m=1:3
@@ -128,10 +130,10 @@ if dim == 1
     savefig("gauge.pdf")
 
     N = N3
-    Wfour = squeeze(Wfour,(2,3))
-    Wreal = squeeze(Wreal,(2,3))
-    H = squeeze(H,(3,4))
-    
+    Wfour = dropdims(Wfour,dims=(2,3))
+    Wreal = dropdims(Wreal,dims=(2,3))
+    H = dropdims(H,dims=(3,4))
+
     # normalize here rather than try to figure out correct normalizations
     for n=1:p.nwannier
         Wfour[n,:] /= sqrt(sum(abs2,Wfour[n,:]) * (ξspace[2]-ξspace[1]))
@@ -180,8 +182,8 @@ if dim == 1
     figure()
     fac = 10
     Nint = (2fac-1)*N
-    x = (0:N-1)/N
-    xint = (0:Nint-1)/Nint
+    x = collect((0:N-1)/N)
+    xint = collect((0:Nint-1)/Nint)
 
     if do_shift
         # This is a bit awkward because Fourier interpolation works on a (0:N-1)/N grid
@@ -200,29 +202,26 @@ if dim == 1
 
     end
 
-    x += corner[3]
-    xint += corner[3]
-
-    println(x)
-    println(xint)
+    x .+= corner[3]
+    xint .+= corner[3]
 
     Hint = four_interp_ham(H,fac)
 
     # not in reduced BZ
-    λ_real(k,Ks) = squeeze(sum(abs2, (Ks .+ k), 1),1)
+    λ_real(k,Ks) = dropdims(sum(abs2, (Ks .+ k), dims=1),dims=1)
 
     plot(xint,[sort(λ_real([0,0,xint[i]],Ks))[1] for i =1:Nint], "-k", label="Exact")
     plot(xint,[sort(λ_real([0,0,xint[i]],Ks))[2] for i =1:Nint], "-k")
     # plot(xint,[sort(λ_real([0,0,xint[i]],Ks))[3] for i =1:Nint], "-k")
     # ylim(-.1,1.1)
     # plot(xint,[sort(λ([0,0,xint[i]],Ks))[3] for i =1:Nint], "-k")
-    plot(x,[sort(real(eig(H[:,:,i])[1]))[m] for i=1:N, m=1], "x", label="Samples")
-    plot(x,[sort(real(eig(H[:,:,i])[1]))[m] for i=1:N, m=2], "x")
-    # plot(x,[sort(real(eig(H[:,:,i])[1]))[m] for i=1:N, m=3], "o")
+    plot(x,[sort(real(eigen(H[:,:,i]).values))[m] for i=1:N, m=1], "x", label="Samples")
+    plot(x,[sort(real(eigen(H[:,:,i]).values))[m] for i=1:N, m=2], "x")
+    # plot(x,[sort(real(eigen(H[:,:,i]).values))[m] for i=1:N, m=3], "o")
     gca()[:set_color_cycle](nothing)
-    plot(xint,[sort(real(eig(Hint[:,:,i])[1]))[m] for i=1:Nint, m=1], "-", label="Interpolation")
-    plot(xint,[sort(real(eig(Hint[:,:,i])[1]))[m] for i=1:Nint, m=2], "-")
-    # plot(xint,[sort(real(eig(Hint[:,:,i])[1]))[m] for i=1:Nint, m=3], "-")
+    plot(xint,[sort(real(eigen(Hint[:,:,i]).values))[m] for i=1:Nint, m=1], "-", label="Interpolation")
+    plot(xint,[sort(real(eigen(Hint[:,:,i]).values))[m] for i=1:Nint, m=2], "-")
+    # plot(xint,[sort(real(eigen(Hint[:,:,i]).values))[m] for i=1:Nint, m=3], "-")
     legend()
     xlabel("k")
     ylabel("ɛ")
@@ -230,14 +229,14 @@ if dim == 1
     tight_layout()
     savefig("interp.pdf")
 
-    maxerr = maximum(abs.([sort(real(eig(Hint[:,:,i])[1]))[m] for i=1:Nint, m=1] - [sort(λ_real([0,0,xint[i]],Ks))[1] for i =1:Nint]))
+    maxerr = maximum(abs.([sort(real(eigen(Hint[:,:,i]).values))[m] for i=1:Nint, m=1] - [sort(λ_real([0,0,xint[i]],Ks))[1] for i =1:Nint]))
     println("max err $maxerr")
 end
 
 if dim == 2
     npt = 100
-    kx = linspace(0,1,npt)+k_red_to_real([0.,0.,0.])[2]
-    ky = linspace(0,1,npt)+k_red_to_real([0.,0.,0.])[3]
+    kx = linspace(0,1,npt).+k_red_to_real([0.,0.,0.])[2]
+    ky = linspace(0,1,npt).+k_red_to_real([0.,0.,0.])[3]
     eigs = zeros(npt,npt,nband)
     for i=1:npt
         for j=1:npt
@@ -247,19 +246,19 @@ if dim == 2
     # plot_surface(kspace*kspace',kspace*kspace',eigs[:,:,1])
 
     if( false )
-      for n=1:min(p.nband-1,6)
-        # plot_surface(kspace,kspace,eigs[:,:,n],cmap=ColorMap("coolwarm"),linewidth=0,rstride=1,cstride=1,antialiased=false)
-        # plot_surface(kspace,kspace,eigs[:,:,n+1] - eigs[:,:,n],cmap=ColorMap("coolwarm"),linewidth=0,rstride=1,cstride=1,antialiased=false)
-        figure()
-        pcolormesh(kx,ky,log10.(eigs[:,:,n+1] - eigs[:,:,n] + 1e-3))
-        title("$n -> $(n+1)")
-        # pcolormesh(log10.(eigs[:,:,n]))
-        colorbar()
-      end
+        for n=1:min(p.nband-1,6)
+            # plot_surface(kspace,kspace,eigs[:,:,n],cmap=ColorMap("coolwarm"),linewidth=0,rstride=1,cstride=1,antialiased=false)
+            # plot_surface(kspace,kspace,eigs[:,:,n+1] - eigs[:,:,n],cmap=ColorMap("coolwarm"),linewidth=0,rstride=1,cstride=1,antialiased=false)
+            figure()
+            pcolormesh(kx,ky,log10.(eigs[:,:,n+1] - eigs[:,:,n] + 1e-3))
+            title("$n -> $(n+1)")
+            # pcolormesh(log10.(eigs[:,:,n]))
+            colorbar()
+        end
     end
-    
-    kx = linspace(0,1,N2)+k_red_to_real([0.,0.,0.])[2]
-    ky = linspace(0,1,N3)+k_red_to_real([0.,0.,0.])[3]
+
+    kx = linspace(0,1,N2).+k_red_to_real([0.,0.,0.])[2]
+    ky = linspace(0,1,N3).+k_red_to_real([0.,0.,0.])[3]
     figure()
     pcolormesh(kx,ky,loc[1,:,:],cmap=ColorMap("gray_r"))
     xlabel("kx")
@@ -269,11 +268,11 @@ if dim == 2
     @assert N2 == N3
     N = N2
 
-    Wfour = squeeze(Wfour,(2))
-    Wreal = squeeze(Wreal,(2))
-    H = squeeze(H,(3))
+    Wfour = dropdims(Wfour,dims=(2))
+    Wreal = dropdims(Wreal,dims=(2))
+    H = dropdims(H,dims=(3))
 
-    ξ = (0:N3-1)/N3 + k_red_to_real([0.,0.,0.])[3]
+    ξ = (0:N3-1)/N3 .+ k_red_to_real([0.,0.,0.])[3]
     ξspacex = linspace(-L2-kx[1],L2+kx[end], (2L2+1)*N3) #TODO not actually linspace, but not that important
     ξspacey = linspace(-L3-ky[1],L3+ky[end], (2L3+1)*N3) #TODO not actually linspace, but not that important
 
@@ -320,7 +319,7 @@ if dim == 2
         rspace = linspace(-pi*N3,pi*N3, (2L3+1)*N3)
         semilogy(rspace,data)
         xlim(rspace[1]/2,rspace[end]/2)
-        semilogy(rspace,1./rspace.^2/100,"k")
+        semilogy(rspace,1 ./rspace.^2/100,"k")
         legend(["w$iwann","1/r²"])
         xlabel("r")
         ylabel("|w(r)|")
@@ -331,7 +330,7 @@ if dim == 2
         rspace = linspace(-pi*N3,pi*N3, (2L3+1)*N3)
         beg = 160
         finish = 200
-        pcolormesh(rspace[beg:finish],rspace[beg:finish], real(Wreal[iwann,beg:finish,beg:finish]),linewidth=0,rasterized=true)
+        pcolormesh(rspace,rspace, real(Wreal[iwann,:,:]),linewidth=0,rasterized=true)
         xlim(-10,10)
         ylim(-10,10)
         xlabel("x")
@@ -345,39 +344,37 @@ if dim == 2
     Nint = (2fac-1)*N
     x = (0:N-1)/N
     xint = (0:Nint-1)/Nint
-    
+
     Hint = four_interp_ham(H,fac)
 
     @assert do_shift == false #not implemented yet
-
-    STOP
 
     figure()
 
     #exact
     plot(xint,[sort(λ([0,xint[i],0],Ks))[m] for i =1:Nint,m=1:1],"-k",label="Exact")
     plot(xint,[sort(λ([0,xint[i],0],Ks))[m] for i =1:Nint,m=1:nwannier],"-k")
-    plot(xint+1,[sort(λ([0,0,xint[i]],Ks))[m] for i =1:Nint,m=1:nwannier],"-k")
-    plot(xint+2,[sort(λ([0,xint[i],xint[i]],Ks))[m] for i =1:Nint,m=1:nwannier],"-k")
+    plot(xint.+1,[sort(λ([0,0,xint[i]],Ks))[m] for i =1:Nint,m=1:nwannier],"-k")
+    plot(xint.+2,[sort(λ([0,xint[i],xint[i]],Ks))[m] for i =1:Nint,m=1:nwannier],"-k")
 
     #original
-    plot(x,[sort(real(eig(H[:,:,i,1])[1]))[m] for i=1:N, m=1:1], "o",label="Samples")
+    plot(x,[sort(real(eigen(H[:,:,i,1]).values))[m] for i=1:N, m=1:1], "o",label="Samples")
     gca()[:set_color_cycle](nothing)
-    plot(x,[sort(real(eig(H[:,:,i,1])[1]))[m] for i=1:N, m=1:nwannier], "o")
+    plot(x,[sort(real(eigen(H[:,:,i,1]).values))[m] for i=1:N, m=1:nwannier], "o")
     gca()[:set_color_cycle](nothing)
-    plot(x+1,[sort(real(eig(H[:,:,1,i])[1]))[m] for i=1:N, m=1:nwannier],"o")
+    plot(x.+1,[sort(real(eigen(H[:,:,1,i]).values))[m] for i=1:N, m=1:nwannier],"o")
     gca()[:set_color_cycle](nothing)
-    plot(x+2,[sort(real(eig(H[:,:,i,i])[1]))[m] for i=1:N, m=1:nwannier], "o")
+    plot(x.+2,[sort(real(eigen(H[:,:,i,i]).values))[m] for i=1:N, m=1:nwannier], "o")
     gca()[:set_color_cycle](nothing)
 
     #interpolated
-    plot(xint,[sort(real(eig(Hint[:,:,i,1])[1]))[m] for i=1:Nint, m=1:1], "-",label="Interpolation")
+    plot(xint,[sort(real(eigen(Hint[:,:,i,1]).values))[m] for i=1:Nint, m=1:1], "-",label="Interpolation")
     gca()[:set_color_cycle](nothing)
-    plot(xint,[sort(real(eig(Hint[:,:,i,1])[1]))[m] for i=1:Nint, m=1:nwannier], "-")
+    plot(xint,[sort(real(eigen(Hint[:,:,i,1]).values))[m] for i=1:Nint, m=1:nwannier], "-")
     gca()[:set_color_cycle](nothing)
-    plot(xint+1,[sort(real(eig(Hint[:,:,1,i])[1]))[m] for i=1:Nint, m=1:nwannier],"-")
+    plot(xint.+1,[sort(real(eigen(Hint[:,:,1,i]).values))[m] for i=1:Nint, m=1:nwannier],"-")
     gca()[:set_color_cycle](nothing)
-    plot(xint+2,[sort(real(eig(Hint[:,:,i,i])[1]))[m] for i=1:Nint, m=1:nwannier], "-")
+    plot(xint.+2,[sort(real(eigen(Hint[:,:,i,i]).values))[m] for i=1:Nint, m=1:nwannier], "-")
 
     legend()
 
