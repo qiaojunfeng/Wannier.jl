@@ -14,6 +14,7 @@ struct Omega_res
     spreads :: Array{Float64,1} #nband
     centers :: Array{Float64,2} #3 x nband
     gradient :: Array{ComplexF64, 5}#nband x nband x n1 x n2 x n3
+    # fix_centers :: Array{Float64,2} #3 x nwannier
 end
 
 imaglog(z) = atan(imag(z), real(z))
@@ -23,7 +24,22 @@ imaglog(z) = atan(imag(z), real(z))
     nfrozen=0 #keep in case we want to do this later on
     if compute_grad
         if !only_r2
+            fix_center = true
+            if fix_center
+                fix_centers = [ # bohr
+                2.55000   2.55000   2.55000; 
+                2.55000   2.55000   2.55000; 
+                2.55000   2.55000   2.55000;
+                2.55000   2.55000   2.55000;
+                0.00000   0.00000   0.00000;
+                0.00000   0.00000   0.00000;
+                0.00000   0.00000   0.00000;
+                0.00000   0.00000   0.00000;
+                ]'
+                centers = fix_centers
+            else
             centers = omega(p,A,false).centers
+            end
         end
     end
     grad = zeros(ComplexF64,p.nband,p.nwannier,p.N1,p.N2,p.N3)
@@ -57,14 +73,14 @@ imaglog(z) = atan(imag(z), real(z))
 
             if compute_grad
                 # #MV way
-                # A(B) = (B-B')/2
-                # S(B) = (B+B')/(2*im)
+                # fA(B) = (B-B')/2
+                # fS(B) = (B+B')/(2*im)
                 # q = imaglog.(diag(Mkb)) + centers'*b
                 # for m=1:p.nwannier,n=1:p.nwannier
                 #     R[m,n] = Mkb[m,n]*conj(Mkb[n,n])
                 #     T[m,n] = Mkb[m,n]/Mkb[n,n]*q[n]
                 # end
-                # grad[i,j,k,:,:] += 4*p.wb*(A(R) .- S(T))
+                # grad[:,:,i,j,k] += 4*p.wb*(fA(R) .- fS(T))
 
 
                 q = imaglog.(diag(Mkb))

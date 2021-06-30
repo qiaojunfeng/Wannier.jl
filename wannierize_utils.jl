@@ -1,3 +1,6 @@
+using LinearAlgebra
+using Dates
+
 mutable struct WannierParameters
     N1::Int
     N2::Int
@@ -44,7 +47,7 @@ function read_system(filename, read_amn=true,read_eig=true)
     kpt_order = [1,2,3]
     while !eof(win)
         line = readline(win)
-	line = lowercase(line) # handle case insensitive win files (relic of Fortran)
+        line = lowercase(line) # handle case insensitive win files (relic of Fortran)
         line = replace(line, "="=>" ")
         line = replace(line, ":"=>" ")
         if(startswith(line,"!"))
@@ -61,7 +64,7 @@ function read_system(filename, read_amn=true,read_eig=true)
             for i = 1:3
                 unit_cell[:,i] = Base.map(x -> parse(Float64,x), split(readline(win))) #weird convention...
             end
-    	elseif occursin("begin kpoints",line)
+        elseif occursin("begin kpoints",line)
             # try to guess the kpoint format
             read_arr() = Base.map(x -> parse(Float64,x), split(readline(win)))
             @assert read_arr() == [0.,0.,0.] #first line
@@ -137,11 +140,10 @@ function read_system(filename, read_amn=true,read_eig=true)
                 arr = split(line)
                 ol = parse(Float64, arr[1]) + im*parse(Float64, arr[2])
                 M[m,n,K,nneighbor] = ol
-		@assert !isnan(ol)
+                @assert !isnan(ol)
             end
         end
     end
-
 
     t1 = collect(0:N1-1)/N1
     t2 = collect(0:N2-1)/N2
@@ -171,11 +173,15 @@ function read_system(filename, read_amn=true,read_eig=true)
     for ib = 1:nntot
         neighbor = neighbors[1,ib]
         i_n,j_n,k_n = K_to_ijk[neighbor,:]
-	b = recp_unit_cell*([t1[i_n];t2[j_n];t3[k_n]] .+ displ_vecs[:,1,ib] .- [t1[1];t2[1];t3[1]])
+        b = recp_unit_cell*([t1[i_n];t2[j_n];t3[k_n]] .+ displ_vecs[:,1,ib] .- [t1[1];t2[1];t3[1]])
         sumb += b*b'
     end
-    #@assert isapprox(sumb / norm(sumb), diagm(0=>[Int(N1>1), Int(N2>1), Int(N3>1)]))
-    @assert isapprox(sumb*pinv(sumb), diagm(0=>[Int(N1>1), Int(N2>1), Int(N3>1)]))
+    # display(sumb)
+    # display(pinv(sumb) / sumb[1,1])
+    # println()
+    @assert isapprox(sumb / sumb[1,1], diagm(0=>[Int(N1>1), Int(N2>1), Int(N3>1)]))
+    # @assert isapprox(pinv(sumb), diagm(0=>[Int(N1>1), Int(N2>1), Int(N3>1)]))
+    # fix: must be the same for all b vectors, and should be 1/sumb[1,1]?
     wb = 1/norm(sumb)
     println("Finite difference condition satisfied, wb=$wb")
 
@@ -226,7 +232,7 @@ function read_system(filename, read_amn=true,read_eig=true)
 
     println("$nband bands, $nwannier Wannier, $N1 x $N2 x $N3 grid, $nntot neighbors")
 
-    return WannierParameters(N1,N2,N3,t1,t2,t3,M,A,eigs,neighbors,kpt_order,ijk_to_K,K_to_ijk,nntot,nband,nwannier,filename,map,logMethod,recp_unit_cell,wb,displ_vecs)
+    return WannierParameters(N1,N2,N3,t1,t2,t3,M,A,eigs,neighbors,kpt_order,ijk_to_K,K_to_ijk,nntot,nband,nwannier,filename,map,logMethod,recp_unit_cell,wb,displ_vecs);
 end
 
 
@@ -234,7 +240,7 @@ end
 function overlap(K1,K2,p)
     #fix useful if N3 = 1 (e.g. for 2D models)
     if(K1 == K2)
-	return Matrix((1.0+0.0im)I,p.nband,p.nband)
+        return Matrix((1.0+0.0im)I,p.nband,p.nband)
     end
     for nneighbor=1:p.nntot
         if p.neighbors[K1,nneighbor] == K2
@@ -284,7 +290,7 @@ function powm(A,p)
     return V*Diagonal(d.^p)*V'
 end
 
-# Normalize a matrix A to be unitary. If X is a matrix with orthogonal columns and A a non-singular matrix, then Lšwdin-orthogonalizing X*A is equivalent to computing X*normalize_matrix(A)
+# Normalize a matrix A to be unitary. If X is a matrix with orthogonal columns and A a non-singular matrix, then Lowdin-orthogonalizing X*A is equivalent to computing X*normalize_matrix(A)
 function normalize_matrix(A)
     U,S,V = svd(A)
     accuracy = norm(U*Diagonal(S)*V'-A)

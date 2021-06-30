@@ -4,16 +4,18 @@ using Random
 include("MV.jl")
 include("wannierize_utils.jl")
 
-filename = "free"
+filename = "si"
+# filename = "aiida"
 read_amn = true #read $file.amn as input
 read_eig = true #read the eig file (can be set to false when not disentangling)
 do_write_amn = true #write $file.optimize.amn at the end
-nfrozen = 1 #will freeze if either n <= nfrozen or eigenvalue in frozen window
+nfrozen = 0 #1 #will freeze if either n <= nfrozen or eigenvalue in frozen window
 frozen_window_low = -Inf
-frozen_window_high = -Inf
+# frozen_window_high = 1.1959000000e+01 #1.1959000000e+01 #-Inf
+frozen_window_high = 12
 ftol = 1e-20 #tolerance on spread
 gtol = 1e-4 #tolerance on gradient
-maxiter = 3000 #maximum optimization iterations
+maxiter = 200 #3000 #maximum optimization iterations
 m = 100 #history size of BFGS
 
 # expert/experimental features
@@ -53,13 +55,35 @@ function local_frozen_sets(p, nfrozen, i, j, k, win_low, win_high)
 
     # if cluster of eigenvalues and nfrozen > 0, take them all
     if nfrozen > 0 
-        @assert issorted(p.eigs[K,:])
+        # @assert issorted(p.eigs[K,:]) display(K) display(p.eigs[K,:])
+        round_digits(x) = round(x, digits=9)
+        @assert issorted(p.eigs[K,:], by=round_digits) display(p.eigs[K,:])
         while nfrozen < p.nwannier && p.eigs[K,nfrozen+1] < p.eigs[k,nfrozen]+cluster_size
             nfrozen = nfrozen + 1
         end
 
         l_frozen[1:nfrozen] .= true
         l_not_frozen = .!l_frozen
+    end
+
+    dis_proj = false #true
+    if dis_proj
+        A = p.A[:,:,i,j,k] # nbands * nwannier
+        proj = dropdims(real(sum(A .* conj(A), dims=2)), dims=2)
+        # println("proj")
+        # print(proj)
+        dis_proj_min = 1
+        dis_proj_max = 98 / 100
+        if any(.!l_frozen[proj.>=dis_proj_max])
+            # println("l_frozen before dis_proj")
+            # print(l_frozen)
+            l_frozen[proj.>=dis_proj_max] .= true
+            # println("l_frozen after dis_proj")
+            # print(l_frozen)
+            # println("proj.>=dis_proj_max")
+            # print(proj.>=dis_proj_max)
+            l_not_frozen = .!l_frozen
+        end
     end
 
     @assert count(l_frozen) <= p.nwannier
