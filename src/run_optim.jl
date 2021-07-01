@@ -1,6 +1,7 @@
 import Optim
 using Random
 
+include("parameters.jl")
 include("MV.jl")
 include("wannierize_utils.jl")
 
