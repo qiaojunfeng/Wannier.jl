@@ -1,7 +1,8 @@
-using LinearAlgebra: isapprox
+using LinearAlgebra: isapprox, length, include
 include("constants.jl")
 include("utilities.jl")
 include("bvectors.jl")
+include("parameters.jl")
 
 function read_win(filename)
     println("Reading $filename")
@@ -243,4 +244,67 @@ function read_seedname(seedname, read_amn = true, read_eig=true)
     )
 end
 
-read_seedname("/home/junfeng/git/Wannier.jl/test/silicon/example27/pao_w90/si")
+function read_nnkp(filename)
+    println("Reading $filename")
+
+    fnnkp = open(filename)
+
+    read_array(f, type) = map(x -> parse(type, x), split(readline(f)))
+
+    real_lattice = zeros(3, 3)
+    recip_lattice = zeros(3, 3)
+    num_kpts = 0
+    num_bvecs = 0
+    kpoints = zeros(3, 1)
+    nnkpts = zeros(Int, 4, 1, 1)
+
+    while !eof(fnnkp)
+        line = readline(fnnkp)
+        if occursin("begin real_lattice", line)
+            for i = 1:3
+                real_lattice[:, i] = read_array(fnnkp, Float64)
+            end
+            line = strip(readline(fnnkp))
+            @assert line == "end real_lattice"
+        elseif occursin("begin recip_lattice", line)
+            for i = 1:3
+                recip_lattice[:, i] = read_array(fnnkp, Float64)
+            end
+            line = strip(readline(fnnkp))
+            @assert line == "end recip_lattice"
+        elseif occursin("begin kpoints", line)
+            num_kpts = parse(Int, readline(fnnkp))
+            kpoints = zeros(3, num_kpts)
+            for i = 1:num_kpts
+                kpoints[:, i] = read_array(fnnkp, Float64)
+            end
+            line = strip(readline(fnnkp))
+            @assert line == "end kpoints"
+        elseif occursin("begin nnkpts", line)
+            num_bvecs = parse(Int, readline(fnnkp))
+            nnkpts = zeros(Int, 4, num_bvecs, num_kpts)
+            for _ = 1:num_kpts
+                for b = 1:num_bvecs
+                    arr = read_array(fnnkp, Int)
+                    k = arr[1]
+                    nnkpts[:, b, k] = arr[2:end]
+                end
+            end
+            line = strip(readline(fnnkp))
+            @assert line == "end nnkpts"
+        end
+    end
+    close(fnnkp)
+
+    println("$filename OK, num_kpts = $num_kpts, num_bvecs = $num_bvecs")
+    return Wannier90Nnkp(
+        real_lattice,
+        recip_lattice,
+        num_kpts,
+        kpoints,
+        num_bvecs,
+        nnkpts
+    )
+end
+
+# read_seedname("/home/junfeng/git/Wannier.jl/test/silicon/example27/pao_w90/si")
