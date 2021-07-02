@@ -69,6 +69,48 @@ function check_parallel(m, n)
 end
 
 """
+try to guess weights from MV1997 Eq. B1
+
+    bvecs: 3 * max_multi * num_shell
+    multis: num_shell
+    return: same size as input, but only selected shells which satisfy B1 condition
+"""
+function calculate_b1_weights(bvecs, multis)
+    eps = 1e-5
+
+    num_shell = length(multis)
+
+    # only compare the upper triangular part of bvec * bvec', 6 elements
+    bmat = zeros(6, num_shell)
+    # return the upper triangular part of a matrix as a vector
+    triu2vec(m) = m[triu!(trues(size(m)), 0)]
+    W = zeros(num_shell)
+    ishell = 1
+    while ishell <= num_shell
+        bmat[:, ishell] = triu2vec(bvecs[:,:,ishell] * bvecs[:,:,ishell]')
+        # Solve equation bmat * W = triu2vec(I) = [1 0 1 0 0 1]
+        # size(bmat) = (6, ishell), W is diagonal matrix of size ishell
+        # bmat = U * S * V' -> W = V * S^-1 * U' * triu2vec(I)
+        U, S, V = svd(bmat[:, 1:ishell])
+        if all(S .> eps)
+            W[1:ishell] = V * Diagonal(S)^-1 * U' * triu2vec(diagm([1,1,1]))
+            break
+        end
+        ishell += 1
+    end
+    @assert ishell != num_shell + 1 "Did not find enough shells!"
+    num_shell = ishell
+
+    # resize
+    multis = multis[1:num_shell]
+    max_multi = maximum(multis)
+    weights = W[1:num_shell]
+    bvecs = bvecs[:, 1:max_multi, 1:num_shell]
+
+    return bvecs, multis, weights
+end
+
+"""
 kpts: reduced coordinates
 """
 function search_shells(kpts, recip_cell)
@@ -152,37 +194,13 @@ function search_shells(kpts, recip_cell)
     max_multi = maximum(multis)
     bvecs = bvecs[:, 1:max_multi, keepshells]
 
-    # try to guess weights from MV1997 Eq. B1
-    # only compare the upper triangular part of bvec * bvec', 6 elements
-    bmat = zeros(6, num_shell)
-    # return the upper triangular part of a matrix as a vector
-    triu2vec(m) = m[triu!(trues(size(m)), 0)]
-    W = zeros(num_shell)
-    ishell = 1
-    while ishell <= num_shell
-        bmat[:, ishell] = triu2vec(bvecs[:,:,ishell] * bvecs[:,:,ishell]')
-        # Solve equation bmat * W = triu2vec(I) = [1 0 1 0 0 1]
-        # size(bmat) = (6, ishell), W is diagonal matrix of size ishell
-        # bmat = U * S * V' -> W = V * S^-1 * U' * triu2vec(I)
-        U, S, V = svd(bmat[:, 1:ishell])
-        if all(S .> eps)
-            W[1:ishell] = V * Diagonal(S)^-1 * U' * triu2vec(diagm([1,1,1]))
-            break
-        end
-        ishell += 1
-    end
-    @assert ishell != num_shell + 1 "Did not find enough shells!"
-    num_shell = ishell
+    # sort bvectors
 
-    # resize
-    multis = multis[1:num_shell]
-    max_multi = maximum(multis)
-    weights = W[1:num_shell]
-    bvecs = bvecs[:, 1:max_multi, 1:num_shell]
+    bvecs, multis, weights = calculate_b1_weights(bvecs, multis)
 
+    @info "BVector shell vectors" bvecs
     @info "BVector shell multiplicities" multis
     @info "BVector shell weights" weights
-    @info "BVector shell vectors" bvecs
 
     return BVectorShells(recip_cell, kpts, num_shell, bvecs, multis, weights)
 end
@@ -197,6 +215,26 @@ function check_b1(shells)
     @debug "Bvector sum" mat
     @assert isapprox(mat, I)
     println("Finite difference condition satisfied")
+end
+
+"""
+flatten shell vectors
+return: 
+bvecs: 3 * num_bvecs
+bvecs_weight: num_bvecs
+"""
+function flatten_shells(shells)
+    num_bvecs = sum(shells.multis)
+    bvecs = zeros(3, num_bvecs)
+    bvecs_weight = zeros(num_bvecs)
+    counter = 1
+    for ishell = 1:length(shells.multis)
+        imulti = shells.multis[ishell]
+        bvecs[:, counter:(counter + imulti - 1)] = shells.vecs[:, 1:imulti, ishell]
+        bvecs_weight[counter:(counter + imulti - 1)] .= shells.weights[ishell]
+        counter += imulti
+    end
+    return bvecs, bvecs_weight
 end
 
 # Generate bvectors for all the kpoints & sort (to be consistent with wannier90)
@@ -214,7 +252,7 @@ function generate_bvectors(kpts, recip_cell)
 
     # Firstly, sort by length of bvectors: nearest k+b goes first
     # Secondly, sort by supercell: k+b which is in the same cell as k goes first
-    # Thirdly, sort by the index (in the supercell array) of supercell: the smaller-index one goes first
+    # Thirdly, sort by the index (in the supercell array) of supercell: the larger-index one goes first
     #     Note this also relies on the order of supercell_cart, see generate_supercell()
     # Fourthly, sort by k+b index: the smaller-index k+b point goes first
     inv_recip = inv(recip_cell)
@@ -237,17 +275,16 @@ function generate_bvectors(kpts, recip_cell)
     kb1, kb2, k: cartesian coordinates
     """
     function bvec_isless(kb1, kb2, k)
-        if kb1 == kb2
+        # Float64 comparsion is tricky, esp. for norm
+        eps = 1e-5
+        
+        if isapprox(kb1, kb2; atol=eps)
             return true
         end
 
         normkb1 = norm(kb1 - k)
         normkb2 = norm(kb2 - k)
-        if normkb1 < normkb2
-            return true
-        elseif normkb1 > normkb2
-            return false
-        else
+        if abs(normkb1 - normkb2) < eps
             # using outter scope variable: inv_recip, kpts, kpts_cart
             # bring back to reduced coord, easier to compare
             kb1_reduced = inv_recip * kb1
@@ -260,20 +297,16 @@ function generate_bvectors(kpts, recip_cell)
             normkb1 = norm(celldisp_kb1)
             normkb2 = norm(celldisp_kb2)
             # @debug "jq" normkb1, normkb2
-            if normkb1 < normkb2
-                return true
-            elseif normkb1 > normkb2
-                return false
-            else
+            if abs(normkb1 - normkb2) < eps
                 # using outter scope variable: supercell_idx
                 celldisp_kb1_reduced = round.(Int, inv_recip * celldisp_kb1)
                 celldisp_kb2_reduced = round.(Int, inv_recip * celldisp_kb2)
                 idx1 = findvector(==, celldisp_kb1_reduced, supercell_idx)
                 idx2 = findvector(==, celldisp_kb2_reduced, supercell_idx)
-                @debug "jq" idx1, idx2
-                if idx1 < idx2
+                # @debug "jq", idx1, idx2
+                if idx1 > idx2
                     return true
-                elseif idx1 > idx2
+                elseif idx1 < idx2
                     return false
                 else
                     if kb1_equiv_idx < kb2_equiv_idx
@@ -284,28 +317,28 @@ function generate_bvectors(kpts, recip_cell)
                         throw(ErrorException("you are comparing equivalent k+b points, this should not happen!"))
                     end
                 end
+            elseif normkb1 < normkb2
+                return true
+            else # normkb1 > normkb2
+                return false
             end
+        elseif normkb1 < normkb2
+            return true
+        else # normkb1 > normkb2
+            return false
         end
     end
 
     # FIX: the order of b vectors is not the same as wannier90
     # k = kpts_cart[:,1]
-    # kb1 = recip_cell * (kpts[:,512]+[-1,-1,-1])
-    # kb2 = recip_cell * (kpts[:,449]+[-1,0,0])
+    # kb1 = recip_cell * (kpts[:,9] +[0 0 0]')
+    # kb2 = recip_cell * (kpts[:,65] +[0 0 0]')
     # @debug "islesss" bvec_isless(kb1, kb2, k)
     # throw(ErrorException)
 
-    # flatten shell vectors
-    num_bvecs = sum(shells.multis)
-    bvecs = zeros(3, num_bvecs)
-    bvecs_weight = zeros(num_bvecs)
-    counter = 1
-    for ishell = 1:length(shells.multis)
-        imulti = shells.multis[ishell]
-        bvecs[:, counter:(counter + imulti - 1)] = shells.vecs[:, 1:imulti, ishell]
-        bvecs_weight[counter:(counter + imulti - 1)] .= shells.weights[ishell]
-        counter += imulti
-    end
+    bvecs, bvecs_weight = flatten_shells(shells)
+    num_bvecs = length(bvecs_weight)
+
     # find k+b indexes
     kpbs = zeros(Int, num_bvecs, num_kpts)
     kpbs_weight = zeros(num_bvecs, num_kpts)
@@ -333,4 +366,21 @@ function generate_bvectors(kpts, recip_cell)
     @debug "k+b weights" kpbs_weight
 
     return kpbs, kpbs_disp, kpbs_weight
+end
+
+"""
+print Wannier90 nnkp file bvectors in cartesian coordinates
+"""
+function print_w90_nnkp(w90nnkp)
+    for k = 1:w90nnkp.num_kpts
+        kpt = w90nnkp.kpoints[:, k]
+        println("k = $kpt")
+        for b = 1:w90nnkp.num_bvecs
+            nnkp = w90nnkp.nnkpts[:, b, k]
+            kpb = w90nnkp.kpoints[:, nnkp[1]] + nnkp[2:end]
+            bvec = kpb - kpt
+            bvec_cart = w90nnkp.recip_lattice * bvec
+            println(bvec_cart)
+        end
+    end
 end

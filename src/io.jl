@@ -122,9 +122,9 @@ end
 function read_amn(filename)
     println("Reading $filename")
 
-    famn = open("$filename.amn")
-    readline(amn)
-    arr = split(readline(amn))
+    famn = open("$filename")
+    readline(famn)
+    arr = split(readline(famn))
     num_bands = parse(Int64, arr[1])
     num_kpts = parse(Int64, arr[2])
     num_wann = parse(Int64, arr[3])
@@ -152,7 +152,6 @@ end
 
 function read_eig(filename)
     println("Reading $filename")
-    eig = zeros(Ntot, nband)
 
     feig = open(filename)
     lines = readlines(filename)
@@ -179,7 +178,7 @@ function read_eig(filename)
     return eig
 end
 
-function read_seedname(seedname, read_amn = true, read_eig=true)
+function read_seedname(seedname, amn=true, eig=true)
     # read win, mmn and optionally amn
     win = read_win("$seedname.win")
     num_bands = win["num_bands"]
@@ -189,33 +188,33 @@ function read_seedname(seedname, read_amn = true, read_eig=true)
     kpbs, kpbs_disp, kpbs_weight = generate_bvectors(win["kpts"], win["recip_cell"])
     num_bvecs = size(kpbs_weight, 1)
 
-    mmn, kpbs2, kpbs_disp2 = read_mmn("$seedname.mmn")
+    m_mat, kpbs2, kpbs_disp2 = read_mmn("$seedname.mmn")
     # check consistency for mmn
-    @assert num_bands == size(mmn)[1]
-    @assert num_bvecs == size(mmn)[3]
-    @assert num_kpts == size(mmn)[4]
+    @assert num_bands == size(m_mat)[1]
+    @assert num_bvecs == size(m_mat)[3]
+    @assert num_kpts == size(m_mat)[4]
     @assert kpbs == kpbs2
     @assert kpbs_disp == kpbs_disp2
 
-    if read_amn
-        amn = read_amn("$seedname.amn")
-        @assert num_bands == size(amn)[1]
-        @assert num_wann == size(amn)[2]
-        @assert num_kpts == size(amn)[3]
+    if amn
+        a_mat = read_amn("$seedname.amn")
+        @assert num_bands == size(a_mat)[1]
+        @assert num_wann == size(a_mat)[2]
+        @assert num_kpts == size(a_mat)[3]
     else
         # TODO: not tested
-        amn = zeros(ComplexF64, num_bands, num_wann, num_kpts)
+        a_mat = zeros(ComplexF64, num_bands, num_wann, num_kpts)
         for n = 1:num_wann
-            amn[n, n, :] .= 1
+            a_mat[n, n, :] .= 1
         end
     end
 
-    if read_eig
-        eig = read_eig("$seedname.eig")
-        @assert num_bands == size(eig)[1]
-        @assert num_kpts == size(eig)[2]
+    if eig
+        eig_mat = read_eig("$seedname.eig")
+        @assert num_bands == size(eig_mat)[1]
+        @assert num_kpts == size(eig_mat)[2]
     else
-        eig = zeros(num_bands, num_kpts)
+        eig_mat = zeros(num_bands, num_kpts)
     end
 
     # FIX: not tested
@@ -238,9 +237,9 @@ function read_seedname(seedname, read_amn = true, read_eig=true)
         kpbs,
         kpbs_weight,
         kpbs_disp,
-        mmn,
-        amn,
-        eig
+        m_mat,
+        a_mat,
+        eig_mat
     )
 end
 
@@ -307,4 +306,4 @@ function read_nnkp(filename)
     )
 end
 
-# read_seedname("/home/junfeng/git/Wannier.jl/test/silicon/example27/pao_w90/si")
+read_seedname("/home/junfeng/git/Wannier.jl/test/silicon/example27/pao_w90/si")
