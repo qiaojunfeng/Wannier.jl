@@ -65,7 +65,7 @@ mutable struct Wannier90Nnkp
     # 4 * num_bvecs * num_kpts
     # nnkpts[1, ib, ik] = k+b equivalent kpoint k' in 1st BZ
     # nnkpts[2:4, ib, ik] = displacement vector from k' to k+b
-    nnkpts::Array{Int, 3}
+    nnkpts::Array{Int,3}
 
     # exclude_bands
 end

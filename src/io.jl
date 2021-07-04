@@ -1,4 +1,10 @@
+module InOut
+
+export read_win, read_mmn, read_amn, read_eig, read_seedname
+
 using LinearAlgebra: isapprox, length, include
+using Dates: now
+
 include("constants.jl")
 include("utilities.jl")
 include("bvectors.jl")
@@ -173,6 +179,14 @@ function read_eig(filename)
     num_bands = length(Set(indexb))
     num_kpts = length(Set(indexk))
     eig = reshape(eig, (num_bands, num_kpts))
+
+    # check eigenvalues should be in order
+    # some times there are small noise
+    round_digits(x) = round(x, digits=9)
+    for ik = 1:num_kpts
+        # @assert issorted(eig[:, ik]) display(ik) display(eig[:, ik])
+        @assert issorted(eig[:, ik], by=round_digits) display(ik) display(eig[:, ik])
+    end
     
     println("$filename OK, size = ", size(eig))
     return eig
@@ -306,4 +320,24 @@ function read_nnkp(filename)
     )
 end
 
-read_seedname("/home/junfeng/git/Wannier.jl/test/silicon/example27/pao_w90/si")
+"""
+Output amn file
+"""
+function write_amn(filename, A)
+    famn = open(filename, "w")
+    write(famn, "Created by Wannier.jl ", string(now()), "\n")
+    num_bands, num_wann, num_kpts = size(A)
+    write(famn, "$num_bands $num_kpts $num_wann\n")
+    for ik = 1:num_kpts
+        for iw = 1:num_wann
+            for ib = 1:num_bands
+                coeff = A[ib,iw,ik]
+                write(famn, "$ib $iw $ik $(real(coeff)) $(imag(coeff))\n")
+            end
+        end
+    end
+    close(famn)
+    println("Written to file $(filename)")
+end
+
+end

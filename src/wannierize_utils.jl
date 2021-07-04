@@ -3,20 +3,6 @@ using Dates
 
 
 
-# Computes overlap between two neighboring K points
-function overlap(K1,K2,p)
-    #fix useful if N3 = 1 (e.g. for 2D models)
-    if(K1 == K2)
-        return Matrix((1.0+0.0im)I,p.nband,p.nband)
-    end
-    for nneighbor=1:p.nntot
-        if p.neighbors[K1,nneighbor] == K2
-            return view(p.M, :, :, K1, nneighbor)
-        end
-    end
-    error("No neighbors found, K1 = $(K1), K2 = $(K2)")
-    return Matrix((1.0+0.0im)I,p.nband,p.nband)
-end
 # Computes the overlap between K1 and K2, rotated by A1 and A2 respectively
 function overlap(v1,v2,A1,A2,p)
     return (A1')*overlap(v1, v2, p)*A2
@@ -57,52 +43,6 @@ function powm(A,p)
     return V*Diagonal(d.^p)*V'
 end
 
-# normalize and freeze a block of a matrix
-# A = [Uf* Ur*]
-# A*A = I, Uf* Uf = I
-# UfUf* + UrUr* = I
-# From this, obtain Uf*Ur = 0
-# Strategy: first orthogonalize Uf, then project Uf out of Ur, then orthogonalize the range of Ur
-function normalize_and_freeze(A,frozen,not_frozen)
-    # orthogonalize Uf
-    Uf = A[frozen,:]'
-    U,S,V = svd(Uf)
-    Uf = U*V'
-    # Uf = normalize_matrix_chol(Uf)
-
-    # project Uf out of Ur
-    Ur = A[not_frozen,:]'
-    Ur -= Uf*Uf'*Ur
-
-    # # alternative method, maybe more stable but slower
-    # ovl = Ur'Ur
-    # S, U = eig(Hermitian(ovl))
-    # S = real(S)
-    # @assert !any(x -> 1e-11 <= x <= 1e-9, S)
-    # @assert count(x -> x > 1e-10, S) == size(A,2) - nfrozen
-    # Sm12 = map(x-> x < 1e-10 ? 0. : 1/sqrt(x), S)
-    # Ur = Ur*(U*diagm(Sm12)*U')
-
-    # renormalize the range of Ur
-    U,S,V = svd(Ur)
-    eps = 1e-10
-    @assert !any(x -> 1e-11 <= x <= 1e-9, S)
-    @assert count(x -> x > 1e-10, S) == size(A,2) - count(frozen)
-    S[S .> eps] .= 1
-    S[S .< eps] .= 0
-    Ur = U*Diagonal(S)*V'
-
-    A[not_frozen,:] = Ur'
-
-
-    B = vcat(Uf',Ur')
-    B[frozen,:] .= Uf'
-    B[not_frozen,:] .= Ur'
-    @assert isapprox(B'B, I, rtol=1e-12)
-    @assert isapprox(B[frozen,:]*B[frozen,:]', I, rtol=1e-12)
-    @assert norm(Uf'*Ur)<1e-10
-    return B
-end
 
 
 # Propagate A0, defined at the first kpt, to the given list of kpts.
@@ -136,22 +76,6 @@ function plot_surface_obstructions(p, suffix="")
         savefig("wannierize$filename.$suffix.pdf")
         close()
     end
-end
-
-function write_amn(p,A,filename)
-    ## Output amn file
-    out = open("$filename.amn","w")
-    write(out, "Created by wannierize.jl ", string(now()), "\n")
-    write(out, "$(p.nband) $(p.N1*p.N2*p.N3) $(p.nwannier)\n")
-    for K=1:p.N1*p.N2*p.N3
-        for n=1:p.nwannier
-            for m = 1:p.nband
-                coeff = A[m,n,p.K_to_ijk[K,1], p.K_to_ijk[K,2], p.K_to_ijk[K,3]]
-                write(out, "$m $n $K $(real(coeff)) $(imag(coeff))\n")
-            end
-        end
-    end
-    close(out)
 end
 
 function interpfft(A,newSize)
