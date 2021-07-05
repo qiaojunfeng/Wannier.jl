@@ -1,5 +1,9 @@
-include("parameters.jl")
-include("spreads.jl")
+module Disentangle
+
+import LinearAlgebra as LA
+import Optim
+# using ..Parameters: InputParams
+using ..Spreads: omega
 
 function get_frozen_bands_k(params, ik)# , num_frozen, dis_froz_min, dis_froz_max)
     # number of frozen bands
@@ -69,7 +73,7 @@ Strategy: first orthogonalize Uf, then project Uf out of Ur, then orthogonalize 
 function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, not_frozen::BitVector)
     # orthogonalize Uf
     Uf = A[frozen,:]
-    U, S, V = svd(Uf)
+    U, S, V = LA.svd(Uf)
     Uf = U * V'
     # Uf = normalize_matrix_chol(Uf)
 
@@ -87,22 +91,22 @@ function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, not
     # Ur = Ur*(U*diagm(Sm12)*U')
 
     # renormalize the range of Ur
-    U, S, V = svd(Ur)
+    U, S, V = LA.svd(Ur)
     eps = 1e-10
     @assert !any(x -> 1e-11 <= x <= 1e-9, S)
     @assert count(x -> x > 1e-10, S) == size(A, 2) - count(frozen)
     S[S .> eps] .= 1
     S[S .< eps] .= 0
-    Ur = U * Diagonal(S) * V'
+    Ur = U * LA.Diagonal(S) * V'
 
     A[not_frozen,:] = Ur
 
     B = vcat(Uf, Ur)
     B[frozen,:] .= Uf
     B[not_frozen,:] .= Ur
-    @assert isapprox(B'B, I, rtol=1e-12)
-    @assert isapprox(B[frozen,:] * B[frozen,:]', I, rtol=1e-12)
-    @assert norm(Uf * Ur') < 1e-10
+    @assert isapprox(B'B, LA.I, rtol=1e-12)
+    @assert isapprox(B[frozen,:] * B[frozen,:]', LA.I, rtol=1e-12)
+    @assert LA.norm(Uf * Ur') < 1e-10
     
     return B
 end
@@ -118,11 +122,11 @@ function XY_to_A(params, X, Y)
         l_frozen = get_frozen_bands_k(params, ik)
         l_non_frozen = .!l_frozen
         num_frozen = count(l_frozen)
-        @assert Y[:,:,ik]' * Y[:,:,ik] ≈ I
-        @assert X[:,:,ik]' * X[:,:,ik] ≈ I
-        @assert Y[l_frozen,1:num_frozen,ik] ≈ I
-        @assert norm(Y[l_non_frozen,1:num_frozen,ik]) ≈ 0
-        @assert norm(Y[l_frozen,num_frozen + 1:end,ik]) ≈ 0
+        @assert Y[:,:,ik]' * Y[:,:,ik] ≈ LA.I
+        @assert X[:,:,ik]' * X[:,:,ik] ≈ LA.I
+        @assert Y[l_frozen,1:num_frozen,ik] ≈ LA.I
+        @assert LA.norm(Y[l_non_frozen,1:num_frozen,ik]) ≈ 0
+        @assert LA.norm(Y[l_frozen,num_frozen + 1:end,ik]) ≈ 0
 
         A[:,:,ik] = Y[:,:,ik] * X[:,:,ik]
         # @assert normalize_and_freeze(A[:,:,i,j,k],lnf) ≈ A[:,:,i,j,k] rtol=1e-4
@@ -144,23 +148,23 @@ function A_to_XY(params, A)
         # determine Y
         if num_frozen != params.num_wann
             proj = Ar * Ar'
-            proj = Hermitian((proj + proj') / 2)
-            D, V = eigen(proj) # sorted by increasing eigenvalue
+            proj = LA.Hermitian((proj + proj') / 2)
+            D, V = LA.eigen(proj) # sorted by increasing eigenvalue
         end
-        Y[l_frozen,1:num_frozen,ik] = Matrix(I, num_frozen, num_frozen)
+        Y[l_frozen,1:num_frozen,ik] = Matrix(LA.I, num_frozen, num_frozen)
         if num_frozen != params.num_wann
             Y[l_non_frozen,num_frozen + 1:end,ik] = V[:,end - params.num_wann + num_frozen + 1:end]
         end
         
         # determine X
-        Xleft, S, Xright = svd(Y[:,:,ik]' * Afrozen)
+        Xleft, S, Xright = LA.svd(Y[:,:,ik]' * Afrozen)
         X[:,:,ik] = Xleft * Xright'
 
-        @assert Y[:,:,ik]' * Y[:,:,ik] ≈ I
-        @assert X[:,:,ik]' * X[:,:,ik] ≈ I
-        @assert Y[l_frozen,1:num_frozen,ik] ≈ I
-        @assert norm(Y[l_non_frozen,1:num_frozen,ik]) ≈ 0
-        @assert norm(Y[l_frozen,num_frozen + 1:end,ik]) ≈ 0
+        @assert Y[:,:,ik]' * Y[:,:,ik] ≈ LA.I
+        @assert X[:,:,ik]' * X[:,:,ik] ≈ LA.I
+        @assert Y[l_frozen,1:num_frozen,ik] ≈ LA.I
+        @assert LA.norm(Y[l_non_frozen,1:num_frozen,ik]) ≈ 0
+        @assert LA.norm(Y[l_frozen,num_frozen + 1:end,ik]) ≈ 0
         @assert Y[:,:,ik] * X[:,:,ik] ≈ Afrozen
     end
     return X, Y
@@ -268,6 +272,9 @@ function minimize(params, A)
         return g
     end
 
+    tmp = omega(params, A, false, false)
+    @info "Initial centers & spreads" tmp.centers tmp.spreads' sum(tmp.spreads)
+
     # need QR orthogonalization rather than SVD to preserve the sparsity structure of Y
     XYkManif = Optim.ProductManifold(Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), 
         (params.num_wann, params.num_wann), (params.num_bands, params.num_wann))
@@ -288,5 +295,11 @@ function minimize(params, A)
     
     Xmin, Ymin = XY_to_XY(params, XYmin)
     Amin = XY_to_A(params, Xmin, Ymin)
+
+    tmp = omega(params, Amin, false, false)
+    @info "Final centers & spreads" tmp.centers tmp.spreads' sum(tmp.spreads)
+
     return Amin
+end
+
 end

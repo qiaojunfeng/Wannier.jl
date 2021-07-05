@@ -1,3 +1,5 @@
+module BVectors
+
 import LinearAlgebra as LA
 import NearestNeighbors as NN
 
@@ -59,7 +61,7 @@ function check_parallel(m, n)
     result = fill(false, size(m, 1), size(n, 2))
     for (i, row) in enumerate(eachrow(m))
         for (j, col) in enumerate(eachcol(n))
-            p = cross(row, col)
+            p = LA.cross(row, col)
             if all(isapprox.(0, p; atol=eps))
                 result[i, j] = true
             end
@@ -83,7 +85,7 @@ function calculate_b1_weights(bvecs, multis)
     # only compare the upper triangular part of bvec * bvec', 6 elements
     bmat = zeros(6, num_shell)
     # return the upper triangular part of a matrix as a vector
-    triu2vec(m) = m[triu!(trues(size(m)), 0)]
+    triu2vec(m) = m[LA.triu!(trues(size(m)), 0)]
     W = zeros(num_shell)
     ishell = 1
     while ishell <= num_shell
@@ -91,9 +93,9 @@ function calculate_b1_weights(bvecs, multis)
         # Solve equation bmat * W = triu2vec(I) = [1 0 1 0 0 1]
         # size(bmat) = (6, ishell), W is diagonal matrix of size ishell
         # bmat = U * S * V' -> W = V * S^-1 * U' * triu2vec(I)
-        U, S, V = svd(bmat[:, 1:ishell])
+        U, S, V = LA.svd(bmat[:, 1:ishell])
         if all(S .> eps)
-            W[1:ishell] = V * Diagonal(S)^-1 * U' * triu2vec(diagm([1,1,1]))
+            W[1:ishell] = V * LA.Diagonal(S)^-1 * U' * triu2vec(LA.diagm([1,1,1]))
             break
         end
         ishell += 1
@@ -213,7 +215,7 @@ function check_b1(shells)
         mat += shells.weights[ish] * bvec_ish * bvec_ish'
     end
     @debug "Bvector sum" mat
-    @assert isapprox(mat, I)
+    @assert isapprox(mat, LA.I)
     println("Finite difference condition satisfied")
 end
 
@@ -282,8 +284,8 @@ function generate_bvectors(kpts, recip_cell)
             return true
         end
 
-        normkb1 = norm(kb1 - k)
-        normkb2 = norm(kb2 - k)
+        normkb1 = LA.norm(kb1 - k)
+        normkb2 = LA.norm(kb2 - k)
         if abs(normkb1 - normkb2) < eps
             # using outter scope variable: inv_recip, kpts, kpts_cart
             # bring back to reduced coord, easier to compare
@@ -294,8 +296,8 @@ function generate_bvectors(kpts, recip_cell)
             celldisp_kb1 = kb1 - kpts_cart[:, kb1_equiv_idx]
             celldisp_kb2 = kb2 - kpts_cart[:, kb2_equiv_idx]
             # @debug "jq" celldisp_kb1, celldisp_kb2
-            normkb1 = norm(celldisp_kb1)
-            normkb2 = norm(celldisp_kb2)
+            normkb1 = LA.norm(celldisp_kb1)
+            normkb2 = LA.norm(celldisp_kb2)
             # @debug "jq" normkb1, normkb2
             if abs(normkb1 - normkb2) < eps
                 # using outter scope variable: supercell_idx
@@ -383,4 +385,6 @@ function print_w90_nnkp(w90nnkp)
             println(bvec_cart)
         end
     end
+end
+
 end

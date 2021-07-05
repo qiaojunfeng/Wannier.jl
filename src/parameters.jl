@@ -1,5 +1,7 @@
 
-mutable struct WannierParameters
+module Parameters
+
+mutable struct InputParams
     # seedname.win
     seed_name::String
 
@@ -76,4 +78,6 @@ mutable struct InterpResults
     Obs_array_j::Array{ComplexF64,3}
     Uint::Array{ComplexF64,4}
     Uint_ik::Array{ComplexF64,4}
+end
+
 end

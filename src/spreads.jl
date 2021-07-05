@@ -1,5 +1,8 @@
-using StaticArrays
-include("utilities.jl")
+module Spreads
+
+# using StaticArrays
+import LinearAlgebra as LA
+import ..Utilities: overlap
 
 # computes the MV energy
 # From MV: Omega = sum_n <r2>n - |<r>n|^2
@@ -43,9 +46,9 @@ imaglog(z) = atan(imag(z), real(z))
                 centers = fix_centers
             else
                 centers = omega(params, A, false).centers
-                println("Centers")
-                display(centers)
-                println("")
+                # println("Centers")
+                # display(centers)
+                # println("")
             end
         end
     end
@@ -88,7 +91,7 @@ imaglog(z) = atan(imag(z), real(z))
                 # grad[:,:,i,j,k] += 4*p.wb*(fA(R) .- fS(T))
 
 
-                q = imaglog.(diag(Mkb))
+                q = imaglog.(LA.diag(Mkb))
                 if !only_r2
                     q += centers' * b
                 end
@@ -111,7 +114,7 @@ imaglog(z) = atan(imag(z), real(z))
             end
 
             ΩI += ib_weight * (params.num_wann - sum(abs2, Mkb))
-            ΩOD += ib_weight * sum(abs2, Mkb .- diagm(0 => diag(Mkb)))
+            ΩOD += ib_weight * sum(abs2, Mkb .- LA.diagm(0 => LA.diag(Mkb)))
             for n = 1:params.num_wann
                 if !only_r2
                     r[:,n] -= ib_weight* imaglog(Mkb[n,n]) * b
@@ -133,11 +136,11 @@ imaglog(z) = atan(imag(z), real(z))
     Ωtot = sum(spreads) + frozen_weight
     Ωtilde = Ωtot - ΩI
 
-    if !only_r2
-        println("Spreads")
-        display(spreads')
-        println("")
-    end
+    # if !only_r2
+    #     println("Spreads")
+    #     display(spreads')
+    #     println("")
+    # end
 
     return Omega_res(Ωtot, ΩI, ΩOD, ΩD, Ωtilde, frozen_weight, spreads, r, grad)
 end
@@ -161,4 +164,6 @@ function omega_loc(p, A)
         end
     end
     return loc
+end
+
 end

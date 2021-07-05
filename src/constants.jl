@@ -1,1 +1,7 @@
-const bohr = 0.52917721092
+module Constants
+
+export Bohr
+
+const Bohr = 0.52917721092
+
+end

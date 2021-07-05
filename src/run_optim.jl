@@ -1,14 +1,9 @@
-using StaticArrays: include
-import Optim
-using Random
+import Random
 
-include("parameters.jl")
-include("io.jl")
-include("disentangle.jl")
-include("wannierize_utils.jl")
+import Wannier as Wan
 
 # seedname = "aiida"
-seedname = "/home/junfeng/git/Wannier.jl/test/silicon/example27/pao_new/si"
+seed_name = "/home/junfeng/git/Wannier.jl/test/silicon/example27/pao_new/si"
 # read $file.amn as input
 read_amn = true
 # read the eig file (can be set to false when not disentangling)
@@ -36,7 +31,7 @@ if do_randomize_gauge && read_amn
     error("do not set do_randomize_gauge and read_amn")
 end
 
-params = InOut.read_seedname(seedname, read_amn, read_eig)
+params = Wan.InOut.read_seedname(seed_name, read_amn, read_eig)
 
 if read_amn
     amn0 = copy(params.amn)
@@ -46,14 +41,14 @@ end
 
 # initial guess for U matrix
 for ik = 1:params.num_kpts
-    l_frozen = get_frozen_bands_k(params, ik)
+    l_frozen = Wan.Disentangle.get_frozen_bands_k(params, ik)
     l_non_frozen = .!l_frozen
 
-    amn0[:,:,ik] = orthonormalize_and_freeze(amn0[:,:,ik], l_frozen, l_non_frozen)
+    amn0[:,:,ik] = Wan.Disentangle.orthonormalize_and_freeze(amn0[:,:,ik], l_frozen, l_non_frozen)
 end
 
 # 
-A = minimize(params, amn0)
+A = Wan.Disentangle.minimize(params, amn0)
 
 # fix global phase
 if do_normalize_phase
@@ -65,5 +60,5 @@ if do_normalize_phase
 end
 
 if write_optimized_amn
-    InOut.write_amn("$(seedname).amn.optimized", A)
+    Wan.InOut.write_amn("$(seed_name).amn.optimized", A)
 end

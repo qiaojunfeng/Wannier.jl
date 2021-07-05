@@ -1,16 +1,13 @@
 module InOut
 
-export read_win, read_mmn, read_amn, read_eig, read_seedname
-
-using LinearAlgebra: isapprox, length, include
 using Dates: now
 
-include("constants.jl")
-include("utilities.jl")
-include("bvectors.jl")
-include("parameters.jl")
+using ..Constants: Bohr
+using ..Parameters: InputParams
+using ..Utilities: get_recipcell
+using ..BVectors: generate_bvectors
 
-function read_win(filename)
+function read_win(filename::String)::Dict
     println("Reading $filename")
     fwin = open(filename)
 
@@ -48,7 +45,7 @@ function read_win(filename)
             end
             if startswith(unit, r"b")
                 # convert to angstrom
-                unit_cell .*= bohr
+                unit_cell .*= Bohr
             end
         elseif occursin("begin kpoints", line)
             for i = 1:num_kpts
@@ -85,7 +82,7 @@ function read_win(filename)
     )
 end
 
-function read_mmn(filename)
+function read_mmn(filename::String)::Tuple
     println("Reading $filename")
     fmmn = open(filename)
 
@@ -125,7 +122,7 @@ function read_mmn(filename)
     return mmn, bvecs, bvecs_disp
 end
 
-function read_amn(filename)
+function read_amn(filename::String)
     println("Reading $filename")
 
     famn = open("$filename")
@@ -156,7 +153,7 @@ function read_amn(filename)
     return amn
 end
 
-function read_eig(filename)
+function read_eig(filename::String)
     println("Reading $filename")
 
     feig = open(filename)
@@ -192,7 +189,7 @@ function read_eig(filename)
     return eig
 end
 
-function read_seedname(seedname, amn=true, eig=true)
+function read_seedname(seedname::String, amn::Bool=true, eig::Bool=true)
     # read win, mmn and optionally amn
     win = read_win("$seedname.win")
     num_bands = win["num_bands"]
@@ -238,7 +235,7 @@ function read_seedname(seedname, amn=true, eig=true)
     println("num_bands = $num_bands, num_wann = $num_wann, kpt = ", 
     win["kpts_size"], " num_bvecs = $num_bvecs")
 
-    return WannierParameters(
+    return InputParams(
         seedname,
         win["unit_cell"],
         win["recip_cell"],
@@ -257,7 +254,7 @@ function read_seedname(seedname, amn=true, eig=true)
     )
 end
 
-function read_nnkp(filename)
+function read_nnkp(filename::String)
     println("Reading $filename")
 
     fnnkp = open(filename)
@@ -323,7 +320,7 @@ end
 """
 Output amn file
 """
-function write_amn(filename, A)
+function write_amn(filename::String, A::Array{ComplexF64,3})
     famn = open(filename, "w")
     write(famn, "Created by Wannier.jl ", string(now()), "\n")
     num_bands, num_wann, num_kpts = size(A)

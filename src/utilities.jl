@@ -1,3 +1,5 @@
+module Utilities
+
 using LinearAlgebra
 
 function get_recipcell(unit_cell)
@@ -30,4 +32,6 @@ function overlap(params, k1, k2)
     end
     error("No neighbors found, k1 = $(k1), k2 = $(k2)")
     return Matrix((1.0 + 0.0im)I, params.num_bands, params.num_bands)
+end
+
 end
