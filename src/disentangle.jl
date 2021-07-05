@@ -9,7 +9,7 @@ function get_frozen_bands_k(params, ik)# , num_frozen, dis_froz_min, dis_froz_ma
     freeze_energy_window = true
     # dis_froz_min < energy < dis_froz_max bands are frozen
     dis_froz_min = -Inf
-    dis_froz_max = 6.5
+    dis_froz_max = 12 #6.5
     # select frozen bands based on projectability
     freeze_projectability = false
     # < threshold bands are excluded
@@ -209,6 +209,15 @@ function obj(params, X, Y)
 end
 
 function minimize(params, A)
+    # tolerance on spread
+    ftol = 1e-20
+    # tolerance on gradient
+    gtol = 1e-4
+    # maximum optimization iterations
+    maxiter = 200 # 3000
+    # history size of BFGS
+    m = 100
+
     # initial X,Y
     X0, Y0 = A_to_XY(params, A)
     

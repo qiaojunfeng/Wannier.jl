@@ -43,6 +43,9 @@ imaglog(z) = atan(imag(z), real(z))
                 centers = fix_centers
             else
                 centers = omega(params, A, false).centers
+                println("Centers")
+                display(centers)
+                println("")
             end
         end
     end
@@ -129,6 +132,13 @@ imaglog(z) = atan(imag(z), real(z))
     spreads = (r2 - dropdims(sum(abs.(r).^2, dims=1), dims=1))
     Ωtot = sum(spreads) + frozen_weight
     Ωtilde = Ωtot - ΩI
+
+    if !only_r2
+        println("Spreads")
+        display(spreads')
+        println("")
+    end
+
     return Omega_res(Ωtot, ΩI, ΩOD, ΩD, Ωtilde, frozen_weight, spreads, r, grad)
 end
 

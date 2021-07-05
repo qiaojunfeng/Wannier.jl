@@ -20,14 +20,6 @@ write_optimized_amn = true
 # dis_froz_min = -Inf
 # frozen_window_high = 1.1959000000e+01 #1.1959000000e+01 #-Inf
 # dis_froz_max = 12
-# tolerance on spread
-ftol = 1e-20
-# tolerance on gradient
-gtol = 1e-4
-# maximum optimization iterations
-maxiter = 200 # 3000
-# history size of BFGS
-m = 100
 
 # expert/experimental features
 # perform a global rotation by a phase factor at the end
