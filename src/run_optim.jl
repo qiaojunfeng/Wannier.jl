@@ -4,6 +4,7 @@ import Wannier as Wan
 
 # seedname = "aiida"
 seed_name = "/home/junfeng/git/Wannier.jl/test/silicon/example27/pao_new/si"
+# seed_name = "/home/junfeng/git/Wannier.jl/test/silicon/example27/scdm2/si"
 # read $file.amn as input
 read_amn = true
 # read the eig file (can be set to false when not disentangling)

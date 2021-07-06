@@ -49,7 +49,7 @@ function read_win(filename::String)::Dict
             end
         elseif occursin("begin kpoints", line)
             for i = 1:num_kpts
-                kpts[:, i] = read_array(fwin)
+                kpts[:, i] = read_array(fwin)[1:3]
             end
         end
     end

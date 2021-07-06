@@ -123,6 +123,7 @@ imaglog(z) = atan(imag(z), real(z))
                 # r2[n] += p.wb*2*(1 - real(Mkb[n,n]))
             end
         end
+        @debug r, r2, ΩI ΩOD ΩD
     end
     r /= params.num_kpts
     r2 /= params.num_kpts

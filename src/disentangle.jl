@@ -3,7 +3,7 @@ module Disentangle
 import LinearAlgebra as LA
 import Optim
 # using ..Parameters: InputParams
-using ..Spreads: omega
+using ..Spreads:omega
 
 function get_frozen_bands_k(params, ik)# , num_frozen, dis_froz_min, dis_froz_max)
     # number of frozen bands
@@ -13,7 +13,7 @@ function get_frozen_bands_k(params, ik)# , num_frozen, dis_froz_min, dis_froz_ma
     freeze_energy_window = true
     # dis_froz_min < energy < dis_froz_max bands are frozen
     dis_froz_min = -Inf
-    dis_froz_max = 12 #6.5
+    dis_froz_max = 12 # 12 #6.5
     # select frozen bands based on projectability
     freeze_projectability = false
     # < threshold bands are excluded
@@ -27,13 +27,15 @@ function get_frozen_bands_k(params, ik)# , num_frozen, dis_froz_min, dis_froz_ma
 
     if freeze_energy_window
         l_frozen = (params.eig[:, ik] .>= dis_froz_min) .& (params.eig[:, ik] .<= dis_froz_max)
+        # @debug "ik = $ik, l_frozen = $(l_frozen)"
+        num_frozen = count(l_frozen)
     end
 
     # if cluster of eigenvalues and nfrozen > 0, take them all
     if num_frozen > 0
         while num_frozen < params.num_wann
             if params.eig[num_frozen + 1, ik] < params.eig[num_frozen, ik] + cluster_size
-                num_frozen = num_frozen + 1
+                num_frozen += 1
             else
                 break
             end
@@ -57,6 +59,7 @@ function get_frozen_bands_k(params, ik)# , num_frozen, dis_froz_min, dis_froz_ma
     end
 
     @assert count(l_frozen) <= params.num_wann
+    # @debug "num_frozen = $num_frozen, ik = $ik"
     return l_frozen
 end
 
@@ -104,7 +107,7 @@ function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, not
     B = vcat(Uf, Ur)
     B[frozen,:] .= Uf
     B[not_frozen,:] .= Ur
-    @assert isapprox(B'B, LA.I, rtol=1e-12)
+    @assert isapprox(B' * B, LA.I, rtol=1e-12)
     @assert isapprox(B[frozen,:] * B[frozen,:]', LA.I, rtol=1e-12)
     @assert LA.norm(Uf * Ur') < 1e-10
     
