@@ -144,11 +144,6 @@ function read_amn(filename::String)
     end
     close(famn)
 
-    # FIX: normalization should be done later
-    # for k = 1:num_kpts
-    #     amn[:, :, k] = orthonormalize_lowdin(amn[:, :, k])
-    # end
-
     println("$filename OK, size = ", size(amn))
     return amn
 end

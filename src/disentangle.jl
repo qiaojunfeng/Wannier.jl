@@ -73,18 +73,31 @@ Frozen:      Uf * Uf' = I
 Also:        Uf * Ur' = 0
 Strategy: first orthogonalize Uf, then project Uf out of Ur, then orthogonalize the range of Ur
 """
-function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, not_frozen::BitVector)
-    # orthogonalize Uf
+function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, non_frozen::BitVector)
+    # Make sure Uf can fully represent frozen bands.
+    # Uf = <ψ|g>, where |ψ> is Bloch wfcs, |g> is the guiding functions (GF).
+    # We do a Lowdin orthonormalization on Uf' = <g|ψ> so (Uf')' * Uf' = I, i.e. orthonormal,
+    # this also means Uf * Uf' = I, i.e. <ψ|g><g|ψ> = I
+    # =>  |g> can fully represent frozen bands without loss.
     Uf = A[frozen,:]
-    U, S, V = LA.svd(Uf)
-    Uf = U * V'
-    # Uf = normalize_matrix_chol(Uf)
+    U, S, V = LA.svd(Uf')
+    Uf = V * U'
+    # Uf = normalize_matrix_chol(Uf')'
 
-    # project Uf out of Ur
-    Ur = A[not_frozen,:]
+    # Remove Uf out of Ur, i.e. do not destroy frozen space
+    # The projector (i.e. density matrix) of the frozen states represented on the GF basis is 
+    #     |ψf><ψf| = |g><g|ψf><ψf|g><g| = |g> Uf' * Uf <g|
+    # The projector of the non-frozen states on GF basis is
+    #     |ψr><ψr| = |g><g|ψr><ψr|g><g| = |g> Ur' * Ur <g|
+    # The space |ψr><ψr| should not destroy the frozen space |ψf><ψf|.
+    # To achieve this, we remove |ψf><ψf| components out of |ψr><ψr|
+    #     |ψr> -= |ψf><ψf|ψr>
+    # =>  |g><g|ψr> -= |g><g|ψf><ψf|g><g|ψr>
+    # =>  Ur' -= Uf' * Uf * Ur'
+    Ur = A[non_frozen,:]
     Ur -= Ur * Uf' * Uf
 
-    # # alternative method, maybe more stable but slower
+    # alternative method, maybe more stable but slower
     # ovl = Ur'Ur
     # S, U = eig(Hermitian(ovl))
     # S = real(S)
@@ -93,22 +106,31 @@ function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, not
     # Sm12 = map(x-> x < 1e-10 ? 0. : 1/sqrt(x), S)
     # Ur = Ur*(U*diagm(Sm12)*U')
 
-    # renormalize the range of Ur
+    # Renormalize the range of Ur
+    # The remaining Wannier function (WF) |wr> = |ψ> Ur,
+    # after removal of Uf, we need to renormalize so the |wr> are orthonormal.
+    # I = <wr|wr> = Ur' <ψ|ψ> Ur  =>  Ur' * Ur = I
+    # Use Lowdin normalization but needs to limit the number of independent vectors.
     U, S, V = LA.svd(Ur)
     eps = 1e-10
     @assert !any(x -> 1e-11 <= x <= 1e-9, S)
-    @assert count(x -> x > 1e-10, S) == size(A, 2) - count(frozen)
+    @assert count(x -> x > eps, S) == size(A, 2) - count(frozen)
     S[S .> eps] .= 1
     S[S .< eps] .= 0
     Ur = U * LA.Diagonal(S) * V'
 
-    A[not_frozen,:] = Ur
+    # FIX: remove this?
+    A[non_frozen,:] = Ur
 
     B = vcat(Uf, Ur)
     B[frozen,:] .= Uf
-    B[not_frozen,:] .= Ur
+    B[non_frozen,:] .= Ur
+    
+    # Semiunitary
     @assert isapprox(B' * B, LA.I, rtol=1e-12)
+    # Frozen
     @assert isapprox(B[frozen,:] * B[frozen,:]', LA.I, rtol=1e-12)
+    # Independent
     @assert LA.norm(Uf * Ur') < 1e-10
     
     return B
@@ -195,7 +217,7 @@ function obj(params, X, Y)
 
     gradX = zero(X)
     gradY = zero(Y)
-    for ik = 1:params.num_wann
+    for ik = 1:params.num_kpts
         l_frozen = get_frozen_bands_k(params, ik)
         l_non_frozen = .!l_frozen
         num_frozen = count(l_frozen)

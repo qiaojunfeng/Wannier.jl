@@ -45,6 +45,9 @@ for ik = 1:params.num_kpts
     l_frozen = Wan.Disentangle.get_frozen_bands_k(params, ik)
     l_non_frozen = .!l_frozen
 
+    # Orthonormalize Amn, make it semiunitary
+    amn0[:,:,ik] = Wan.Utilities.orthonormalize_lowdin(amn0[:,:,ik])
+
     amn0[:,:,ik] = Wan.Disentangle.orthonormalize_and_freeze(amn0[:,:,ik], l_frozen, l_non_frozen)
 end
 
