@@ -51,17 +51,17 @@ function generate_supercell(kpts)
 end
 
 """
-check if the rows of matrix m and columns of matrix n are parallel
+check if the columns of matrix m and columns of matrix n are parallel
 """
 function check_parallel(m, n)
-    @assert size(m, 2) == size(n, 1)
+    @assert size(m, 1) == size(n, 1) == 3
 
     eps = 1e-5
     
-    result = fill(false, size(m, 1), size(n, 2))
-    for (i, row) in enumerate(eachrow(m))
-        for (j, col) in enumerate(eachcol(n))
-            p = LA.cross(row, col)
+    result = fill(false, size(m, 2), size(n, 2))
+    for (i, col1) in enumerate(eachcol(m))
+        for (j, col2) in enumerate(eachcol(n))
+            p = LA.cross(col1, col2)
             if all(isapprox.(0, p; atol=eps))
                 result[i, j] = true
             end
@@ -78,7 +78,7 @@ try to guess weights from MV1997 Eq. B1
     return: same size as input, but only selected shells which satisfy B1 condition
 """
 function calculate_b1_weights(bvecs, multis)
-    eps = 1e-5
+    eps = 1e-8
 
     num_shell = length(multis)
 
@@ -88,15 +88,20 @@ function calculate_b1_weights(bvecs, multis)
     triu2vec(m) = m[LA.triu!(trues(size(m)), 0)]
     W = zeros(num_shell)
     ishell = 1
+    # triu2vec(I) = [1 0 1 0 0 1]
+    triu_I = triu2vec(LA.diagm([1,1,1]))
     while ishell <= num_shell
-        bmat[:, ishell] = triu2vec(bvecs[:,:,ishell] * bvecs[:,:,ishell]')
-        # Solve equation bmat * W = triu2vec(I) = [1 0 1 0 0 1]
+        bmat[:, ishell] = triu2vec(bvecs[:,1:multis[ishell],ishell] * bvecs[:,1:multis[ishell],ishell]')
+        # Solve equation bmat * W = triu_I
         # size(bmat) = (6, ishell), W is diagonal matrix of size ishell
         # bmat = U * S * V' -> W = V * S^-1 * U' * triu2vec(I)
         U, S, V = LA.svd(bmat[:, 1:ishell])
+        # @debug "S" ishell bmat[:,ishell]' S
         if all(S .> eps)
-            W[1:ishell] = V * LA.Diagonal(S)^-1 * U' * triu2vec(LA.diagm([1,1,1]))
-            break
+            W[1:ishell] = V * LA.Diagonal(S)^-1 * U' * triu_I
+            if isapprox(bmat[:, 1:ishell] * W[1:ishell], triu_I; atol=eps)
+                break
+            end
         end
         ishell += 1
     end
@@ -181,7 +186,8 @@ function search_shells(kpts, recip_cell)
             if hasparallel
                 break
             end
-            p = check_parallel(bvecs[:, :, jshell]', bvecs[:, :, ishell])
+            p = check_parallel(bvecs[:, 1:multis[jshell], jshell], bvecs[:, 1:multis[ishell], ishell])
+            # @debug "check_parallel($jshell, $ishell)" p
             if any(p)
                 hasparallel = true
                 break
@@ -195,6 +201,9 @@ function search_shells(kpts, recip_cell)
     multis = multis[keepshells]
     max_multi = maximum(multis)
     bvecs = bvecs[:, 1:max_multi, keepshells]
+
+    # @debug "After check_parallel bvector shells" multis
+    # @debug "After check_parallel bvector shells" bvecs
 
     # sort bvectors
 
