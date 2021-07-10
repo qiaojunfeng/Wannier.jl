@@ -95,7 +95,7 @@ imaglog(z) = atan(imag(z), real(z))
                 for n = 1:params.num_wann
                     # error if division by zero. Should not happen if the initial gauge is not too bad
                     if abs(Mkb[n,n]) < 1e-10
-                        println("Mkbnn too large! $ik -> $ikpb")
+                        println("Mkbnn too small! $ik -> $ikpb")
                         display(Mkb)
                         error()
                     end

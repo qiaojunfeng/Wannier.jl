@@ -10,20 +10,20 @@ function get_frozen_bands_k(params, ik)# , num_frozen, dis_froz_min, dis_froz_ma
     # FIX: test only using num_frozen 0, w/o window,projectability
     num_frozen = 0
     # select frozen bands based on energy window
-    freeze_energy_window = true
+    freeze_energy_window = false
     # dis_froz_min < energy < dis_froz_max bands are frozen
     dis_froz_min = -Inf
-    dis_froz_max = 12 # 12 #6.5
+    dis_froz_max = 15 # 12 #6.5
     # select frozen bands based on projectability
-    freeze_projectability = false
+    freeze_projectability = true
     # < threshold bands are excluded
     dis_proj_min = 1 / 100
     # >= threshold bands are frozen
-    dis_proj_max = 98 / 100
+    dis_proj_max = 81 / 100
     # will also freeze additional eigenvalues if the freezing cuts a cluster. Set to 0 to disable
     cluster_size = 1e-6
     
-    l_frozen = BitVector()
+    l_frozen = falses(params.num_bands)
 
     if freeze_energy_window
         l_frozen = (params.eig[:, ik] .>= dis_froz_min) .& (params.eig[:, ik] .<= dis_froz_max)
@@ -120,7 +120,7 @@ function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, non
     Ur = U * LA.Diagonal(S) * V'
 
     # FIX: remove this?
-    A[non_frozen,:] = Ur
+    # A[non_frozen,:] = Ur
 
     B = vcat(Uf, Ur)
     B[frozen,:] .= Uf
@@ -134,6 +134,15 @@ function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, non
     @assert LA.norm(Uf * Ur') < 1e-10
     
     return B
+end
+
+function max_projectability(A::Matrix{ComplexF64})
+    proj = A * A'
+    # A * A' = V D V'  =>  (V'A) (A'V) = D
+    D, V = LA.eigen(proj)
+    # sort eigenvalues in descending order
+    V = V[:, sortperm(D, rev=true)]
+    return V' * A
 end
 
 # There are three formats: A, (X,Y) and XY stored contiguously in memory
@@ -243,7 +252,7 @@ function minimize(params, A)
     # tolerance on gradient
     gtol = 1e-4
     # maximum optimization iterations
-    maxiter = 200 # 3000
+    maxiter = 50 # 3000
     # history size of BFGS
     m = 100
 
