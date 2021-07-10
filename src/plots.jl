@@ -1,5 +1,5 @@
 import Plots as Pl
-using .Parameters: Bands
+using .Parameters: Bands, Projectabilities
 
 function plot_bands(bands::Bands)
     Pl.PlotlyBackend()
@@ -7,7 +7,8 @@ function plot_bands(bands::Bands)
     return plot_bands(plt, bands)
 end
 
-function plot_bands(plt, bands::Bands; fermi_energy::Union{Int,Float64}=0.0)
+function plot_bands(plt, bands::Bands; fermi_energy::Union{Int,Float64}=0.0, 
+    colors::Union{Matrix{Float64},Missing}=missing)
 # t = range(0, stop = 1, length = 100)
 # θ = (6π) .* t
 # x = t .* cos.(θ)
@@ -24,13 +25,30 @@ function plot_bands(plt, bands::Bands; fermi_energy::Union{Int,Float64}=0.0)
         Pl.xticks!(plt, bands.kpaths[bands.symm_points], bands.symm_points_label)
     end
 
-    Pl.plot!(plt, bands.kpaths, bands.energies; legend=false, grid=false, framestyle=:box)
+    if isa(colors, Missing)
+        Pl.plot!(plt, bands.kpaths, bands.energies; legend=false, grid=false, framestyle=:box)
+    else
+        Pl.plot!(plt, bands.kpaths, bands.energies, line_z=colors; 
+        color=:copper, legend=false, grid=false, framestyle=:box)
+    end
 
     Pl.xlims!(plt, (bands.kpaths[1], bands.kpaths[end]))
 
     emin = minimum(bands.energies) - 0.5
     emax = maximum(bands.energies) + 0.5
     Pl.ylims!(plt, (emin, emax))
+
+    return plt
+end
+
+function plot_bands_projectabilities(bands::Bands, projectabilities::Projectabilities; 
+    fermi_energy::Union{Int,Float64}=0.0)
+
+    colors = dropdims(sum(projectabilities.proj, dims=3), dims=3)
+
+    plt = plot_bands(Pl.plot(), bands; fermi_energy=fermi_energy, colors=colors)
+
+    Pl.gui(plt)
 
     return plt
 end
