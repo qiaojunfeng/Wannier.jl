@@ -10,16 +10,16 @@ function get_frozen_bands_k(params, ik)# , num_frozen, dis_froz_min, dis_froz_ma
     # FIX: test only using num_frozen 0, w/o window,projectability
     num_frozen = 0
     # select frozen bands based on energy window
-    freeze_energy_window = false
+    freeze_energy_window = true
     # dis_froz_min < energy < dis_froz_max bands are frozen
     dis_froz_min = -Inf
-    dis_froz_max = 15 # 12 #6.5
+    dis_froz_max = 12 # 12 #6.5
     # select frozen bands based on projectability
-    freeze_projectability = true
+    freeze_projectability = false
     # < threshold bands are excluded
     dis_proj_min = 1 / 100
     # >= threshold bands are frozen
-    dis_proj_max = 81 / 100
+    dis_proj_max = 90 / 100
     # will also freeze additional eigenvalues if the freezing cuts a cluster. Set to 0 to disable
     cluster_size = 1e-6
     
@@ -48,13 +48,13 @@ function get_frozen_bands_k(params, ik)# , num_frozen, dis_froz_min, dis_froz_ma
         # size = nbands * nwannier
         amn_k = params.amn[:,:,ik]
         proj = dropdims(real(sum(amn_k .* conj(amn_k), dims=2)), dims=2)
-        @debug "projectability @ $ik" proj
+        # @debug "projectability @ $ik" proj
 
         if any(.!l_frozen[proj .>= dis_proj_max])
-            @debug "l_frozen before dis_proj" l_frozen
+            # @debug "l_frozen before dis_proj" l_frozen'
             l_frozen[proj .>= dis_proj_max] .= true
-            @debug "l_frozen after dis_proj" l_frozen
-            @debug "proj .>= dis_proj_max" proj .>= dis_proj_max
+            # @debug "l_frozen after dis_proj" l_frozen'
+            # @debug "proj .>= dis_proj_max" (proj .>= dis_proj_max)'
         end
     end
 
@@ -142,7 +142,9 @@ function max_projectability(A::Matrix{ComplexF64})
     D, V = LA.eigen(proj)
     # sort eigenvalues in descending order
     V = V[:, sortperm(D, rev=true)]
-    return V' * A
+    A_new = V' * A
+    @debug "projectability" real(LA.diag(proj)') real(LA.diag(A_new * A_new')')
+    return A_new, V'
 end
 
 # There are three formats: A, (X,Y) and XY stored contiguously in memory

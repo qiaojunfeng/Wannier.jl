@@ -1,9 +1,11 @@
 module InOut
 
 using Dates: now
+import DelimitedFiles as Dlm
+import LinearAlgebra as LA
 
 using ..Constants: Bohr
-using ..Parameters: InputParams
+using ..Parameters: InputParams, Bands
 using ..Utilities: get_recipcell
 using ..BVectors: generate_bvectors
 
@@ -330,6 +332,103 @@ function write_amn(filename::String, A::Array{ComplexF64,3})
     end
     close(famn)
     println("Written to file $(filename)")
+end
+
+"""
+read si_band.dat  si_band.kpt  si_band.labelinfo.dat
+"""
+function read_wannier90_bands(seed_name::String)
+    kpaths_coord = Dlm.readdlm("$(seed_name)_band.kpt", Float64; skipstart=1)
+    num_kpts = size(kpaths_coord, 1)
+
+    dat = Dlm.readdlm("$(seed_name)_band.dat", Float64)
+    kpaths = reshape(dat[:,1], num_kpts, :)[:,1]
+    energies = reshape(dat[:,2], num_kpts, :)
+    num_bands = size(energies, 2)
+
+    flabel = open("$(seed_name)_band.labelinfo.dat")
+    labels = readlines(flabel)
+    close(flabel)
+
+    num_symm_points = length(labels)
+    symm_points = Vector{Int}(undef, num_symm_points)
+    symm_points_label = Vector{String}(undef, num_symm_points)
+    for (i, line) in enumerate(labels)
+        lab, idx = split(line)[1:2]
+        symm_points[i] = parse(Int, idx)
+        symm_points_label[i] = lab
+    end
+    
+    return Bands(num_kpts, num_bands, kpaths, kpaths_coord, energies, 
+    num_symm_points, symm_points, symm_points_label)
+end
+
+"""
+read QE bands.x output dat file
+
+```
+ &plot nbnd=  20, nks=   380 /
+           -0.500000  0.500000  0.500000
+   -3.320   -0.666    5.173    5.173    7.994    9.725    9.725   14.147   16.993   16.993
+   17.841   17.841   17.902   19.666   25.961   26.563   28.186   28.186   28.368   28.368
+           -0.495000  0.495000  0.495000
+   -3.322   -0.664    5.173    5.173    7.994    9.725    9.725   14.148   16.980   16.980
+```
+"""
+function read_qe_bands(filename::String)
+    fdat = open(filename)
+
+    regex = r"&plot nbnd=\s*(\d+), nks=\s*(\d+) /"
+    line = readline(fdat)
+    m = match(regex, line)
+    nbnd, nks = parse.(Int, m.captures)
+
+    kpaths_coord = Matrix{Float64}(undef, 3, nks)
+    energies = Matrix{Float64}(undef, nks, nbnd)
+
+    for ik = 1:nks
+        # QE kpt are in absolute coordinates, but is scaled by `alat`
+        kpaths_coord[:,ik] = parse.(Float64, split(readline(fdat)))
+        ib = 0
+        while ib < nbnd
+            e = parse.(Float64, split(readline(fdat)))
+            len_e = length(e)
+            energies[ik, ib+1:ib+len_e] = e
+            ib += len_e
+        end
+        @assert ib == nbnd
+    end
+
+    @assert eof(fdat)
+
+    # detect high symmetry points - by the criteria that 
+    # there are angles between two consecutive kpath
+    symm_points = Vector{Int}()
+    symm_points_label = Vector{String}()
+    for ik = 2:nks-1
+        vec0 = kpaths_coord[:,ik] - kpaths_coord[:,ik-1]
+        vec1 = kpaths_coord[:,ik+1] - kpaths_coord[:,ik]
+        if !all(LA.cross(vec0, vec1) .≈ 0)
+            push!(symm_points, ik)
+            push!(symm_points_label, "")
+        end
+    end
+    num_symm_points = length(symm_points)
+
+    # generate kpath
+    kpaths = zeros(Float64, nks)
+    ik_prev = 1
+    for ik = 1:nks
+        dk = LA.norm(kpaths_coord[:,ik] - kpaths_coord[:,ik_prev])
+        if ik in symm_points
+            dk = 0
+        end
+        kpaths[ik] = kpaths[ik_prev] + dk
+        ik_prev = ik
+    end
+    
+    return Bands(nks, nbnd, kpaths, kpaths_coord, energies, 
+    num_symm_points, symm_points, symm_points_label)
 end
 
 end

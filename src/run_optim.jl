@@ -1,10 +1,11 @@
 using Base: String
 import Random
+import LinearAlgebra as LA
 # import ArgParse
 
 import Wannier as Wan
 
-seed_name = "aiida"
+seed_name = "si"
 # seed_name = "/home/junfeng/git/Wannier.jl/test/silicon/example27/pao_new/si"
 # seed_name = "/home/junfeng/git/Wannier.jl/test/silicon/example27/scdm2/si"
 # read $file.amn as input
@@ -52,9 +53,21 @@ function wannierize(seed_name::String)
         # Orthonormalize Amn, make it semiunitary
         amn0[:,:,ik] = Wan.Utilities.orthonormalize_lowdin(amn0[:,:,ik])
 
-        # amn0[:,:,ik] = Wan.Disentangle.orthonormalize_and_freeze(amn0[:,:,ik], l_frozen, l_non_frozen)
-        amn0[:,:,ik] = Wan.Disentangle.max_projectability(amn0[:,:,ik])
+        l_frozen = 1:params.num_bands .<= params.num_wann
+        l_non_frozen = .!l_frozen
+
+        amn0[:,:,ik] = Wan.Disentangle.orthonormalize_and_freeze(amn0[:,:,ik], l_frozen, l_non_frozen)
+        # amn0[:,:,ik] = Wan.Disentangle.max_projectability(amn0[:,:,ik])
     end
+
+    # for ik = 1:params.num_kpts
+    #     for ib = 1:params.num_bvecs
+    #         A1 = amn0[:,:,ik]
+    #         A2 = amn0[:,:,params.kpbs[ib,ik]]
+    #         @info "projectability @ $ik" real(LA.diag(proj)') real(LA.diag(A_new * A_new')')
+    #         amn0[:,:,ik] = A_new
+    #     end
+    # end
 
     # 
     A = Wan.Disentangle.minimize(params, amn0)

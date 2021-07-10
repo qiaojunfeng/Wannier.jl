@@ -9,5 +9,6 @@ include("bvectors.jl")
 include("inout.jl")
 include("spreads.jl")
 include("disentangle.jl")
+include("plots.jl")
 
 end

@@ -80,4 +80,26 @@ mutable struct InterpResults
     Uint_ik::Array{ComplexF64,4}
 end
 
+
+mutable struct Bands
+    num_kpts::Int
+    num_bands::Int
+
+    # num_kpts
+    kpaths::Vector{Float64}
+    # kpath coordinates, reduced, 3 * num_kpts
+    kpaths_coord::Matrix{Float64}
+    # num_kpts * num_bands
+    energies::Matrix{Float64}
+
+    # optional
+    # index of high symmetry points
+    num_symm_points::Int
+    symm_points::Vector{Int}
+    symm_points_label::Vector{String}
+
+    # RGBA, 4 * num_kpts * num_bands
+    # colors::Matrix{Int}
+end
+
 end
