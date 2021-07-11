@@ -10,8 +10,8 @@ function parse_commandline()
         #     help = "an option with an argument"
         "--fermi_energy", "-f"
             help = "Fermi energy"
-            arg_type = Union{Int, Float64}
-            default = 0
+            arg_type = Float64
+            default = 0.0
         # "--flag1"
         #     help = "an option without argument, i.e. a flag"
         #     action = :store_true

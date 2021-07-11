@@ -521,4 +521,89 @@ function read_qe_projwfcup(filename::String)
     )
 end
 
+function read_wout(filename::String)
+    fwout = open(filename)
+    
+    ret = Dict()
+
+    start_cell = "Lattice Vectors ("
+    start_atom = "|   Site       Fractional Coordinate          Cartesian Coordinate"
+    end_atom = "*----------------------------------------------------------------------------*"
+    start_finalstate = "Final State"
+    end_finalstate = "Sum of centres and spreads"
+
+    unit_is_ang = false
+    while !eof(fwout)
+        line = strip(readline(fwout))
+        if occursin("|  Length Unit", line)
+            @assert occursin("Ang", line)
+            unit_is_ang = true
+            continue
+        end
+        if occursin(start_cell, line)
+            @assert occursin("Ang", line)
+            unit_cell = zeros(Float64, 3, 3)
+            line = split(strip(readline(fwout)))
+            @assert line[1] == "a_1"
+            unit_cell[:,1] = parse.(Float64, line[2:end])
+            line = split(strip(readline(fwout)))
+            @assert line[1] == "a_2"
+            unit_cell[:,2] = parse.(Float64, line[2:end])
+            line = split(strip(readline(fwout)))
+            @assert line[1] == "a_3"
+            unit_cell[:,3] = parse.(Float64, line[2:end])
+            ret["unit_cell"] = unit_cell
+            continue
+        end
+        if occursin(start_atom, line)
+            @assert occursin("Ang", line)
+            readline(fwout)
+            lines = Vector{String}()
+            line = strip(readline(fwout))
+            while line != end_atom
+                push!(lines, line)
+                line = strip(readline(fwout))
+            end
+            num_atoms = length(lines)
+            atoms = zeros(Float64, 3, num_atoms)
+            for (i,line) in enumerate(lines)
+                line = split(line)
+                @assert line[1] == "|" line
+                atoms[:,i] = parse.(Float64, line[8:10])
+            end
+            ret["atoms"] = atoms
+            continue
+        end
+        if occursin(start_finalstate, line)
+            lines = Vector{String}()
+            line = strip(readline(fwout))
+            while !occursin(end_finalstate, line)
+                push!(lines, line)
+                line = strip(readline(fwout))
+            end
+            num_wann = length(lines)
+            wf_centers = zeros(Float64, 3, num_wann)
+            wf_spreads = zeros(Float64, num_wann)
+            for (i,line) in enumerate(lines)
+                line = split(line)
+                @assert join(line[1:4], " ") == "WF centre and spread"
+                @assert i == parse(Int, line[5])
+                x = parse(Float64, replace(line[7], "," => ""))
+                y = parse(Float64, replace(line[8], "," => ""))
+                z = parse(Float64, replace(line[9], "," => ""))
+                s = parse(Float64, line[11])
+                wf_centers[:,i] = [x,y,z]
+                wf_spreads[i] = s
+            end
+            ret["wf_centers"] = wf_centers
+            ret["wf_spreads"] = wf_spreads
+            continue
+        end
+    end
+    close(fwout)
+    @assert unit_is_ang
+    
+    return ret
+end
+
 end

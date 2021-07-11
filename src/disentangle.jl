@@ -10,16 +10,16 @@ function get_frozen_bands_k(params, ik)# , num_frozen, dis_froz_min, dis_froz_ma
     # FIX: test only using num_frozen 0, w/o window,projectability
     num_frozen = 0
     # select frozen bands based on energy window
-    freeze_energy_window = true
+    freeze_energy_window = false
     # dis_froz_min < energy < dis_froz_max bands are frozen
     dis_froz_min = -Inf
     dis_froz_max = 12 # 12 #6.5
     # select frozen bands based on projectability
-    freeze_projectability = false
+    freeze_projectability = true
     # < threshold bands are excluded
     dis_proj_min = 1 / 100
     # >= threshold bands are frozen
-    dis_proj_max = 90 / 100
+    dis_proj_max = 80 / 100 #90 / 100
     # will also freeze additional eigenvalues if the freezing cuts a cluster. Set to 0 to disable
     cluster_size = 1e-6
     
@@ -29,19 +29,6 @@ function get_frozen_bands_k(params, ik)# , num_frozen, dis_froz_min, dis_froz_ma
         l_frozen = (params.eig[:, ik] .>= dis_froz_min) .& (params.eig[:, ik] .<= dis_froz_max)
         # @debug "ik = $ik, l_frozen = $(l_frozen)"
         num_frozen = count(l_frozen)
-    end
-
-    # if cluster of eigenvalues and nfrozen > 0, take them all
-    if num_frozen > 0
-        while num_frozen < params.num_wann
-            if params.eig[num_frozen + 1, ik] < params.eig[num_frozen, ik] + cluster_size
-                num_frozen += 1
-            else
-                break
-            end
-        end
-
-        l_frozen[1:num_frozen] .= true
     end
 
     if freeze_projectability
@@ -56,6 +43,19 @@ function get_frozen_bands_k(params, ik)# , num_frozen, dis_froz_min, dis_froz_ma
             # @debug "l_frozen after dis_proj" l_frozen'
             # @debug "proj .>= dis_proj_max" (proj .>= dis_proj_max)'
         end
+    end
+
+    # if cluster of eigenvalues and nfrozen > 0, take them all
+    if num_frozen > 0
+        while num_frozen < params.num_wann
+            if params.eig[num_frozen + 1, ik] < params.eig[num_frozen, ik] + cluster_size
+                num_frozen += 1
+            else
+                break
+            end
+        end
+
+        l_frozen[1:num_frozen] .= true
     end
 
     @assert count(l_frozen) <= params.num_wann
@@ -250,11 +250,11 @@ end
 
 function minimize(params, A)
     # tolerance on spread
-    ftol = 1e-20
+    ftol = 1e-10
     # tolerance on gradient
     gtol = 1e-4
     # maximum optimization iterations
-    maxiter = 50 # 3000
+    maxiter = 150 # 3000
     # history size of BFGS
     m = 100
 
