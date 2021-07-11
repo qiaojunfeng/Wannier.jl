@@ -1,6 +1,7 @@
 #!/usr/bin/env julia
 import ArgParse
 import Wannier as Wan
+import Plots as Pl
 
 function parse_commandline()
     s = ArgParse.ArgParseSettings()
@@ -40,8 +41,15 @@ function main()
 
     Wan.plot_bands_diff(qe_bands, w90_bands; fermi_energy=fermi_energy, label1="QE", label2="W90")
 
-    print("Hit <enter> to continue")
-    readline()
+    # print("Hit <enter> to continue")
+    # readline()
+    print("Save figure to PDF? (Y/n)")
+    y = lowercase(strip(readline()))
+    if y == "y" || y == ""
+        pdfname = "$(basename(f_qe_bands))+$(basename(f_w90_bands)).pdf"
+        Pl.savefig(pdfname)
+        println("Saved to $pdfname")
+    end
 end
 
 main()

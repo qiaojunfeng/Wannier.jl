@@ -7,22 +7,28 @@ function plot_bands(bands::Bands)
     return plot_bands(plt, bands)
 end
 
+function merge_consecutive_labels(symm_points, symm_points_label)
+    new_labels = copy(symm_points_label)
+    for i = 1:(length(symm_points)-1)
+        if symm_points[i]+1 == symm_points[i+1]
+            new_labels[i] = "$(symm_points_label[i])|$(symm_points_label[i+1])"
+            new_labels[i+1] = ""
+        end
+    end
+    return new_labels
+end
+
 function plot_bands(plt, bands::Bands; fermi_energy::Union{Int,Float64}=0.0, 
     colors::Union{Matrix{Float64},Missing}=missing)
-# t = range(0, stop = 1, length = 100)
-# θ = (6π) .* t
-# x = t .* cos.(θ)
-# y = t .* sin.(θ)
-# p1 = plot(x, y, line_z = t, linewidth = 3, legend = false)
-# p2 = scatter(x, y, marker_z = (+), color = :bluesreds, legend = false)
-# plot(p1, p2)
+
     Pl.ylabel!(plt, "Energy (eV)")
 
     Pl.hline!(plt, [fermi_energy]; linestyle=:dash, linecolor=:blue, linewidth=0.2)
 
     if bands.num_symm_points != 0
+        merged_labels = merge_consecutive_labels(bands.symm_points, bands.symm_points_label)
         Pl.vline!(plt, bands.kpaths[bands.symm_points]; linecolor=:black, linewidth=0.2)
-        Pl.xticks!(plt, bands.kpaths[bands.symm_points], bands.symm_points_label)
+        Pl.xticks!(plt, bands.kpaths[bands.symm_points], merged_labels)
     end
 
     if isa(colors, Missing)
@@ -61,12 +67,14 @@ function plot_bands_diff(bands1::Bands, bands2::Bands; fermi_energy::Union{Int,F
     Pl.hline!(plt, [fermi_energy]; linestyle=:dash, linecolor=:blue, linewidth=0.2, label="Fermi energy")
 
     if bands1.num_symm_points != 0 && all(bands1.symm_points_label .!= "")
+        merged_labels = merge_consecutive_labels(bands1.symm_points, bands1.symm_points_label)
         Pl.vline!(plt, bands1.kpaths[bands1.symm_points]; linecolor=:black, linewidth=0.2, label="")
-        Pl.xticks!(plt, bands1.kpaths[bands1.symm_points], bands1.symm_points_label)
+        Pl.xticks!(plt, bands1.kpaths[bands1.symm_points], merged_labels)
     end
     if bands2.num_symm_points != 0 && all(bands2.symm_points_label .!= "")
+        merged_labels = merge_consecutive_labels(bands2.symm_points, bands2.symm_points_label)
         Pl.vline!(plt, bands2.kpaths[bands2.symm_points]; linecolor=:black, linewidth=0.2, label="")
-        Pl.xticks!(plt, bands2.kpaths[bands2.symm_points], bands2.symm_points_label)
+        Pl.xticks!(plt, bands2.kpaths[bands2.symm_points], merged_labels)
     end
 
     # only show 1 label in the legend

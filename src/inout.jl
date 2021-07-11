@@ -406,6 +406,9 @@ function read_qe_bands(filename::String)
     # there are angles between two consecutive kpath
     symm_points = Vector{Int}()
     symm_points_label = Vector{String}()
+    # push the first kpt
+    push!(symm_points, 1)
+    push!(symm_points_label, "")
     for ik = 2:nks-1
         vec0 = kpaths_coord[:,ik] - kpaths_coord[:,ik-1]
         vec1 = kpaths_coord[:,ik+1] - kpaths_coord[:,ik]
@@ -414,6 +417,9 @@ function read_qe_bands(filename::String)
             push!(symm_points_label, "")
         end
     end
+    # push the last kpt
+    push!(symm_points, nks)
+    push!(symm_points_label, "")
     num_symm_points = length(symm_points)
 
     # generate kpath
@@ -421,7 +427,7 @@ function read_qe_bands(filename::String)
     ik_prev = 1
     for ik = 1:nks
         dk = LA.norm(kpaths_coord[:,ik] - kpaths_coord[:,ik_prev])
-        if ik in symm_points
+        if ik != 2 && ik_prev in symm_points
             dk = 0
         end
         kpaths[ik] = kpaths[ik_prev] + dk

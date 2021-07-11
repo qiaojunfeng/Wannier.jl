@@ -1,6 +1,7 @@
 #!/usr/bin/env julia
 import ArgParse
 import Wannier as Wan
+import Plots as Pl
 
 function parse_commandline()
     s = ArgParse.ArgParseSettings()
@@ -34,10 +35,21 @@ function main()
     qe_bands = Wan.InOut.read_qe_bands(f_qe_bands)
     qe_projs = Wan.InOut.read_qe_projwfcup(f_qe_projs)
 
+    # need to add labels
+    qe_bands.symm_points_label = ["L", "G", "X", "K", "G"]
+    fermi_energy = 6.3883
+
     Wan.plot_bands_projectabilities(qe_bands, qe_projs; fermi_energy=fermi_energy)
 
-    print("Hit <enter> to continue")
-    readline()
+    # print("Hit <enter> to continue")
+    # readline()
+    print("Save figure to PDF? (Y/n)")
+    y = lowercase(strip(readline()))
+    if y == "y" || y == ""
+        pdfname = "$(basename(f_qe_bands))+$(basename(f_qe_projs)).pdf"
+        Pl.savefig(pdfname)
+        println("Saved to $pdfname")
+    end
 end
 
 main()
