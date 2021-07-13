@@ -79,6 +79,12 @@ version = "3.31.0"
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 
+[[Configurations]]
+deps = ["ExproniconLite", "OrderedCollections", "TOML"]
+git-tree-sha1 = "41d153a50b001a7c534f19e263540cca1a4e7cf3"
+uuid = "5218b696-f38b-4ac9-8b61-a12ec717816d"
+version = "0.16.4"
+
 [[Contour]]
 deps = ["StaticArrays"]
 git-tree-sha1 = "9f02045d934dc030edad45944ea80dbd1f0ebea7"
@@ -152,6 +158,11 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "b3bfd02e98aedfa5cf885665493c5598c350cd2f"
 uuid = "2e619515-83b5-522b-bb60-26c02a35a201"
 version = "2.2.10+0"
+
+[[ExproniconLite]]
+git-tree-sha1 = "c97ce5069033ac15093dc44222e3ecb0d3af8966"
+uuid = "55351af7-c7e9-48d6-89ff-24e801d99491"
+version = "0.6.9"
 
 [[FFMPEG]]
 deps = ["FFMPEG_jll"]

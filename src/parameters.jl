@@ -1,11 +1,8 @@
-
 module Parameters
 
-using Base: String
-mutable struct InputParams
-    # seedname.win
-    seed_name::String
+import Configurations
 
+mutable struct CoreData
     # unit cell, 3 * 3, angstrom unit, each column is a lattice vector
     unit_cell::Array{Float64,2}
     # reciprocal cell, 3 * 3
@@ -33,6 +30,9 @@ mutable struct InputParams
     # displacements between k + b and k + b wrapped around into the recipcell, 3 * nbvecs * num_kpts
     kpbs_disp::Array{Int,3}
 
+    # num_bands * num_kpts
+    frozen::BitMatrix
+
     # Mmn matrix, nbands * nbands * nbvecs * num_kpts
     mmn::Array{ComplexF64,4}
     # Amn matrix, nbands * nwann * num_kpts
@@ -45,6 +45,72 @@ mutable struct InputParams
     # TODO: remove this?
     # map::Bool
     # logMethod::Bool
+end
+
+Configurations.@option struct InputParams
+    # seedname.win
+    seed_name::String = ""
+
+    read_amn::Bool = true
+
+    # read the eig file (can be set to false when not disentangling)
+    read_eig::Bool = true
+
+    # write $file.optimize.amn at the end
+    write_optimized_amn::Bool = true
+
+    # will freeze if either n <= num_frozen or eigenvalue in frozen window
+    dis_froz_num::Int = 0
+
+    # dis_froz_min <= energy <= dis_froz_max bands are frozen
+    dis_froz_win::Bool = false
+    dis_froz_win_min::Float64 = -Inf
+    dis_froz_win_max::Float64 = -Inf
+
+    # select frozen bands based on projectability
+    dis_froz_proj::Bool = false
+    # TODO: < threshold bands are excluded
+    dis_froz_proj_min::Float64 = 0.1
+    # >= threshold bands are frozen
+    dis_froz_proj_max::Float64 = 0.9
+
+    # will also freeze additional eigenvalues if the freezing cuts a cluster. Set to 0 to disable
+    dis_froz_degen::Bool = false
+    dis_froz_degen_thres::Float64 = 1e-6
+
+    fix_centers::Bool = false
+    # TOML only accepts Vector of Vector for matrix input,
+    # so each row is a coord vector, however almost all the internal matrices are column vector
+    fix_centers_coords::Vector{Vector{Float64}} = []
+    # [ # angstrom
+    # 1.34940   1.34940   1.34940; 
+    # 1.34940   1.34940   1.34940; 
+    # 1.34940   1.34940   1.34940;
+    # 1.34940   1.34940   1.34940;
+    # 0.00000   0.00000   0.00000;
+    # 0.00000   0.00000   0.00000;
+    # 0.00000   0.00000   0.00000;
+    # 0.00000   0.00000   0.00000;
+    # ]
+
+    # expert/experimental features
+    # perform a global rotation by a phase factor at the end
+    do_normalize_phase::Bool = false
+
+    # randomize initial gauge
+    do_randomize_gauge::Bool = false
+
+    # only minimize sum_n <r^2>_n, not sum_n <r^2>_n - <r>_n^2
+    only_r2::Bool = false
+
+    # tolerance on spread
+    omega_tol::Float64 = 1e-10
+    # tolerance on gradient
+    gradient_tol::Float64 = 1e-4
+    # maximum optimization iterations
+    max_iter::Int = 150 # 3000
+    # history size of BFGS
+    history_size::Int = 100
 end
 
 mutable struct Wannier90Nnkp

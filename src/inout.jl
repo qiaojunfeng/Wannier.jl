@@ -6,7 +6,7 @@ import DelimitedFiles as Dlm
 import LinearAlgebra as LA
 
 using ..Constants: Bohr
-using ..Parameters: InputParams, Bands, AtomicWavefunction, Projectabilities
+using ..Parameters: CoreData, InputParams, Bands, AtomicWavefunction, Projectabilities
 using ..Utilities: get_recipcell
 using ..BVectors: generate_bvectors
 
@@ -233,8 +233,9 @@ function read_seedname(seedname::String, amn::Bool=true, eig::Bool=true)
     println("num_bands = $num_bands, num_wann = $num_wann, kpt = ", 
     win["kpts_size"], " num_bvecs = $num_bvecs")
 
-    return InputParams(
-        seedname,
+    frozen = falses(num_bands, num_kpts)
+
+    return CoreData(
         win["unit_cell"],
         win["recip_cell"],
         win["num_bands"],
@@ -246,6 +247,7 @@ function read_seedname(seedname::String, amn::Bool=true, eig::Bool=true)
         kpbs,
         kpbs_weight,
         kpbs_disp,
+        frozen,
         m_mat,
         a_mat,
         eig_mat
@@ -379,10 +381,17 @@ read QE bands.x output dat file
 function read_qe_bands(filename::String)
     fdat = open(filename)
 
-    regex = r"&plot nbnd=\s*(\d+), nks=\s*(\d+) /"
     line = readline(fdat)
+    regex = r"&plot nbnd=\s*(\d+), nks=\s*(\d+) /"
     m = match(regex, line)
-    nbnd, nks = parse.(Int, m.captures)
+    if m != nothing
+        nbnd, nks = parse.(Int, m.captures)
+    else
+        regex = r"&plot nbnd=\s*(\d+), nks=\s*(\d+) alat=\s*([+-]?([0-9]*[.])?[0-9]+) /"
+        m = match(regex, line)
+        nbnd, nks = parse.(Int, m.captures[1:2])
+        alat = parse.(Float64, m.captures[3])
+    end
 
     kpaths_coord = Matrix{Float64}(undef, 3, nks)
     energies = Matrix{Float64}(undef, nks, nbnd)
@@ -450,6 +459,12 @@ function read_qe_projwfcup(filename::String)
     ibrav = parse(Int, line[1])
     celldm = parse.(Float64, line[2:end])
     line = splitline()
+    # some version of projwfc.x output the unit_cell
+    if length(line) == 3
+        readline(fdat)
+        readline(fdat)
+        line = splitline()
+    end
     gcutm, dual, ecutwfc = parse.(Float64, line[1:end-1])
     magicnum = parse(Int, line[end])
     @assert magicnum == 9

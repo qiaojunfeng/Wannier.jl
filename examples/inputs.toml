@@ -1,0 +1,35 @@
+# [wannierise]
+# seed_name = "aiida"
+# seed_name = "/home/junfeng/git/Wannier.jl/test/silicon/example27/pao_new/si"
+# seed_name = "/home/junfeng/git/Wannier.jl/test/silicon/example27/scdm2/si"
+
+read_amn = true
+
+# read the eig file (can be set to false when not disentangling)
+read_eig = true
+
+# write $file.optimize.amn at the end
+write_optimized_amn = true
+
+# will freeze if either n <= num_frozen or eigenvalue in frozen window
+# dis_num_froz = 0 # 1
+
+
+# frozen_window_high = 1.1959000000e+01 #1.1959000000e+01 #-Inf
+# dis_froz_min = -Inf
+dis_froz_win_max = 12
+
+# dis_proj_min
+# dis_proj_max
+
+# fix_centers
+
+# expert/experimental features
+# perform a global rotation by a phase factor at the end
+do_normalize_phase = false
+
+# randomize initial gauge
+do_randomize_gauge = false
+
+# only minimize sum_n <r^2>_n, not sum_n <r^2>_n - <r>_n^2
+only_r2 = false

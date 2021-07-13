@@ -3,6 +3,7 @@ module Spreads
 # using StaticArrays
 import LinearAlgebra as LA
 import ..Utilities: overlap
+import ..Parameters: CoreData, InputParams
 
 # computes the MV energy
 # From MV: Omega = sum_n <r2>n - |<r>n|^2
@@ -26,56 +27,48 @@ end
 
 imaglog(z) = atan(imag(z), real(z))
 
-@views function omega(params, A, compute_grad=false, only_r2=false)
+@views function omega(data::CoreData, params::InputParams, A, compute_grad=false, only_r2=false)
     mu = 0.
     nfrozen = 0 # keep in case we want to do this later on
     if compute_grad
         if !only_r2
-            fix_center = false # true
-            if fix_center
-                fix_centers = [ # angstrom
-                1.34940   1.34940   1.34940; 
-                1.34940   1.34940   1.34940; 
-                1.34940   1.34940   1.34940;
-                1.34940   1.34940   1.34940;
-                0.00000   0.00000   0.00000;
-                0.00000   0.00000   0.00000;
-                0.00000   0.00000   0.00000;
-                0.00000   0.00000   0.00000;
-                ]'
-                centers = fix_centers
+            if params.fix_centers
+                centers = Matrix(Float64, 3, data.num_wann)
+                for i=1:data.num_wann
+                    centers[:,i] = params.fix_centers_coords[i]
+                end
             else
-                centers = omega(params, A, false).centers
+                centers = omega(data, params, A, false).centers
             end
         end
     end
-    grad = zeros(ComplexF64, params.num_bands, params.num_wann, params.num_kpts)
-    r = zeros(3, params.num_wann)
-    r2 = zeros(params.num_wann)
+    grad = zeros(ComplexF64, data.num_bands, data.num_wann, data.num_kpts)
+    r = zeros(3, data.num_wann)
+    r2 = zeros(data.num_wann)
     ΩI = 0.
     ΩOD = 0.
     ΩD = 0.
     frozen_weight = 0.
-    R = zeros(ComplexF64, params.num_bands, params.num_wann)
-    T = zeros(ComplexF64, params.num_bands, params.num_wann)
+    R = zeros(ComplexF64, data.num_bands, data.num_wann)
+    T = zeros(ComplexF64, data.num_bands, data.num_wann)
     b = zeros(3)
-    Mkb = zeros(ComplexF64, params.num_wann, params.num_wann)
-    Okb = zeros(ComplexF64, params.num_bands, params.num_wann)
-    for ik = 1:params.num_kpts
+    Mkb = zeros(ComplexF64, data.num_wann, data.num_wann)
+    Okb = zeros(ComplexF64, data.num_bands, data.num_wann)
+    for ik = 1:data.num_kpts
         frozen_weight -= mu * sum(abs2, A[1:nfrozen,:,ik])
         if compute_grad
             grad[1:nfrozen,:,ik] = -2 * mu * A[1:nfrozen,:,ik]
         end
         
-        for ib = 1:params.num_bvecs
-            ikpb = params.kpbs[ib, ik]
+        for ib = 1:data.num_bvecs
+            ikpb = data.kpbs[ib, ik]
             # Mkb = overlap_A([i,j,k],[i_n,j_n,k_n],p)
-            Okb .= overlap(params, ik, ikpb) * A[:,:,ikpb]
-            # @assert overlap(params,ik,ikpb)' ≈ overlap(params,ikpb,ik) #compute-intensive, but should be true
+            Okb .= overlap(data, ik, ikpb) * A[:,:,ikpb]
+            # @assert overlap(data,ik,ikpb)' ≈ overlap(data,ikpb,ik) #compute-intensive, but should be true
             Mkb .= A[:,:,ik]' * Okb
-            b .= params.recip_cell * (params.kpts[:,ikpb] .+ params.kpbs_disp[:,ib,ik] .- params.kpts[:,ik])
+            b .= data.recip_cell * (data.kpts[:,ikpb] .+ data.kpbs_disp[:,ib,ik] .- data.kpts[:,ik])
 
-            ib_weight = params.kpbs_weight[ib,ik]
+            ib_weight = data.kpbs_weight[ib,ik]
             if compute_grad
                 # #MV way
                 # fA(B) = (B-B')/2
@@ -92,7 +85,7 @@ imaglog(z) = atan(imag(z), real(z))
                 if !only_r2
                     q += centers' * b
                 end
-                for n = 1:params.num_wann
+                for n = 1:data.num_wann
                     # error if division by zero. Should not happen if the initial gauge is not too bad
                     if abs(Mkb[n,n]) < 1e-10
                         println("Mkbnn too small! $ik -> $ikpb")
@@ -101,7 +94,7 @@ imaglog(z) = atan(imag(z), real(z))
                     end
                     @assert abs(Mkb[n,n]) > 1e-10
                     Tfac = -im * q[n] / Mkb[n,n]
-                    for m = 1:params.num_bands
+                    for m = 1:data.num_bands
                         R[m,n] = -Okb[m,n] * conj(Mkb[n,n])
                         # T[m,n] = -im*Okb[m,n]/(Mkb[n,n])*q[n]
                         T[m,n] = Tfac * Okb[m,n]
@@ -110,9 +103,9 @@ imaglog(z) = atan(imag(z), real(z))
                 grad[:,:,ik] .+= 4 * ib_weight .* (R .+ T)
             end
 
-            ΩI += ib_weight * (params.num_wann - sum(abs2, Mkb))
+            ΩI += ib_weight * (data.num_wann - sum(abs2, Mkb))
             ΩOD += ib_weight * sum(abs2, Mkb .- LA.diagm(0 => LA.diag(Mkb)))
-            for n = 1:params.num_wann
+            for n = 1:data.num_wann
                 if !only_r2
                     r[:,n] -= ib_weight* imaglog(Mkb[n,n]) * b
                 end
@@ -121,13 +114,13 @@ imaglog(z) = atan(imag(z), real(z))
             end
         end
     end
-    r /= params.num_kpts
-    r2 /= params.num_kpts
-    ΩI /= params.num_kpts
-    ΩOD /= params.num_kpts
-    ΩD /= params.num_kpts
-    frozen_weight /= params.num_kpts
-    grad /= params.num_kpts
+    r /= data.num_kpts
+    r2 /= data.num_kpts
+    ΩI /= data.num_kpts
+    ΩOD /= data.num_kpts
+    ΩD /= data.num_kpts
+    frozen_weight /= data.num_kpts
+    grad /= data.num_kpts
 
     # @debug "Spreads" r r2' ΩI ΩOD ΩD
 
