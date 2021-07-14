@@ -48,13 +48,15 @@ function plot_bands(plt, bands::Bands; fermi_energy::Union{Int,Float64}=0.0,
 end
 
 function plot_bands_projectabilities(bands::Bands, projectabilities::Projectabilities; 
-    fermi_energy::Union{Int,Float64}=0.0)
+    fermi_energy::Union{Int,Float64}=0.0, show_gui=true)
 
     colors = dropdims(sum(projectabilities.proj, dims=3), dims=3)
 
     plt = plot_bands(Pl.plot(), bands; fermi_energy=fermi_energy, colors=colors)
 
-    Pl.gui(plt)
+    if show_gui
+        Pl.gui(plt)
+    end
 
     return plt
 end

@@ -36,10 +36,18 @@ function main()
     qe_projs = Wan.InOut.read_qe_projwfcup(f_qe_projs)
 
     # need to add labels
-    qe_bands.symm_points_label = ["L", "G", "X", "K", "G"]
-    fermi_energy = 6.3883
+    qe_bands.symm_points_label = ["G", "X", "P", "N", "G", "M", "S", "S0", "G", "X", "R", "G", "M"]
+    fermi_energy = 1.5135500000e+01
 
-    Wan.plot_bands_projectabilities(qe_bands, qe_projs; fermi_energy=fermi_energy)
+    thres = .92
+    qe_projs.proj[qe_projs.proj .>= thres] .= 1
+    qe_projs.proj[qe_projs.proj .< thres] .= 0
+
+    #Pl.plotly()
+    plt = Wan.plot_bands_projectabilities(qe_bands, qe_projs; fermi_energy=fermi_energy, show_gui=false)
+    emin, emax = 15, 18
+    Pl.ylims!(plt, (emin, emax))
+    Pl.gui(plt)
 
     # print("Hit <enter> to continue")
     # readline()

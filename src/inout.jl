@@ -384,7 +384,7 @@ function read_qe_bands(filename::String)
     line = readline(fdat)
     regex = r"&plot nbnd=\s*(\d+), nks=\s*(\d+) /"
     m = match(regex, line)
-    if m != nothing
+    if m !== nothing
         nbnd, nks = parse.(Int, m.captures)
     else
         regex = r"&plot nbnd=\s*(\d+), nks=\s*(\d+) alat=\s*([+-]?([0-9]*[.])?[0-9]+) /"
@@ -421,7 +421,7 @@ function read_qe_bands(filename::String)
     for ik = 2:nks-1
         vec0 = kpaths_coord[:,ik] - kpaths_coord[:,ik-1]
         vec1 = kpaths_coord[:,ik+1] - kpaths_coord[:,ik]
-        if !all(LA.cross(vec0, vec1) .≈ 0)
+        if !all(isapprox.(LA.cross(vec0, vec1), 0; atol=2e-6))
             push!(symm_points, ik)
             push!(symm_points_label, "")
         end
