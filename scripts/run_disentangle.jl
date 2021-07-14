@@ -1,3 +1,4 @@
+#!/usr/bin/env julia
 import Random
 import LinearAlgebra as LA
 import ArgParse
