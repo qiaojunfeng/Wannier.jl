@@ -4,6 +4,7 @@ import ArgParse
 import TOML
 import Configurations
 import Wannier as Wan
+import Serialization
 
 function parse_commandline()
     s = ArgParse.ArgParseSettings()
@@ -24,10 +25,21 @@ function parse_commandline()
     return ArgParse.parse_args(s)
 end
 
-function check_inputs(inputs::Wan.Parameters.InputParams)
+function check_inputs(params::Wan.Parameters.InputParams)
     # check parameters
-    if inputs.do_randomize_gauge && inputs.read_amn
+    if params.do_randomize_gauge && params.read_amn
         error("do not set do_randomize_gauge and read_amn")
+    end
+end
+
+"""
+check consistancy between input parameters and readed amn, mmn matrices
+"""
+function check_inputs2(data::Wan.Parameters.CoreData, params::Wan.Parameters.InputParams)
+    if params.dis_froz_pao
+        if params.dis_froz_num != data.num_wann
+            error("if using dis_froz_pao, dis_froz_num should equal to number of WFs")
+        end
     end
 end
 
@@ -36,6 +48,8 @@ function wannierize(params::Wan.Parameters.InputParams)
 
     data = Wan.InOut.read_seedname(
         params.seed_name, params.read_amn, params.read_eig)
+
+    # check_inputs2(data, params)
 
     if params.read_amn
         amn0 = copy(data.amn)
@@ -48,15 +62,25 @@ function wannierize(params::Wan.Parameters.InputParams)
         amn0[:,:,ik] = Wan.Utilities.orthonormalize_lowdin(amn0[:,:,ik])
     end
 
-    Wan.Disentangle.set_frozen_bands(data, params)
+    Wan.Disentangle.set_frozen_bands!(data, params)
 
-    # initial guess for U matrix
-    # Vt = zeros(ComplexF64, data.num_bands, data.num_bands, data.num_kpts)
-        # amn0[:,:,ik] = Wan.Disentangle.max_projectability(amn0[:,:,ik])
+    if params.dis_froz_pao
+        V = zeros(ComplexF64, data.num_bands, data.num_bands, data.num_kpts)
+        for ik = 1:data.num_kpts
+            amn0[:,:,ik], V[:,:,ik] = Wan.Disentangle.max_projectability(amn0[:,:,ik])
+        end
+        for ik = 1:data.num_kpts
+            for ib = 1:data.num_bvecs
+                data.mmn[:,:,ib,ik] = V[:,:,ik]' * data.mmn[:,:,ib,ik] * V[:,:,data.kpbs[ib,ik]]
+                # for band interpolation we need to rotate data.eig as well!
+            end
+        end
+    end
     
     for ik = 1:data.num_kpts
         l_frozen = data.frozen[:,ik]
         l_non_frozen = .!l_frozen
+        # initial guess for U matrix
         amn0[:,:,ik] = Wan.Disentangle.orthonormalize_and_freeze(amn0[:,:,ik], l_frozen, l_non_frozen)
     end
 
@@ -78,6 +102,12 @@ function wannierize(params::Wan.Parameters.InputParams)
             imax = indmax(abs.(A[:,i,1,1,1]))
             @assert abs(A[imax,i,1,1,1]) > 1e-2
             A[:,i,:,:,:] *= conj(A[imax,i,1,1,1] / abs(A[imax,i,1,1,1]))
+        end
+    end
+
+    if params.dis_froz_pao
+        for ik = 1:data.num_kpts
+            A[:,:,ik] = V[:,:,ik] * A[:,:,ik]
         end
     end
 

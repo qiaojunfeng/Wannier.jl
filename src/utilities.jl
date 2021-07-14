@@ -20,18 +20,18 @@ function orthonormalize_cholesky(A)
 end
 
 # Computes overlap between two neighboring kpoints
-function overlap(params, k1, k2)
+function overlap(data, k1, k2)
     # fix useful if N3 = 1 (e.g. for 2D models)
     if (k1 == k2)
-        return Matrix((1.0 + 0.0im)I, params.num_bands, params.num_bands)
+        return Matrix((1.0 + 0.0im)I, data.num_bands, data.num_bands)
     end
-    for ib = 1:params.num_bvecs
-        if params.kpbs[ib, k1] == k2
-            return view(params.mmn, :, :, ib, k1)
+    for ib = 1:data.num_bvecs
+        if data.kpbs[ib, k1] == k2
+            return view(data.mmn, :, :, ib, k1)
         end
     end
     error("No neighbors found, k1 = $(k1), k2 = $(k2)")
-    return Matrix((1.0 + 0.0im)I, params.num_bands, params.num_bands)
+    return Matrix((1.0 + 0.0im)I, data.num_bands, data.num_bands)
 end
 
 function get_projectability(A)

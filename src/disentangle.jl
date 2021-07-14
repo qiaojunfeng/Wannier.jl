@@ -6,24 +6,24 @@ import Optim
 using ..Spreads:omega
 using ..Parameters: InputParams, CoreData
 
-function set_frozen_bands(data::CoreData, params::InputParams)
+function set_frozen_bands!(data::CoreData, params::InputParams)
     if params.dis_froz_num > 0
-        l_frozen_k = 1:data.num_bands .<= params.dis_froz_num
-        l_frozen = repeat(l_frozen_k, outer=(1, params.num_kpts))
-        return l_frozen
+        frozen_k = 1:data.num_bands .<= params.dis_froz_num
+        data.frozen = repeat(frozen_k, outer=(1, data.num_kpts))
+        return
     end
     
-    l_frozen = falses(data.num_bands, data.num_kpts)
+    data.frozen = falses(data.num_bands, data.num_kpts)
 
     for ik = 1:data.num_kpts
-        l_frozen_k = falses(data.num_bands)
+        frozen_k = falses(data.num_bands)
         num_frozen_k = 0
 
         if params.dis_froz_win
-            l_frozen_k = (data.eig[:, ik] .>= params.dis_froz_win_min) .& 
-                         (data.eig[:, ik] .<= params.dis_froz_win_max)
+            frozen_k = (data.eig[:, ik] .>= params.dis_froz_win_min) .& 
+                       (data.eig[:, ik] .<= params.dis_froz_win_max)
             # @debug "ik = $ik, l_frozen_k = $(l_frozen_k)"
-            num_frozen_k = count(l_frozen_k)
+            num_frozen_k = count(frozen_k)
         end
 
         if params.dis_froz_proj
@@ -32,12 +32,12 @@ function set_frozen_bands(data::CoreData, params::InputParams)
             proj = dropdims(real(sum(amn_k .* conj(amn_k), dims=2)), dims=2)
             # @debug "projectability @ $ik" proj
 
-            if any(.!l_frozen_k[proj .>= params.dis_froz_proj_max])
+            if any(.!frozen_k[proj .>= params.dis_froz_proj_max])
                 # @debug "l_frozen before dis_proj" l_frozen'
-                l_frozen_k[proj .>= params.dis_froz_proj_max] .= true
+                frozen_k[proj .>= params.dis_froz_proj_max] .= true
                 # @debug "l_frozen after dis_proj" l_frozen'
                 # @debug "proj .>= dis_proj_max" (proj .>= dis_proj_max)'
-                num_frozen_k = count(l_frozen_k)
+                num_frozen_k = count(frozen_k)
             end
         end
 
@@ -46,16 +46,16 @@ function set_frozen_bands(data::CoreData, params::InputParams)
             while num_frozen_k < data.num_wann
                 if data.eig[num_frozen_k + 1, ik] < data.eig[num_frozen_k, ik] + params.dis_froz_degen_thres
                     num_frozen_k += 1
-                    l_frozen_k[num_frozen_k] .= true
+                    frozen_k[num_frozen_k] .= true
                 else
                     break
                 end
             end
         end
 
-        @assert count(l_frozen_k) <= data.num_wann
-        # @debug "num_frozen = $num_frozen, ik = $ik"
-        l_frozen[:,ik] = l_frozen_k
+        @assert count(frozen_k) <= data.num_wann
+        # @debug "num_frozen_k = $num_frozen_k, ik = $ik" frozen_k'
+        data.frozen[:,ik] = frozen_k
     end
 end
 
@@ -140,7 +140,7 @@ function max_projectability(A::Matrix{ComplexF64})
     V = V[:, sortperm(D, rev=true)]
     A_new = V' * A
     @debug "projectability" real(LA.diag(proj)') real(LA.diag(A_new * A_new')')
-    return A_new, V'
+    return A_new, V
 end
 
 # There are three formats: A, (X,Y) and XY stored contiguously in memory
@@ -253,7 +253,7 @@ function minimize(data::CoreData, params::InputParams, A)
         X0 = zeros(ComplexF64, data.num_wann, data.num_wann, data.num_kpts)
         Y0 = zeros(ComplexF64, data.num_bands, data.num_wann, data.num_kpts)
         for ik = 1:data.num_kpts
-            l_frozen = data[:,ik]
+            l_frozen = data.frozen[:,ik]
             l_non_frozen = .!l_frozen
             num_frozen = count(l_frozen)
             X0[:,:,ik] = normalize_matrix(

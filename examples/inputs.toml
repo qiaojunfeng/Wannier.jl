@@ -1,7 +1,5 @@
 # [wannierise]
 # seed_name = "aiida"
-# seed_name = "/home/junfeng/git/Wannier.jl/test/silicon/example27/pao_new/si"
-# seed_name = "/home/junfeng/git/Wannier.jl/test/silicon/example27/scdm2/si"
 
 read_amn = true
 
@@ -12,17 +10,30 @@ read_eig = true
 write_optimized_amn = true
 
 # will freeze if either n <= num_frozen or eigenvalue in frozen window
-# dis_num_froz = 0 # 1
+# dis_froz_num = 0 # 1
 
+# dis_froz_win = true
+# dis_froz_win_min = -Inf
+# dis_froz_win_max = 12
 
-# frozen_window_high = 1.1959000000e+01 #1.1959000000e+01 #-Inf
-# dis_froz_min = -Inf
-dis_froz_win_max = 12
+# dis_froz_proj = true
+# dis_froz_proj_min
+# dis_froz_proj_max
 
-# dis_proj_min
-# dis_proj_max
+dis_froz_degen = true
 
-# fix_centers
+# fix_centers = true
+# fix_centers_coords = [
+#     # angstrom
+#     [1.34940, 1.34940, 1.34940],
+#     [1.34940, 1.34940, 1.34940],
+#     [1.34940, 1.34940, 1.34940],
+#     [1.34940, 1.34940, 1.34940],
+#     [0.00000, 0.00000, 0.00000],
+#     [0.00000, 0.00000, 0.00000],
+#     [0.00000, 0.00000, 0.00000],
+#     [0.00000, 0.00000, 0.00000],
+# ]
 
 # expert/experimental features
 # perform a global rotation by a phase factor at the end

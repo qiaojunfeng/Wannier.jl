@@ -62,6 +62,9 @@ Configurations.@option struct InputParams
     # will freeze if either n <= num_frozen or eigenvalue in frozen window
     dis_froz_num::Int = 0
 
+    # 
+    dis_froz_pao::Bool = false
+
     # dis_froz_min <= energy <= dis_froz_max bands are frozen
     dis_froz_win::Bool = false
     dis_froz_win_min::Float64 = -Inf
