@@ -48,7 +48,7 @@ function wannierize(params::Wan.Parameters.InputParams)
     Random.seed!(0)
 
     data = Wan.InOut.read_seedname(
-        params.seed_name, params.read_amn, params.read_eig)
+        params.seed_name, amn=params.read_amn, eig=params.read_eig)
 
     # check_inputs2(data, params)
 
@@ -68,7 +68,8 @@ function wannierize(params::Wan.Parameters.InputParams)
     if params.dis_froz_pao
         V = zeros(ComplexF64, data.num_bands, data.num_bands, data.num_kpts)
         for ik = 1:data.num_kpts
-            amn0[:,:,ik], V[:,:,ik] = Wan.Disentangle.max_projectability(amn0[:,:,ik])
+            # amn0[:,:,ik], V[:,:,ik] = Wan.Disentangle.max_projectability(amn0[:,:,ik])
+            amn0[:,:,ik], V[:,:,ik] = Wan.Disentangle.maxproj_froz(amn0[:,:,ik], data.frozen[:,ik])
         end
         for ik = 1:data.num_kpts
             for ib = 1:data.num_bvecs
@@ -117,21 +118,39 @@ function wannierize(params::Wan.Parameters.InputParams)
     end
 end
 
+function parse_inputs(seed_name::String)
+    toml_suffix = ".toml"
+    if endswith(seed_name, toml_suffix)
+        seed_name = seed_name[1:length(seed_name)-length(toml_suffix)]
+    end
+
+    toml = TOML.parsefile("$(seed_name)$(toml_suffix)")
+    toml["seed_name"] = seed_name
+    params = Configurations.from_dict(Wan.Parameters.InputParams, toml)
+
+    # non-core stuffs in win are also stored in params
+    win = Wan.InOut.read_win("$(params.seed_name).win")
+    params.kpath = win["kpath"]
+    params.kpath_label = win["kpath_label"]
+
+    check_inputs(params)
+
+    # println(params)
+    # exit()
+
+    return params
+end
+
 function main()
     parsed_args = parse_commandline()
 
-    seedname = parsed_args["seedname"]
-    toml_suffix = ".toml"
-    if endswith(seedname, toml_suffix)
-        seedname = seedname[1:length(seedname)-length(toml_suffix)]
+    params = parse_inputs(parsed_args["seedname"])
+
+    if params.restart == "plot"
+        Wan.interpolate(params)
+    else
+        wannierize(params)
     end
-
-    toml = TOML.parsefile("$(seedname)$(toml_suffix)")
-    toml["seed_name"] = seedname
-    params = Configurations.from_dict(Wan.Parameters.InputParams, toml)
-
-    check_inputs(params)
-    wannierize(params)
 end
 
 main()

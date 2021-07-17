@@ -2,7 +2,7 @@ module Parameters
 
 import Configurations
 
-mutable struct CoreData
+Base.@kwdef mutable struct CoreData
     # unit cell, 3 * 3, angstrom unit, each column is a lattice vector
     unit_cell::Array{Float64,2}
     # reciprocal cell, 3 * 3
@@ -47,9 +47,11 @@ mutable struct CoreData
     # logMethod::Bool
 end
 
-Configurations.@option struct InputParams
+Configurations.@option mutable struct InputParams
     # seedname.win
     seed_name::String = ""
+
+    restart::String = ""
 
     read_amn::Bool = true
 
@@ -114,9 +116,14 @@ Configurations.@option struct InputParams
     max_iter::Int = 150 # 3000
     # history size of BFGS
     history_size::Int = 100
+
+    # Currently not read from toml, instead is used to save parameters from win
+    kpath::Array{Float64,3} = zeros(3,2,1)
+    kpath_label::Union{Matrix{Missing},Matrix{String}} = Matrix{Missing}(missing,2,1)
+    bands_num_points::Int = 100
 end
 
-mutable struct Wannier90Nnkp
+Base.@kwdef mutable struct Wannier90Nnkp
     # Note each column is a lattice vector, while in nnkp file each row is a lattice vector
     # 3 * 3
     real_lattice::Array{Float64,2}
@@ -142,7 +149,7 @@ mutable struct Wannier90Nnkp
     # exclude_bands
 end
 
-mutable struct InterpResults
+Base.@kwdef mutable struct InterpResults
     Obs_array::Array{ComplexF64,3}
     Obs_array_i::Array{ComplexF64,3}
     Obs_array_j::Array{ComplexF64,3}
@@ -151,11 +158,11 @@ mutable struct InterpResults
 end
 
 
-mutable struct Bands
+Base.@kwdef mutable struct Bands
     num_kpts::Int
     num_bands::Int
 
-    # num_kpts
+    # num_kpts, Cartesian, Å^-1 ?
     kpaths::Vector{Float64}
     # kpath coordinates, reduced, 3 * num_kpts
     kpaths_coord::Matrix{Float64}
@@ -172,7 +179,7 @@ mutable struct Bands
     # colors::Matrix{Int}
 end
 
-mutable struct AtomicWavefunction
+Base.@kwdef mutable struct AtomicWavefunction
     # to differentiate same kind of atoms
     atom_index::Int
     # e.g. "Si", use "Si1", "Si2" to differentiate same kind but different types (spin up, down)
@@ -186,7 +193,7 @@ mutable struct AtomicWavefunction
     m::Int
 end
 
-mutable struct Projectabilities
+Base.@kwdef mutable struct Projectabilities
     num_kpts::Int
     num_bands::Int
     # number of atomic wavefunctions

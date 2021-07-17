@@ -14,12 +14,16 @@ function read_win(filename::String)::Dict
     println("Reading $filename")
     fwin = open(filename)
 
+    tol = 1e-6
     num_wann = missing
     num_bands = missing
     num_kpts = missing
     kpts_size = zeros(3)
     unit_cell = zeros(3, 3)
     kpts = zeros(3, 1)
+    # 1st index: coordinates, 2nd index: start & end, 3rd index: number of paths. Need to resize the 3rd index
+    kpath = Array{Float64, 3}(undef, 3, 2, 1)
+    kpath_label = Array{String, 2}(undef, 2, 1)
 
     read_array(f) = map(x -> parse(Float64, x), split(readline(f)))
 
@@ -30,7 +34,11 @@ function read_win(filename::String)::Dict
         line = replace(line, "=" => " ")
         line = replace(line, ":" => " ")
         line = replace(line, "," => " ")
-        if startswith(line, r"!|#")
+        i = findfirst(isequal('#'), line)
+        if i !== nothing
+            line = strip(line[1:i-1])
+        end
+        if startswith(line, r"!|#") || isempty(line)
             continue
         elseif occursin("mp_grid", line)
             kpts_size = map(x -> parse(Int, x), split(line)[2:4])
@@ -53,6 +61,26 @@ function read_win(filename::String)::Dict
         elseif occursin("begin kpoints", line)
             for i = 1:num_kpts
                 kpts[:, i] = read_array(fwin)[1:3]
+            end
+        elseif occursin("begin kpoint_path", line)
+            lines = Vector{String}()
+            line = strip(readline(fwin))
+            while !occursin("end kpoint_path", line)
+                push!(lines, line)
+                line = strip(readline(fwin))
+            end
+            num_kpath = length(lines)
+            kpath = Array{Float64, 3}(undef, 3, 2, num_kpath)
+            kpath_label = Array{String, 2}(undef, 2, num_kpath)
+            for i = 1:num_kpath
+                l = split(lines[i])
+                @assert length(l) == 8
+                kpath_label[1,i] = l[1]
+                kpath_label[2,i] = l[5]
+                kpath[:,1,i] = parse.(Float64, l[2:4])
+                @assert all(-1.0-tol .<= kpath[:,1,i] .<= 1.0+tol)
+                kpath[:,2,i] = parse.(Float64, l[6:8])
+                @assert all(-1.0-tol .<= kpath[:,2,i] .<= 1.0+tol)
             end
         end
     end
@@ -81,7 +109,9 @@ function read_win(filename::String)::Dict
         "kpts_size" => kpts_size,
         "kpts" => kpts,
         "unit_cell" => unit_cell,
-        "recip_cell" => recip_cell
+        "recip_cell" => recip_cell,
+        "kpath" => kpath,
+        "kpath_label" => kpath_label
     )
 end
 
@@ -187,7 +217,7 @@ function read_eig(filename::String)
     return eig
 end
 
-function read_seedname(seedname::String, amn::Bool=true, eig::Bool=true)
+function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bool=true)
     # read win, mmn and optionally amn
     win = read_win("$seedname.win")
     num_bands = win["num_bands"]
@@ -197,13 +227,17 @@ function read_seedname(seedname::String, amn::Bool=true, eig::Bool=true)
     kpbs, kpbs_disp, kpbs_weight = generate_bvectors(win["kpts"], win["recip_cell"])
     num_bvecs = size(kpbs_weight, 1)
 
-    m_mat, kpbs2, kpbs_disp2 = read_mmn("$seedname.mmn")
-    # check consistency for mmn
-    @assert num_bands == size(m_mat)[1]
-    @assert num_bvecs == size(m_mat)[3]
-    @assert num_kpts == size(m_mat)[4]
-    @assert kpbs == kpbs2
-    @assert kpbs_disp == kpbs_disp2
+    if mmn
+        m_mat, kpbs2, kpbs_disp2 = read_mmn("$seedname.mmn")
+        # check consistency for mmn
+        @assert num_bands == size(m_mat)[1]
+        @assert num_bvecs == size(m_mat)[3]
+        @assert num_kpts == size(m_mat)[4]
+        @assert kpbs == kpbs2
+        @assert kpbs_disp == kpbs_disp2
+    else
+        m_mat = zeros(ComplexF64, num_bands, num_bands, num_bvecs, num_kpts)
+    end
 
     if amn
         a_mat = read_amn("$seedname.amn")
@@ -236,21 +270,21 @@ function read_seedname(seedname::String, amn::Bool=true, eig::Bool=true)
     frozen = falses(num_bands, num_kpts)
 
     return CoreData(
-        win["unit_cell"],
-        win["recip_cell"],
-        win["num_bands"],
-        win["num_wann"],
-        win["num_kpts"],
-        win["kpts_size"],
-        win["kpts"],
-        num_bvecs,
-        kpbs,
-        kpbs_weight,
-        kpbs_disp,
-        frozen,
-        m_mat,
-        a_mat,
-        eig_mat
+        unit_cell = win["unit_cell"],
+        recip_cell = win["recip_cell"],
+        num_bands = win["num_bands"],
+        num_wann = win["num_wann"],
+        num_kpts = win["num_kpts"],
+        kpts_size = win["kpts_size"],
+        kpts = win["kpts"],
+        num_bvecs = num_bvecs,
+        kpbs = kpbs,
+        kpbs_weight = kpbs_weight,
+        kpbs_disp = kpbs_disp,
+        frozen = frozen,
+        mmn = m_mat,
+        amn = a_mat,
+        eig = eig_mat
     )
 end
 
@@ -362,8 +396,53 @@ function read_wannier90_bands(seed_name::String)
         symm_points_label[i] = lab
     end
     
-    return Bands(num_kpts, num_bands, kpaths, kpaths_coord, energies, 
-    num_symm_points, symm_points, symm_points_label)
+    return Bands(
+        num_kpts = num_kpts,
+        num_bands = num_bands,
+        kpaths = kpaths,
+        kpaths_coord = kpaths_coord,
+        energies = energies,
+        num_symm_points = num_symm_points,
+        symm_points = symm_points,
+        symm_points_label = symm_points_label
+    )
+end
+
+"""
+read si_band.dat  si_band.kpt  si_band.labelinfo.dat
+"""
+function write_wannier90_bands(bands::Bands, seed_name::String)
+    open("$(seed_name)_band.kpt", "w") do io
+        write(io, "$(bands.num_kpts)\n")
+        for i = 1:bands.num_kpts
+            write(io, join([bands.kpaths_coord[:,i]..., 1.0], " "))
+            write(io, "\n")
+        end
+    end
+    println("Written to $(seed_name)_band.kpt")
+
+    open("$(seed_name)_band.dat", "w") do io
+        for i = 1:bands.num_bands
+            for j = 1:bands.num_kpts
+                write(io, "$(bands.kpaths[j]) $(bands.energies[j,i])\n")
+            end
+            write(io, "\n")
+        end
+    end
+    println("Written to $(seed_name)_band.dat")
+
+    open("$(seed_name)_band.labelinfo.dat", "w") do io
+        for i = 1:bands.num_symm_points
+            line = "$(bands.symm_points_label[i]) "
+            idx = bands.symm_points[i]
+            line *= "$(idx) "
+            line *= "$(bands.kpaths[idx]) "
+            coord = join(bands.kpaths_coord[:,idx], " ")
+            line *= "$(coord)\n"
+            write(io, line)
+        end
+    end
+    println("Written to $(seed_name)_band.labelinfo.dat")
 end
 
 """

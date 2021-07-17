@@ -2,7 +2,6 @@ module Disentangle
 
 import LinearAlgebra as LA
 import Optim
-# using ..Parameters: InputParams
 using ..Spreads:omega
 using ..Parameters: InputParams, CoreData
 
@@ -134,6 +133,17 @@ end
 
 function max_projectability(A::Matrix{ComplexF64})
     proj = A * A'
+    proj_ortho = LA.I - proj
+    U, S, V = LA.svd(proj_ortho)
+    n = abs(size(A,1) - size(A,2))
+    @assert count(S .> 1e-5) >= n
+    R = hcat(A, V[:,1:n])
+    @assert R * R' ≈ LA.I
+    return R' * A, R
+
+    U, S, V = LA.svd(A)
+    return V' * A, V
+    proj = A * A'
     # A * A' = V D V'  =>  (V'A) (A'V) = D
     D, V = LA.eigen(proj)
     # sort eigenvalues in descending order
@@ -141,6 +151,31 @@ function max_projectability(A::Matrix{ComplexF64})
     A_new = V' * A
     @debug "projectability" real(LA.diag(proj)') real(LA.diag(A_new * A_new')')
     return A_new, V
+end
+
+function maxproj_froz(A::Matrix{ComplexF64}, froz::BitVector)
+    @assert length(froz) == size(A,1)
+    m, n = size(A)
+    D = zeros(ComplexF64, n+count(froz), m)
+    D[1:n,:] = transpose(A)
+    c = n+1
+    for i = 1:length(froz)
+        if froz[i]
+            D[c,i] = 1
+            c += 1
+        end
+    end
+    U, S, V = LA.svd(D)
+    
+    nbasis =  count(S .> 1e-5)
+    V_new = V[:,1:nbasis]
+    proj = V_new * V_new'
+    proj_ortho = LA.I - proj
+    U, S, V = LA.svd(proj_ortho)
+    R = hcat(V_new, V[:,1:m-nbasis])
+    @assert R * R' ≈ LA.I
+
+    return R' * A, R
 end
 
 # There are three formats: A, (X,Y) and XY stored contiguously in memory
