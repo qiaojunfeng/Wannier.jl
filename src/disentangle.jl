@@ -6,11 +6,6 @@ using ..Spreads:omega
 using ..Parameters: InputParams, CoreData
 
 function set_frozen_bands!(data::CoreData, params::InputParams)
-    if params.dis_froz_num > 0
-        frozen_k = 1:data.num_bands .<= params.dis_froz_num
-        data.frozen = repeat(frozen_k, outer=(1, data.num_kpts))
-        return
-    end
     
     data.frozen = falses(data.num_bands, data.num_kpts)
 
@@ -50,6 +45,10 @@ function set_frozen_bands!(data::CoreData, params::InputParams)
                     break
                 end
             end
+        end
+
+        if params.dis_froz_num > 0
+            frozen_k[1:params.dis_froz_num] .= true
         end
 
         @assert count(frozen_k) <= data.num_wann
