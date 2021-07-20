@@ -12,6 +12,10 @@ function parse_commandline()
             help = "Fermi energy"
             arg_type = Float64
             default = 0.0
+        "--dis_froz_max", "-d"
+            help = "dis_froz_max"
+            arg_type = Float64
+            required = false
         # "--flag1"
         #     help = "an option without argument, i.e. a flag"
         #     action = :store_true
@@ -31,6 +35,7 @@ function main()
     f_qe_bands = parsed_args["qe"]
     f_w90_bands = parsed_args["wannier90"]
     fermi_energy = parsed_args["fermi_energy"]
+    dis_froz_max = parsed_args["dis_froz_max"]
 
     qe_bands = Wan.InOut.read_qe_bands(f_qe_bands)
     w90_bands = Wan.InOut.read_wannier90_bands(f_w90_bands)
@@ -39,7 +44,8 @@ function main()
     fac = (w90_bands.kpaths[end] - w90_bands.kpaths[1]) / (qe_bands.kpaths[end] - qe_bands.kpaths[1])
     qe_bands.kpaths .*= fac
 
-    Wan.plot_bands_diff(qe_bands, w90_bands; fermi_energy=fermi_energy, label1="QE", label2="W90")
+    Wan.plot_bands_diff(qe_bands, w90_bands; 
+        fermi_energy=fermi_energy, dis_froz_max=dis_froz_max, label1="QE", label2="W90")
 
     # print("Hit <enter> to continue")
     # readline()

@@ -52,6 +52,8 @@ function wannierize(params::Wan.Parameters.InputParams)
 
     # check_inputs2(data, params)
 
+    amn0 = nothing
+
     if params.read_amn
         amn0 = copy(data.amn)
     else
@@ -135,7 +137,7 @@ function parse_inputs(seed_name::String)
 
     check_inputs(params)
 
-    # println(params)
+    @info "inputs from toml" params
     # exit()
 
     return params

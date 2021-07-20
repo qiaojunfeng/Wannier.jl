@@ -32,7 +32,11 @@ function plot_bands(plt, bands::Bands; fermi_energy::Union{Int,Float64}=0.0, kwa
         Pl.xticks!(plt, bands.kpaths[bands.symm_points], merged_labels)
     end
 
-    varargs = copy(kwargs)
+    # kwargs is immutable, copy to a new Dict
+    varargs = Dict{Symbol,Any}()
+    for (k,v) in kwargs
+        varargs[k] = v
+    end
     @debug "varargs" varargs
     if !haskey(varargs, :color)
         varargs[:color] = :copper
@@ -51,12 +55,12 @@ function plot_bands(plt, bands::Bands; fermi_energy::Union{Int,Float64}=0.0, kwa
 end
 
 function plot_bands_projectabilities(bands::Bands, projectabilities::Projectabilities; 
-    fermi_energy::Union{Int,Float64}=0.0, show_orbitals::Bool=false, show_gui=true)
+    fermi_energy::Union{Int,Float64}=0.0, show_orbitals::Bool=false, show_gui=true, kwargs...)
 
     plt = nothing
     if !show_orbitals
         colors = dropdims(sum(projectabilities.proj, dims=3), dims=3)
-        plt = plot_bands(Pl.plot(), bands; fermi_energy=fermi_energy, line_z=colors)
+        plt = plot_bands(Pl.plot(), bands; fermi_energy=fermi_energy, line_z=colors, kwargs...)
     else
         # merge atomic wfcs, e.g. px+py+pz -> p
         wfc_typs = Dict()
@@ -81,7 +85,8 @@ function plot_bands_projectabilities(bands::Bands, projectabilities::Projectabil
                     fermi_energy=fermi_energy, line_z=wfc_typs[typ],
                     # color=dis_colors[iw],
                     # clims=clims,
-                    colorbar=true)
+                    colorbar=true,
+                    kwargs...)
             Pl.title!(p, typ)
             push!(plots, p)
         end
@@ -96,11 +101,15 @@ function plot_bands_projectabilities(bands::Bands, projectabilities::Projectabil
 end
 
 function plot_bands_diff(bands1::Bands, bands2::Bands; fermi_energy::Union{Int,Float64}=0.0, 
-    label1::String="Bands1", label2::String="Bands2")
+    dis_froz_max::Union{Nothing,Float64}=nothing, label1::String="Bands1", label2::String="Bands2")
     plt = Pl.plot(grid=false, framestyle=:box)
 
     Pl.ylabel!(plt, "Energy (eV)")
     Pl.hline!(plt, [fermi_energy]; linestyle=:dash, linecolor=:blue, linewidth=0.2, label="Fermi energy")
+
+    if dis_froz_max !== nothing
+        Pl.hline!(plt, [dis_froz_max]; linestyle=:dash, linecolor=:green, linewidth=0.2, label="dis_froz_max")
+    end
 
     if bands1.num_symm_points != 0 && all(bands1.symm_points_label .!= "")
         merged_labels = merge_consecutive_labels(bands1.symm_points, bands1.symm_points_label)

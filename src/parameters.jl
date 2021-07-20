@@ -1,5 +1,6 @@
 module Parameters
 
+import GarishPrint
 import Configurations
 
 Base.@kwdef mutable struct CoreData
@@ -122,6 +123,8 @@ Configurations.@option mutable struct InputParams
     kpath_label::Union{Matrix{Missing},Matrix{String}} = Matrix{Missing}(missing,2,1)
     bands_num_points::Int = 100
 end
+
+Base.show(io::IO, ::MIME"text/plain", x::InputParams) = GarishPrint.pprint_struct(io, x)
 
 Base.@kwdef mutable struct Wannier90Nnkp
     # Note each column is a lattice vector, while in nnkp file each row is a lattice vector
