@@ -10,11 +10,11 @@ function parse_commandline()
         #     help = "an option with an argument"
         "--fermi_energy", "-f"
             help = "Fermi energy"
-            arg_type = Union{Int, Float64}
-            default = 0
-        # "--flag1"
-        #     help = "an option without argument, i.e. a flag"
-        #     action = :store_true
+            arg_type = Float64
+            default = 0.0
+        "--show_orbitals"
+            help = "Show each orbitals, e.g. s,p,d"
+            action = :store_true
         "qebands"
             help = "Filename of QE bands.x output bands.dat file"
             required = true
@@ -31,21 +31,25 @@ function main()
     f_qe_bands = parsed_args["qebands"]
     f_qe_projs = parsed_args["qeprojs"]
     fermi_energy = parsed_args["fermi_energy"]
+    show_orbitals = parsed_args["show_orbitals"]
 
     qe_bands = Wan.InOut.read_qe_bands(f_qe_bands)
     qe_projs = Wan.InOut.read_qe_projwfcup(f_qe_projs)
 
     # need to add labels
-    qe_bands.symm_points_label = ["G", "X", "P", "N", "G", "M", "S", "S0", "G", "X", "R", "G", "M"]
-    fermi_energy = 1.5135500000e+01
+    # qe_bands.symm_points_label = ["G", "X", "P", "N", "G", "M", "S", "S0", "G", "X", "R", "G", "M"]
+    qe_bands.symm_points_label = ["L", "G", "X", "X", "G"]
+    # fermi_energy = 1.5135500000e+01
 
-    thres = .92
-    qe_projs.proj[qe_projs.proj .>= thres] .= 1
-    qe_projs.proj[qe_projs.proj .< thres] .= 0
+    # thres = .92
+    # qe_projs.proj[qe_projs.proj .>= thres] .= 1
+    # qe_projs.proj[qe_projs.proj .< thres] .= 0
 
     #Pl.plotly()
-    plt = Wan.plot_bands_projectabilities(qe_bands, qe_projs; fermi_energy=fermi_energy, show_gui=false)
-    emin, emax = 15, 18
+    plt = Wan.plot_bands_projectabilities(qe_bands, qe_projs; 
+        fermi_energy=fermi_energy, show_orbitals=show_orbitals, show_gui=false)
+    # emin, emax = 15, 18
+    emin, emax = -8, 18
     Pl.ylims!(plt, (emin, emax))
     Pl.gui(plt)
 
