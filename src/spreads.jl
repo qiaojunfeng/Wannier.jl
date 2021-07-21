@@ -33,7 +33,7 @@ imaglog(z) = atan(imag(z), real(z))
     if compute_grad
         if !only_r2
             if params.fix_centers
-                centers = Matrix(Float64, 3, data.num_wann)
+                centers = zeros(Float64, 3, data.num_wann)
                 for i=1:data.num_wann
                     centers[:,i] = params.fix_centers_coords[i]
                 end
