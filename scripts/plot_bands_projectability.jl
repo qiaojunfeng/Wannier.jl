@@ -3,7 +3,7 @@ import ArgParse
 import Wannier as Wan
 import Plots as Pl
 
-function parse_commandline()
+function parse_commandline(args=nothing)
     s = ArgParse.ArgParseSettings()
     @ArgParse.add_arg_table s begin
         # "--opt1"
@@ -30,11 +30,15 @@ function parse_commandline()
             help = "Filename of QE projwfc.x output prefix.proj.dat.projwfc_up file"
             required = true
     end
-    return ArgParse.parse_args(s)
+    if args == nothing
+        return ArgParse.parse_args(s)
+    else
+        return ArgParse.parse_args(args, s)
+    end
 end
 
-function main()
-    parsed_args = parse_commandline()
+function main(args)
+    parsed_args = parse_commandline(args)
     
     f_qe_bands = parsed_args["qebands"]
     f_qe_projs = parsed_args["qeprojs"]
@@ -45,8 +49,8 @@ function main()
     qe_projs = Wan.InOut.read_qe_projwfcup(f_qe_projs)
 
     # need to add labels
-    # qe_bands.symm_points_label = ["G", "X", "P", "N", "G", "M", "S", "S0", "G", "X", "R", "G", "M"]
-    qe_bands.symm_points_label = ["L", "G", "X", "X", "G"]
+    qe_bands.symm_points_label = ["G", "X", "P", "N", "G", "M", "S", "S0", "G", "X", "R", "G", "M"]
+    #qe_bands.symm_points_label = ["L", "G", "X", "X", "G"]
     # fermi_energy = 1.5135500000e+01
 
     kwargs = Dict{Symbol,Any}()
@@ -63,6 +67,7 @@ function main()
         kwargs[:color] = :jet1
         kwargs[:title] = "dis_proj_min/max = $(dis_proj_min)/$(dis_proj_max)"
         kwargs[:colorbar] = false
+        kwargs[:marker_z] = p
     end
 
     #Pl.plotly()
