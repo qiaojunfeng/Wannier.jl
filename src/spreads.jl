@@ -152,4 +152,71 @@ function omega_loc(p, A)
     return loc
 end
 
+
+@views function position(data::CoreData, A)
+
+    rmn = zeros(ComplexF64, 3, data.num_wann, data.num_wann)
+    b = zeros(3)
+    Mkb = zeros(ComplexF64, data.num_wann, data.num_wann)
+    Okb = zeros(ComplexF64, data.num_bands, data.num_wann)
+
+    for ik = 1:data.num_kpts
+        for ib = 1:data.num_bvecs
+            ikpb = data.kpbs[ib, ik]
+            Okb .= overlap(data, ik, ikpb) * A[:,:,ikpb]
+            Mkb .= A[:,:,ik]' * Okb
+            b .= data.recip_cell * (data.kpts[:,ikpb] .+ data.kpbs_disp[:,ib,ik] .- data.kpts[:,ik])
+
+            ib_weight = data.kpbs_weight[ib,ik]
+
+            for m = 1:data.num_wann
+                for n = 1:data.num_wann
+                    rmn[:,m,n] += ib_weight * Mkb[m,n] * b
+                    if m == n
+                        rmn[:,m,n] -= ib_weight * b
+                    end
+                end
+            end
+        end
+    end
+    rmn /= -im * data.num_kpts
+
+    return rmn
+end
+
+
+"
+Berry connection at each kpoint
+"
+@views function berry_connection(data::CoreData, A)
+
+    berry = zeros(ComplexF64, 3, data.num_wann, data.num_wann, data.num_kpts)
+    b = zeros(3)
+    Mkb = zeros(ComplexF64, data.num_wann, data.num_wann)
+    Okb = zeros(ComplexF64, data.num_bands, data.num_wann)
+
+    for ik = 1:data.num_kpts
+        for ib = 1:data.num_bvecs
+            ikpb = data.kpbs[ib, ik]
+            Okb .= overlap(data, ik, ikpb) * A[:,:,ikpb]
+            Mkb .= A[:,:,ik]' * Okb
+            b .= data.recip_cell * (data.kpts[:,ikpb] .+ data.kpbs_disp[:,ib,ik] .- data.kpts[:,ik])
+
+            ib_weight = data.kpbs_weight[ib,ik]
+
+            for m = 1:data.num_wann
+                for n = 1:data.num_wann
+                    berry[:,m,n,ik] += ib_weight * Mkb[m,n] * b
+                    if m == n
+                        berry[:,m,n,ik] -= ib_weight * b
+                    end
+                end
+            end
+        end
+    end
+    berry *= im
+
+    return berry
+end
+
 end
