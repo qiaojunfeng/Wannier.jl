@@ -126,6 +126,8 @@ function wannierize(params::Wan.Parameters.InputParams)
     if params.write_optimized_amn
         Wan.InOut.write_amn("$(params.seed_name).amn.optimized", A)
     end
+
+    Serialization.serialize("data.jls", data)
 end
 
 function parse_inputs(seed_name::String)
@@ -140,11 +142,16 @@ function parse_inputs(seed_name::String)
 
     # non-core stuffs in win are also stored in params
     win = Wan.InOut.read_win("$(params.seed_name).win")
-    params.kpath = win["kpath"]
-    params.kpath_label = win["kpath_label"]
+    if haskey(win, "kpath")
+        params.kpath = win["kpath"]
+    end
+    if haskey(win, "kpath_label")
+        params.kpath_label = win["kpath_label"]
+    end
 
     check_inputs(params)
 
+    # dump(params)
     @info "inputs from toml" params
     # exit()
 
@@ -163,7 +170,9 @@ function main()
     end
 end
 
-main()
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end
 
 # Notes on band interpolation
 # After seedname.amn.optimized is generated, when using w90 to 

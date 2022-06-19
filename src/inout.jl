@@ -22,10 +22,11 @@ function read_win(filename::String)::Dict
     unit_cell = zeros(3, 3)
     kpts = zeros(3, 1)
     # 1st index: coordinates, 2nd index: start & end, 3rd index: number of paths. Need to resize the 3rd index
-    kpath = Array{Float64, 3}(undef, 3, 2, 1)
-    kpath_label = Array{String, 2}(undef, 2, 1)
+    kpath = Array{Float64, 3}(undef, 3, 2, 0)
+    kpath_label = Array{String, 2}(undef, 2, 0)
 
     read_array(f) = map(x -> parse(Float64, x), split(readline(f)))
+    parse_array(line) = map(x -> parse(Float64, x), split(line))
 
     while !eof(fwin)
         line = readline(fwin)
@@ -49,10 +50,17 @@ function read_win(filename::String)::Dict
         elseif occursin("num_wann", line)
             num_wann = parse(Int, split(line)[2])
         elseif occursin("begin unit_cell_cart", line)
-            unit = strip(lowercase(readline(fwin)))
+            line = readline(fwin)
+            unit = strip(lowercase(line))
+            if !startswith(unit, r"b") && !startswith(unit, r"a")
+                unit = "ang"
+            else
+                line = readline(fwin)
+            end
             for i = 1:3
                 # in win file, each line is a lattice vector, here it is stored as column vec
-                unit_cell[:, i] = read_array(fwin)
+                unit_cell[:, i] = parse_array(line)
+                line = readline(fwin)
             end
             if startswith(unit, r"b")
                 # convert to angstrom
