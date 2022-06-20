@@ -1,12 +1,11 @@
-module Disentangle
-
 import LinearAlgebra as LA
 import Optim
-using ..Spreads:omega
-using ..Parameters: InputParams, CoreData
+include("../param.jl")
+include("../spread.jl")
+
 
 function set_frozen_bands!(data::CoreData, params::InputParams)
-    
+
     data.frozen = falses(data.num_bands, data.num_kpts)
 
     for ik = 1:data.num_kpts
@@ -14,7 +13,7 @@ function set_frozen_bands!(data::CoreData, params::InputParams)
         num_frozen_k = 0
 
         if params.dis_froz_win
-            frozen_k = (data.eig[:, ik] .>= params.dis_froz_win_min) .& 
+            frozen_k = (data.eig[:, ik] .>= params.dis_froz_win_min) .&
                        (data.eig[:, ik] .<= params.dis_froz_win_max)
             # @debug "ik = $ik, l_frozen_k = $(l_frozen_k)"
             num_frozen_k = count(frozen_k)
@@ -22,13 +21,13 @@ function set_frozen_bands!(data::CoreData, params::InputParams)
 
         if params.dis_froz_proj
             # size = nbands * nwannier
-            amn_k = data.amn[:,:,ik]
+            amn_k = data.amn[:, :, ik]
             proj = dropdims(real(sum(amn_k .* conj(amn_k), dims=2)), dims=2)
             # @debug "projectability @ $ik" proj
 
-            if any(.!frozen_k[proj .>= params.dis_froz_proj_max])
+            if any(.!frozen_k[proj.>=params.dis_froz_proj_max])
                 # @debug "l_frozen before dis_proj" l_frozen'
-                frozen_k[proj .>= params.dis_froz_proj_max] .= true
+                frozen_k[proj.>=params.dis_froz_proj_max] .= true
                 # @debug "l_frozen after dis_proj" l_frozen'
                 # @debug "proj .>= dis_proj_max" (proj .>= dis_proj_max)'
                 num_frozen_k = count(frozen_k)
@@ -38,7 +37,7 @@ function set_frozen_bands!(data::CoreData, params::InputParams)
         # if cluster of eigenvalues and nfrozen > 0, take them all
         if params.dis_froz_degen && params.dis_froz_degen_thres > 0 && num_frozen_k > 0
             while num_frozen_k < data.num_wann
-                if data.eig[num_frozen_k + 1, ik] < data.eig[num_frozen_k, ik] + params.dis_froz_degen_thres
+                if data.eig[num_frozen_k+1, ik] < data.eig[num_frozen_k, ik] + params.dis_froz_degen_thres
                     num_frozen_k += 1
                     frozen_k[num_frozen_k] .= true
                 else
@@ -53,7 +52,7 @@ function set_frozen_bands!(data::CoreData, params::InputParams)
 
         @assert count(frozen_k) <= data.num_wann
         # @debug "num_frozen_k = $num_frozen_k, ik = $ik" frozen_k'
-        data.frozen[:,ik] = frozen_k
+        data.frozen[:, ik] = frozen_k
     end
 end
 
@@ -73,7 +72,7 @@ function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, non
     # We do a Lowdin orthonormalization on Uf' = <g|ψ> so (Uf')' * Uf' = I, i.e. orthonormal,
     # this also means Uf * Uf' = I, i.e. <ψ|g><g|ψ> = I
     # =>  |g> can fully represent frozen bands without loss.
-    Uf = A[frozen,:]
+    Uf = A[frozen, :]
     U, S, V = LA.svd(Uf')
     Uf = V * U'
     # Uf = normalize_matrix_chol(Uf')'
@@ -88,7 +87,7 @@ function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, non
     #     |ψr> -= |ψf><ψf|ψr>
     # =>  |g><g|ψr> -= |g><g|ψf><ψf|g><g|ψr>
     # =>  Ur' -= Uf' * Uf * Ur'
-    Ur = A[non_frozen,:]
+    Ur = A[non_frozen, :]
     Ur -= Ur * Uf' * Uf
 
     # alternative method, maybe more stable but slower
@@ -109,24 +108,24 @@ function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, non
     eps = 1e-10
     @assert !any(x -> 1e-11 <= x <= 1e-9, S)
     @assert count(x -> x > eps, S) == size(A, 2) - count(frozen)
-    S[S .> eps] .= 1
-    S[S .< eps] .= 0
+    S[S.>eps] .= 1
+    S[S.<eps] .= 0
     Ur = U * LA.Diagonal(S) * V'
 
     # FIX: remove this?
     # A[non_frozen,:] = Ur
 
     B = vcat(Uf, Ur)
-    B[frozen,:] .= Uf
-    B[non_frozen,:] .= Ur
-    
+    B[frozen, :] .= Uf
+    B[non_frozen, :] .= Ur
+
     # Semiunitary
     @assert isapprox(B' * B, LA.I, rtol=1e-12)
     # Frozen
-    @assert isapprox(B[frozen,:] * B[frozen,:]', LA.I, rtol=1e-12)
+    @assert isapprox(B[frozen, :] * B[frozen, :]', LA.I, rtol=1e-12)
     # Independent
     @assert LA.norm(Uf * Ur') < 1e-10
-    
+
     return B
 end
 
@@ -134,9 +133,9 @@ function max_projectability(A::Matrix{ComplexF64})
     proj = A * A'
     proj_ortho = LA.I - proj
     U, S, V = LA.svd(proj_ortho)
-    n = abs(size(A,1) - size(A,2))
+    n = abs(size(A, 1) - size(A, 2))
     @assert count(S .> 1e-5) >= n
-    R = hcat(A, V[:,1:n])
+    R = hcat(A, V[:, 1:n])
     @assert R * R' ≈ LA.I
     return R' * A, R
 
@@ -153,25 +152,25 @@ function max_projectability(A::Matrix{ComplexF64})
 end
 
 function maxproj_froz(A::Matrix{ComplexF64}, froz::BitVector)
-    @assert length(froz) == size(A,1)
+    @assert length(froz) == size(A, 1)
     m, n = size(A)
-    D = zeros(ComplexF64, n+count(froz), m)
-    D[1:n,:] = transpose(A)
-    c = n+1
+    D = zeros(ComplexF64, n + count(froz), m)
+    D[1:n, :] = transpose(A)
+    c = n + 1
     for i = 1:length(froz)
         if froz[i]
-            D[c,i] = 1
+            D[c, i] = 1
             c += 1
         end
     end
     U, S, V = LA.svd(D)
-    
-    nbasis =  count(S .> 1e-5)
-    V_new = V[:,1:nbasis]
+
+    nbasis = count(S .> 1e-5)
+    V_new = V[:, 1:nbasis]
     proj = V_new * V_new'
     proj_ortho = LA.I - proj
     U, S, V = LA.svd(proj_ortho)
-    R = hcat(V_new, V[:,1:m-nbasis])
+    R = hcat(V_new, V[:, 1:m-nbasis])
     @assert R * R' ≈ LA.I
 
     return R' * A, R
@@ -185,16 +184,16 @@ function XY_to_A(data, X, Y)
     A = zeros(ComplexF64, data.num_bands, data.num_wann, data.num_kpts)
     for ik = 1:data.num_kpts
         # check
-        l_frozen = data.frozen[:,ik]
+        l_frozen = data.frozen[:, ik]
         l_non_frozen = .!l_frozen
         num_frozen = count(l_frozen)
-        @assert Y[:,:,ik]' * Y[:,:,ik] ≈ LA.I
-        @assert X[:,:,ik]' * X[:,:,ik] ≈ LA.I
-        @assert Y[l_frozen,1:num_frozen,ik] ≈ LA.I
-        @assert LA.norm(Y[l_non_frozen,1:num_frozen,ik]) ≈ 0
-        @assert LA.norm(Y[l_frozen,num_frozen + 1:end,ik]) ≈ 0
+        @assert Y[:, :, ik]' * Y[:, :, ik] ≈ LA.I
+        @assert X[:, :, ik]' * X[:, :, ik] ≈ LA.I
+        @assert Y[l_frozen, 1:num_frozen, ik] ≈ LA.I
+        @assert LA.norm(Y[l_non_frozen, 1:num_frozen, ik]) ≈ 0
+        @assert LA.norm(Y[l_frozen, num_frozen+1:end, ik]) ≈ 0
 
-        A[:,:,ik] = Y[:,:,ik] * X[:,:,ik]
+        A[:, :, ik] = Y[:, :, ik] * X[:, :, ik]
         # @assert normalize_and_freeze(A[:,:,i,j,k],lnf) ≈ A[:,:,i,j,k] rtol=1e-4
     end
     return A
@@ -204,12 +203,12 @@ function A_to_XY(data::CoreData, A)
     X = zeros(ComplexF64, data.num_wann, data.num_wann, data.num_kpts)
     Y = zeros(ComplexF64, data.num_bands, data.num_wann, data.num_kpts)
     for ik = 1:data.num_kpts
-        l_frozen = data.frozen[:,ik]
+        l_frozen = data.frozen[:, ik]
         l_non_frozen = .!l_frozen
         num_frozen = count(l_frozen)
-        Afrozen = orthonormalize_and_freeze(A[:,:,ik], l_frozen, l_non_frozen)
-        Af = Afrozen[l_frozen,:]
-        Ar = Afrozen[l_non_frozen,:]
+        Afrozen = orthonormalize_and_freeze(A[:, :, ik], l_frozen, l_non_frozen)
+        Af = Afrozen[l_frozen, :]
+        Ar = Afrozen[l_non_frozen, :]
 
         # determine Y
         if num_frozen != data.num_wann
@@ -217,21 +216,21 @@ function A_to_XY(data::CoreData, A)
             proj = LA.Hermitian((proj + proj') / 2)
             D, V = LA.eigen(proj) # sorted by increasing eigenvalue
         end
-        Y[l_frozen,1:num_frozen,ik] = Matrix(LA.I, num_frozen, num_frozen)
+        Y[l_frozen, 1:num_frozen, ik] = Matrix(LA.I, num_frozen, num_frozen)
         if num_frozen != data.num_wann
-            Y[l_non_frozen,num_frozen + 1:end,ik] = V[:,end - data.num_wann + num_frozen + 1:end]
+            Y[l_non_frozen, num_frozen+1:end, ik] = V[:, end-data.num_wann+num_frozen+1:end]
         end
-        
-        # determine X
-        Xleft, S, Xright = LA.svd(Y[:,:,ik]' * Afrozen)
-        X[:,:,ik] = Xleft * Xright'
 
-        @assert Y[:,:,ik]' * Y[:,:,ik] ≈ LA.I
-        @assert X[:,:,ik]' * X[:,:,ik] ≈ LA.I
-        @assert Y[l_frozen,1:num_frozen,ik] ≈ LA.I
-        @assert LA.norm(Y[l_non_frozen,1:num_frozen,ik]) ≈ 0
-        @assert LA.norm(Y[l_frozen,num_frozen + 1:end,ik]) ≈ 0
-        @assert Y[:,:,ik] * X[:,:,ik] ≈ Afrozen
+        # determine X
+        Xleft, S, Xright = LA.svd(Y[:, :, ik]' * Afrozen)
+        X[:, :, ik] = Xleft * Xright'
+
+        @assert Y[:, :, ik]' * Y[:, :, ik] ≈ LA.I
+        @assert X[:, :, ik]' * X[:, :, ik] ≈ LA.I
+        @assert Y[l_frozen, 1:num_frozen, ik] ≈ LA.I
+        @assert LA.norm(Y[l_non_frozen, 1:num_frozen, ik]) ≈ 0
+        @assert LA.norm(Y[l_frozen, num_frozen+1:end, ik]) ≈ 0
+        @assert Y[:, :, ik] * X[:, :, ik] ≈ Afrozen
     end
     return X, Y
 end
@@ -240,9 +239,9 @@ function XY_to_XY(data, XY) # XY to (X,Y)
     X = zeros(ComplexF64, data.num_wann, data.num_wann, data.num_kpts)
     Y = zeros(ComplexF64, data.num_bands, data.num_wann, data.num_kpts)
     for ik = 1:data.num_kpts
-        XYk = XY[:,ik]
-        X[:,:,ik] = reshape(XYk[1:data.num_wann^2], (data.num_wann, data.num_wann))
-        Y[:,:,ik] = reshape(XYk[data.num_wann^2 + 1:end], (data.num_bands, data.num_wann))
+        XYk = XY[:, ik]
+        X[:, :, ik] = reshape(XYk[1:data.num_wann^2], (data.num_wann, data.num_wann))
+        Y[:, :, ik] = reshape(XYk[data.num_wann^2+1:end], (data.num_bands, data.num_wann))
     end
     return X, Y
 end
@@ -259,14 +258,14 @@ function obj(data::CoreData, params::InputParams, X, Y)
     gradX = zero(X)
     gradY = zero(Y)
     for ik = 1:data.num_kpts
-        l_frozen = data.frozen[:,ik]
+        l_frozen = data.frozen[:, ik]
         l_non_frozen = .!l_frozen
         num_frozen = count(l_frozen)
-        gradX[:,:,ik] = Y[:,:,ik]' * grad[:,:,ik]
-        gradY[:,:,ik] = grad[:,:,ik] * X[:,:,ik]'
+        gradX[:, :, ik] = Y[:, :, ik]' * grad[:, :, ik]
+        gradY[:, :, ik] = grad[:, :, ik] * X[:, :, ik]'
 
-        gradY[l_frozen,:,ik] .= 0
-        gradY[:,1:num_frozen,ik] .= 0
+        gradY[l_frozen, :, ik] .= 0
+        gradY[:, 1:num_frozen, ik] .= 0
 
         # to compute the projected gradient: redundant, taken care of by the optimizer
         # function proj_stiefel(G,X)
@@ -281,19 +280,19 @@ end
 function minimize(data::CoreData, params::InputParams, A)
     # initial X,Y
     X0, Y0 = A_to_XY(data, A)
-    
+
     do_randomize_gauge = false
     if do_randomize_gauge
         X0 = zeros(ComplexF64, data.num_wann, data.num_wann, data.num_kpts)
         Y0 = zeros(ComplexF64, data.num_bands, data.num_wann, data.num_kpts)
         for ik = 1:data.num_kpts
-            l_frozen = data.frozen[:,ik]
+            l_frozen = data.frozen[:, ik]
             l_non_frozen = .!l_frozen
             num_frozen = count(l_frozen)
-            X0[:,:,ik] = normalize_matrix(
+            X0[:, :, ik] = normalize_matrix(
                 randn(data.num_wann, data.num_wann) + im * randn(data.num_wann, data.num_wann))
-            Y0[l_frozen,1:num_frozen,ik] = eye(num_frozen)
-            Y0[l_non_frozen, num_frozen + 1:data.num_wann,ik] = normalize_matrix(
+            Y0[l_frozen, 1:num_frozen, ik] = eye(num_frozen)
+            Y0[l_non_frozen, num_frozen+1:data.num_wann, ik] = normalize_matrix(
                 randn(data.num_bands - num_frozen, data.num_wann - num_frozen) +
                 im * randn(data.num_bands - num_frozen, data.num_wann - num_frozen))
         end
@@ -302,7 +301,7 @@ function minimize(data::CoreData, params::InputParams, A)
     M = data.num_wann^2 + data.num_bands * data.num_wann
     XY0 = zeros(ComplexF64, M, data.num_kpts)
     for ik = 1:data.num_kpts
-        XY0[:,ik] = vcat(vec(X0[:,:,ik]), vec(Y0[:,:,ik]))
+        XY0[:, ik] = vcat(vec(X0[:, :, ik]), vec(Y0[:, :, ik]))
     end
 
     # We have three formats:
@@ -316,7 +315,7 @@ function minimize(data::CoreData, params::InputParams, A)
         f, gradX, gradY, res = obj(data, params, X, Y)
 
         for ik = 1:data.num_kpts
-            G[:,ik] = vcat(vec(gradX[:,:,ik]), vec(gradY[:,:,ik]))
+            G[:, ik] = vcat(vec(gradX[:, :, ik]), vec(gradY[:, :, ik]))
         end
         return f
     end
@@ -333,7 +332,7 @@ function minimize(data::CoreData, params::InputParams, A)
     @info "Initial centers & spreads" tmp.centers tmp.spreads' sum(tmp.spreads)
 
     # need QR orthogonalization rather than SVD to preserve the sparsity structure of Y
-    XYkManif = Optim.ProductManifold(Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), 
+    XYkManif = Optim.ProductManifold(Optim.Stiefel_SVD(), Optim.Stiefel_SVD(),
         (data.num_wann, data.num_wann), (data.num_bands, data.num_wann))
     XYManif = Optim.PowerManifold(XYkManif, (M,), (data.num_kpts,))
 
@@ -345,12 +344,12 @@ function minimize(data::CoreData, params::InputParams, A)
     # meth = Optim.GradientDescent
     # meth = Optim.ConjugateGradient
     meth = Optim.LBFGS
-    res = Optim.optimize(f, g!, XY0, meth(manifold=XYManif, linesearch=ls, m=params.history_size), 
-        Optim.Options(show_trace=true, iterations=params.max_iter, 
-        f_tol=params.omega_tol, g_tol=params.gradient_tol, allow_f_increases=true))
+    res = Optim.optimize(f, g!, XY0, meth(manifold=XYManif, linesearch=ls, m=params.history_size),
+        Optim.Options(show_trace=true, iterations=params.max_iter,
+            f_tol=params.omega_tol, g_tol=params.gradient_tol, allow_f_increases=true))
     display(res)
     XYmin = Optim.minimizer(res)
-    
+
     Xmin, Ymin = XY_to_XY(data, XYmin)
     Amin = XY_to_A(data, Xmin, Ymin)
 
@@ -358,6 +357,4 @@ function minimize(data::CoreData, params::InputParams, A)
     @info "Final centers & spreads" tmp.centers tmp.spreads' sum(tmp.spreads)
 
     return Amin
-end
-
 end

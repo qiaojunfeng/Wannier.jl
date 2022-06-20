@@ -2,15 +2,15 @@ module Wannier
 
 # export read_win, read_mmn, read_amn, read_eig, read_seedname
 
-include("constants.jl")
-include("parameters.jl")
-include("utilities.jl")
-include("bvectors.jl")
-include("centers.jl")
-include("inout.jl")
-include("spreads.jl")
-include("disentangle.jl")
-include("plots.jl")
-include("interpolations.jl")
+include("const.jl")
+include("param.jl")
+include("util.jl")
+include("bvector.jl")
+include("center.jl")
+include("io.jl")
+include("spread.jl")
+include("wannierize/disentangle.jl")
+include("plot.jl")
+include("interpolation.jl")
 
 end

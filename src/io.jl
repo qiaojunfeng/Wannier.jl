@@ -1,14 +1,12 @@
-module InOut
-
 using Base: String
 using Dates: now
 import DelimitedFiles as Dlm
 import LinearAlgebra as LA
 
-using ..Constants: Bohr
-using ..Parameters: CoreData, InputParams, Bands, AtomicWavefunction, Projectabilities
-using ..Utilities: get_recipcell
-using ..BVectors: generate_bvectors
+include("const.jl")
+include("param.jl")
+include("util.jl")
+include("bvector.jl")
 
 function read_win(filename::String)::Dict
     println("Reading $filename")
@@ -22,8 +20,8 @@ function read_win(filename::String)::Dict
     unit_cell = zeros(3, 3)
     kpts = zeros(3, 1)
     # 1st index: coordinates, 2nd index: start & end, 3rd index: number of paths. Need to resize the 3rd index
-    kpath = Array{Float64, 3}(undef, 3, 2, 0)
-    kpath_label = Array{String, 2}(undef, 2, 0)
+    kpath = Array{Float64,3}(undef, 3, 2, 0)
+    kpath_label = Array{String,2}(undef, 2, 0)
 
     read_array(f) = map(x -> parse(Float64, x), split(readline(f)))
     parse_array(line) = map(x -> parse(Float64, x), split(line))
@@ -78,17 +76,17 @@ function read_win(filename::String)::Dict
                 line = strip(readline(fwin))
             end
             num_kpath = length(lines)
-            kpath = Array{Float64, 3}(undef, 3, 2, num_kpath)
-            kpath_label = Array{String, 2}(undef, 2, num_kpath)
+            kpath = Array{Float64,3}(undef, 3, 2, num_kpath)
+            kpath_label = Array{String,2}(undef, 2, num_kpath)
             for i = 1:num_kpath
                 l = split(lines[i])
                 @assert length(l) == 8
-                kpath_label[1,i] = l[1]
-                kpath_label[2,i] = l[5]
-                kpath[:,1,i] = parse.(Float64, l[2:4])
-                @assert all(-1.0-tol .<= kpath[:,1,i] .<= 1.0+tol)
-                kpath[:,2,i] = parse.(Float64, l[6:8])
-                @assert all(-1.0-tol .<= kpath[:,2,i] .<= 1.0+tol)
+                kpath_label[1, i] = l[1]
+                kpath_label[2, i] = l[5]
+                kpath[:, 1, i] = parse.(Float64, l[2:4])
+                @assert all(-1.0 - tol .<= kpath[:, 1, i] .<= 1.0 + tol)
+                kpath[:, 2, i] = parse.(Float64, l[6:8])
+                @assert all(-1.0 - tol .<= kpath[:, 2, i] .<= 1.0 + tol)
             end
         end
     end
@@ -207,7 +205,7 @@ function read_eig(filename::String)
         indexk[i] = parse(Int, arr[2])
         eig[i] = parse(Float64, arr[3])
     end
-    
+
     # find unique elements
     num_bands = length(Set(indexb))
     num_kpts = length(Set(indexk))
@@ -220,7 +218,7 @@ function read_eig(filename::String)
         # @assert issorted(eig[:, ik]) display(ik) display(eig[:, ik])
         @assert issorted(eig[:, ik], by=round_digits) display(ik) display(eig[:, ik])
     end
-    
+
     println("$filename OK, size = ", size(eig))
     return eig
 end
@@ -272,27 +270,27 @@ function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bo
     # map = true
     # logMethod = true
 
-    println("num_bands = $num_bands, num_wann = $num_wann, kpt = ", 
-    win["kpts_size"], " num_bvecs = $num_bvecs")
+    println("num_bands = $num_bands, num_wann = $num_wann, kpt = ",
+        win["kpts_size"], " num_bvecs = $num_bvecs")
 
     frozen = falses(num_bands, num_kpts)
 
     return CoreData(
-        unit_cell = win["unit_cell"],
-        recip_cell = win["recip_cell"],
-        num_bands = win["num_bands"],
-        num_wann = win["num_wann"],
-        num_kpts = win["num_kpts"],
-        kpts_size = win["kpts_size"],
-        kpts = win["kpts"],
-        num_bvecs = num_bvecs,
-        kpbs = kpbs,
-        kpbs_weight = kpbs_weight,
-        kpbs_disp = kpbs_disp,
-        frozen = frozen,
-        mmn = m_mat,
-        amn = a_mat,
-        eig = eig_mat
+        unit_cell=win["unit_cell"],
+        recip_cell=win["recip_cell"],
+        num_bands=win["num_bands"],
+        num_wann=win["num_wann"],
+        num_kpts=win["num_kpts"],
+        kpts_size=win["kpts_size"],
+        kpts=win["kpts"],
+        num_bvecs=num_bvecs,
+        kpbs=kpbs,
+        kpbs_weight=kpbs_weight,
+        kpbs_disp=kpbs_disp,
+        frozen=frozen,
+        mmn=m_mat,
+        amn=a_mat,
+        eig=eig_mat
     )
 end
 
@@ -370,7 +368,7 @@ function write_amn(filename::String, A::Array{ComplexF64,3})
     for ik = 1:num_kpts
         for iw = 1:num_wann
             for ib = 1:num_bands
-                coeff = A[ib,iw,ik]
+                coeff = A[ib, iw, ik]
                 write(famn, "$ib $iw $ik $(real(coeff)) $(imag(coeff))\n")
             end
         end
@@ -387,8 +385,8 @@ function read_wannier90_bands(seed_name::String)
     num_kpts = size(kpaths_coord, 1)
 
     dat = Dlm.readdlm("$(seed_name)_band.dat", Float64)
-    kpaths = reshape(dat[:,1], num_kpts, :)[:,1]
-    energies = reshape(dat[:,2], num_kpts, :)
+    kpaths = reshape(dat[:, 1], num_kpts, :)[:, 1]
+    energies = reshape(dat[:, 2], num_kpts, :)
     num_bands = size(energies, 2)
 
     flabel = open("$(seed_name)_band.labelinfo.dat")
@@ -403,16 +401,16 @@ function read_wannier90_bands(seed_name::String)
         symm_points[i] = parse(Int, idx)
         symm_points_label[i] = lab
     end
-    
+
     return Bands(
-        num_kpts = num_kpts,
-        num_bands = num_bands,
-        kpaths = kpaths,
-        kpaths_coord = kpaths_coord,
-        energies = energies,
-        num_symm_points = num_symm_points,
-        symm_points = symm_points,
-        symm_points_label = symm_points_label
+        num_kpts=num_kpts,
+        num_bands=num_bands,
+        kpaths=kpaths,
+        kpaths_coord=kpaths_coord,
+        energies=energies,
+        num_symm_points=num_symm_points,
+        symm_points=symm_points,
+        symm_points_label=symm_points_label
     )
 end
 
@@ -423,7 +421,7 @@ function write_wannier90_bands(bands::Bands, seed_name::String)
     open("$(seed_name)_band.kpt", "w") do io
         write(io, "$(bands.num_kpts)\n")
         for i = 1:bands.num_kpts
-            write(io, join([bands.kpaths_coord[:,i]..., 1.0], " "))
+            write(io, join([bands.kpaths_coord[:, i]..., 1.0], " "))
             write(io, "\n")
         end
     end
@@ -445,7 +443,7 @@ function write_wannier90_bands(bands::Bands, seed_name::String)
             idx = bands.symm_points[i]
             line *= "$(idx) "
             line *= "$(bands.kpaths[idx]) "
-            coord = join(bands.kpaths_coord[:,idx], " ")
+            coord = join(bands.kpaths_coord[:, idx], " ")
             line *= "$(coord)\n"
             write(io, line)
         end
@@ -485,7 +483,7 @@ function read_qe_bands(filename::String)
 
     for ik = 1:nks
         # QE kpt are in absolute coordinates, but is scaled by `alat`
-        kpaths_coord[:,ik] = parse.(Float64, split(readline(fdat)))
+        kpaths_coord[:, ik] = parse.(Float64, split(readline(fdat)))
         ib = 0
         while ib < nbnd
             e = parse.(Float64, split(readline(fdat)))
@@ -506,8 +504,8 @@ function read_qe_bands(filename::String)
     push!(symm_points, 1)
     push!(symm_points_label, "")
     for ik = 2:nks-1
-        vec0 = kpaths_coord[:,ik] - kpaths_coord[:,ik-1]
-        vec1 = kpaths_coord[:,ik+1] - kpaths_coord[:,ik]
+        vec0 = kpaths_coord[:, ik] - kpaths_coord[:, ik-1]
+        vec1 = kpaths_coord[:, ik+1] - kpaths_coord[:, ik]
         if !all(isapprox.(LA.cross(vec0, vec1), 0; atol=2e-6))
             push!(symm_points, ik)
             push!(symm_points_label, "")
@@ -522,16 +520,16 @@ function read_qe_bands(filename::String)
     kpaths = zeros(Float64, nks)
     ik_prev = 1
     for ik = 1:nks
-        dk = LA.norm(kpaths_coord[:,ik] - kpaths_coord[:,ik_prev])
+        dk = LA.norm(kpaths_coord[:, ik] - kpaths_coord[:, ik_prev])
         if ik != 2 && ik_prev in symm_points
             dk = 0
         end
         kpaths[ik] = kpaths[ik_prev] + dk
         ik_prev = ik
     end
-    
-    return Bands(nks, nbnd, kpaths, kpaths_coord, energies, 
-    num_symm_points, symm_points, symm_points_label)
+
+    return Bands(nks, nbnd, kpaths, kpaths_coord, energies,
+        num_symm_points, symm_points, symm_points_label)
 end
 
 function read_qe_projwfcup(filename::String)
@@ -590,20 +588,20 @@ function read_qe_projwfcup(filename::String)
         @assert atm_name == atm[ityp[na]]
         els = line[4]
         n, l, m = parse.(Int, line[5:end])
-        push!(nlmchi, Dict("na"=>na, "els"=>els, "n"=>n, "l"=>l, "m"=>m))
+        push!(nlmchi, Dict("na" => na, "els" => els, "n" => n, "l" => l, "m" => m))
         for ik = 1:nkstot
             for ib = 1:nbnd
                 line = splitline()
                 k, b = parse.(Int, line[1:2])
                 @assert k == ik && b == ib
                 p = parse(Float64, line[3])
-                proj[ik,ib,iw] = p
+                proj[ik, ib, iw] = p
             end
         end
     end
 
     wfcs_type = Vector{AtomicWavefunction}(undef, natomwfc)
-    for i=1:natomwfc
+    for i = 1:natomwfc
         atom_index = nlmchi[i]["na"]
         atom_label = atm[ityp[atom_index]]
         wfc_label = nlmchi[i]["els"]
@@ -625,7 +623,7 @@ end
 
 function read_wout(filename::String)
     fwout = open(filename)
-    
+
     ret = Dict()
 
     start_cell = "Lattice Vectors ("
@@ -647,13 +645,13 @@ function read_wout(filename::String)
             unit_cell = zeros(Float64, 3, 3)
             line = split(strip(readline(fwout)))
             @assert line[1] == "a_1"
-            unit_cell[:,1] = parse.(Float64, line[2:end])
+            unit_cell[:, 1] = parse.(Float64, line[2:end])
             line = split(strip(readline(fwout)))
             @assert line[1] == "a_2"
-            unit_cell[:,2] = parse.(Float64, line[2:end])
+            unit_cell[:, 2] = parse.(Float64, line[2:end])
             line = split(strip(readline(fwout)))
             @assert line[1] == "a_3"
-            unit_cell[:,3] = parse.(Float64, line[2:end])
+            unit_cell[:, 3] = parse.(Float64, line[2:end])
             ret["unit_cell"] = unit_cell
             continue
         end
@@ -668,10 +666,10 @@ function read_wout(filename::String)
             end
             num_atoms = length(lines)
             atoms = zeros(Float64, 3, num_atoms)
-            for (i,line) in enumerate(lines)
+            for (i, line) in enumerate(lines)
                 line = split(line)
                 @assert line[1] == "|" line
-                atoms[:,i] = parse.(Float64, line[8:10])
+                atoms[:, i] = parse.(Float64, line[8:10])
             end
             ret["atoms"] = atoms
             continue
@@ -686,7 +684,7 @@ function read_wout(filename::String)
             num_wann = length(lines)
             wf_centers = zeros(Float64, 3, num_wann)
             wf_spreads = zeros(Float64, num_wann)
-            for (i,line) in enumerate(lines)
+            for (i, line) in enumerate(lines)
                 line = split(line)
                 @assert join(line[1:4], " ") == "WF centre and spread"
                 @assert i == parse(Int, line[5])
@@ -694,7 +692,7 @@ function read_wout(filename::String)
                 y = parse(Float64, replace(line[8], "," => ""))
                 z = parse(Float64, replace(line[9], "," => ""))
                 s = parse(Float64, line[11])
-                wf_centers[:,i] = [x,y,z]
+                wf_centers[:, i] = [x, y, z]
                 wf_spreads[i] = s
             end
             ret["wf_centers"] = wf_centers
@@ -704,8 +702,6 @@ function read_wout(filename::String)
     end
     close(fwout)
     @assert unit_is_ang
-    
-    return ret
-end
 
+    return ret
 end

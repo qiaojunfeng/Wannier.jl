@@ -1,6 +1,6 @@
 import Plots as Pl
 import Colors
-using .Parameters: Bands, Projectabilities
+include("param.jl")
 
 function plot_bands(bands::Bands)
     Pl.PlotlyBackend()
@@ -11,7 +11,7 @@ end
 function merge_consecutive_labels(symm_points, symm_points_label)
     new_labels = copy(symm_points_label)
     for i = 1:(length(symm_points)-1)
-        if symm_points[i]+1 == symm_points[i+1]
+        if symm_points[i] + 1 == symm_points[i+1]
             new_labels[i] = "$(symm_points_label[i])|$(symm_points_label[i+1])"
             new_labels[i+1] = ""
         end
@@ -34,7 +34,7 @@ function plot_bands(plt, bands::Bands; fermi_energy::Union{Int,Float64}=0.0, kwa
 
     # kwargs is immutable, copy to a new Dict
     varargs = Dict{Symbol,Any}()
-    for (k,v) in kwargs
+    for (k, v) in kwargs
         varargs[k] = v
     end
     @debug "varargs" varargs
@@ -42,8 +42,8 @@ function plot_bands(plt, bands::Bands; fermi_energy::Union{Int,Float64}=0.0, kwa
         varargs[:color] = :copper
     end
 
-    Pl.plot!(plt, bands.kpaths, bands.energies; 
-            legend=false, grid=false, framestyle=:box, varargs...)
+    Pl.plot!(plt, bands.kpaths, bands.energies;
+        legend=false, grid=false, framestyle=:box, varargs...)
 
     Pl.xlims!(plt, (bands.kpaths[1], bands.kpaths[end]))
 
@@ -54,7 +54,7 @@ function plot_bands(plt, bands::Bands; fermi_energy::Union{Int,Float64}=0.0, kwa
     return plt
 end
 
-function plot_bands_projectabilities(bands::Bands, projectabilities::Projectabilities; 
+function plot_bands_projectabilities(bands::Bands, projectabilities::Projectabilities;
     fermi_energy::Union{Int,Float64}=0.0, show_orbitals::Bool=false, show_gui=true, kwargs...)
 
     plt = nothing
@@ -67,9 +67,9 @@ function plot_bands_projectabilities(bands::Bands, projectabilities::Projectabil
         for iw = 1:projectabilities.num_wfcs
             lab = projectabilities.wfcs_type[iw].atom_label * projectabilities.wfcs_type[iw].wfc_label
             if haskey(wfc_typs, lab)
-                wfc_typs[lab] += projectabilities.proj[:,:,iw]
+                wfc_typs[lab] += projectabilities.proj[:, :, iw]
             else
-                wfc_typs[lab] = projectabilities.proj[:,:,iw]
+                wfc_typs[lab] = projectabilities.proj[:, :, iw]
             end
         end
         num_subplots = length(wfc_typs)
@@ -80,13 +80,13 @@ function plot_bands_projectabilities(bands::Bands, projectabilities::Projectabil
         clims = (0.0, 1.0)
         for typ in keys(wfc_typs)
             # p = Pl.plot(bands.kpaths, bands.energies; line_z=colors, color=dis_colors[iw],
-                        # legend=false, grid=false, framestyle=:box)
+            # legend=false, grid=false, framestyle=:box)
             p = plot_bands(Pl.plot(), bands;
-                    fermi_energy=fermi_energy, line_z=wfc_typs[typ],
-                    # color=dis_colors[iw],
-                    # clims=clims,
-                    colorbar=true,
-                    kwargs...)
+                fermi_energy=fermi_energy, line_z=wfc_typs[typ],
+                # color=dis_colors[iw],
+                # clims=clims,
+                colorbar=true,
+                kwargs...)
             Pl.title!(p, typ)
             push!(plots, p)
         end
@@ -100,7 +100,7 @@ function plot_bands_projectabilities(bands::Bands, projectabilities::Projectabil
     return plt
 end
 
-function plot_bands_diff(bands1::Bands, bands2::Bands; fermi_energy::Union{Int,Float64}=0.0, 
+function plot_bands_diff(bands1::Bands, bands2::Bands; fermi_energy::Union{Int,Float64}=0.0,
     dis_froz_max::Union{Nothing,Float64}=nothing, label1::String="Bands1", label2::String="Bands2")
     plt = Pl.plot(grid=false, framestyle=:box)
 

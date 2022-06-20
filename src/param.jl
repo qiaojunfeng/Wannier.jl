@@ -1,5 +1,3 @@
-module Parameters
-
 import GarishPrint
 import Configurations
 
@@ -119,8 +117,8 @@ Configurations.@option mutable struct InputParams
     history_size::Int = 100
 
     # Currently not read from toml, instead is used to save parameters from win
-    kpath::Array{Float64,3} = zeros(3,2,1)
-    kpath_label::Union{Matrix{Missing},Matrix{String}} = Matrix{Missing}(missing,2,1)
+    kpath::Array{Float64,3} = zeros(3, 2, 1)
+    kpath_label::Union{Matrix{Missing},Matrix{String}} = Matrix{Missing}(missing, 2, 1)
     bands_num_points::Int = 100
 end
 
@@ -189,7 +187,7 @@ Base.@kwdef mutable struct AtomicWavefunction
     atom_label::String
     # orbital label, e.g. "3S"
     wfc_label::String
-    
+
     # quantum numbers
     n::Int
     l::Int
@@ -207,6 +205,4 @@ Base.@kwdef mutable struct Projectabilities
 
     # projectability data, size: num_kpts * num_bands * num_wfcs
     proj::Array{Float64,3}
-end
-
 end

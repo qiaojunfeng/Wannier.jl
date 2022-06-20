@@ -1,5 +1,3 @@
-module BVectors
-
 import LinearAlgebra as LA
 import NearestNeighbors as NN
 
@@ -40,8 +38,8 @@ function generate_supercell(kpts)
     for i = -supercell_size:supercell_size
         for j = -supercell_size:supercell_size
             for k = -supercell_size:supercell_size
-                supercell_idx[:, counter:(counter + num_kpts - 1)] .= [i, j, k]
-                supercell[:, counter:(counter + num_kpts - 1)] = kpts .+ [i, j, k]
+                supercell_idx[:, counter:(counter+num_kpts-1)] .= [i, j, k]
+                supercell[:, counter:(counter+num_kpts-1)] = kpts .+ [i, j, k]
                 counter += num_kpts
             end
         end
@@ -57,7 +55,7 @@ function check_parallel(m, n)
     @assert size(m, 1) == size(n, 1) == 3
 
     eps = 1e-5
-    
+
     result = fill(false, size(m, 2), size(n, 2))
     for (i, col1) in enumerate(eachcol(m))
         for (j, col2) in enumerate(eachcol(n))
@@ -89,9 +87,9 @@ function calculate_b1_weights(bvecs, multis)
     W = zeros(num_shell)
     ishell = 1
     # triu2vec(I) = [1 0 1 0 0 1]
-    triu_I = triu2vec(LA.diagm([1,1,1]))
+    triu_I = triu2vec(LA.diagm([1, 1, 1]))
     while ishell <= num_shell
-        bmat[:, ishell] = triu2vec(bvecs[:,1:multis[ishell],ishell] * bvecs[:,1:multis[ishell],ishell]')
+        bmat[:, ishell] = triu2vec(bvecs[:, 1:multis[ishell], ishell] * bvecs[:, 1:multis[ishell], ishell]')
         # Solve equation bmat * W = triu_I
         # size(bmat) = (6, ishell), W is diagonal matrix of size ishell
         # bmat = U * S * V' -> W = V * S^-1 * U' * triu2vec(I)
@@ -174,12 +172,12 @@ function search_shells(kpts, recip_cell)
     end
     @debug "Found bvector shells" multis
     @debug "Found bvector shells" bvecs
-    
+
     # remove shells with parallel bvectors
     keepshells = collect(1:num_shell)
     for ishell = 2:num_shell
         hasparallel = false
-        for jshell = 1:(ishell - 1)
+        for jshell = 1:(ishell-1)
             if !(jshell in keepshells)
                 continue
             end
@@ -241,8 +239,8 @@ function flatten_shells(shells)
     counter = 1
     for ishell = 1:length(shells.multis)
         imulti = shells.multis[ishell]
-        bvecs[:, counter:(counter + imulti - 1)] = shells.vecs[:, 1:imulti, ishell]
-        bvecs_weight[counter:(counter + imulti - 1)] .= shells.weights[ishell]
+        bvecs[:, counter:(counter+imulti-1)] = shells.vecs[:, 1:imulti, ishell]
+        bvecs_weight[counter:(counter+imulti-1)] .= shells.weights[ishell]
         counter += imulti
     end
     return bvecs, bvecs_weight
@@ -267,7 +265,7 @@ function generate_bvectors(kpts, recip_cell)
     #     Note this also relies on the order of supercell_cart, see generate_supercell()
     # Fourthly, sort by k+b index: the smaller-index k+b point goes first
     inv_recip = inv(recip_cell)
-    
+
     function isequiv(v1, v2)
         eps = 1e-5
         d = v1 - v2
@@ -288,7 +286,7 @@ function generate_bvectors(kpts, recip_cell)
     function bvec_isless(kb1, kb2, k)
         # Float64 comparsion is tricky, esp. for norm
         eps = 1e-5
-        
+
         if isapprox(kb1, kb2; atol=eps)
             return true
         end
@@ -394,6 +392,4 @@ function print_w90_nnkp(w90nnkp)
             println(bvec_cart)
         end
     end
-end
-
 end

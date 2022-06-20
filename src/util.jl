@@ -1,5 +1,3 @@
-module Utilities
-
 import LinearAlgebra as LA
 
 function get_recipcell(unit_cell)
@@ -38,10 +36,8 @@ function get_projectability(A)
     num_bands, num_wann, num_kpts = size(A)
     proj = zeros(num_bands, num_kpts)
     for ik = 1:num_kpts
-        p = A[:,:,ik] * A[:,:,ik]'
-        proj[:,ik] = real(LA.diag(p))
+        p = A[:, :, ik] * A[:, :, ik]'
+        proj[:, ik] = real(LA.diag(p))
     end
     return proj
-end
-
 end
