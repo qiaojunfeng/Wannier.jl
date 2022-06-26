@@ -1,6 +1,10 @@
+using NLSolversBase
+
+# A reusable fixture for a model
+model = read_seedname("$FIXTURE_PATH/silicon")
+
 
 @testset "spread" begin
-    model = read_seedname("$FIXTURE_PATH/silicon")
 
     Ω = omega(model.M, model.A, model.bvectors)
 
@@ -19,5 +23,20 @@
         1.349402 1.349402 1.348683 1.348677 -0.000000 -0.000000 0.000719 0.000725
     ]
     @test isapprox(Ω.r, r_ref; atol=1e-5)
+
+end
+
+
+@testset "spread gradient" begin
+
+    G = omega_grad(model.M, model.A, model.bvectors)
+
+    # Use finite difference as reference
+    f(A) = omega(model.M, A, model.bvectors).Ω
+    Ainit = model.A
+    d = NLSolversBase.OnceDifferentiable(f, Ainit, real(zero(eltype(Ainit))))
+    G_ref = NLSolversBase.gradient!(d, model.A)
+
+    @test isapprox(G, G_ref; atol=1e-7)
 
 end
