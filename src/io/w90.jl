@@ -77,8 +77,8 @@ function read_win(filename::String)::Dict
                 kpoints[:, i] = parse_array(lines[i])[1:3]
             end
         elseif occursin(r"begin\skpoint_path", line)
-            StrVec3 = Pair{String, Vec3{Float64}}
-            kpoint_path = Vector{Tuple{StrVec3, StrVec3}}()
+            StrVec3 = Pair{String,Vec3{Float64}}
+            kpoint_path = Vector{Tuple{StrVec3,StrVec3}}()
 
             line = strip(readline(io))
             while !occursin(r"end\s+kpoint_path", line)
@@ -167,7 +167,12 @@ end
 """
 Output amn file
 """
-function write_mmn(filename::String, M::Array{ComplexF64,4}, kpb_k::Matrix{Int}, kpb_b::Array{Int,3})
+function write_mmn(
+    filename::String,
+    M::Array{ComplexF64,4},
+    kpb_k::Matrix{Int},
+    kpb_b::Array{Int,3},
+)
 
     n_bands, _, n_bvecs, n_kpts = size(M)
     n_bands != size(M, 2) && error("M must be n_bands x n_bands x n_bvecs x n_kpts")
@@ -178,7 +183,7 @@ function write_mmn(filename::String, M::Array{ComplexF64,4}, kpb_k::Matrix{Int},
     open(filename, "w") do io
         write(io, "Created by Wannier.jl ", string(now()), "\n")
 
-        @printf(io, "    %d   %d    %d \n", n_bands,  n_kpts, n_bvecs)
+        @printf(io, "    %d   %d    %d \n", n_bands, n_kpts, n_bvecs)
 
         for ik = 1:n_kpts
             for ib = 1:n_bvecs
@@ -196,6 +201,8 @@ function write_mmn(filename::String, M::Array{ComplexF64,4}, kpb_k::Matrix{Int},
     end
 
     @info "Written to file: $(filename)"
+
+    nothing
 end
 
 
@@ -216,7 +223,7 @@ function read_amn(filename::String)
         arr = split(line)
 
         m, n, k = parse.(Int64, arr[1:3])
-    
+
         a = parse(Float64, arr[4]) + im * parse(Float64, arr[5])
         A[m, n, k] = a
     end
@@ -253,6 +260,8 @@ function write_amn(filename::String, A::Array{ComplexF64,3})
     close(io)
 
     @info "Written to file: $(filename)"
+
+    nothing
 end
 
 
@@ -282,9 +291,9 @@ function read_eig(filename::String)
 
     # check eigenvalues should be in order
     # some times there are small noise
-    round_digits(x) = round(x, digits=9)
+    round_digits(x) = round(x, digits = 9)
     for ik = 1:n_kpts
-        @assert issorted(E[:, ik], by=round_digits) display(ik) display(E[:, ik])
+        @assert issorted(E[:, ik], by = round_digits) display(ik) display(E[:, ik])
     end
 
     @info "$filename OK" n_bands n_kpts
@@ -310,13 +319,20 @@ function write_eig(filename::String, E::Matrix{T}) where {T<:Real}
     end
 
     @info "Written to file: $(filename)"
+
+    nothing
 end
 
 
 @doc raw"""
 read win, and optionally amn, mmn, eig
 """
-function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bool=true)
+function read_seedname(
+    seedname::String;
+    amn::Bool = true,
+    mmn::Bool = true,
+    eig::Bool = true,
+)
     win = read_win("$seedname.win")
 
     n_bands = win["num_bands"]
@@ -366,16 +382,7 @@ function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bo
 
     frozen_bands = falses(n_bands, n_kpts)
 
-    Model(
-        lattice,
-        kgrid,
-        kpoints,
-        bvectors,
-        frozen_bands,
-        M,
-        A,
-        E,
-    )
+    Model(lattice, kgrid, kpoints, bvectors, frozen_bands, M, A, E)
 end
 
 
@@ -410,7 +417,7 @@ function read_nnkp(filename::String)
             for i = 1:3
                 recip_lattice[:, i] = read_array(Float64)
             end
-    
+
             line = strip(readline(io))
             line != "end recip_lattice" && error("expected end recip_lattice")
 
@@ -421,7 +428,7 @@ function read_nnkp(filename::String)
             for i = 1:n_kpts
                 kpoints[:, i] = read_array(Float64)
             end
-    
+
             line = strip(readline(io))
             line != "end kpoints" && error("expected end kpoints")
 
@@ -455,14 +462,7 @@ function read_nnkp(filename::String)
     weights = zeros(Float64, n_bvecs)
     fill!(weights, NaN)
 
-    BVectors(
-        Mat3{Float64}(recip_lattice),
-        kpoints,
-        bvectors,
-        weights,
-        kpb_k,
-        kpb_b,
-    )
+    BVectors(Mat3{Float64}(recip_lattice), kpoints, bvectors, weights, kpb_k, kpb_b)
 end
 
 
@@ -470,7 +470,7 @@ end
 read si_band.dat  si_band.kpt  si_band.labelinfo.dat
 """
 function read_w90_bands(seed_name::String)
-    kpaths_coord = Dlm.readdlm("$(seed_name)_band.kpt", Float64; skipstart=1)
+    kpaths_coord = Dlm.readdlm("$(seed_name)_band.kpt", Float64; skipstart = 1)
     num_kpts = size(kpaths_coord, 1)
 
     dat = Dlm.readdlm("$(seed_name)_band.dat", Float64)
@@ -492,14 +492,14 @@ function read_w90_bands(seed_name::String)
     end
 
     return Bands(
-        num_kpts=num_kpts,
-        num_bands=num_bands,
-        kpaths=kpaths,
-        kpaths_coord=kpaths_coord,
-        energies=energies,
-        num_symm_points=num_symm_points,
-        symm_points=symm_points,
-        symm_points_label=symm_points_label
+        num_kpts = num_kpts,
+        num_bands = num_bands,
+        kpaths = kpaths,
+        kpaths_coord = kpaths_coord,
+        energies = energies,
+        num_symm_points = num_symm_points,
+        symm_points = symm_points,
+        symm_points_label = symm_points_label,
     )
 end
 
