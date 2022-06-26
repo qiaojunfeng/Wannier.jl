@@ -80,31 +80,6 @@ end
 
 Base.show(io::IO, ::MIME"text/plain", x::InputParams) = GarishPrint.pprint_struct(io, x)
 
-Base.@kwdef mutable struct Wannier90Nnkp
-    # Note each column is a lattice vector, while in nnkp file each row is a lattice vector
-    # 3 * 3
-    real_lattice::Array{Float64,2}
-
-    # 3 * 3
-    recip_lattice::Array{Float64,2}
-
-    n_kpts::Int
-
-    # 3 * n_kpts
-    kpoints::Array{Float64,2}
-
-    # projections
-    # auto_projections
-
-    num_bvecs::Int
-
-    # 4 * num_bvecs * n_kpts
-    # nnkpts[1, ib, ik] = k+b equivalent kpoint k' in 1st BZ
-    # nnkpts[2:4, ib, ik] = displacement vector from k' to k+b
-    nnkpts::Array{Int,3}
-
-    # exclude_bands
-end
 
 Base.@kwdef mutable struct InterpResults
     Obs_array::Array{ComplexF64,3}

@@ -1,11 +1,12 @@
 using YAML
 
+mat2vec(A::AbstractMatrix) = [Vector(A[:, i]) for i = 1:size(A, 2)]
+
+
 @testset "read win" begin
     test_data = YAML.load_file(String(@__DIR__) * "/test_data/win.yaml")
 
     win = read_win("$FIXTURE_PATH/silicon.win")
-
-    mat2vec(A::AbstractMatrix) = [Vector(A[:, i]) for i = 1:size(A, 2)]
 
     # Convert type so YAML can write it.
     win["unit_cell"] = mat2vec(win["unit_cell"])
@@ -79,4 +80,24 @@ end
     @test model.n_bands ≈ 12
     @test model.n_wann ≈ 8
     @test model.n_kpts ≈ 64
+end
+
+
+@testset "read nnkp" begin
+    test_data = YAML.load_file(String(@__DIR__) * "/test_data/nnkp.yaml")
+
+    bvectors = read_nnkp("$FIXTURE_PATH/silicon.nnkp")
+
+    # Convert type so YAML can write it.
+    kpb_b = bvectors.kpb_b
+    dict = Dict(
+        "recip_lattice" => mat2vec(bvectors.recip_lattice),
+        "kpoints" => mat2vec(bvectors.kpoints),
+        "kpb_k" => mat2vec(bvectors.kpb_k),
+        "kpb_b" => [mat2vec(kpb_b[:, :, ik]) for ik = 1:size(kpb_b, 3)],
+    )
+
+    # YAML.write_file(String(@__DIR__) * "/test_data/nnkp.yaml", dict)
+
+    @test test_data ≈ dict
 end

@@ -13,7 +13,7 @@ include("io/w90.jl")
 # include("interpolation.jl")
 # include("plot.jl")
 
-export read_win, read_amn, read_mmn, read_eig, read_seedname
+export read_win, read_amn, read_mmn, read_eig, read_seedname, read_nnkp
 export write_amn, write_mmn, write_eig
 export get_recip_lattice
 export get_bvectors

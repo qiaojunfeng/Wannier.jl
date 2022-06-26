@@ -7,17 +7,20 @@
 
     bvectors = get_bvectors(kpoints, recip_lattice)
 
+    ref_bvecs = zeros(Float64, 3, 8)
+    ref_bvecs = [
+        -0.291017 0.291017 -0.291017 0.291017 -0.291017 -0.291017 0.291017 0.291017
+        -0.291017 -0.291017 0.291017 -0.291017 0.291017 -0.291017 0.291017 0.291017
+        0.291017 -0.291017 -0.291017 0.291017 0.291017 -0.291017 0.291017 -0.291017
+    ]
+
+    ref_weights = zeros(Float64, 8)
+    fill!(ref_weights, 1.4759541565587924)
+
     @test bvectors.recip_lattice ≈ recip_lattice
     @test bvectors.kpoints ≈ kpoints
-    # @test bvectors.bvectors ≈ ref_bvecs
-    # @test bvectors.weights ≈ ref_weights
+    @test bvectors.weights ≈ ref_weights
+    @test isapprox(bvectors.bvectors, ref_bvecs, atol = 1e-5)
     @test bvectors.kpb_k ≈ kpb_k
-    for ik = 1:size(kpb_k, 2)
-        bvectors.kpb_b[:, :, ik] ≉ kpb_b[:, :, ik] && begin
-            println(ik)
-            println(bvectors.kpb_b[:, :, ik])
-            println(kpb_b[:, :, ik])
-            error("$ik")
-        end
-    end
+    @test bvectors.kpb_b ≈ kpb_b
 end

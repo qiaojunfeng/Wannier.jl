@@ -322,13 +322,16 @@ function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bo
     n_bands = win["num_bands"]
     n_wann = win["num_wann"]
     kpoints = win["kpoints"]
-    kgrid = win["mp_grid"]
+    kgrid = Vec3{Int}(win["mp_grid"])
     n_kpts = prod(kgrid)
 
     lattice = win["unit_cell"]
     recip_lattice = get_recip_lattice(lattice)
 
-    kpb_k, kpb_b, kpb_weights = get_bvectors(kpoints, recip_lattice)
+    bvectors = get_bvectors(kpoints, recip_lattice)
+    kpb_k = bvectors.kpb_k
+    kpb_b = bvectors.kpb_b
+    kpb_weights = bvectors.weights
     n_bvecs = length(kpb_weights)
 
     if mmn
@@ -366,83 +369,108 @@ function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bo
 
     frozen_bands = falses(n_bands, n_kpts)
 
+    S = Array{ComplexF64,4}(undef, n_bands, n_bands, 3, n_kpts)
+    fill!(S, NaN)
+
     Model(
-        lattice=lattice,
-        kgrid=kgrid,
-        kpoints=kpoints,
-        bvec_weights=kpb_weights,
-        kpb_k=kpb_k,
-        kpb_b=kpb_b,
-        frozen_bands=frozen_bands,
-        N=M,
-        A=A,
-        E=E,
-        S=nothing,
+        lattice,
+        kgrid,
+        kpoints,
+        kpb_weights,
+        kpb_k,
+        kpb_b,
+        frozen_bands,
+        M,
+        A,
+        E,
+        S,
     )
 end
 
 
 function read_nnkp(filename::String)
-    @info "Reading $filename"
+    @info "Reading nnkp file: $filename"
 
     io = open(filename)
 
-    read_array(f, type) = map(x -> parse(type, x), split(readline(f)))
+    read_array(type::Type) = map(x -> parse(type, x), split(readline(io)))
 
     real_lattice = zeros(Float64, 3, 3)
-    recip_lattice = zeros(Float64, 3, 3)
-    n_kpts = 0
-    n_bvecs = 0
+    recip_lattice = similar(real_lattice)
 
-    kpoints = zeros(Float64, 3, 1)
-    nnkpts = zeros(Int, 4, 1, 1)
+    n_kpts = nothing
+    n_bvecs = nothing
+    kpoints = nothing
+    kpb_k = nothing
+    kpb_b = nothing
 
     while !eof(io)
         line = readline(io)
+
         if occursin("begin real_lattice", line)
             for i = 1:3
-                real_lattice[:, i] = read_array(io, Float64)
+                real_lattice[:, i] = read_array(Float64)
             end
+
             line = strip(readline(io))
-            @assert line == "end real_lattice"
+            line != "end real_lattice" && error("expected end real_lattice")
+
         elseif occursin("begin recip_lattice", line)
             for i = 1:3
-                recip_lattice[:, i] = read_array(io, Float64)
+                recip_lattice[:, i] = read_array(Float64)
             end
+    
             line = strip(readline(io))
-            @assert line == "end recip_lattice"
+            line != "end recip_lattice" && error("expected end recip_lattice")
+
         elseif occursin("begin kpoints", line)
-            num_kpts = parse(Int, readline(io))
-            kpoints = zeros(3, num_kpts)
-            for i = 1:num_kpts
-                kpoints[:, i] = read_array(io, Float64)
+            n_kpts = parse(Int, readline(io))
+            kpoints = zeros(Float64, 3, n_kpts)
+
+            for i = 1:n_kpts
+                kpoints[:, i] = read_array(Float64)
             end
+    
             line = strip(readline(io))
-            @assert line == "end kpoints"
+            line != "end kpoints" && error("expected end kpoints")
+
         elseif occursin("begin nnkpts", line)
-            num_bvecs = parse(Int, readline(io))
-            nnkpts = zeros(Int, 4, num_bvecs, num_kpts)
-            for _ = 1:num_kpts
-                for b = 1:num_bvecs
-                    arr = read_array(io, Int)
-                    k = arr[1]
-                    nnkpts[:, b, k] = arr[2:end]
+            n_kpts === nothing && error("no kpoints block before nnkpts block?")
+
+            n_bvecs = parse(Int, readline(io))
+            kpb_k = zeros(Int, n_bvecs, n_kpts)
+            kpb_b = zeros(Int, 3, n_bvecs, n_kpts)
+
+            for ik = 1:n_kpts
+                for ib = 1:n_bvecs
+                    arr = read_array(Int)
+                    ik != arr[1] && error("expected ik = $ik, got $(arr[1])")
+                    kpb_k[ib, ik] = arr[2]
+                    kpb_b[:, ib, ik] = arr[3:end]
                 end
             end
+
             line = strip(readline(io))
-            @assert line == "end nnkpts"
+            line != "end nnkpts" && error("expected end nnkpts")
         end
     end
     close(io)
 
-    println("$filename OK, num_kpts = $num_kpts, num_bvecs = $num_bvecs")
-    return Wannier90Nnkp(
-        real_lattice,
-        recip_lattice,
-        num_kpts,
+    @info "$filename OK" n_kpts n_bvecs
+
+    bvectors = Matrix{Float64}(undef, 3, n_bvecs)
+    fill!(bvectors, NaN)
+
+    weights = zeros(Float64, n_bvecs)
+    fill!(weights, NaN)
+
+    BVectors(
+        Mat3{Float64}(recip_lattice),
         kpoints,
-        num_bvecs,
-        nnkpts
+        bvectors,
+        weights,
+        kpb_k,
+        kpb_b,
     )
 end
 
