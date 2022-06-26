@@ -56,10 +56,11 @@ struct BVectors{T<:Real}
     # weight of each bvec, n_bvecs
     weights::Vector{T}
 
-    # n_bvecs x n_kpts
+    # k+b vectors, k -> k + b (index of equivalent kpt in the 1st BZ), n_bvecs * n_kpts
     kpb_k::Matrix{Int}
 
-    # 3 x n_bvecs x n_kpts, where 3 is [b_x, b_y, b_z]
+    # displacements between k + b and k + b wrapped around into the recip_cell,
+    # 3 * n_bvecs * n_kpts, where 3 is [b_x, b_y, b_z]
     kpb_b::Array{Int,3}
 end
 

@@ -1,217 +1,372 @@
-# using StaticArrays
 import LinearAlgebra as LA
 
 
-# computes the MV energy
-# From MV: Omega = sum_n <r2>n - |<r>n|^2
-# <r>n = -1/N sum_k,b wb b Im ln(Mnn,kb)
-# <r2>n = 1/N sum_k,b wb [(1 - |Mnn,kb|^2) + (Im ln(Mnn,kb))^2]
-struct Omega_res
-    Ωtot::Float64
-    ΩI::Float64
-    ΩOD::Float64
-    ΩD::Float64 # not implemented yet
-    Ωtilde::Float64
-    frozen_weight::Float64
-    # num_wann
-    spreads::Array{Float64,1}
-    # 3 * num_wann
-    centers::Array{Float64,2}
-    # num_bands * num_bands * num_kpts
-    gradient::Array{ComplexF64,3}
+@doc raw"""
+compute the MV energy
+
+From MV: Omega = sum_n <r2>n - |<r>n|^2
+<r>n = -1/N sum_k,b wb b Im ln(Mnn,kb)
+<r2>n = 1/N sum_k,b wb [(1 - |Mnn,kb|^2) + (Im ln(Mnn,kb))^2]
+"""
+struct Spread{T<:Real}
+    # Total, Ω = ΩI + Ω̃
+    Ω::T
+
+    # gauge-invarient part
+    ΩI::T
+
+    # off-diagonal part
+    ΩOD::T
+
+    # diagonal part, not implemented yet
+    ΩD::T
+
+    # Ω̃ = ΩOD + ΩD
+    Ω̃::T
+
+    # Ω of each WF, n_wann
+    ω::Vector{T}
+
+    # WF center, cartesian coordinates, 3 * n_wann
+    r::Matrix{T}
+
+    # frozen_weight::T
     # fix_centers :: Array{Float64,2} #3 x nwannier
 end
 
-imaglog(z) = atan(imag(z), real(z))
 
-@views function omega(data::CoreData, params::InputParams, A, compute_grad=false, only_r2=false)
-    mu = 0.0
-    nfrozen = 0 # keep in case we want to do this later on
-    if compute_grad
-        if !only_r2
-            if params.fix_centers
-                centers = zeros(Float64, 3, data.num_wann)
-                for i = 1:data.num_wann
-                    centers[:, i] = params.fix_centers_coords[i]
-                end
-            else
-                centers = omega(data, params, A, false).centers
-            end
-        end
-    end
-    grad = zeros(ComplexF64, data.num_bands, data.num_wann, data.num_kpts)
-    r = zeros(3, data.num_wann)
-    r2 = zeros(data.num_wann)
-    ΩI = 0.0
-    ΩOD = 0.0
-    ΩD = 0.0
-    frozen_weight = 0.0
-    R = zeros(ComplexF64, data.num_bands, data.num_wann)
-    T = zeros(ComplexF64, data.num_bands, data.num_wann)
-    b = zeros(3)
-    Mkb = zeros(ComplexF64, data.num_wann, data.num_wann)
-    Okb = zeros(ComplexF64, data.num_bands, data.num_wann)
-    for ik = 1:data.num_kpts
-        frozen_weight -= mu * sum(abs2, A[1:nfrozen, :, ik])
-        if compute_grad
-            grad[1:nfrozen, :, ik] = -2 * mu * A[1:nfrozen, :, ik]
-        end
+@views function omega(
+    M::Array{Complex{FT},4},
+    A::Array{Complex{FT},3},
+    bvectors::BVectors{FT},
+    only_r2::Bool = false,
+) where {FT<:Real}
 
-        for ib = 1:data.num_bvecs
-            ikpb = data.kpbs[ib, ik]
-            # Mkb = overlap_A([i,j,k],[i_n,j_n,k_n],p)
-            Okb .= overlap(data, ik, ikpb) * A[:, :, ikpb]
-            # @assert overlap(data,ik,ikpb)' ≈ overlap(data,ikpb,ik) #compute-intensive, but should be true
-            Mkb .= A[:, :, ik]' * Okb
-            b .= data.recip_cell * (data.kpts[:, ikpb] .+ data.kpbs_disp[:, ib, ik] .- data.kpts[:, ik])
+    n_bands, n_wann, n_kpts = size(A)
+    n_bvecs = size(M, 3)
 
-            ib_weight = data.kpbs_weight[ib, ik]
-            if compute_grad
-                # #MV way
-                # fA(B) = (B-B')/2
-                # fS(B) = (B+B')/(2*im)
-                # q = imaglog.(diag(Mkb)) + centers'*b
-                # for m=1:p.nwannier,n=1:p.nwannier
-                #     R[m,n] = Mkb[m,n]*conj(Mkb[n,n])
-                #     T[m,n] = Mkb[m,n]/Mkb[n,n]*q[n]
-                # end
-                # grad[:,:,i,j,k] += 4*p.wb*(fA(R) .- fS(T))
+    kpb_k = bvectors.kpb_k
+    kpb_b = bvectors.kpb_b
+    wb = bvectors.weights
+    recip_lattice = bvectors.recip_lattice
+    kpoints = bvectors.kpoints
 
+    # # keep in case we want to do this later on
+    # μ::FT = 0.0
+    # n_froz = 0
+    # # frozen weight
+    # w_froz::FT = 0.0
 
-                q = imaglog.(LA.diag(Mkb))
+    r = zeros(FT, 3, n_wann)
+    r² = zeros(FT, n_wann)
+
+    ΩI::FT = 0.0
+    ΩOD::FT = 0.0
+    ΩD::FT = 0.0
+
+    b = zeros(FT, 3)
+
+    Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
+    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
+
+    for ik = 1:n_kpts
+
+        # w_froz -= μ * sum(abs2, A[1:n_froz, :, ik])
+
+        for ib = 1:n_bvecs
+            ikpb = kpb_k[ib, ik]
+
+            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
+            # compute-intensive, but should be true
+            # @assert overlap(M, kpb_k, ik, ikpb)' ≈ overlap(M, kpb_k, ikpb, ik)
+            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+            b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
+
+            w_ib = wb[ib]
+
+            ΩI += w_ib * (n_wann - sum(abs2, Nᵏᵇ))
+            ΩOD += w_ib * sum(abs2, Nᵏᵇ .- LA.diagm(0 => LA.diag(Nᵏᵇ)))
+
+            for n = 1:n_wann
                 if !only_r2
-                    q += centers' * b
+                    r[:, n] -= w_ib * imaglog(Nᵏᵇ[n, n]) * b
                 end
-                for n = 1:data.num_wann
-                    # error if division by zero. Should not happen if the initial gauge is not too bad
-                    if abs(Mkb[n, n]) < 1e-10
-                        display(Mkb)
-                        println()
-                        error("Mkbnn too small! $ik -> $ikpb")
-                    end
-                    @assert abs(Mkb[n, n]) > 1e-10
-                    Tfac = -im * q[n] / Mkb[n, n]
-                    for m = 1:data.num_bands
-                        R[m, n] = -Okb[m, n] * conj(Mkb[n, n])
-                        # T[m,n] = -im*Okb[m,n]/(Mkb[n,n])*q[n]
-                        T[m, n] = Tfac * Okb[m, n]
-                    end
-                end
-                grad[:, :, ik] .+= 4 * ib_weight .* (R .+ T)
-            end
 
-            ΩI += ib_weight * (data.num_wann - sum(abs2, Mkb))
-            ΩOD += ib_weight * sum(abs2, Mkb .- LA.diagm(0 => LA.diag(Mkb)))
-            for n = 1:data.num_wann
-                if !only_r2
-                    r[:, n] -= ib_weight * imaglog(Mkb[n, n]) * b
-                end
-                r2[n] += ib_weight * (1 - abs(Mkb[n, n])^2 + imaglog(Mkb[n, n])^2)
-                # r2[n] += p.wb*2*(1 - real(Mkb[n,n]))
+                r²[n] += w_ib * (1 - abs(Nᵏᵇ[n, n])^2 + imaglog(Nᵏᵇ[n, n])^2)
+                # r²[n] += w_ib * 2*(1 - real(Nᵏᵇ[n,n]))
             end
         end
     end
-    r /= data.num_kpts
-    r2 /= data.num_kpts
-    ΩI /= data.num_kpts
-    ΩOD /= data.num_kpts
-    ΩD /= data.num_kpts
-    frozen_weight /= data.num_kpts
-    grad /= data.num_kpts
 
-    # @debug "Spreads" r r2' ΩI ΩOD ΩD
+    r /= n_kpts
+    r² /= n_kpts
+    ΩI /= n_kpts
+    ΩOD /= n_kpts
+    ΩD /= n_kpts
+    # w_froz /= n_kpts
 
-    spreads = r2 - dropdims(sum(abs.(r) .^ 2, dims=1), dims=1)
-    Ωtot = sum(spreads) + frozen_weight
-    Ωtilde = Ωtot - ΩI
+    # @debug "Spreads" r r²' ΩI ΩOD ΩD
 
-    return Omega_res(Ωtot, ΩI, ΩOD, ΩD, Ωtilde, frozen_weight, spreads, r, grad)
-end
+    # Ω of each WF
+    ω = r² - dropdims(sum(abs.(r) .^ 2, dims = 1), dims = 1)
+    # total Ω
+    Ω = sum(ω)
+    # Ω += w_froz
+    Ω̃ = Ω - ΩI
 
-# local part of the contribution to r^2
-function omega_loc(p, A)
-    r = zeros(3, p.nwannier)
-    r2 = zeros(p.nwannier)
-    loc = zeros(Float64, p.N1, p.N2, p.N3)
-    for i in 1:p.N1, j in 1:p.N2, k in 1:p.N3
-        K = p.ijk_to_K[i, j, k]
-        for ib = 1:p.nntot
-            neighbor = p.neighbors[K, ib]
-            i_n, j_n, k_n = p.K_to_ijk[neighbor, :]
-            # Mkb = overlap_A([i,j,k],[i_n,j_n,k_n],p)
-            Okb = overlap(K, neighbor, p) * A[:, :, i_n, j_n, k_n]
-            Mkb = A[:, :, i, j, k]' * Okb
-            for n = 1:p.nwannier
-                loc[i, j, k] += p.wb * (1 - abs(Mkb[n, n])^2 + imaglog(Mkb[n, n])^2)
-            end
-        end
-    end
-    return loc
+    Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r)
+    # Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, w_froz)
 end
 
 
-@views function position(data::CoreData, A)
+"""
+dΩ/dU, n_bands * n_wann * n_kpts
 
-    rmn = zeros(ComplexF64, 3, data.num_wann, data.num_wann)
-    b = zeros(3)
-    Mkb = zeros(ComplexF64, data.num_wann, data.num_wann)
-    Okb = zeros(ComplexF64, data.num_bands, data.num_wann)
+r: WF centers, cartesian coordinates, 3 * n_wann
+"""
+@views function omega_grad(
+    M::Array{Complex{FT},4},
+    A::Array{Complex{FT},3},
+    bvectors::BVectors{FT},
+    r::Matrix{FT},
+    only_r2::Bool = false,
+) where {FT<:Real}
 
-    for ik = 1:data.num_kpts
-        for ib = 1:data.num_bvecs
-            ikpb = data.kpbs[ib, ik]
-            Okb .= overlap(data, ik, ikpb) * A[:, :, ikpb]
-            Mkb .= A[:, :, ik]' * Okb
-            b .= data.recip_cell * (data.kpts[:, ikpb] .+ data.kpbs_disp[:, ib, ik] .- data.kpts[:, ik])
+    n_bands, n_wann, n_kpts = size(A)
+    n_bvecs = size(M, 3)
 
-            ib_weight = data.kpbs_weight[ib, ik]
+    kpb_k = bvectors.kpb_k
+    kpb_b = bvectors.kpb_b
+    wb = bvectors.weights
+    recip_lattice = bvectors.recip_lattice
+    kpoints = bvectors.kpoints
 
-            for m = 1:data.num_wann
-                for n = 1:data.num_wann
-                    rmn[:, m, n] += ib_weight * Mkb[m, n] * b
+    # # keep in case we want to do this later on
+    # μ::FT = 0.0
+    # n_froz = 0
+    # # frozen weight
+    # w_froz::FT = 0.0
+
+    G = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
+
+    R = zeros(Complex{FT}, n_bands, n_wann)
+    T = zeros(Complex{FT}, n_bands, n_wann)
+
+    b = zeros(FT, 3)
+
+    Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
+    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
+
+    for ik = 1:n_kpts
+
+        # w_froz -= μ * sum(abs2, A[1:n_froz, :, ik])
+        # G[1:n_froz, :, ik] = -2 * μ * A[1:n_froz, :, ik]
+
+        for ib = 1:n_bvecs
+            ikpb = kpb_k[ib, ik]
+
+            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
+            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+            b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
+
+            w_ib = wb[ib]
+
+            # MV way
+            # fA(B) = (B - B') / 2
+            # fS(B) = (B + B') / (2 * im)
+            # q = imaglog.(LA.diag(Nᵏᵇ)) + r' * b
+            # for m = 1:n_wann, n = 1:n_wann
+            #     R[m, n] = Nᵏᵇ[m, n] * conj(Nᵏᵇ[n, n])
+            #     T[m, n] = Nᵏᵇ[m, n] / Nᵏᵇ[n, n] * q[n]
+            # end
+            # G[:, :, ik] += 4 * w_ib * (fA(R) .- fS(T))
+
+            q = imaglog.(LA.diag(Nᵏᵇ))
+            if !only_r2
+                q += r' * b
+            end
+
+            for n = 1:n_wann
+                # error if division by zero. Should not happen if the initial gauge is not too bad
+                if abs(Nᵏᵇ[n, n]) < 1e-10
+                    display(Nᵏᵇ)
+                    println()
+                    error("Nᵏᵇ too small! $ik -> $ikpb")
+                end
+
+                Tfac = -im * q[n] / Nᵏᵇ[n, n]
+
+                for m = 1:n_bands
+                    R[m, n] = -MAᵏᵇ[m, n] * conj(Nᵏᵇ[n, n])
+                    # T[m, n] = -im * MAᵏᵇ[m, n] / (Nᵏᵇ[n, n]) * q[n]
+                    T[m, n] = Tfac * MAᵏᵇ[m, n]
+                end
+            end
+
+            G[:, :, ik] .+= 4 * w_ib .* (R .+ T)
+        end
+    end
+
+    G /= n_kpts
+
+    G
+end
+
+
+@views function omega_grad(
+    M::Array{Complex{FT},4},
+    A::Array{Complex{FT},3},
+    bvectors::BVectors{FT},
+    only_r2::Bool = false,
+) where {FT<:Real}
+    r = omega(M, A, bvectors, only_r2).r
+    omega_grad(M, A, bvectors, r, only_r2)
+end
+
+
+"""
+local part of the contribution to r^2
+"""
+function omega_loc(
+    M::Array{Complex{FT},4},
+    A::Array{Complex{FT},3},
+    bvectors::BVectors{FT},
+) where {FT<:Real}
+    n_bands, n_wann, n_kpts = size(A)
+    n_bvecs = size(M, 3)
+
+    kpb_k = bvectors.kpb_k
+    wb = bvectors.weights
+
+    loc = zeros(FT, n_kpts)
+
+    Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
+    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
+
+    for ik = 1:n_kpts
+        for ib = 1:n_bvecs
+            ikpb = kpb_k[ib, ik]
+
+            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
+            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+
+            for n = 1:n_wann
+                loc[ik] += wb[ib] * (1 - abs(Nᵏᵇ[n, n])^2 + imaglog(Nᵏᵇ[n, n])^2)
+            end
+        end
+    end
+
+    loc
+end
+
+
+"""
+WF postion operator matrix
+"""
+@views function position(
+    M::Array{Complex{FT},4},
+    A::Array{Complex{FT},3},
+    bvectors::BVectors{FT},
+) where {FT<:Real}
+
+    n_bands, n_wann, n_kpts = size(A)
+    n_bvecs = size(M, 3)
+
+    kpb_k = bvectors.kpb_k
+    kpb_b = bvectors.kpb_b
+    wb = bvectors.weights
+    recip_lattice = bvectors.recip_lattice
+    kpoints = bvectors.kpoints
+
+    # along x, y, z directions
+    R = zeros(Complex{FT}, n_wann, n_wann, 3)
+
+    b = zeros(FT, 3)
+
+    Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
+    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
+
+    for ik = 1:n_kpts
+        for ib = 1:n_bvecs
+
+            ikpb = kpb_k[ib, ik]
+
+            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
+            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+            b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
+
+            w_ib = wb[ib]
+
+            for m = 1:n_wann
+                for n = 1:n_wann
+                    R[m, n, :] += w_ib * Nᵏᵇ[m, n] * b
+
                     if m == n
-                        rmn[:, m, n] -= ib_weight * b
+                        R[m, n, :] -= w_ib * b
                     end
                 end
             end
+
         end
     end
-    rmn /= -im * data.num_kpts
 
-    return rmn
+    R /= -im * n_kpts
+
+    R
 end
 
 
-"
+"""
 Berry connection at each kpoint
-"
-@views function berry_connection(data::CoreData, A)
+"""
+@views function berry_connection(
+    M::Array{Complex{FT},4},
+    A::Array{Complex{FT},3},
+    bvectors::BVectors{FT},
+) where {FT<:Real}
 
-    berry = zeros(ComplexF64, 3, data.num_wann, data.num_wann, data.num_kpts)
-    b = zeros(3)
-    Mkb = zeros(ComplexF64, data.num_wann, data.num_wann)
-    Okb = zeros(ComplexF64, data.num_bands, data.num_wann)
+    n_bands, n_wann, n_kpts = size(A)
+    n_bvecs = size(M, 3)
 
-    for ik = 1:data.num_kpts
-        for ib = 1:data.num_bvecs
-            ikpb = data.kpbs[ib, ik]
-            Okb .= overlap(data, ik, ikpb) * A[:, :, ikpb]
-            Mkb .= A[:, :, ik]' * Okb
-            b .= data.recip_cell * (data.kpts[:, ikpb] .+ data.kpbs_disp[:, ib, ik] .- data.kpts[:, ik])
+    kpb_k = bvectors.kpb_k
+    kpb_b = bvectors.kpb_b
+    wb = bvectors.weights
+    recip_lattice = bvectors.recip_lattice
+    kpoints = bvectors.kpoints
 
-            ib_weight = data.kpbs_weight[ib, ik]
+    # along x, y, z directions
+    A = zeros(Complex{FT}, n_wann, n_wann, 3, n_kpts)
 
-            for m = 1:data.num_wann
-                for n = 1:data.num_wann
-                    berry[:, m, n, ik] += ib_weight * Mkb[m, n] * b
+    b = zeros(FT, 3)
+
+    Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
+    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
+
+    for ik = 1:n_kpts
+        for ib = 1:n_bvecs
+
+            ikpb = kpb_k[ib, ik]
+
+            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
+            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+            b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
+
+            w_ib = wb[ib]
+
+            for m = 1:n_wann
+                for n = 1:n_wann
+                    A[m, n, :, ik] += w_ib * Nᵏᵇ[m, n] * b
+
                     if m == n
-                        berry[:, m, n, ik] -= ib_weight * b
+                        A[m, n, :, ik] -= w_ib * b
                     end
                 end
             end
+
         end
     end
-    berry *= im
 
-    return berry
+    A *= im
+
+    A
 end

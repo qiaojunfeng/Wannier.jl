@@ -1,7 +1,7 @@
 import LinearAlgebra as LA
 
 
-imaglog(z<:Complex) = atan(imag(z), real(z))
+imaglog(z::T) where {T<:Complex} = atan(imag(z), real(z))
 
 
 function get_recip_lattice(lattice::Mat3)
@@ -11,19 +11,49 @@ end
 
 @doc raw"""
 Computes overlap between two neighboring kpoints
+
+size(M) = (n_bands, n_bands, n_bvecs, n_kpts)
+size(kpb_k) = (n_bvecs, n_kpts)
 """
-function overlap(data, k1, k2)
-    # fix useful if N3 = 1 (e.g. for 2D models)
+function overlap(
+    M::Array{Complex{FT},4},
+    kpb_k::Matrix{Int},
+    k1::Int,
+    k2::Int,
+) where {FT<:Real}
+    n_bands = size(M, 1)
+    n_bvecs = size(M, 3)
+
     if (k1 == k2)
-        return Matrix((1.0 + 0.0im)I, data.num_bands, data.num_bands)
+        return Matrix{Complex{FT}}((1.0 + 0.0im)LA.I, n_bands, n_bands)
     end
-    for ib = 1:data.num_bvecs
-        if data.kpbs[ib, k1] == k2
-            return view(data.mmn, :, :, ib, k1)
+
+    for ib = 1:n_bvecs
+        if kpb_k[ib, k1] == k2
+            return view(M, :, :, ib, k1)
         end
     end
+
     error("No neighbors found, k1 = $(k1), k2 = $(k2)")
-    return Matrix((1.0 + 0.0im)I, data.num_bands, data.num_bands)
+
+    # Matrix{Complex{FT}}((1.0 + 0.0im)LA.I, n_bands, n_bands)
+end
+
+@doc raw"""
+Computes overlap between two neighboring kpoints, and rotate by gauge from A matrices.
+
+size(M) = (n_bands, n_bands, n_bvecs, n_kpts)
+size(kpb_k) = (n_bvecs, n_kpts)
+size(A) = (n_bands, n_wann, n_kpts)
+"""
+function overlap(
+    M::Array{Complex{FT},4},
+    kpb_k::Matrix{Int},
+    k1::Int,
+    k2::Int,
+    A::Array{Complex{FT},3},
+) where {FT<:Real}
+    A[:, :, k1]' * overlap(M, kpb_k, k1, k2) * A[:, :, k2]
 end
 
 

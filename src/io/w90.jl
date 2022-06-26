@@ -329,10 +329,7 @@ function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bo
     recip_lattice = get_recip_lattice(lattice)
 
     bvectors = get_bvectors(kpoints, recip_lattice)
-    kpb_k = bvectors.kpb_k
-    kpb_b = bvectors.kpb_b
-    kpb_weights = bvectors.weights
-    n_bvecs = length(kpb_weights)
+    n_bvecs = bvectors.n_bvecs
 
     if mmn
         M, kpb_k_mmn, kpb_b_mmn = read_mmn("$seedname.mmn")
@@ -341,8 +338,8 @@ function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bo
         n_bands != size(M)[1] && error("n_bands != size(M)[1]")
         n_bvecs != size(M)[3] && error("n_bvecs != size(M)[3]")
         n_kpts != size(M)[4] && error("n_kpts != size(M)[4]")
-        kpb_k != kpb_k_mmn && error("kpb_k != kpb_k from mmn file")
-        kpb_b != kpb_b_mmn && error("kpb_b != kpb_b from mmn file")
+        bvectors.kpb_k != kpb_k_mmn && error("kpb_k != kpb_k from mmn file")
+        bvectors.kpb_b != kpb_b_mmn && error("kpb_b != kpb_b from mmn file")
     else
         M = zeros(ComplexF64, n_bands, n_bands, n_bvecs, n_kpts)
     end
@@ -369,21 +366,15 @@ function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bo
 
     frozen_bands = falses(n_bands, n_kpts)
 
-    S = Array{ComplexF64,4}(undef, n_bands, n_bands, 3, n_kpts)
-    fill!(S, NaN)
-
     Model(
         lattice,
         kgrid,
         kpoints,
-        kpb_weights,
-        kpb_k,
-        kpb_b,
+        bvectors,
         frozen_bands,
         M,
         A,
         E,
-        S,
     )
 end
 

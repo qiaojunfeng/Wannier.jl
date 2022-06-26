@@ -18,4 +18,6 @@ export write_amn, write_mmn, write_eig
 export get_recip_lattice
 export get_bvectors
 
+export omega, omega_grad
+
 end
