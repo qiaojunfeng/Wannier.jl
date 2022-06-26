@@ -2,11 +2,11 @@ module Wannier
 
 include("common/const.jl")
 include("common/type.jl")
-include("util.jl")
+include("util/linalg.jl")
 include("bvector.jl")
 include("model.jl")
 include("io/w90.jl")
-# include("spread.jl")
+include("spread.jl")
 # include("center.jl")
 # include("wannierize/disentangle.jl")
 # include("wannierize/parallel_transport.jl")

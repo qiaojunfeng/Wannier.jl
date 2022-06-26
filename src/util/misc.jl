@@ -2,6 +2,17 @@ import LinearAlgebra as LA
 import NearestNeighbors as NN
 
 
+function get_projectability(A)
+    num_bands, num_wann, num_kpts = size(A)
+    proj = zeros(num_bands, num_kpts)
+    for ik = 1:num_kpts
+        p = A[:, :, ik] * A[:, :, ik]'
+        proj[:, ik] = real(LA.diag(p))
+    end
+    return proj
+end
+
+
 @doc raw"""
 Find nearest-atom to a point (usually it is the center of a Wannier function)
 reduced_coord: atoms, point are relative to unit_cell, in reduced coordinates
