@@ -3,8 +3,6 @@ import FFTW
 import FINUFFT
 import Serialization
 
-include("param.jl")
-include("io.jl")
 
 """
 kpts: in reduced coordinates, 3 * num_kpts

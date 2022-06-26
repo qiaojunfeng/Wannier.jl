@@ -1,7 +1,6 @@
 # using StaticArrays
 import LinearAlgebra as LA
-include("param.jl")
-include("util.jl")
+
 
 # computes the MV energy
 # From MV: Omega = sum_n <r2>n - |<r>n|^2
@@ -86,9 +85,9 @@ imaglog(z) = atan(imag(z), real(z))
                 for n = 1:data.num_wann
                     # error if division by zero. Should not happen if the initial gauge is not too bad
                     if abs(Mkb[n, n]) < 1e-10
-                        println("Mkbnn too small! $ik -> $ikpb")
                         display(Mkb)
-                        error()
+                        println()
+                        error("Mkbnn too small! $ik -> $ikpb")
                     end
                     @assert abs(Mkb[n, n]) > 1e-10
                     Tfac = -im * q[n] / Mkb[n, n]

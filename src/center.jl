@@ -1,9 +1,8 @@
 import LinearAlgebra as LA
 import NearestNeighbors as NN
 
-include("bvector.jl")
 
-"""
+@doc raw"""
 Find nearest-atom to a point (usually it is the center of a Wannier function)
 reduced_coord: atoms, point are relative to unit_cell, in reduced coordinates
 

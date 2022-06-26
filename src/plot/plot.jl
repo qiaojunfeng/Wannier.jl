@@ -1,6 +1,6 @@
 import Plots as Pl
 import Colors
-include("param.jl")
+
 
 function plot_bands(bands::Bands)
     Pl.PlotlyBackend()

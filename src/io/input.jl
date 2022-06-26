@@ -1,50 +1,6 @@
 import GarishPrint
 import Configurations
 
-Base.@kwdef mutable struct CoreData
-    # unit cell, 3 * 3, angstrom unit, each column is a lattice vector
-    unit_cell::Array{Float64,2}
-    # reciprocal cell, 3 * 3
-    recip_cell::Array{Float64,2}
-
-    # number of bands
-    num_bands::Int
-    # number of Wannier functions (WFs)
-    num_wann::Int
-
-    # number of kpoints
-    num_kpts::Int
-    # number of kpoints along 3 directions
-    kpts_size::Array{Int,1}
-    # kpoints array, reduced coordinates, 3 * num_kpts
-    # num_kpts is the last index since julia array is column-major
-    kpts::Array{Float64,2}
-
-    # number of neighbouring kpoints (i.e. b vectors)
-    num_bvecs::Int
-    # k+b vectors, k -> k + b (index of equivalent kpt in the 1st BZ), nbvecs * num_kpts
-    kpbs::Array{Int,2}
-    # weights of each b vector, nbvecs * num_kpts
-    kpbs_weight::Array{Float64,2}
-    # displacements between k + b and k + b wrapped around into the recipcell, 3 * nbvecs * num_kpts
-    kpbs_disp::Array{Int,3}
-
-    # num_bands * num_kpts
-    frozen::BitMatrix
-
-    # Mmn matrix, nbands * nbands * nbvecs * num_kpts
-    mmn::Array{ComplexF64,4}
-    # Amn matrix, nbands * nwann * num_kpts
-    amn::Array{ComplexF64,3}
-    # eigenvalues, nbands * num_kpts
-    eig::Array{Float64,2}
-    # spn matrix, nbands * nbands * 3 * num_kpts
-    # spn::Array{ComplexF64,4}
-
-    # TODO: remove this?
-    # map::Bool
-    # logMethod::Bool
-end
 
 Configurations.@option mutable struct InputParams
     # seedname.win
@@ -132,9 +88,9 @@ Base.@kwdef mutable struct Wannier90Nnkp
     # 3 * 3
     recip_lattice::Array{Float64,2}
 
-    num_kpts::Int
+    n_kpts::Int
 
-    # 3 * num_kpts
+    # 3 * n_kpts
     kpoints::Array{Float64,2}
 
     # projections
@@ -142,7 +98,7 @@ Base.@kwdef mutable struct Wannier90Nnkp
 
     num_bvecs::Int
 
-    # 4 * num_bvecs * num_kpts
+    # 4 * num_bvecs * n_kpts
     # nnkpts[1, ib, ik] = k+b equivalent kpoint k' in 1st BZ
     # nnkpts[2:4, ib, ik] = displacement vector from k' to k+b
     nnkpts::Array{Int,3}
@@ -160,14 +116,14 @@ end
 
 
 Base.@kwdef mutable struct Bands
-    num_kpts::Int
-    num_bands::Int
+    n_kpts::Int
+    n_bands::Int
 
-    # num_kpts, Cartesian, Å^-1 ?
+    # n_kpts, Cartesian, Å^-1 ?
     kpaths::Vector{Float64}
-    # kpath coordinates, reduced, 3 * num_kpts
+    # kpath coordinates, reduced, 3 * n_kpts
     kpaths_coord::Matrix{Float64}
-    # num_kpts * num_bands
+    # n_kpts * n_bands
     energies::Matrix{Float64}
 
     # optional
@@ -176,7 +132,7 @@ Base.@kwdef mutable struct Bands
     symm_points::Vector{Int}
     symm_points_label::Vector{String}
 
-    # RGBA, 4 * num_kpts * num_bands
+    # RGBA, 4 * n_kpts * n_bands
     # colors::Matrix{Int}
 end
 
@@ -195,14 +151,14 @@ Base.@kwdef mutable struct AtomicWavefunction
 end
 
 Base.@kwdef mutable struct Projectabilities
-    num_kpts::Int
-    num_bands::Int
+    n_kpts::Int
+    n_bands::Int
     # number of atomic wavefunctions
     num_wfcs::Int
 
     # atomic wavefunction types, size: num_wfcs
     wfcs_type::Vector{AtomicWavefunction}
 
-    # projectability data, size: num_kpts * num_bands * num_wfcs
+    # projectability data, size: n_kpts * n_bands * num_wfcs
     proj::Array{Float64,3}
 end

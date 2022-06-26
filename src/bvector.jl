@@ -1,318 +1,425 @@
 import LinearAlgebra as LA
 import NearestNeighbors as NN
 
-mutable struct BVectorShells
-    # reciprocal cell, 3 * 3
-    recip_cell::Array{Float64,2}
 
-    # kpoints array, reduced coordinates, 3 * num_kpts
-    kpts::Array{Float64,2}
+@doc raw"""
+Store shells of bvectors.
+"""
+struct BVectorShells{T<:Real}
+    # reciprocal lattice, 3 * 3
+    recip_lattice::Mat3{T}
 
-    # number of shells
-    num_shells::Int
+    # kpoints array, fractional coordinates, n_kpts of Vec3
+    kpoints::Matrix{T}
 
-    # bvectors of each shell, cartesian coordinates, 3 * max_multiplicity * num_shells
-    vecs::Array{Float64,3}
+    # bvectors of each shell, Cartesian coordinates, n_shells of 3 * multiplicity
+    bvectors::Vector{Matrix{T}}
+
+    # weight of each shell, n_shells
+    weights::Vector{T}
 
     # multiplicity of each shell, num_shells
-    multis::Array{Int,1}
+    multiplicities::Vector{Int}
 
-    # weight of each shell, num_shells
-    weights::Array{Float64,1}
+    # number of shells
+    n_shells::Int
 end
 
-"""
-kpts and returned supercell are in reduced coord
-"""
-function generate_supercell(kpts)
-    # The total space to be searched
-    supercell_size = 5
 
-    num_cell = (2 * supercell_size + 1)^3
-    num_kpts = size(kpts, 2)
-    supercell = zeros(3, num_cell * num_kpts)
-    supercell_idx = zeros(3, num_cell * num_kpts)
+function BVectorShells(
+    recip_lattice::Mat3{T},
+    kpoints::Matrix{T},
+    bvectors::Vector{Matrix{T}},
+    weights::Vector{T},
+) where {T<:Real}
+    n_shells = length(bvectors)
+    multiplicities = [size(bvectors[i], 2) for i = 1:n_shells]
+
+    BVectorShells{T}(recip_lattice, kpoints, bvectors, weights, multiplicities, n_shells)
+end
+
+
+@doc raw"""
+The bvectors for each kpoint, sorted the same as the Wannier90 nnkp order.
+"""
+struct BVectors{T<:Real}
+
+    # reciprocal lattice, 3 * 3
+    recip_lattice::Mat3{T}
+
+    # kpoints array, fractional coordinates, n_kpts of Vec3
+    kpoints::Matrix{T}
+
+    # bvectors, Cartesian coordinates, 3 * n_bvecs
+    bvectors::Matrix{T}
+
+    # weight of each bvec, n_bvecs
+    weights::Vector{T}
+
+    # n_bvecs x n_kpts
+    kpb_k::Matrix{Int}
+
+    # 3 x n_bvecs x n_kpts, where 3 is [b_x, b_y, b_z]
+    kpb_b::Array{Int,3}
+end
+
+
+function Base.getproperty(x::BVectors, sym::Symbol)
+    if sym == :n_kpts
+        return length(x.kpoints)
+    elseif sym == :n_bvecs
+        return size(x.bvectors, 2)
+    else
+        # fallback to getfield
+        getfield(x, sym)
+    end
+end
+
+
+@doc raw"""
+Make a supercell of kpoints by translating it along 3 directions.
+Input and returned kpoints are in fractional coordinates.
+"""
+function make_supercell(kpoints::Matrix{T}, supercell_size::Int = 5) where {T<:Real}
+
+    size(kpoints, 1) ≉ 3 && error("kpoints must be 3 * n_kpts")
+    n_kpts = size(kpoints, 2)
+
+    n_cells = (2 * supercell_size + 1)^3
+
+    supercell = Matrix{T}(undef, 3, n_cells * n_kpts)
+    translations = Matrix{Int}(undef, 3, n_cells * n_kpts)
+
     counter = 1
     # Note: the order of which index increases the fastest is crucial,
-    # it will determine the order of bvecotors, 
-    for i = -supercell_size:supercell_size
-        for j = -supercell_size:supercell_size
-            for k = -supercell_size:supercell_size
-                supercell_idx[:, counter:(counter+num_kpts-1)] .= [i, j, k]
-                supercell[:, counter:(counter+num_kpts-1)] = kpts .+ [i, j, k]
-                counter += num_kpts
+    # it will determine the order of bvecotors.
+    for ix = -supercell_size:supercell_size
+        for iy = -supercell_size:supercell_size
+            for iz = -supercell_size:supercell_size
+                for ik = 1:n_kpts
+                    supercell[:, counter] = kpoints[:, ik] + [ix, iy, iz]
+                    translations[:, counter] = [ix, iy, iz]
+                    counter += 1
+                end
             end
         end
     end
 
-    return supercell, supercell_idx
+    supercell, translations
 end
 
-"""
-check if the columns of matrix m and columns of matrix n are parallel
-"""
-function check_parallel(m, n)
-    @assert size(m, 1) == size(n, 1) == 3
 
-    eps = 1e-5
+@doc raw"""
+Check if the columns of matrix A and columns of matrix B are parallel.
+"""
+function are_parallel(A::Matrix{T}, B::Matrix{T}; atol::T = 1e-5) where {T<:Real}
+    n_dim = size(A, 1)
+    if n_dim != 3 || size(B, 1) != n_dim
+        throw(ArgumentError("only support 3-vectors"))
+    end
 
-    result = fill(false, size(m, 2), size(n, 2))
-    for (i, col1) in enumerate(eachcol(m))
-        for (j, col2) in enumerate(eachcol(n))
+    ncol_A = size(A, 2)
+    ncol_B = size(B, 2)
+    result = fill(false, ncol_A, ncol_B)
+
+    for (i, col1) in enumerate(eachcol(A))
+        for (j, col2) in enumerate(eachcol(B))
             p = LA.cross(col1, col2)
-            if all(isapprox.(0, p; atol=eps))
+            if all(isapprox.(0, p; atol = atol))
                 result[i, j] = true
             end
         end
     end
-    return result
+
+    result
 end
 
-"""
-try to guess weights from MV1997 Eq. B1
 
-    bvecs: 3 * max_multi * num_shell
-    multis: num_shell
-    return: same size as input, but only selected shells which satisfy B1 condition
-"""
-function calculate_b1_weights(bvecs, multis)
-    eps = 1e-8
+@doc raw"""
+Try to guess bvector weights from MV1997 Eq. (B1).
 
-    num_shell = length(multis)
+input bvectors are overcomplete vectors found during shell search.
+return: bvectors and weights satisfing B1 condition.
+"""
+function get_weights(bvectors::Vector{Matrix{T}}; atol::T = 1e-8) where {T<:Real}
+
+    n_shells = length(bvectors)
+    if n_shells == 0
+        throw(ArgumentError("empty bvectors?"))
+    end
+    if size(bvectors[1], 1) != 3
+        throw(ArgumentError("only support 3-vectors"))
+    end
 
     # only compare the upper triangular part of bvec * bvec', 6 elements
-    bmat = zeros(6, num_shell)
+    B = zeros(T, 6, n_shells)
+
     # return the upper triangular part of a matrix as a vector
     triu2vec(m) = m[LA.triu!(trues(size(m)), 0)]
-    W = zeros(num_shell)
-    ishell = 1
     # triu2vec(I) = [1 0 1 0 0 1]
     triu_I = triu2vec(LA.diagm([1, 1, 1]))
-    while ishell <= num_shell
-        bmat[:, ishell] = triu2vec(bvecs[:, 1:multis[ishell], ishell] * bvecs[:, 1:multis[ishell], ishell]')
-        # Solve equation bmat * W = triu_I
-        # size(bmat) = (6, ishell), W is diagonal matrix of size ishell
-        # bmat = U * S * V' -> W = V * S^-1 * U' * triu2vec(I)
-        U, S, V = LA.svd(bmat[:, 1:ishell])
-        # @debug "S" ishell bmat[:,ishell]' S
-        if all(S .> eps)
+
+    W = zeros(n_shells)
+
+    ishell = 1
+    while ishell <= n_shells
+        B[:, ishell] = triu2vec(bvectors[ishell] * bvectors[ishell]')
+        # Solve equation B * W = triu_I
+        # size(B) = (6, ishell), W is diagonal matrix of size ishell
+        # B = U * S * V' -> W = V * S^-1 * U' * triu_I
+        U, S, V = LA.svd(B[:, 1:ishell])
+        # @debug "S" ishell B[:,ishell]' S
+        if all(S .> atol)
             W[1:ishell] = V * LA.Diagonal(S)^-1 * U' * triu_I
-            if isapprox(bmat[:, 1:ishell] * W[1:ishell], triu_I; atol=eps)
+            if isapprox(B[:, 1:ishell] * W[1:ishell], triu_I; atol = atol)
                 break
             end
         end
         ishell += 1
     end
-    @assert ishell != num_shell + 1 "Did not find enough shells!"
-    num_shell = ishell
+    if ishell == n_shells + 1
+        error("not enough shells to satisfy B1 condition")
+    end
+    n_shells = ishell
 
     # resize
-    multis = multis[1:num_shell]
-    max_multi = maximum(multis)
-    weights = W[1:num_shell]
-    bvecs = bvecs[:, 1:max_multi, 1:num_shell]
+    weights = W[1:n_shells]
+    new_bvectors = bvectors[1:n_shells]
 
-    return bvecs, multis, weights
+    new_bvectors, weights
 end
 
-"""
-kpts: reduced coordinates
-"""
-function search_shells(kpts, recip_cell)
-    # Number of nearest-neighbors to be returned
-    search_neighbors = 100
-    # precision to select a shell (equal distance to the point)
-    eps = 1e-5
-    # Max number of stencils in one shell
-    max_multiplicities = 40
-    # Max number of nearest-neighbor shells
-    max_shells = round(Int, search_neighbors / max_multiplicities) # 5
 
-    supercell, _ = generate_supercell(kpts)
+@doc raw"""
+Search bvector shells satisfing B1 condition.
+
+kpoints: fractional coordinates
+recip_lattice: each column is a reciprocal lattice vector
+atol: precision to select a shell (equal distance to the point)
+"""
+function search_shells(
+    kpoints::Matrix{T},
+    recip_lattice::Mat3{T};
+    atol::T = 1e-5,
+) where {T<:Real}
+    # Usually these "magic" numbers work well for normal recip_lattice.
+    # Number of nearest-neighbors to be returned
+    max_neighbors = 100
+    # Max number of stencils in one shell
+    max_multiplicity = 40
+    # Max number of nearest-neighbor shells
+    max_shells = 5
+    # max_shells = round(Int, max_neighbors / max_multiplicity)
+
+    # 1. Generate a supercell to search bvectors
+    supercell, _ = make_supercell(kpoints)
 
     # To cartesian coordinates
-    supercell_cart = recip_cell * supercell
-    kpt_cart = recip_cell * kpts[:, 1] # use the 1st kpt to search bvectors
+    supercell_cart = similar(supercell)
+    for ik = 1:size(supercell, 2)
+        supercell_cart[:, ik] = recip_lattice * supercell[:, ik]
+    end
+    # use the 1st kpt to search bvectors, usually Gamma point
+    kpt_orig = recip_lattice * kpoints[:, 1]
 
+    # 2. KDTree to search nearest neighbors
     kdtree = NN.KDTree(supercell_cart)
-    idxs, dists = NN.knn(kdtree, kpt_cart, search_neighbors, true)
+    idxs, dists = NN.knn(kdtree, kpt_orig, max_neighbors, true)
 
     # activate debug info with: JULIA_DEBUG=Main julia
     # @debug "KDTree nearest neighbors" dists
     # @debug "KDTree nearest neighbors" idxs
 
-    multis = zeros(Int, max_shells) # multiplicities per shell
-    nearest_kpts = zeros(Int, max_multiplicities, max_shells)
+    # 3. Arrange equal-distance kpoint indexes in layer of shells
+    shells = Vector{Vector{Int}}()
 
     # The 1st result is the search point itself, dist = 0
     ineigh = 2
     ishell = 1
-    while (ineigh <= search_neighbors) && (ishell <= max_shells)
+    while (ineigh <= max_neighbors) && (ishell <= max_shells)
         # use the 1st kpoint to find bvector shells & weights
-        eqdist_idxs = findall(x -> isapprox(x, dists[ineigh]; atol=eps), dists)
-        multis[ishell] = length(eqdist_idxs)
-        if multis[ishell] >= max_multiplicities
+        eqdist_idxs = findall(x -> isapprox(x, dists[ineigh]; atol = atol), dists)
+        multi = length(eqdist_idxs)
+        if multi >= max_multiplicity
             # skip large multiplicity shells
+            ineigh += multi
             break
         end
-        nearest_kpts[1:multis[ishell], ishell] = idxs[eqdist_idxs]
-        ineigh += multis[ishell]
+        push!(shells, idxs[eqdist_idxs])
+        ineigh += multi
         ishell += 1
     end
 
-
-    # resize
-    num_shell = ishell - 1
-    multis = multis[1:num_shell]
-    max_multi = maximum(multis)
-    bvecs = zeros(3, max_multi, num_shell) # in Cartesian coord
-    for ishell = 1:num_shell
-        kpb_cart = supercell_cart[:, nearest_kpts[1:multis[ishell], ishell]]
-        bvecs[:, 1:multis[ishell], ishell] = kpb_cart .- kpt_cart
+    # 4. Get Cartesian coordinates vectors
+    n_shells = length(shells)
+    bvectors = Vector{Matrix{T}}(undef, n_shells)
+    for ishell = 1:n_shells
+        kpb_cart = supercell_cart[:, shells[ishell]]
+        bvectors[ishell] = kpb_cart .- kpt_orig
     end
-    @debug "Found bvector shells" multis
-    @debug "Found bvector shells" bvecs
+    @debug "Found bvector shells" bvectors
 
-    # remove shells with parallel bvectors
-    keepshells = collect(1:num_shell)
-    for ishell = 2:num_shell
-        hasparallel = false
+    # 5. Remove shells with parallel bvectors
+    keep_shells = collect(1:n_shells)
+    for ishell = 2:n_shells
+        has_parallel = false
         for jshell = 1:(ishell-1)
-            if !(jshell in keepshells)
+            if !(jshell in keep_shells)
                 continue
             end
-            if hasparallel
+            if has_parallel
                 break
             end
-            p = check_parallel(bvecs[:, 1:multis[jshell], jshell], bvecs[:, 1:multis[ishell], ishell])
-            # @debug "check_parallel($jshell, $ishell)" p
+            p = are_parallel(bvectors[jshell], bvectors[ishell])
+            # @debug "are_parallel($jshell, $ishell)" p
             if any(p)
-                hasparallel = true
+                has_parallel = true
                 break
             end
         end
-        if hasparallel
-            splice!(keepshells, ishell)
+        if has_parallel
+            splice!(keep_shells, ishell)
         end
     end
-    num_shell = length(keepshells)
-    multis = multis[keepshells]
-    max_multi = maximum(multis)
-    bvecs = bvecs[:, 1:max_multi, keepshells]
+    n_shells = length(keep_shells)
+    bvectors = bvectors[keep_shells]
 
-    # @debug "After check_parallel bvector shells" multis
-    # @debug "After check_parallel bvector shells" bvecs
+    # @debug "After check_parallel bvector shells" bvectors
 
-    # sort bvectors
+    # 6. Calculate weights to satisfy B1 condition
+    bvectors, weights = get_weights(bvectors)
+    n_shells = length(bvectors)
 
-    bvecs, multis, weights = calculate_b1_weights(bvecs, multis)
-
-    @info "BVector shell vectors" bvecs
-    @info "BVector shell multiplicities" multis
-    @info "BVector shell weights" weights
-
-    return BVectorShells(recip_cell, kpts, num_shell, bvecs, multis, weights)
-end
-
-function check_b1(shells)
-    # Check B1
-    mat = zeros(3, 3)
-    for ish = 1:length(shells.multis)
-        bvec_ish = shells.vecs[:, 1:shells.multis[ish], ish]
-        mat += shells.weights[ish] * bvec_ish * bvec_ish'
+    for i = 1:n_shells
+        @info "BVector shell $i" weight=weights[i] vectors=bvectors[i]
     end
-    @debug "Bvector sum" mat
-    @assert isapprox(mat, LA.I)
-    println("Finite difference condition satisfied")
+
+    BVectorShells(recip_lattice, kpoints, bvectors, weights)
 end
 
+
+@doc raw"""
+Check completeness (B1 condition) of bvectors.
 """
-flatten shell vectors
+function check_b1(shells::BVectorShells{T}) where {T<:Real}
+    M = zeros(T, 3, 3)
+
+    for ish = 1:shells.n_shells
+        bvec = shells.bvectors[ish]
+        M += shells.weights[ish] * bvec * bvec'
+    end
+
+    @debug "Bvector sum" M
+    if !isapprox(M, LA.I)
+        error("B1 condition is not satisfied")
+    end
+
+    println("Finite difference condition satisfied")
+    nothing
+end
+
+
+@doc raw"""
+flatten shell vectors into a matrix
 return: 
 bvecs: 3 * num_bvecs
 bvecs_weight: num_bvecs
 """
-function flatten_shells(shells)
-    num_bvecs = sum(shells.multis)
-    bvecs = zeros(3, num_bvecs)
-    bvecs_weight = zeros(num_bvecs)
+function flatten_shells(shells::BVectorShells{T}) where {T<:Real}
+    n_bvecs = sum(size(shells.bvectors[i], 2) for i = 1:shells.n_shells)
+
+    bvecs = zeros(T, 3, n_bvecs)
+    bvecs_weight = zeros(T, n_bvecs)
+
     counter = 1
-    for ishell = 1:length(shells.multis)
-        imulti = shells.multis[ishell]
-        bvecs[:, counter:(counter+imulti-1)] = shells.vecs[:, 1:imulti, ishell]
-        bvecs_weight[counter:(counter+imulti-1)] .= shells.weights[ishell]
-        counter += imulti
+    for ishell = 1:shells.n_shells
+        multi = shells.multiplicities[ishell]
+        bvecs[:, counter:(counter+multi-1)] = shells.bvectors[ishell]
+        bvecs_weight[counter:(counter+multi-1)] .= shells.weights[ishell]
+        counter += multi
     end
-    return bvecs, bvecs_weight
+
+    bvecs, bvecs_weight
 end
 
-# Generate bvectors for all the kpoints & sort (to be consistent with wannier90)
-function generate_bvectors(kpts, recip_cell)
 
-    shells = search_shells(kpts, recip_cell)
+@doc raw"""
+Sort bvectors in shells for each kpoints, to be consistent with wannier90
 
-    check_b1(shells)
-
-    num_kpts = size(kpts, 2)
-
-    kpts_cart = recip_cell * shells.kpts
-    # Calculate distances of supercells to original cell
-    _, supercell_idx = generate_supercell(zeros(3))
-
+Wannier90 use different order of bvectors for each kpoint,
+in principle, this is not needed. However, the Mmn file is
+written in such order, so I need to sort bvectors and calculate
+weights, since nnkp file has no section of weights.
+"""
+function sort_bvectors(shells::BVectorShells{T}) where {T<:Real}
     # Firstly, sort by length of bvectors: nearest k+b goes first
     # Secondly, sort by supercell: k+b which is in the same cell as k goes first
-    # Thirdly, sort by the index (in the supercell array) of supercell: the larger-index one goes first
-    #     Note this also relies on the order of supercell_cart, see generate_supercell()
+    # Thirdly, sort by the index (in the supercell array) of supercell:
+    #     the larger-index one goes first.
+    #     Note this also relies on the order of supercell_cart, see make_supercell()
     # Fourthly, sort by k+b index: the smaller-index k+b point goes first
-    inv_recip = inv(recip_cell)
 
-    function isequiv(v1, v2)
-        eps = 1e-5
+    kpoints = shells.kpoints
+    recip_lattice = shells.recip_lattice
+
+    n_kpts = size(kpoints, 2)
+
+    inv_recip = inv(recip_lattice)
+    kpts_cart = recip_lattice * kpoints
+
+    # To sort bvectors for each kpoints, I need to
+    # calculate distances of supercells to original cell
+    # Just pass a fake kpoint, I only need the cell translations.
+    _, supercell_idx = make_supercell(zeros(T, 3, 1))
+
+    """Equivalent to periodic image?"""
+    function isequiv(v1, v2; atol = 1e-5)
         d = v1 - v2
-        d .-= round.(d)
-        return all(isapprox.(d, 0; atol=eps))
+        d -= round.(d)
+
+        all(isapprox.(d, 0; atol = atol))
     end
 
-    function findvector(predicate::Function, v, vecs)
-        for (i, col) in enumerate(eachcol(vecs))
+    """Find vector in the columns of a matrix"""
+    function findvector(predicate::Function, v, M)
+        for (i, col) in enumerate(eachcol(M))
             predicate(v, col) && return i
         end
-        throw(ErrorException("$v not found in array!"))
+        error("$v not found in array!")
     end
 
     """
     kb1, kb2, k: cartesian coordinates
     """
-    function bvec_isless(kb1, kb2, k)
+    function bvec_isless(kb1, kb2, k; atol = 1e-5)
         # Float64 comparsion is tricky, esp. for norm
-        eps = 1e-5
 
-        if isapprox(kb1, kb2; atol=eps)
+        if isapprox(kb1, kb2; atol = atol)
             return true
         end
 
         normkb1 = LA.norm(kb1 - k)
         normkb2 = LA.norm(kb2 - k)
-        if abs(normkb1 - normkb2) < eps
-            # using outter scope variable: inv_recip, kpts, kpts_cart
-            # bring back to reduced coord, easier to compare
-            kb1_reduced = inv_recip * kb1
-            kb2_reduced = inv_recip * kb2
-            kb1_equiv_idx = findvector(isequiv, kb1_reduced, kpts)
-            kb2_equiv_idx = findvector(isequiv, kb2_reduced, kpts)
+        if abs(normkb1 - normkb2) < atol
+            # using outter scope variable: inv_recip, kpoints, kpts_cart
+            # bring back to fractional coord, easier to compare
+            kb1_frac = inv_recip * kb1
+            kb2_frac = inv_recip * kb2
+            kb1_equiv_idx = findvector(isequiv, kb1_frac, kpoints)
+            kb2_equiv_idx = findvector(isequiv, kb2_frac, kpoints)
             celldisp_kb1 = kb1 - kpts_cart[:, kb1_equiv_idx]
             celldisp_kb2 = kb2 - kpts_cart[:, kb2_equiv_idx]
-            # @debug "jq" celldisp_kb1, celldisp_kb2
+            # @debug "bvec_isless" celldisp_kb1, celldisp_kb2
             normkb1 = LA.norm(celldisp_kb1)
             normkb2 = LA.norm(celldisp_kb2)
-            # @debug "jq" normkb1, normkb2
-            if abs(normkb1 - normkb2) < eps
+            # @debug "bvec_isless" normkb1, normkb2
+            if abs(normkb1 - normkb2) < atol
                 # using outter scope variable: supercell_idx
-                celldisp_kb1_reduced = round.(Int, inv_recip * celldisp_kb1)
-                celldisp_kb2_reduced = round.(Int, inv_recip * celldisp_kb2)
-                idx1 = findvector(==, celldisp_kb1_reduced, supercell_idx)
-                idx2 = findvector(==, celldisp_kb2_reduced, supercell_idx)
-                # @debug "jq", idx1, idx2
+                celldisp_kb1_frac = round.(Int, inv_recip * celldisp_kb1)
+                celldisp_kb2_frac = round.(Int, inv_recip * celldisp_kb2)
+                idx1 = findvector(==, celldisp_kb1_frac, supercell_idx)
+                idx2 = findvector(==, celldisp_kb2_frac, supercell_idx)
+                # @debug "bvec_isless", idx1, idx2
                 if idx1 > idx2
                     return true
                 elseif idx1 < idx2
@@ -323,7 +430,7 @@ function generate_bvectors(kpts, recip_cell)
                     elseif kb1_equiv_idx > kb2_equiv_idx
                         return false
                     else
-                        throw(ErrorException("you are comparing equivalent k+b points, this should not happen!"))
+                        error("Comparing equivalent k+b points, this should not happen!")
                     end
                 end
             elseif normkb1 < normkb2
@@ -338,47 +445,75 @@ function generate_bvectors(kpts, recip_cell)
         end
     end
 
-    # FIX: the order of b vectors is not the same as wannier90
-    # k = kpts_cart[:,1]
-    # kb1 = recip_cell * (kpts[:,9] +[0 0 0]')
-    # kb2 = recip_cell * (kpts[:,65] +[0 0 0]')
+    # Test: check the order of b vectors is the same as wannier90
+    # k = kpts_cart[:, 1]
+    # kb1 = recip_lattice * (kpoints[:, 9] + [0 0 0]')
+    # kb2 = recip_lattice * (kpoints[:, 65] + [0 0 0]')
     # @debug "islesss" bvec_isless(kb1, kb2, k)
     # throw(ErrorException)
 
     bvecs, bvecs_weight = flatten_shells(shells)
-    num_bvecs = length(bvecs_weight)
+    n_bvecs = size(bvecs, 2)
 
     # find k+b indexes
-    kpbs = zeros(Int, num_bvecs, num_kpts)
-    kpbs_weight = zeros(num_bvecs, num_kpts)
-    kpbs_disp = zeros(Int, 3, num_bvecs, num_kpts)
-    sorted_idx = zeros(Int, num_bvecs)
+    kpb_k = zeros(Int, n_bvecs, n_kpts)
+    kpb_weight = zeros(T, n_bvecs, n_kpts)
+    kpb_b = zeros(Int, 3, n_bvecs, n_kpts)
+    sorted_idx = zeros(Int, n_bvecs)
     # I have to construct a Vector of Vector such that sortperm could work
-    ikpb = Vector{Vector{Float64}}(undef, num_bvecs)
-    for ik = 1:num_kpts
+    ikpb = Vector{Vec3{T}}(undef, n_bvecs)
+
+    for ik = 1:n_kpts
         k_cart = kpts_cart[:, ik]
-        for ib = 1:num_bvecs
+
+        for ib = 1:n_bvecs
             ikpb[ib] = k_cart .+ bvecs[:, ib]
         end
-        sorted_idx[:] = sortperm(ikpb; lt=(x, y) -> bvec_isless(x, y, k_cart))
-        for ib = 1:num_bvecs
-            ikpb_reduced = inv_recip * ikpb[sorted_idx[ib]]
-            ikpb_equiv_idx = findvector(isequiv, ikpb_reduced, kpts)
-            kpbs[ib, ik] = ikpb_equiv_idx
-            celldisp = ikpb_reduced - kpts[:, ikpb_equiv_idx]
-            kpbs_disp[:, ib, ik] = round.(Int, celldisp)
-            kpbs_weight[ib, ik] = bvecs_weight[sorted_idx[ib]]
-        end
-    end
-    @debug "k+b" kpbs
-    @debug "k+b displacements" kpbs_disp
-    @debug "k+b weights" kpbs_weight
 
-    return kpbs, kpbs_disp, kpbs_weight
+        sorted_idx[:] = sortperm(ikpb; lt = (x, y) -> bvec_isless(x, y, k_cart))
+
+        for ib = 1:n_bvecs
+
+            ib_sorted = sorted_idx[ib]
+            kpb_weight[ib, ik] = bvecs_weight[ib_sorted]
+
+            ikpb_frac = inv_recip * ikpb[ib_sorted]
+            ikpb_equiv_idx = findvector(isequiv, ikpb_frac, kpoints)
+            kpb_k[ib, ik] = ikpb_equiv_idx
+
+            kpb_b[:, ib, ik] = round.(Int, ikpb_frac - kpoints[:, ikpb_equiv_idx])
+        end
+
+    end
+
+    # kpb_weight is redundant
+    @assert sum(abs.(kpb_weight .- bvecs_weight)) < 1e-6
+
+    @debug "k+b k" kpb_k
+    @debug "k+b b" kpb_b
+    @debug "k+b weights" bvecs_weight
+
+    BVectors(recip_lattice, kpoints, bvecs, bvecs_weight, kpb_k, kpb_b)
 end
 
+
+@doc raw"""
+Generate bvectors for all the kpoints.
 """
-print Wannier90 nnkp file bvectors in cartesian coordinates
+function get_bvectors(kpoints::Matrix{T}, recip_lattice::Mat3{T}) where {T<:Real}
+
+    shells = search_shells(kpoints, recip_lattice)
+
+    check_b1(shells)
+
+    bvectors = sort_bvectors(shells)
+
+    bvectors
+end
+
+
+@doc raw"""
+print Wannier90 nnkp file bvectors in Cartesian coordinates
 """
 function print_w90_nnkp(w90nnkp)
     for k = 1:w90nnkp.num_kpts
