@@ -7,7 +7,7 @@ include("bvector.jl")
 include("model.jl")
 include("io/w90.jl")
 include("spread.jl")
-# include("center.jl")
+include("wannierize/max_localize.jl")
 # include("wannierize/disentangle.jl")
 # include("wannierize/parallel_transport.jl")
 # include("interpolation.jl")
@@ -19,5 +19,6 @@ export get_recip_lattice
 export get_bvectors
 
 export omega, omega_grad
+export max_localize
 
 end
