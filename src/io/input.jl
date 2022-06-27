@@ -81,15 +81,6 @@ end
 Base.show(io::IO, ::MIME"text/plain", x::InputParams) = GarishPrint.pprint_struct(io, x)
 
 
-Base.@kwdef mutable struct InterpResults
-    Obs_array::Array{ComplexF64,3}
-    Obs_array_i::Array{ComplexF64,3}
-    Obs_array_j::Array{ComplexF64,3}
-    Uint::Array{ComplexF64,4}
-    Uint_ik::Array{ComplexF64,4}
-end
-
-
 Base.@kwdef mutable struct Bands
     n_kpts::Int
     n_bands::Int

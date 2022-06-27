@@ -99,3 +99,18 @@ function fix_global_phase!(A::Array{T,3}) where {T<:Complex}
 
     nothing
 end
+
+
+"""
+Power of a unitary (or at least, normal) matrix A
+"""
+function powm(A::AbstractMatrix{T}, p::F) where {T<:Union{Complex,Real},F<:Real}
+    # Workaround, eigen incompatible with lazy adjoint.
+    d, V = LA.eigen(Matrix(A))
+
+    V = orthonorm_lowdin(V)
+    # accuracy = LA.norm(V * Diagonal(d) * V' - A)
+    # @assert accuracy < 1e-10
+
+    V * LA.Diagonal(d .^ p) * V'
+end

@@ -2,7 +2,7 @@
 """
 kpoints: in fractional coordinates, 3 * n_kpts
 """
-function get_kpoint_mappings(kpoints::Matrix{T}, kgrid::Vector{Int}) where {T<:Real}
+function get_kpoint_mappings(kpoints::Matrix{T}, kgrid::AbstractVector{Int}) where {T<:Real}
     n_kpts = prod(kgrid)
     n_kx, n_ky, n_kz = kgrid
     dkx, dky, dkz = 1 / n_kx, 1 / n_ky, 1 / n_kz
