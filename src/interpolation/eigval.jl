@@ -5,31 +5,6 @@ import Serialization
 
 
 """
-kpts: in reduced coordinates, 3 * num_kpts
-"""
-function get_kpts_mapping(kpts::Matrix{Float64}, kpts_size::Vector{Int})
-    num_kpts = prod(kpts_size)
-    nk1, nk2, nk3 = kpts_size
-    dk1, dk2, dk3 = 1 / nk1, 1 / nk2, 1 / nk3
-    kpts_int = kpts ./ [dk1; dk2; dk3]
-    kpts_int = round.(Int, kpts_int)
-    for ik = 1:num_kpts
-        kpts_int[1, ik] = mod(kpts_int[1, ik], 0:nk1-1) + 1
-        kpts_int[2, ik] = mod(kpts_int[2, ik], 0:nk2-1) + 1
-        kpts_int[3, ik] = mod(kpts_int[3, ik], 0:nk3-1) + 1
-    end
-
-    k2ijk = zeros(Int, num_kpts, 3)
-    ijk2k = zeros(Int, nk1, nk2, nk3)
-    for ik = 1:num_kpts
-        k2ijk[ik, :] = kpts_int[:, ik]
-        ijk2k[kpts_int[:, ik]...] = ik
-    end
-
-    return k2ijk, ijk2k
-end
-
-"""
 kpath_startend: reduced coordiantes, 1st dim: vector x,y,z, 2nd dim: start,end, 3rd dim: num_segments
 xyz_cart: whether return Cartesian coordiantes
 """

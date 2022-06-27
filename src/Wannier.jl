@@ -3,6 +3,7 @@ module Wannier
 include("common/const.jl")
 include("common/type.jl")
 include("util/linalg.jl")
+include("util/kpoint.jl")
 include("bvector.jl")
 include("model.jl")
 include("io/w90.jl")
@@ -19,6 +20,7 @@ export write_amn, write_mmn, write_eig
 
 export get_recip_lattice
 export get_bvectors
+export get_kpoint_mappings
 
 export orthonorm_lowdin
 
