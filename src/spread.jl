@@ -36,9 +36,9 @@ end
 
 
 @views function omega(
+    bvectors::BVectors{FT},
     M::Array{Complex{FT},4},
     A::Array{Complex{FT},3},
-    bvectors::BVectors{FT},
     only_r2::Bool = false,
 ) where {FT<:Real}
 
@@ -125,9 +125,9 @@ dΩ/dU, n_bands * n_wann * n_kpts
 r: WF centers, cartesian coordinates, 3 * n_wann
 """
 @views function omega_grad(
+    bvectors::BVectors{FT},
     M::Array{Complex{FT},4},
     A::Array{Complex{FT},3},
-    bvectors::BVectors{FT},
     r::Matrix{FT},
     only_r2::Bool = false,
 ) where {FT<:Real}
@@ -214,13 +214,13 @@ end
 
 
 @views function omega_grad(
+    bvectors::BVectors{FT},
     M::Array{Complex{FT},4},
     A::Array{Complex{FT},3},
-    bvectors::BVectors{FT},
     only_r2::Bool = false,
 ) where {FT<:Real}
-    r = omega(M, A, bvectors, only_r2).r
-    omega_grad(M, A, bvectors, r, only_r2)
+    r = omega(bvectors, M, A, only_r2).r
+    omega_grad(bvectors, M, A, r, only_r2)
 end
 
 
@@ -228,9 +228,9 @@ end
 local part of the contribution to r^2
 """
 function omega_loc(
+    bvectors::BVectors{FT},
     M::Array{Complex{FT},4},
     A::Array{Complex{FT},3},
-    bvectors::BVectors{FT},
 ) where {FT<:Real}
     n_bands, n_wann, n_kpts = size(A)
     n_bvecs = size(M, 3)

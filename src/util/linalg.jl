@@ -62,14 +62,40 @@ Normalize a matrix A to be (semi-)unitary.
 If X is a matrix with orthogonal columns and A a non-singular matrix,
 then Lowdin-orthogonalizing X*A is equivalent to computing X*normalize_matrix(A)
 """
-function orthonormalize_lowdin(A)
+function orthonorm_lowdin(A::Matrix{T}) where {T<:Union{Complex,Real}}
     U, S, V = LA.svd(A)
-    @assert A ≈ U * LA.Diagonal(S) * V'
-    return U * V'
+    # @assert A ≈ U * LA.Diagonal(S) * V'
+    U * V'
 end
 
 
-function orthonormalize_cholesky(A)
-    ovl = A'A
-    return A / LA.chol(ovl)
+function orthonorm_lowdin(A::Array{T,3}) where {T<:Union{Complex,Real}}
+    n_kpts = size(A, 3)
+
+    B = similar(A)
+
+    for ik = 1:n_kpts
+        B[:, :, ik] .= orthonorm_lowdin(A[:, :, ik])
+    end
+
+    B
+end
+
+
+function orthonorm_cholesky(A)
+    A / LA.chol(A'A)
+end
+
+
+function fix_global_phase!(A::Array{T,3}) where {T<:Complex}
+    n_wann = size(A, 2)
+
+    for i = 1:n_wann
+        imax = indmax(abs.(A[:, i, 1]))
+        a = A[imax, i, 1]
+        @assert abs(a) > 1e-2
+        A[:, i, :] *= conj(a / abs(a))
+    end
+
+    nothing
 end

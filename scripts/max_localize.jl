@@ -3,10 +3,10 @@ using Wannier
 
 function main()
 
-    # seed_name = "silicon"
-    seed_name = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
+    # seedname = "silicon"
+    seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
 
-    model = read_seedname(seed_name)
+    model = read_seedname(seedname)
 
     A = max_localize(model)
 
@@ -14,4 +14,6 @@ function main()
 end
 
 
-main()
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end

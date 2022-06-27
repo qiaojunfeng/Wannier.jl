@@ -1,60 +1,81 @@
 import LinearAlgebra as LA
 import Optim
-include("../param.jl")
-include("../spread.jl")
 
 
-function set_frozen_bands!(data::CoreData, params::InputParams)
+"""
+Set frozen bands according to two energy windows
+"""
+function set_frozen_win!(
+    model::Model{T},
+    dis_froz_max::T,
+    dis_froz_min::T = -Inf;
+    degen::Bool = false,
+    degen_atol::T = 1e-4,
+) where {T<:Real}
+    degen_atol <= 0 && error("degen_atol must be positive")
 
-    data.frozen = falses(data.num_bands, data.num_kpts)
+    fill!(model.frozen_bands, false)
 
-    for ik = 1:data.num_kpts
-        frozen_k = falses(data.num_bands)
-        num_frozen_k = 0
+    # For each kpoint
+    frozen_k = falses(model.n_bands)
 
-        if params.dis_froz_win
-            frozen_k = (data.eig[:, ik] .>= params.dis_froz_win_min) .&
-                       (data.eig[:, ik] .<= params.dis_froz_win_max)
-            # @debug "ik = $ik, l_frozen_k = $(l_frozen_k)"
-            num_frozen_k = count(frozen_k)
-        end
+    for ik = 1:model.n_kpts
 
-        if params.dis_froz_proj
-            # size = nbands * nwannier
-            amn_k = data.amn[:, :, ik]
-            proj = dropdims(real(sum(amn_k .* conj(amn_k), dims=2)), dims=2)
-            # @debug "projectability @ $ik" proj
+        fill!(frozen_k, false)
 
-            if any(.!frozen_k[proj.>=params.dis_froz_proj_max])
-                # @debug "l_frozen before dis_proj" l_frozen'
-                frozen_k[proj.>=params.dis_froz_proj_max] .= true
-                # @debug "l_frozen after dis_proj" l_frozen'
-                # @debug "proj .>= dis_proj_max" (proj .>= dis_proj_max)'
-                num_frozen_k = count(frozen_k)
-            end
-        end
+        frozen_k .= (model.E[:, ik] .>= dis_froz_min) .& (model.E[:, ik] .<= dis_froz_max)
 
-        # if cluster of eigenvalues and nfrozen > 0, take them all
-        if params.dis_froz_degen && params.dis_froz_degen_thres > 0 && num_frozen_k > 0
-            while num_frozen_k < data.num_wann
-                if data.eig[num_frozen_k+1, ik] < data.eig[num_frozen_k, ik] + params.dis_froz_degen_thres
-                    num_frozen_k += 1
-                    frozen_k[num_frozen_k] .= true
+        # if cluster of eigenvalues and count(frozen_k) > 0, take them all
+        if degen && count(frozen_k) > 0
+            ib = findlast(frozen_k)
+
+            while ib < model.n_wann
+                if model.E[ib+1, ik] < model.E[ib, ik] + degen_atol
+                    ib += 1
+                    frozen_k[ib] .= true
                 else
                     break
                 end
             end
         end
 
-        if params.dis_froz_num > 0
-            frozen_k[1:params.dis_froz_num] .= true
-        end
+        count(frozen_k) > model.n_wann && error("Too many frozen bands")
 
-        @assert count(frozen_k) <= data.num_wann
-        # @debug "num_frozen_k = $num_frozen_k, ik = $ik" frozen_k'
-        data.frozen[:, ik] = frozen_k
+        model.frozen_bands[:, ik] = frozen_k
     end
 end
+
+
+"""
+Set frozen bands according to projectability ∈ [0.0, 1.0]
+"""
+function set_frozen_proj!(
+    model::Model{T},
+    dis_proj_max::T;
+    degen::Bool = false,
+    degen_atol::T = 1e-4,
+) where {T<:Real}
+
+    fill!(model.frozen_bands, false)
+
+    # For each kpoint
+    frozen_k = falses(model.n_bands)
+
+    for ik = 1:model.n_kpts
+
+        fill!(frozen_k, false)
+
+        # n_bands * n_wann
+        Ak = model.A[:, :, ik]
+
+        proj = dropdims(real(sum(Ak .* conj(Ak), dims = 2)), dims = 2)
+
+        # @debug "projectability @ $ik" proj
+
+        frozen_k[proj.>=dis_proj_max] .= true
+    end
+end
+
 
 """
 normalize and freeze a block of a matrix
@@ -66,19 +87,20 @@ Frozen:      Uf * Uf' = I
 Also:        Uf * Ur' = 0
 Strategy: first orthogonalize Uf, then project Uf out of Ur, then orthogonalize the range of Ur
 """
-function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, non_frozen::BitVector)
+function orthonorm_freeze(A::Matrix{T}, frozen::BitVector) where {T<:Complex}
+    n_bands, n_wann = size(A)
+    non_frozen = .!frozen
+
     # Make sure Uf can fully represent frozen bands.
-    # Uf = <ψ|g>, where |ψ> is Bloch wfcs, |g> is the guiding functions (GF).
-    # We do a Lowdin orthonormalization on Uf' = <g|ψ> so (Uf')' * Uf' = I, i.e. orthonormal,
-    # this also means Uf * Uf' = I, i.e. <ψ|g><g|ψ> = I
-    # =>  |g> can fully represent frozen bands without loss.
+    # Uf = <ψ|g>, where |ψ> is Bloch wfcs, |g> is the guiding functions.
+    # We do a Lowdin orthonormalization on Uf so that Uf * Uf' = I,
+    # i.e. <ψ|g'><g'|ψ> = I -> |g'>s span the frozen |ψ>s.
     Uf = A[frozen, :]
-    U, S, V = LA.svd(Uf')
-    Uf = V * U'
-    # Uf = normalize_matrix_chol(Uf')'
+    Uf = orthonorm_lowdin(Uf)
+    # Uf = orthonorm_cholesky(Uf)
 
     # Remove Uf out of Ur, i.e. do not destroy frozen space
-    # The projector (i.e. density matrix) of the frozen states represented on the GF basis is 
+    # The projector of the frozen states represented on the |g> basis is 
     #     |ψf><ψf| = |g><g|ψf><ψf|g><g| = |g> Uf' * Uf <g|
     # The projector of the non-frozen states on GF basis is
     #     |ψr><ψr| = |g><g|ψr><ψr|g><g| = |g> Ur' * Ur <g|
@@ -91,8 +113,8 @@ function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, non
     Ur -= Ur * Uf' * Uf
 
     # alternative method, maybe more stable but slower
-    # ovl = Ur'Ur
-    # S, U = eig(Hermitian(ovl))
+    # M = Ur' * Ur
+    # S, U = eig(Hermitian(M))
     # S = real(S)
     # @assert !any(x -> 1e-11 <= x <= 1e-9, S)
     # @assert count(x -> x > 1e-10, S) == size(A,2) - nfrozen
@@ -105,256 +127,350 @@ function orthonormalize_and_freeze(A::Matrix{ComplexF64}, frozen::BitVector, non
     # I = <wr|wr> = Ur' <ψ|ψ> Ur  =>  Ur' * Ur = I
     # Use Lowdin normalization but needs to limit the number of independent vectors.
     U, S, V = LA.svd(Ur)
-    eps = 1e-10
-    @assert !any(x -> 1e-11 <= x <= 1e-9, S)
-    @assert count(x -> x > eps, S) == size(A, 2) - count(frozen)
-    S[S.>eps] .= 1
-    S[S.<eps] .= 0
+    atol = 1e-10
+    @assert count(x -> x > atol, S) == n_wann - count(frozen)
+    S[S.>atol] .= 1
+    S[S.<atol] .= 0
     Ur = U * LA.Diagonal(S) * V'
 
-    # FIX: remove this?
-    # A[non_frozen,:] = Ur
-
-    B = vcat(Uf, Ur)
+    B = similar(A)
     B[frozen, :] .= Uf
     B[non_frozen, :] .= Ur
 
     # Semiunitary
-    @assert isapprox(B' * B, LA.I, rtol=1e-12)
+    @assert isapprox(B' * B, LA.I; atol = atol)
     # Frozen
-    @assert isapprox(B[frozen, :] * B[frozen, :]', LA.I, rtol=1e-12)
+    @assert isapprox(B[frozen, :] * B[frozen, :]', LA.I; atol = atol)
     # Independent
-    @assert LA.norm(Uf * Ur') < 1e-10
+    @assert LA.norm(Uf * Ur') < atol
 
-    return B
+    B
 end
 
-function max_projectability(A::Matrix{ComplexF64})
-    proj = A * A'
-    proj_ortho = LA.I - proj
-    U, S, V = LA.svd(proj_ortho)
-    n = abs(size(A, 1) - size(A, 2))
-    @assert count(S .> 1e-5) >= n
-    R = hcat(A, V[:, 1:n])
-    @assert R * R' ≈ LA.I
-    return R' * A, R
 
-    U, S, V = LA.svd(A)
-    return V' * A, V
-    proj = A * A'
-    # A * A' = V D V'  =>  (V'A) (A'V) = D
-    D, V = LA.eigen(proj)
-    # sort eigenvalues in descending order
-    V = V[:, sortperm(D, rev=true)]
-    A_new = V' * A
-    @debug "projectability" real(LA.diag(proj)') real(LA.diag(A_new * A_new')')
-    return A_new, V
-end
+# function max_projectability(A::Matrix{ComplexF64})
+#     proj = A * A'
+#     proj_ortho = LA.I - proj
+#     U, S, V = LA.svd(proj_ortho)
+#     n = abs(size(A, 1) - size(A, 2))
+#     @assert count(S .> 1e-5) >= n
+#     R = hcat(A, V[:, 1:n])
+#     @assert R * R' ≈ LA.I
+#     return R' * A, R
 
-function maxproj_froz(A::Matrix{ComplexF64}, froz::BitVector)
-    @assert length(froz) == size(A, 1)
-    m, n = size(A)
-    D = zeros(ComplexF64, n + count(froz), m)
-    D[1:n, :] = transpose(A)
-    c = n + 1
-    for i = 1:length(froz)
-        if froz[i]
-            D[c, i] = 1
-            c += 1
-        end
-    end
-    U, S, V = LA.svd(D)
+#     U, S, V = LA.svd(A)
+#     return V' * A, V
+#     proj = A * A'
+#     # A * A' = V D V'  =>  (V'A) (A'V) = D
+#     D, V = LA.eigen(proj)
+#     # sort eigenvalues in descending order
+#     V = V[:, sortperm(D, rev = true)]
+#     A_new = V' * A
+#     @debug "projectability" real(LA.diag(proj)') real(LA.diag(A_new * A_new')')
+#     return A_new, V
+# end
 
-    nbasis = count(S .> 1e-5)
-    V_new = V[:, 1:nbasis]
-    proj = V_new * V_new'
-    proj_ortho = LA.I - proj
-    U, S, V = LA.svd(proj_ortho)
-    R = hcat(V_new, V[:, 1:m-nbasis])
-    @assert R * R' ≈ LA.I
 
-    return R' * A, R
-end
+# function maxproj_froz(A::Matrix{ComplexF64}, froz::BitVector)
+#     @assert length(froz) == size(A, 1)
+#     m, n = size(A)
+#     D = zeros(ComplexF64, n + count(froz), m)
+#     D[1:n, :] = transpose(A)
+#     c = n + 1
+#     for i = 1:length(froz)
+#         if froz[i]
+#             D[c, i] = 1
+#             c += 1
+#         end
+#     end
+#     U, S, V = LA.svd(D)
 
-# There are three formats: A, (X,Y) and XY stored contiguously in memory
-# A is the format used in the rest of the code, XY is the format used in the optimizer, (X,Y) is intermediate
-# A is num_bands * num_wann
-# X is num_wann * num_wann, Y is num_bands * num_wann and has first block equal to [I 0]
-function XY_to_A(data, X, Y)
-    A = zeros(ComplexF64, data.num_bands, data.num_wann, data.num_kpts)
-    for ik = 1:data.num_kpts
+#     nbasis = count(S .> 1e-5)
+#     V_new = V[:, 1:nbasis]
+#     proj = V_new * V_new'
+#     proj_ortho = LA.I - proj
+#     U, S, V = LA.svd(proj_ortho)
+#     R = hcat(V_new, V[:, 1:m-nbasis])
+#     @assert R * R' ≈ LA.I
+
+#     return R' * A, R
+# end
+
+
+"""
+There are three formats: A, (X, Y), and XY stored contiguously in memory.
+A is the format used in the rest of the code, XY is the format used in the optimizer,
+(X, Y) is intermediate format.
+A is n_bands * n_wann,
+X is n_wann * n_wann,
+Y is n_bands * n_wann and has first block equal to [I 0].
+"""
+function XY_to_A(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
+    n_bands, n_wann, n_kpts = size(Y)
+
+    A = zeros(T, n_bands, n_wann, n_kpts)
+
+    for ik = 1:n_kpts
         # check
-        l_frozen = data.frozen[:, ik]
-        l_non_frozen = .!l_frozen
-        num_frozen = count(l_frozen)
-        @assert Y[:, :, ik]' * Y[:, :, ik] ≈ LA.I
-        @assert X[:, :, ik]' * X[:, :, ik] ≈ LA.I
-        @assert Y[l_frozen, 1:num_frozen, ik] ≈ LA.I
-        @assert LA.norm(Y[l_non_frozen, 1:num_frozen, ik]) ≈ 0
-        @assert LA.norm(Y[l_frozen, num_frozen+1:end, ik]) ≈ 0
+        # idx_f = model.frozen_bands[:, ik]
+        # idx_nf = .!idx_f
+        # n_froz = count(idx_f)
+        # @assert Y[:, :, ik]' * Y[:, :, ik] ≈ LA.I
+        # @assert X[:, :, ik]' * X[:, :, ik] ≈ LA.I
+        # @assert Y[idx_f, 1:n_froz, ik] ≈ LA.I
+        # @assert LA.norm(Y[idx_nf, 1:n_froz, ik]) ≈ 0
+        # @assert LA.norm(Y[idx_f, n_froz+1:end, ik]) ≈ 0
 
         A[:, :, ik] = Y[:, :, ik] * X[:, :, ik]
-        # @assert normalize_and_freeze(A[:,:,i,j,k],lnf) ≈ A[:,:,i,j,k] rtol=1e-4
+        # @assert orthonorm_freeze(A[:, :, ik], frozen_bands[:, ik]) ≈ A[:, :, ik] rtol=1e-4
     end
-    return A
+
+    A
 end
 
-function A_to_XY(data::CoreData, A)
-    X = zeros(ComplexF64, data.num_wann, data.num_wann, data.num_kpts)
-    Y = zeros(ComplexF64, data.num_bands, data.num_wann, data.num_kpts)
-    for ik = 1:data.num_kpts
-        l_frozen = data.frozen[:, ik]
-        l_non_frozen = .!l_frozen
-        num_frozen = count(l_frozen)
-        Afrozen = orthonormalize_and_freeze(A[:, :, ik], l_frozen, l_non_frozen)
-        Af = Afrozen[l_frozen, :]
-        Ar = Afrozen[l_non_frozen, :]
+
+"""
+size(A) = n_bands * n_wann * n_kpts
+size(frozen) = n_bands * n_kpts
+"""
+function A_to_XY(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
+    n_bands, n_wann, n_kpts = size(A)
+
+    X = zeros(T, n_wann, n_wann, n_kpts)
+    Y = zeros(T, n_bands, n_wann, n_kpts)
+
+    for ik = 1:n_kpts
+
+        idx_f = frozen[:, ik]
+        idx_nf = .!idx_f
+        n_froz = count(idx_f)
+
+        Af = orthonorm_freeze(A[:, :, ik], idx_f)
+        Uf = Af[idx_f, :]
+        Ur = Af[idx_nf, :]
 
         # determine Y
-        if num_frozen != data.num_wann
-            proj = Ar * Ar'
-            proj = LA.Hermitian((proj + proj') / 2)
-            D, V = LA.eigen(proj) # sorted by increasing eigenvalue
-        end
-        Y[l_frozen, 1:num_frozen, ik] = Matrix(LA.I, num_frozen, num_frozen)
-        if num_frozen != data.num_wann
-            Y[l_non_frozen, num_frozen+1:end, ik] = V[:, end-data.num_wann+num_frozen+1:end]
+        Y[idx_f, 1:n_froz, ik] = Matrix{T}(LA.I, n_froz, n_froz)
+
+        if n_froz != n_wann
+            Pr = Ur * Ur'
+            Pr = LA.Hermitian((Pr + Pr') / 2)
+            D, V = LA.eigen(Pr) # sorted by increasing eigenvalue
+            Y[idx_nf, n_froz+1:end, ik] = V[:, end-n_wann+n_froz+1:end]
         end
 
         # determine X
-        Xleft, S, Xright = LA.svd(Y[:, :, ik]' * Afrozen)
-        X[:, :, ik] = Xleft * Xright'
+        X[:, :, ik] = orthonorm_lowdin(Y[:, :, ik]' * Af)
 
         @assert Y[:, :, ik]' * Y[:, :, ik] ≈ LA.I
         @assert X[:, :, ik]' * X[:, :, ik] ≈ LA.I
-        @assert Y[l_frozen, 1:num_frozen, ik] ≈ LA.I
-        @assert LA.norm(Y[l_non_frozen, 1:num_frozen, ik]) ≈ 0
-        @assert LA.norm(Y[l_frozen, num_frozen+1:end, ik]) ≈ 0
-        @assert Y[:, :, ik] * X[:, :, ik] ≈ Afrozen
+        @assert Y[idx_f, 1:n_froz, ik] ≈ LA.I
+        @assert LA.norm(Y[idx_nf, 1:n_froz, ik]) ≈ 0
+        @assert LA.norm(Y[idx_f, n_froz+1:end, ik]) ≈ 0
+        @assert Y[:, :, ik] * X[:, :, ik] ≈ Af
     end
-    return X, Y
+
+    X, Y
 end
 
-function XY_to_XY(data, XY) # XY to (X,Y)
-    X = zeros(ComplexF64, data.num_wann, data.num_wann, data.num_kpts)
-    Y = zeros(ComplexF64, data.num_bands, data.num_wann, data.num_kpts)
-    for ik = 1:data.num_kpts
+
+"""XY to (X, Y)"""
+function XY_to_XY(XY::Matrix{T}, n_bands::Int, n_wann::Int) where {T<:Complex}
+    n_kpts = size(XY, 2)
+
+    X = zeros(T, n_wann, n_wann, n_kpts)
+    Y = zeros(T, n_bands, n_wann, n_kpts)
+
+    for ik = 1:n_kpts
         XYk = XY[:, ik]
-        X[:, :, ik] = reshape(XYk[1:data.num_wann^2], (data.num_wann, data.num_wann))
-        Y[:, :, ik] = reshape(XYk[data.num_wann^2+1:end], (data.num_bands, data.num_wann))
+        X[:, :, ik] = reshape(XYk[1:n_wann^2], (n_wann, n_wann))
+        Y[:, :, ik] = reshape(XYk[n_wann^2+1:end], (n_bands, n_wann))
     end
-    return X, Y
+
+    X, Y
 end
 
-function obj(data::CoreData, params::InputParams, X, Y)
-    A = XY_to_A(data, X, Y)
 
-    #
-    only_r2 = false
-    res = omega(data, params, A, true, only_r2)
-    func = res.Ωtot
-    grad = res.gradient
+function omega(
+    bvectors::BVectors{FT},
+    M::Array{Complex{FT},4},
+    X::Array{Complex{FT},3},
+    Y::Array{Complex{FT},3},
+) where {FT<:Real}
 
-    gradX = zero(X)
-    gradY = zero(Y)
-    for ik = 1:data.num_kpts
-        l_frozen = data.frozen[:, ik]
-        l_non_frozen = .!l_frozen
-        num_frozen = count(l_frozen)
-        gradX[:, :, ik] = Y[:, :, ik]' * grad[:, :, ik]
-        gradY[:, :, ik] = grad[:, :, ik] * X[:, :, ik]'
+    A = XY_to_A(X, Y)
 
-        gradY[l_frozen, :, ik] .= 0
-        gradY[:, 1:num_frozen, ik] .= 0
+    omega(bvectors, M, A)
+end
+
+
+"""
+size(M) = n_bands * n_bands * n_bvecs * n_kpts
+size(Y) = n_wann * n_wann * n_kpts
+size(Y) = n_bands * n_wann * n_kpts
+size(frozen) = n_bands * n_kpts
+"""
+function omega_grad(
+    bvectors::BVectors{FT},
+    M::Array{Complex{FT},4},
+    X::Array{Complex{FT},3},
+    Y::Array{Complex{FT},3},
+    frozen::BitMatrix,
+) where {FT<:Real}
+
+    n_kpts = size(Y, 3)
+
+    A = XY_to_A(X, Y)
+
+    G = omega_grad(bvectors, M, A)
+
+    GX = zero(X)
+    GY = zero(Y)
+
+    for ik = 1:n_kpts
+        idx_f = frozen[:, ik]
+        n_froz = count(idx_f)
+
+        GX[:, :, ik] = Y[:, :, ik]' * G[:, :, ik]
+        GY[:, :, ik] = G[:, :, ik] * X[:, :, ik]'
+
+        GY[idx_f, :, ik] .= 0
+        GY[:, 1:n_froz, ik] .= 0
 
         # to compute the projected gradient: redundant, taken care of by the optimizer
         # function proj_stiefel(G,X)
         #     G .- X*((X'G .+ G'X)./2)
         # end
-        # gradX[:,:,i,j,k] = proj_stiefel(gradX[:,:,i,j,k],X[:,:,i,j,k])
-        # gradY[:,:,i,j,k] = proj_stiefel(gradY[:,:,i,j,k],Y[:,:,i,j,k])
+        # GX[:,:,ik] = proj_stiefel(GX[:,:,ik], X[:,:,ik])
+        # GY[:,:,ik] = proj_stiefel(GY[:,:,ik], Y[:,:,ik])
     end
-    return func, gradX, gradY, res
+
+    GX, GY
 end
 
-function minimize(data::CoreData, params::InputParams, A)
-    # initial X,Y
-    X0, Y0 = A_to_XY(data, A)
 
-    do_randomize_gauge = false
-    if do_randomize_gauge
-        X0 = zeros(ComplexF64, data.num_wann, data.num_wann, data.num_kpts)
-        Y0 = zeros(ComplexF64, data.num_bands, data.num_wann, data.num_kpts)
-        for ik = 1:data.num_kpts
-            l_frozen = data.frozen[:, ik]
-            l_non_frozen = .!l_frozen
-            num_frozen = count(l_frozen)
-            X0[:, :, ik] = normalize_matrix(
-                randn(data.num_wann, data.num_wann) + im * randn(data.num_wann, data.num_wann))
-            Y0[l_frozen, 1:num_frozen, ik] = eye(num_frozen)
-            Y0[l_non_frozen, num_frozen+1:data.num_wann, ik] = normalize_matrix(
-                randn(data.num_bands - num_frozen, data.num_wann - num_frozen) +
-                im * randn(data.num_bands - num_frozen, data.num_wann - num_frozen))
-        end
+function get_fg!_disentangle(model::Model)
+
+    function f(XY)
+        X, Y = XY_to_XY(XY, model.n_bands, model.n_wann)
+        omega(model.bvectors, model.M, X, Y).Ω
     end
 
-    M = data.num_wann^2 + data.num_bands * data.num_wann
-    XY0 = zeros(ComplexF64, M, data.num_kpts)
-    for ik = 1:data.num_kpts
+    """size(G) == size(XY)"""
+    function g!(G, XY)
+        X, Y = XY_to_XY(XY, model.n_bands, model.n_wann)
+        GX, GY = omega_grad(model.bvectors, model.M, X, Y, model.frozen_bands)
+
+        for ik = 1:model.n_kpts
+            G[:, ik] .= vcat(vec(GX[:, :, ik]), vec(GY[:, :, ik]))
+        end
+
+        nothing
+    end
+
+    f, g!
+end
+
+
+function disentangle(
+    model::Model{T};
+    random_gauge::Bool = false,
+    f_tol::T = 1e-10,
+    g_tol::T = 1e-8,
+    max_iter::Int = 1000,
+    history_size::Int = 20,
+) where {T<:Real}
+
+    n_bands = model.n_bands
+    n_wann = model.n_wann
+    n_kpts = model.n_kpts
+
+    # initial X, Y
+    if random_gauge
+        X0 = zeros(Complex{T}, n_wann, n_wann, n_kpts)
+        Y0 = zeros(Complex{T}, n_bands, n_wann, n_kpts)
+
+        for ik = 1:n_kpts
+            idx_f = model.frozen_bands[:, ik]
+            idx_nf = .!idx_f
+            n_froz = count(l_frozen)
+
+            m = n_wann
+            n = n_wann
+            M = randn(T, m, n) + im * randn(T, m, n)
+            X0[:, :, ik] = orthonorm_lowdin(M)
+
+            Y0[idx_f, 1:n_froz, ik] = LA.I
+            m = n_bands - n_froz
+            n = n_wann - n_froz
+            N = randn(T, m, n) + im * randn(m, n)
+            Y0[idx_nf, n_froz+1:n_wann, ik] = orthonorm_lowdin(N)
+        end
+    else
+        X0, Y0 = A_to_XY(model.A, model.frozen_bands)
+    end
+
+    # compact storage
+    XY0 = zeros(Complex{T}, n_wann^2 + n_bands * n_wann, n_kpts)
+    for ik = 1:n_kpts
         XY0[:, ik] = vcat(vec(X0[:, :, ik]), vec(Y0[:, :, ik]))
     end
 
-    # We have three formats:
-    # (X,Y): num_wann * num_wann * num_kpts, num_bands * num_wann * num_kpts
-    # A: num_bands * num_wann * num_kpts
-    # XY: (num_wann * num_wann + num_bands * num_wann) * num_kpts
-    function fg!(G, XY)
-        @assert size(G) == size(XY)
-        X, Y = XY_to_XY(data, XY)
+    # We have three storage formats:
+    # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
+    # A: n_bands * n_wann * n_kpts
+    # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
+    f, g! = get_fg!_disentangle(model)
 
-        f, gradX, gradY, res = obj(data, params, X, Y)
-
-        for ik = 1:data.num_kpts
-            G[:, ik] = vcat(vec(gradX[:, :, ik]), vec(gradY[:, :, ik]))
-        end
-        return f
-    end
-
-    function f(XY)
-        return fg!(similar(XY), XY)
-    end
-    function g!(g, XY)
-        fg!(g, XY)
-        return g
-    end
-
-    tmp = omega(data, params, A, false, false)
-    @info "Initial centers & spreads" tmp.centers tmp.spreads' sum(tmp.spreads)
+    Ωⁱ = omega(model.bvectors, model.M, model.A)
+    @info "Initial total spread (A representation)" Ω = round(Ωⁱ.Ω; digits = 5)
+    @info "Initial spread:" ω = round.(Ωⁱ.ω'; digits = 5)
+    @info "Initial centers:" r = round.(Ωⁱ.r; digits = 5)
+    @info "Initial total spread (XY representation)" Ω = round(f(XY0); digits = 5)
 
     # need QR orthogonalization rather than SVD to preserve the sparsity structure of Y
-    XYkManif = Optim.ProductManifold(Optim.Stiefel_SVD(), Optim.Stiefel_SVD(),
-        (data.num_wann, data.num_wann), (data.num_bands, data.num_wann))
-    XYManif = Optim.PowerManifold(XYkManif, (M,), (data.num_kpts,))
+    XYkManif = Optim.ProductManifold(
+        Optim.Stiefel_SVD(),
+        Optim.Stiefel_SVD(),
+        (n_wann, n_wann),
+        (n_bands, n_wann),
+    )
+    XYManif = Optim.PowerManifold(XYkManif, (n_wann^2 + n_bands * n_wann,), (n_kpts,))
 
     # stepsize_mult = 1
     # step = 0.5/(4*8*p.wb)*(p.N1*p.N2*p.N3)*stepsize_mult
     # ls = LineSearches.Static(step)
     ls = Optim.HagerZhang()
     # ls = LineSearches.BackTracking()
+
     # meth = Optim.GradientDescent
     # meth = Optim.ConjugateGradient
     meth = Optim.LBFGS
-    res = Optim.optimize(f, g!, XY0, meth(manifold=XYManif, linesearch=ls, m=params.history_size),
-        Optim.Options(show_trace=true, iterations=params.max_iter,
-            f_tol=params.omega_tol, g_tol=params.gradient_tol, allow_f_increases=true))
-    display(res)
-    XYmin = Optim.minimizer(res)
 
-    Xmin, Ymin = XY_to_XY(data, XYmin)
-    Amin = XY_to_A(data, Xmin, Ymin)
+    opt = Optim.optimize(
+        f,
+        g!,
+        XY0,
+        meth(manifold = XYManif, linesearch = ls, m = history_size),
+        Optim.Options(
+            show_trace = true,
+            iterations = max_iter,
+            f_tol = f_tol,
+            g_tol = g_tol,
+            allow_f_increases = true,
+        ),
+    )
+    display(opt)
 
-    tmp = omega(data, params, Amin, false, false)
-    @info "Final centers & spreads" tmp.centers tmp.spreads' sum(tmp.spreads)
+    XYmin = Optim.minimizer(opt)
 
-    return Amin
+    Xmin, Ymin = XY_to_XY(XYmin, n_bands, n_wann)
+    Amin = XY_to_A(Xmin, Ymin)
+
+    Ωᶠ = omega(model.bvectors, model.M, Amin)
+    @info "Final total spread (A representation)" Ω = round(Ωᶠ.Ω; digits = 5)
+    @info "Final spread:" ω = round.(Ωᶠ.ω'; digits = 5)
+    @info "Final centers:" r = round.(Ωᶠ.r; digits = 5)
+
+    Amin
 end

@@ -3,10 +3,12 @@ using NLSolversBase
 # A reusable fixture for a model
 model = read_seedname("$FIXTURE_PATH/silicon")
 
+f, g! = Wannier.get_fg!_maxloc(model)
+
 
 @testset "spread" begin
 
-    Ω = omega(model.M, model.A, model.bvectors)
+    Ω = omega(model.bvectors, model.M, model.A)
 
     @test Ω.Ω ≈ 63.52324857972985
     @test Ω.ΩI ≈ 49.83393864002448
@@ -29,10 +31,10 @@ end
 
 @testset "spread gradient" begin
 
-    G = omega_grad(model.M, model.A, model.bvectors)
+    G = zero(model.A)
+    g!(G, model.A)
 
     # Use finite difference as reference
-    f(A) = omega(model.M, A, model.bvectors).Ω
     Ainit = model.A
     d = NLSolversBase.OnceDifferentiable(f, Ainit, real(zero(eltype(Ainit))))
     G_ref = NLSolversBase.gradient!(d, model.A)
