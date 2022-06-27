@@ -14,7 +14,7 @@ end
 
 
 """
-Maximally localize spread functional w.r.t. to all kpoints.
+Maximally localize spread functional w.r.t. all kpoints.
 
 On a unitary matrix manifold.
 """

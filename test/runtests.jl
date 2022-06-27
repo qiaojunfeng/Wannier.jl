@@ -8,8 +8,8 @@ const FIXTURE_PATH = "$TEST_PATH/fixtures"
 @testset "Wannier.jl" begin
 
     # include("io/w90.jl")
-
     # include("bvector.jl")
+    # include("spread.jl")
 
-    include("spread.jl")
+    include("wannierize/opt_rotate.jl")
 end
