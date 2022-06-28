@@ -4,6 +4,7 @@ include("common/const.jl")
 include("common/type.jl")
 include("util/linalg.jl")
 include("util/kpoint.jl")
+include("util/misc.jl")
 include("bvector.jl")
 include("model.jl")
 include("io/w90.jl")
@@ -22,6 +23,7 @@ export get_bvectors
 export get_kpoint_mappings
 
 export orthonorm_lowdin
+export print_spread
 
 export omega, omega_grad
 export max_localize

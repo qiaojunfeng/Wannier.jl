@@ -51,9 +51,8 @@ function opt_rotate(
     f, g! = get_fg!_rotate(model)
 
     Ωⁱ = f(model.A)
-    @info "Initial total spread" Ω = round(Ωⁱ.Ω; digits = 5)
-    @info "Initial spread:" ω = round.(Ωⁱ.ω'; digits = 5)
-    @info "Initial centers:" r = round.(Ωⁱ.r; digits = 5)
+    @info "Initial spread"
+    print_spread(Ωⁱ)
 
     wManif = Optim.Stiefel_SVD()
 
@@ -92,9 +91,8 @@ function opt_rotate(
     end
 
     Ωᶠ = f(Amin)
-    @info "Final total spread" Ω = round(Ωᶠ.Ω; digits = 5)
-    @info "Final spread:" ω = round.(Ωᶠ.ω'; digits = 5)
-    @info "Final centers:" r = round.(Ωᶠ.r; digits = 5)
+    @info "Final spread" 
+    print_spread(Ωᶠ)
 
     Amin
 end

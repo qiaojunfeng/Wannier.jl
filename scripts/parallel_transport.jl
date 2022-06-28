@@ -21,14 +21,12 @@ function main()
     A, obs = parallel_transport(model; log_interp = false, return_obs = true)
 
     Ωⁱ = omega(model.bvectors, model.M, model.A)
-    @info "Initial total spread" Ω = round(Ωⁱ.Ω; digits = 5)
-    @info "Initial spread:" ω = round.(Ωⁱ.ω'; digits = 5)
-    @info "Initial centers:" r = round.(Ωⁱ.r; digits = 5)
+    @info "Initial spread"
+    print_spread(Ωⁱ)
 
     Ωᶠ = omega(model.bvectors, model.M, A)
-    @info "Final total spread" Ω = round(Ωᶠ.Ω; digits = 5)
-    @info "Final spread:" ω = round.(Ωᶠ.ω'; digits = 5)
-    @info "Final centers:" r = round.(Ωᶠ.r; digits = 5)
+    @info "Final spread"
+    print_spread(Ωᶠ)
 
     # Plot and display the results
     Wannier.plot_obstruction(model, A, obs)

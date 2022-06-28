@@ -22,8 +22,13 @@ atoms: 3 * num_atoms, each column is a coordinate
 point: 3
 search_neighbors: number of nearest-neighbors to be returned
 """
-function find_nearests(unit_cell::T, atoms::T, point::Vector{Float64}
-    ; reduced_coord::Bool=true, search_neighbors::Int=5) where {T<:Union{Matrix{Float64},LA.Adjoint{Float64,Matrix{Float64}}}}
+function find_nearests(
+    unit_cell::T,
+    atoms::T,
+    point::Vector{Float64};
+    reduced_coord::Bool = true,
+    search_neighbors::Int = 5,
+) where {T<:Union{Matrix{Float64},LA.Adjoint{Float64,Matrix{Float64}}}}
 
     @assert size(unit_cell) == (3, 3)
     @assert size(atoms, 1) == 3
@@ -53,11 +58,34 @@ function find_nearests(unit_cell::T, atoms::T, point::Vector{Float64}
     translations = supercell_idx[:, idxs]
     atom_unit_cell = repeated_atoms_cart[:, idxs] - unit_cell * translations
     function findvec(mat, v, dims)
-        iseqv(v1, v2) = all(isapprox.(vec(v1), vec(v2); atol=1e-6))
-        found = mapslices(elem -> iseqv(elem, v), mat; dims=dims)
-        return findfirst(dropdims(found; dims=1))
+        iseqv(v1, v2) = all(isapprox.(vec(v1), vec(v2); atol = 1e-6))
+        found = mapslices(elem -> iseqv(elem, v), mat; dims = dims)
+        return findfirst(dropdims(found; dims = 1))
     end
-    idxs_unit_cell = [findvec(atoms_cart, atom_unit_cell[:, i], 1) for i = 1:size(atom_unit_cell, 2)]
+    idxs_unit_cell =
+        [findvec(atoms_cart, atom_unit_cell[:, i], 1) for i = 1:size(atom_unit_cell, 2)]
 
     return dists, idxs_unit_cell, translations
+end
+
+
+function print_spread(Ω::Spread)
+    println("WF center (rx, ry, rz)                     WF spread")
+
+    n_wann = length(Ω.ω)
+
+    for i = 1:n_wann
+        @printf("%4d %11.5f %11.5f %11.5f %11.5f\n", i, Ω.r[:, i]..., Ω.ω[i])
+    end
+
+    @printf("Sum spread: Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n")
+    @printf("   Ω   = %11.5f\n", Ω.Ω)
+    @printf("   ΩI  = %11.5f\n", Ω.ΩI)
+    @printf("   ΩOD = %11.5f\n", Ω.ΩOD)
+    @printf("   ΩD  = %11.5f\n", Ω.ΩD)
+    @printf("   Ω̃   = %11.5f\n", Ω.Ω̃)
+
+    println()
+
+    nothing
 end

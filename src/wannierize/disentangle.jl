@@ -423,10 +423,8 @@ function disentangle(
     f, g! = get_fg!_disentangle(model)
 
     Ωⁱ = omega(model.bvectors, model.M, model.A)
-    @info "Initial total spread (A representation)" Ω = round(Ωⁱ.Ω; digits = 5)
-    @info "Initial spread:" ω = round.(Ωⁱ.ω'; digits = 5)
-    @info "Initial centers:" r = round.(Ωⁱ.r; digits = 5)
-    @info "Initial total spread (XY representation)" Ω = round(f(XY0); digits = 5)
+    @info "Initial spread"
+    print_spread(Ωⁱ)
 
     # need QR orthogonalization rather than SVD to preserve the sparsity structure of Y
     XYkManif = Optim.ProductManifold(
@@ -468,9 +466,8 @@ function disentangle(
     Amin = XY_to_A(Xmin, Ymin)
 
     Ωᶠ = omega(model.bvectors, model.M, Amin)
-    @info "Final total spread (A representation)" Ω = round(Ωᶠ.Ω; digits = 5)
-    @info "Final spread:" ω = round.(Ωᶠ.ω'; digits = 5)
-    @info "Final centers:" r = round.(Ωᶠ.r; digits = 5)
+    @info "Final spread" 
+    print_spread(Ωᶠ)
 
     Amin
 end
