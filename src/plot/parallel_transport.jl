@@ -1,5 +1,27 @@
 
-function plot_results(p, interp)
+
+
+# Plot obstructions
+function plot_surface_obstructions(p, suffix="")
+    if p.N3 != 1
+        phases = zeros(p.N1, p.N2, p.nwannier)
+        for i = 1:p.N1, j = 1:p.N2
+            Obs = normalize_matrix(overlap_A([i, j, p.N3], [i, j, 1], p)) #rotation at image point
+            phases[i, j, :] = sort(imag(log.(eigvals(Obs))))
+        end
+        figure()
+        xx = [p.t1[i] for i = 1:p.N1, j = 1:p.N2]
+        yy = [p.t2[j] for i = 1:p.N1, j = 1:p.N2]
+        for n = 1:p.nwannier
+            plot_surface(xx, yy, phases[:, :, n], rstride=1, cstride=1)
+        end
+        savefig("wannierize$filename.$suffix.pdf")
+        close()
+    end
+end
+
+
+function plot_obstruction(p, interp)
     #Interpolation method
     if (log_interp)
         suffix = "log"
@@ -232,3 +254,25 @@ function plot_Bloch_frame_slice(p, A0, A0_init)
 
 
 end
+
+
+#using Plots
+#println("Creating animation of the obstruction")
+#anim = @animate for i=1:2*p.N2-1
+#               plot(real(Uint[:,abs(p.N2-i)+1,2,2]),imag(Uint[:,abs(p.N2-i)+1,2,2]),xlims=[-1,1],ylims=[-1,1])
+#end
+
+#gif(anim,"obs.gif",fps=25)
+#close("all")
+#Ucol1 = zeros(size(Uint)[1],size(Uint)[2],3)
+#
+#for i = 1:p.N1, j=1:p.N2
+#	if Uint[i,j,2,1] != 0.0
+#		phase = imag(log(im*Uint[i,j,2,1]/(abs(Uint[i,j,2,1]))))
+#	else
+#		phase = 0.0
+#	end
+#	array = Uint[i,j,:,1].*exp(-im*phase)
+#
+#	Ucol1[i,j,:] = [real(array[1]),imag(array[1]),imag(array[2])]
+#end
