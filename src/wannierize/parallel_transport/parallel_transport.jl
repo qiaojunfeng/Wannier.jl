@@ -62,7 +62,7 @@ function parallel_transport(
     k1 = xyz_k[end, 1, 1]
     k2 = xyz_k[1, 1, 1]
     O1 = orthonorm_lowdin(overlap(M, kpb_k, k1, k2, A))
-    @info "Obstruction matrix =" V = O1
+    @debug "Obstruction matrix =" V = O1
 
     d, V = LA.eigen(O1)
     logd = log.(d)
@@ -72,7 +72,7 @@ function parallel_transport(
             logd[i] += 2π * im
         end
     end
-    @info "log(d) =" logd
+    @debug "log(d) =" logd
 
     # and pull it back
     for i = 1:n_kx
@@ -117,7 +117,7 @@ function parallel_transport(
     # pull back the line obstruction, at ky = 1 along kx = 0 -> 1
     Oxy = zeros(Complex{T}, n_wann, n_wann, n_kx)
     detO3 = zeros(Complex{T}, n_kx)
-    eigs = zeros(Complex{T}, n_wann, n_kx)
+    # eigs = zeros(Complex{T}, n_wann, n_kx)
     for i = 1:n_kx
         k1 = xyz_k[i, n_ky, 1]
         k2 = xyz_k[i, 1, 1]
@@ -134,7 +134,7 @@ function parallel_transport(
     end
     for i = 1:n_kx
         Oxy[:, :, i] = exp(-im * logD[i] / n_wann) * Oxy[:, :, i]
-        eigs[:, i] = LA.eigvals(Oxy[:, :, i])
+        # eigs[:, i] = LA.eigvals(Oxy[:, :, i])
     end
 
     # Interpolate the line obstruction
@@ -271,9 +271,7 @@ function parallel_transport(
         end
     end
 
-    ϵ0, ϵ1 = compute_error(model, A)
-    println("initial error = $(ϵ0)")
-    println("final error   = $(ϵ1)")
+    compute_error(model, A)
 
     if return_obs
         obs = Obstruction(Oxy, Oxz, Oyz, Uxy, Uxz, Uyz)
@@ -298,19 +296,29 @@ function compute_error(model::Model{T}, A::Array{Complex{T},3}) where {T<:Real}
     M = model.M
     A0 = model.A
 
+    epsilon(i, j, B) = LA.norm(orthonorm_lowdin(overlap(M, kpb_k, i, j, B)) - LA.I)^2
+
     for i = 1:n_kx, j = 1:n_ky, k = 1:n_kz
         k1 = xyz_k[i, j, k]
         k2 = xyz_k[i%n_kx+1, j, k]
-        ϵ0 += LA.norm(orthonorm_lowdin(overlap(M, kpb_k, k1, k2, A0)) - LA.I)^2
-        ϵ1 += LA.norm(orthonorm_lowdin(overlap(M, kpb_k, k1, k2, A)) - LA.I)^2
+        ϵ0 += epsilon(k1, k2, A0)
+        ϵ1 += epsilon(k1, k2, A)
 
         k2 = xyz_k[i, j%n_ky+1, k]
-        ϵ0 += LA.norm(orthonorm_lowdin(overlap(M, kpb_k, k1, k2, A0)) - LA.I)^2
-        ϵ1 += LA.norm(orthonorm_lowdin(overlap(M, kpb_k, k1, k2, A)) - LA.I)^2
+        ϵ0 += epsilon(k1, k2, A0)
+        ϵ1 += epsilon(k1, k2, A)
+
+        k2 = xyz_k[i, j, k%n_kz+1]
+        ϵ0 += epsilon(k1, k2, A0)
+        ϵ1 += epsilon(k1, k2, A)
     end
 
-    ϵ0 /= sqrt(n_kx * n_ky * n_kz)
-    ϵ1 /= sqrt(n_kx * n_ky * n_kz)
+    ϵ0 = sqrt(ϵ0) / model.n_kpts
+    ϵ1 = sqrt(ϵ1) / model.n_kpts
+
+
+    println("initial error = ", round(ϵ0; digits=4))
+    println("final error   = ", round(ϵ1; digits=4))
 
     ϵ0, ϵ1
 end

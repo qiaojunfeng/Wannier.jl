@@ -16,9 +16,11 @@ function propagate!(
     m = size(A, 2)
     @assert n == m "Non square matrix given as argument in propagate"
 
-    for ik = 2:N
-        Mᵏᵇ = overlap(M, kpb_k, kpts[ik], kpts[ik-1])
-        A[:, :, ik] = orthonorm_lowdin(Mᵏᵇ * A[:, :, ik-1])
+    for i = 2:N
+        ik = kpts[i]
+        ik0 = kpts[i-1]
+        Mᵏᵇ = overlap(M, kpb_k, ik, ik0)
+        A[:, :, ik] = orthonorm_lowdin(Mᵏᵇ * A[:, :, ik0])
     end
 
     nothing
@@ -53,6 +55,7 @@ function choose_pole(
 
     # diameter
     diam = maximum([LA.norm(vec_path[:, i] - vec_path[:, j]) for i = 1:n_k, j = 1:n_k])
+    @debug "diamater = $diam"
 
     pole = zero(vec_path[:, 1])
     pole[col] = 1.0
@@ -129,7 +132,11 @@ function matrix_parallel_transport(
     P = zeros(T, n_col, n_col, n_k, n_t)
     U = zeros(T, n_col, n_col, n_k, n_t)
 
-    for ic = 1:n_col, it = 1:n_t, ik = 1:n_k
+    # for ik = 1:n_k, ic = 1:n_col, it = 1:n_t
+    # The final spread does not change much w.r.t. the order,
+    # however the numbers in AMN file will be a little bit different.
+    # I choose ic increases the fastest because it is more friendly for cache.
+    for it = 1:n_t, ik = 1:n_k, ic = 1:n_col
         if !backwards
             # Compute parallel transport starting from it = 1 to it = n_t
             P[:, :, ik, it] = LA.I - frame_path[:, :, ik, it] * frame_path[:, :, ik, it]'
@@ -185,10 +192,10 @@ function matrix_parallel_transport(
             U[:, ic, ik, iit] /= LA.norm(U[:, ic, ik, iit])
         end
 
-        not_columns = [!(j in columns) for j = 1:n_col]
+        not_columns = [j for j = 1:n_col if j ∉ columns]
 
         # Normalize the remaining columns
-        if any(not_columns)
+        if length(not_columns) > 0
             U[:, not_columns, ik, it] = orthonorm_lowdin(U[:, not_columns, ik, it])
         end
 

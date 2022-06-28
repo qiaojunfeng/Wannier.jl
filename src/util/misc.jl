@@ -1,3 +1,4 @@
+using Printf: @printf
 import LinearAlgebra as LA
 import NearestNeighbors as NN
 

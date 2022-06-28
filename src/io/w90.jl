@@ -246,13 +246,13 @@ function write_amn(filename::String, A::Array{ComplexF64,3})
 
     write(io, "Created by Wannier.jl ", string(now()), "\n")
 
-    write(io, "$n_bands $n_kpts $n_wann\n")
+    @printf(io, "%3d %4d %4d\n", n_bands, n_kpts, n_wann)
 
     for ik = 1:n_kpts
         for iw = 1:n_wann
             for ib = 1:n_bands
                 a = A[ib, iw, ik]
-                write(io, "$ib $iw $ik $(real(a)) $(imag(a))\n")
+                @printf(io, "%5d %4d %4d  %16.12f  %16.12f\n", ib, iw, ik, real(a), imag(a))
             end
         end
     end

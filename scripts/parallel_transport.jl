@@ -29,7 +29,7 @@ function main()
     print_spread(Ωᶠ)
 
     # Plot and display the results
-    Wannier.plot_obstruction(model, A, obs)
+    # Wannier.plot_obstruction(model, A, obs)
 
     write_amn("silicon.ptg.amn", A)
 end
