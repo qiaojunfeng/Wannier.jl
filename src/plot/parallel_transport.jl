@@ -1,4 +1,5 @@
-
+import LinearAlgebra as LA
+using CairoMakie
 
 
 # Plot obstructions
@@ -21,75 +22,70 @@ function plot_surface_obstructions(p, suffix="")
 end
 
 
-function plot_obstruction(p, interp)
-    #Interpolation method
-    if (log_interp)
-        suffix = "log"
-    else
-        suffix = "parallel_transport"
-    end
+function plot_obstruction(model::Model{T}, A::Array{Complex{T},3}, obstruction::Obstruction{Complex{T}}, filename_prefix::String="obstruction") where {T<:Real}
 
-    #Initialize arrays
-    omegaright = zeros(n_kx, n_ky)
-    omegaup = zeros(n_kx, n_ky)
-    Aright1 = zeros(ComplexF64, n_kx, n_ky)
-    Aright2 = zeros(ComplexF64, n_kx, n_ky)
-    detA = zeros(ComplexF64, n_kx, n_ky)
+    n_kx, n_ky, n_kz = model.kgrid
+    k_xyz, xyz_k = get_kpoint_mappings(model.kpoints, model.kgrid)
 
-    #Fill arrays
+    # Initialize arrays
+    Ωright = zeros(n_kx, n_ky)
+    Ωup = zeros(n_kx, n_ky)
+
+    # Fill arrays
     imax = 1
     jmax = 1
-    omegamax = 0.0
+    Ωmax = 0.0
+
     for i = 1:n_kx, j = 1:n_ky
-        right = i == n_kx ? 1 : i + 1
-        up = j == n_ky ? 1 : j + 1
-        Krightj = xyz_k[right, j, 1]
-        Kij = xyz_k[i, j, 1]
-        Kiup = xyz_k[i, up, 1]
-        omegaright[i, j] = (n_kx) * norm(p.A[:, :, right, j, 1] - overlap(Krightj, Kij, p) * p.A[:, :, i, j, 1])
-        omegaup[i, j] = (n_ky) * norm(p.A[:, :, i, up, 1] - overlap(Kiup, Kij, p) * p.A[:, :, i, j, 1])
-        if (omegaright[i, j] + omegaup[i, j] > omegamax)
-            omegamax = omegaright[i, j] + omegaup[i, j]
+        right = i % n_kx + 1
+        up = j % n_ky + 1
+
+        ik_right = xyz_k[right, j, 1]
+        ik = xyz_k[i, j, 1]
+        ik_up = xyz_k[i, up, 1]
+
+        Mright = overlap(model.M, model.bvectors.kpb_k, ik_right, ik)
+        Mup = overlap(model.M, model.bvectors.kpb_k, ik_up, ik)
+
+        Ωright[i, j] = n_kx * LA.norm(A[:, :, ik_right] - Mright * A[:, :, ik])
+        Ωup[i, j] = n_ky * LA.norm(A[:, :, ik_up] - Mup * A[:, :, ik])
+
+        if Ωright[i, j] + Ωup[i, j] > Ωmax
+            Ωmax = Ωright[i, j] + Ωup[i, j]
             imax = i
             jmax = j
         end
-
     end
-    println("omegamax = $omegamax, [i,j] = $([imax,jmax])")
-    if n_kx > 10
-        nb = 10
-    else
-        nb = 1
-    end
-    fig_size = (4, 3)
 
-    figure(figsize=fig_size)
-    ax = PyPlot.axes()
-    matshow(omegaright, false, cmap=ColorMap("binary"), origin="lower")
-    xticks(0:(div(n_kx, nb)):n_kx, 0:(1.0/nb):1)
-    yticks(0:(div(n_kx, nb)):n_kx, 0:(1.0/nb):1)
-    ax[:xaxis][:set_ticks_position]("bottom")
-    colorbar()
-    xlabel(L"$k_1$")
-    ylabel(L"$k_2$")
-    #cur_axes = gca()
-    #cur_axes[:axis]("off")
-    savefig("omega_right_$(p.filename)_$suffix.png")
-    title("Regularity of Bloch frame (finite difference with right neighbor)")
+    println("Ωmax = $Ωmax  [i,j] = $([imax,jmax])")
 
-    figure(figsize=fig_size)
-    ax = PyPlot.axes()
-    matshow(omegaup, false, cmap=ColorMap("binary"), origin="lower")
-    xticks(0:(div(n_kx, nb)):n_kx, 0:(1.0/nb):1)
-    yticks(0:(div(n_kx, nb)):n_kx, 0:(1.0/nb):1)
-    ax[:xaxis][:set_ticks_position]("bottom")
-    colorbar()
-    xlabel(L"$k_1$")
-    ylabel(L"$k_2$")
-    #cur_axes = gca()
-    #cur_axes[:axis]("off")
-    savefig("omega_up_$(p.filename)_$suffix.png")
-    title("Regularity of Bloch frame (finite difference with up neighbor)")
+    fig = Figure()
+
+    # display(Ωright)
+
+    ax1 = Axis(fig[1, 1], aspect=DataAspect(), xlabel=L"$k_1$", ylabel=L"$k_2$",
+     title=L"$\Omega_{right}$",
+    )
+    hm1 = heatmap!(ax1, Ωright; colormap=:binary)
+    ax1.xticks = 1:n_kx
+    ax1.yticks = 1:n_ky
+
+    ax2 = Axis(fig[1, 2], aspect=DataAspect(), xlabel=L"$k_1$", ylabel=L"$k_2$", title=L"$\Omega_{up}$")
+    hm2 = heatmap!(ax2, Ωup; colormap=:binary)
+    ax2.xticks = 1:n_kx
+    ax2.yticks = 1:n_ky
+
+    colorrange = (min(minimum(Ωright), minimum(Ωup)), max(maximum(Ωright), maximum(Ωup)))
+    Colorbar(fig[1, 3], colorrange=colorrange, colormap=:binary)
+
+    # supertitle
+    Label(fig[0, :], "Regularity of Bloch frame (finite difference with neighbor)")
+
+    filename = "$filename_prefix.png"
+    save(filename, fig; px_per_unit=3)
+    println("Saved to $filename")
+
+    return 
 
     plot_surface_obstructions(p, "_1_none")
     plot_surface_obstructions(p, "_2_corners")

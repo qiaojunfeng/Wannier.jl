@@ -199,19 +199,32 @@ end
 
 
 """
-Create an interpolation path between x1 and x2, unit vectors
+Create an interpolation path between x and y, unit vectors
 by normalizing the linear interpolation of parameter t[i].
 """
-function interpolate_vec(x1, x2, t)
-    @assert(size(t)[1] > 2)
-    v_interp = zeros(ComplexF64, size(x1)[1], size(t)[1])
-    for i = 1:size(t)[1]
-        v_interp[:, i] = (1 - t[i]) * x1 + t[i] * x2
-        n = LA.norm(v_interp[:, i])
-        @assert(n > 1e-2)
-        v_interp[:, i] = v_interp[:, i] / n
+function interpolate_vec(
+    x::AbstractVector{T},
+    y::AbstractVector{T},
+    t::AbstractVector{FT},
+) where {T<:Union{Complex,Real},FT<:Real}
+    @assert length(t) > 2
+    @assert length(x) == length(y)
+
+    n_x = length(x)
+    n_t = length(t)
+
+    v = zeros(T, n_x, n_t)
+
+    for i = 1:n_t
+        v[:, i] = (1 - t[i]) * x + t[i] * y
+
+        n = LA.norm(v[:, i])
+        @assert n > 1e-2
+
+        v[:, i] /= n
     end
-    return v_interp
+
+    v
 end
 
 

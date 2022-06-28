@@ -31,7 +31,7 @@ function main()
     @info "Final centers:" r = round.(Ωᶠ.r; digits = 5)
 
     # Plot and display the results
-    # plot_results(p, interp)
+    Wannier.plot_obstruction(model, A, obs)
 
     write_amn("silicon.ptg.amn", A)
 end

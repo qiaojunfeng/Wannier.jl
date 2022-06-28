@@ -12,7 +12,7 @@ include("wannierize/max_localize.jl")
 include("wannierize/disentangle.jl")
 include("wannierize/opt_rotate.jl")
 include("wannierize/parallel_transport/parallel_transport.jl")
-# include("plot.jl")
+include("plot/parallel_transport.jl")
 
 export read_win, read_amn, read_mmn, read_eig, read_seedname, read_nnkp
 export write_amn, write_mmn, write_eig
@@ -27,5 +27,7 @@ export omega, omega_grad
 export max_localize
 export disentangle
 export parallel_transport
+
+export plot_obstruction
 
 end
