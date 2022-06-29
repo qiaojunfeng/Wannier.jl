@@ -1,4 +1,4 @@
-using Printf: @printf
+using Printf: @printf, @sprintf
 using Dates: now
 import DelimitedFiles as Dlm
 import LinearAlgebra as LA
@@ -160,19 +160,21 @@ function read_mmn(filename::String)
     close(io)
 
     @info "$filename OK" header n_bands n_bvecs n_kpts
+    println()
 
     M, kpb_k, kpb_b
 end
 
 
 """
-Output amn file
+Output mmn file
 """
 function write_mmn(
     filename::String,
     M::Array{ComplexF64,4},
     kpb_k::Matrix{Int},
     kpb_b::Array{Int,3},
+    header::String,
 )
 
     n_bands, _, n_bvecs, n_kpts = size(M)
@@ -182,7 +184,8 @@ function write_mmn(
     size(kpb_b) != (3, n_bvecs, n_kpts) && error("kpb_b has wrong size")
 
     open(filename, "w") do io
-        write(io, "Created by Wannier.jl ", string(now()), "\n")
+        header = strip(header)
+        write(io, header, "\n")
 
         @printf(io, "    %d   %d    %d \n", n_bands, n_kpts, n_bvecs)
 
@@ -202,8 +205,23 @@ function write_mmn(
     end
 
     @info "Written to file: $(filename)"
+    println()
 
     nothing
+end
+
+
+"""
+Output mmn file
+"""
+function write_mmn(
+    filename::String,
+    M::Array{ComplexF64,4},
+    kpb_k::Matrix{Int},
+    kpb_b::Array{Int,3},
+)
+    header = @sprintf "Created by Wannier.jl %s" string(now())
+    write_mmn(filename, M, kpb_k, kpb_b, header)
 end
 
 
@@ -232,6 +250,7 @@ function read_amn(filename::String)
     close(io)
 
     @info "$filename OK" header n_bands n_wann n_kpts
+    println()
 
     A
 end
@@ -240,12 +259,13 @@ end
 """
 Output amn file
 """
-function write_amn(filename::String, A::Array{ComplexF64,3})
+function write_amn(filename::String, A::Array{ComplexF64,3}, header::String)
     n_bands, n_wann, n_kpts = size(A)
 
     io = open(filename, "w")
 
-    write(io, "Created by Wannier.jl ", string(now()), "\n")
+    header = strip(header)
+    write(io, header, "\n")
 
     @printf(io, "%3d %4d %4d\n", n_bands, n_kpts, n_wann)
 
@@ -261,8 +281,18 @@ function write_amn(filename::String, A::Array{ComplexF64,3})
     close(io)
 
     @info "Written to file: $(filename)"
+    println()
 
     nothing
+end
+
+
+"""
+Output amn file
+"""
+function write_amn(filename::String, A::Array{ComplexF64,3})
+    header = @sprintf "Created by Wannier.jl %s" string(now())
+    write_amn(filename, A, header)
 end
 
 
@@ -298,6 +328,7 @@ function read_eig(filename::String)
     end
 
     @info "$filename OK" n_bands n_kpts
+    println()
 
     E
 end
@@ -320,6 +351,7 @@ function write_eig(filename::String, E::Matrix{T}) where {T<:Real}
     end
 
     @info "Written to file: $(filename)"
+    println()
 
     nothing
 end
@@ -456,6 +488,7 @@ function read_nnkp(filename::String)
     close(io)
 
     @info "$filename OK" n_kpts n_bvecs
+    println()
 
     bvectors = Matrix{Float64}(undef, 3, n_bvecs)
     fill!(bvectors, NaN)
@@ -664,6 +697,9 @@ function read_unk(filename::String)
 
     close(io)
 
+    @info "$filename OK" n_gx, n_gy, n_gz, ik, n_bands
+    println()
+
     # ik: at which kpoint? start from 1
     ik, Ψ
 end
@@ -695,6 +731,9 @@ function write_unk(filename::String, ik::Int, Ψ::Array{T,4}) where {T<:Complex}
         end
 
     end
+
+    @info "$filename OK" n_gx, n_gy, n_gz, ik, n_bands
+    println()
 
     nothing
 end
@@ -843,6 +882,7 @@ function read_chk(filename::String)
     end
 
     @info "Reading chk file:" filename
+    println()
 
     io = open(filename)
 
