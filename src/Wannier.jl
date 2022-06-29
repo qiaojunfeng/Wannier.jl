@@ -15,8 +15,8 @@ include("wannierize/opt_rotate.jl")
 include("wannierize/parallel_transport/parallel_transport.jl")
 include("plot/parallel_transport.jl")
 
-export read_win, read_amn, read_mmn, read_eig, read_seedname, read_nnkp
-export write_amn, write_mmn, write_eig
+export read_win, read_amn, read_mmn, read_eig, read_seedname, read_nnkp, read_unk
+export write_amn, write_mmn, write_eig, write_unk
 
 export get_recip_lattice
 export get_bvectors

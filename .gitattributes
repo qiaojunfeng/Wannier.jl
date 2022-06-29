@@ -7,3 +7,4 @@
 *.spn filter=lfs diff=lfs merge=lfs -text
 *.UPF filter=lfs diff=lfs merge=lfs -text
 *.upf filter=lfs diff=lfs merge=lfs -text
+UNK*.1 filter=lfs diff=lfs merge=lfs -text

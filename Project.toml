@@ -20,7 +20,9 @@ PackageCompiler = "9b87118b-4619-50d2-8e1e-99f35a4d4d9d"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 
 [compat]
 julia = "1"

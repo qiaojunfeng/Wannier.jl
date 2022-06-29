@@ -8,6 +8,7 @@ function read_win(filename::String)::Dict
     @info "Reading win file: $filename"
     io = open(filename)
 
+    # The win file uses "num_wann", so I keep it as is, and not using "n_wann".
     num_wann = missing
     num_bands = missing
     mp_grid = missing
@@ -633,4 +634,65 @@ function read_wout(filename::String)
     @assert unit_is_ang
 
     return ret
+end
+
+
+@doc raw"""
+Read UNK file for Bloch wavefunctions.
+"""
+function read_unk(filename::String)
+    @info "Reading unk file:" filename
+
+    io = open(filename)
+
+    line = split(strip(readline(io)))
+    n_gx, n_gy, n_gz, ik, n_bands = parse.(Int, line)
+
+    Ψ = zeros(ComplexF64, n_gx, n_gy, n_gz, n_bands)
+
+    for ib = 1:n_bands
+        for iz = 1:n_gz
+            for iy = 1:n_gy
+                for ix = 1:n_gx
+                    line = split(strip(readline(io)))
+                    v1, v2 = parse.(Float64, line)
+                    Ψ[ix, iy, iz, ib] = v1 + im * v2
+                end
+            end
+        end
+    end
+
+    # ik: at which kpoint? start from 1
+    ik, Ψ
+end
+
+
+@doc raw"""
+Write UNK file for Bloch wavefunctions.
+    ik: at which kpoint? start from 1
+"""
+function write_unk(filename::String, ik::Int, Ψ::Array{T, 4}) where {T<:Complex}
+    @info "Writing unk file:" filename
+
+    n_gx, n_gy, n_gz, n_bands = size(Ψ)
+
+    open(filename, "w") do io
+
+        @printf(io, " %11d %11d %11d %11d %11d\n", n_gx, n_gy, n_gz, ik, n_bands)
+
+        for ib = 1:n_bands
+            for iz = 1:n_gz
+                for iy = 1:n_gy
+                    for ix = 1:n_gx
+                        v1 = real(Ψ[ix, iy, iz, ib])
+                        v2 = imag(Ψ[ix, iy, iz, ib])
+                        @printf(io, " %18.10e %18.10e\n", v1, v2)
+                    end
+                end
+            end
+        end
+
+    end
+
+    nothing
 end
