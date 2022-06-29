@@ -459,6 +459,15 @@ function read_nnkp(filename::String)
     bvectors = Matrix{Float64}(undef, 3, n_bvecs)
     fill!(bvectors, NaN)
 
+    # Generate bvectors from 1st kpoint, in Cartesian coordinates
+    ik = 1
+    for ib = 1:n_bvecs
+        ik2 = kpb_k[ib, ik]
+        b = kpb_b[:, ib, ik]
+        bvec = kpoints[:, ik2] + b - kpoints[:, ik]
+        bvectors[:, ib] = recip_lattice * bvec
+    end
+
     weights = zeros(Float64, n_bvecs)
     fill!(weights, NaN)
 

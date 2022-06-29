@@ -511,21 +511,3 @@ function get_bvectors(kpoints::Matrix{T}, recip_lattice::Mat3{T}) where {T<:Real
 
     bvectors
 end
-
-
-@doc raw"""
-print Wannier90 nnkp file bvectors in Cartesian coordinates
-"""
-function print_w90_nnkp(w90nnkp)
-    for k = 1:w90nnkp.num_kpts
-        kpt = w90nnkp.kpoints[:, k]
-        println("k = $kpt")
-        for b = 1:w90nnkp.num_bvecs
-            nnkp = w90nnkp.nnkpts[:, b, k]
-            kpb = w90nnkp.kpoints[:, nnkp[1]] + nnkp[2:end]
-            bvec = kpb - kpt
-            bvec_cart = w90nnkp.recip_lattice * bvec
-            println(bvec_cart)
-        end
-    end
-end

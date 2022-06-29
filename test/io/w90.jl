@@ -93,11 +93,14 @@ end
     dict = Dict(
         "recip_lattice" => mat2vec(bvectors.recip_lattice),
         "kpoints" => mat2vec(bvectors.kpoints),
+        "bvectors" => mat2vec(bvectors.bvectors),
         "kpb_k" => mat2vec(bvectors.kpb_k),
         "kpb_b" => [mat2vec(kpb_b[:, :, ik]) for ik = 1:size(kpb_b, 3)],
     )
 
     # YAML.write_file(String(@__DIR__) * "/test_data/nnkp.yaml", dict)
 
-    @test test_data ≈ dict
+    for (key, value) in dict
+        @test value ≈ test_data[key]
+    end
 end
