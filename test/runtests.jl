@@ -11,6 +11,7 @@ const FIXTURE_PATH = "$TEST_PATH/fixtures"
     # include("bvector.jl")
     # include("spread.jl")
     # include("util/kpoint.jl")
+    include("util/io.jl")
 
     # include("wannierize/opt_rotate.jl")
 end

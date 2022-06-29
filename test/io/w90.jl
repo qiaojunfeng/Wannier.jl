@@ -118,3 +118,12 @@ end
     @test ik ≈ ik2
     @test Ψ ≈ Ψ2
 end
+
+
+@testset "read chk" begin
+    chk = read_chk("$FIXTURE_PATH/silicon.chk.fmt")
+
+    @test chk.n_wann == 8
+    @test chk.n_bands == 12
+
+end

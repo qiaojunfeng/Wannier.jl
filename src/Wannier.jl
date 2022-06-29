@@ -2,6 +2,7 @@ module Wannier
 
 include("common/const.jl")
 include("common/type.jl")
+include("util/io.jl")
 include("util/linalg.jl")
 include("util/kpoint.jl")
 include("bvector.jl")
@@ -15,7 +16,7 @@ include("wannierize/opt_rotate.jl")
 include("wannierize/parallel_transport/parallel_transport.jl")
 include("plot/parallel_transport.jl")
 
-export read_win, read_amn, read_mmn, read_eig, read_seedname, read_nnkp, read_unk
+export read_win, read_amn, read_mmn, read_eig, read_seedname, read_nnkp, read_unk, read_chk
 export write_amn, write_mmn, write_eig, write_unk
 
 export get_recip_lattice

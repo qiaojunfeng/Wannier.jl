@@ -662,6 +662,8 @@ function read_unk(filename::String)
         end
     end
 
+    close(io)
+
     # ik: at which kpoint? start from 1
     ik, Ψ
 end
@@ -671,7 +673,7 @@ end
 Write UNK file for Bloch wavefunctions.
     ik: at which kpoint? start from 1
 """
-function write_unk(filename::String, ik::Int, Ψ::Array{T, 4}) where {T<:Complex}
+function write_unk(filename::String, ik::Int, Ψ::Array{T,4}) where {T<:Complex}
     @info "Writing unk file:" filename
 
     n_gx, n_gy, n_gz, n_bands = size(Ψ)
@@ -695,4 +697,287 @@ function write_unk(filename::String, ik::Int, Ψ::Array{T, 4}) where {T<:Complex
     end
 
     nothing
+end
+
+
+"""Struct for storing matrices in seedname.chk file."""
+struct Chk{T<:Real}
+    header::String
+
+    # These commented variables are written inside chk file,
+    # but I move them to the end of the struct and use a constructor
+    # to set them according to the shape of the corresponding arrays.
+
+    # n_bands:: Int
+    # n_exclude_bands:: Int
+
+    # 1D array, size: num_exclude_bands
+    exclude_bands::Vector{Int}
+
+    # 2D array, size: 3 x 3, each column is a lattice vector
+    lattice::Mat3{T}
+
+    # 2D array, size: 3 x 3, each column is a lattice vector
+    recip_lattice::Mat3{T}
+
+    # n_kpts: Int
+
+    # List of 3 int
+    kgrid::Vec3{Int}
+
+    # 2D array, size: 3 x n_kpts, each column is a vector
+    kpoints::Matrix{T}
+
+    # n_bvecs:: Int
+
+    # n_wann: int
+
+    checkpoint::String
+
+    have_disentangled::Bool
+
+    # omega invariant
+    ΩI::T
+
+    # 2D bool array, size: n_bands x n_kpts
+    frozen_bands::Matrix{Bool}
+
+    # 1D int array, size: n_kpts
+    # n_dimfrozen:: Vector{Int}
+
+    # u_matrix_opt, 3D array, size: num_bands x num_wann x num_kpts
+    Uᵈ::Array{Complex{T},3}
+
+    # u_matrix, 3D array, size: num_wann x num_wann x num_kpts
+    U::Array{Complex{T},3}
+
+    # m_matrix, 4D array, size:num_wann x num_wann x n_bvecs x num_kpts
+    M::Array{Complex{T},4}
+
+    # wannier_centres, 2D array, size: 3 x num_wann
+    r::Matrix{T}
+
+    # wannier_spreads, 1D array, size: num_wann
+    ω::Vector{T}
+
+    # these variables are auto-set in constructor
+    n_bands::Int
+    n_exclude_bands::Int
+    n_kpts::Int
+    n_bvecs::Int
+    n_wann::Int
+    n_frozen::Vector{Int}
+end
+
+
+function Chk(
+    header::String,
+    exclude_bands::Vector{Int},
+    lattice::Mat3{T},
+    recip_lattice::Mat3{T},
+    kgrid::Vec3{Int},
+    kpoints::Matrix{T},
+    checkpoint::String,
+    have_disentangled::Bool,
+    ΩI::T,
+    frozen_bands::Matrix{Bool},
+    Uᵈ::Array{Complex{T},3},
+    U::Array{Complex{T},3},
+    M::Array{Complex{T},4},
+    r::Matrix{T},
+    ω::Vector{T},
+) where {T<:Real}
+
+    if have_disentangled
+        n_bands = size(Uᵈ, 1)
+    else
+        n_bands = size(U, 1)
+    end
+
+    n_exclude_bands = length(exclude_bands)
+
+    n_kpts = size(M, 4)
+
+    n_bvecs = size(M, 3)
+
+    n_wann = size(U, 1)
+
+    n_frozen = zeros(Int, n_kpts)
+    for ik = 1:n_kpts
+        n_frozen[ik] = count(frozen_bands[:, ik])
+    end
+
+    Chk(
+        header,
+        exclude_bands,
+        lattice,
+        recip_lattice,
+        kgrid,
+        kpoints,
+        checkpoint,
+        have_disentangled,
+        ΩI,
+        frozen_bands,
+        Uᵈ,
+        U,
+        M,
+        r,
+        ω,
+        n_bands,
+        n_exclude_bands,
+        n_kpts,
+        n_bvecs,
+        n_wann,
+        n_frozen,
+    )
+end
+
+
+@doc raw"""
+Read formatted (not Fortran binary) CHK file.
+"""
+function read_chk(filename::String)
+
+    if isbinary_file(filename)
+        error("$filename is a binary file? Consider using `w90chk2chk.x`?")
+    end
+
+    @info "Reading chk file:" filename
+
+    io = open(filename)
+
+    srline() = strip(readline(io))
+
+    # Read formatted chk file
+    header = String(srline())
+
+    n_bands = parse(Int, srline())
+
+    n_exclude_bands = parse(Int, srline())
+
+    exclude_bands = zeros(Int, n_exclude_bands)
+
+    if n_exclude_bands > 0
+        for i = 1:n_exclude_bands
+            exclude_bands[i] = parse(Int, srline())
+        end
+    end
+
+    # Each column is a lattice vector
+    line = parse.(Float64, split(srline()))
+    lattice = Mat3{Float64}(reshape(line, (3, 3)))
+
+    # Each column is a lattice vector
+    line = parse.(Float64, split(srline()))
+    recip_lattice = Mat3{Float64}(reshape(line, (3, 3)))
+
+    n_kpts = parse(Int, srline())
+
+    kgrid = Vec3{Int}(parse.(Int, split(srline())))
+
+    kpoints = zeros(Float64, 3, n_kpts)
+    for ik = 1:n_kpts
+        kpoints[:, ik] = parse.(Float64, split(srline()))
+    end
+
+    n_bvecs = parse(Int, srline())
+
+    n_wann = parse(Int, srline())
+
+    checkpoint = String(srline())
+
+    # 1 -> True, 0 -> False
+    have_disentangled = Bool(parse(Int, srline()))
+
+    if have_disentangled
+        # omega_invariant
+        ΩI = parse(Float64, srline())
+
+        frozen_bands = zeros(Bool, n_bands, n_kpts)
+        for ik = 1:n_kpts
+            for ib = 1:n_bands
+                # 1 -> True, 0 -> False
+                frozen_bands[ib, ik] = Bool(parse(Int, srline()))
+            end
+        end
+
+        n_frozen = zeros(Int, n_kpts)
+        for ik = 1:n_kpts
+            n_frozen[ik] = parse(Int, srline())
+            @assert n_frozen[ik] == count(frozen_bands[:, ik])
+        end
+
+        # u_matrix_opt
+        Uᵈ = zeros(ComplexF64, n_bands, n_wann, n_kpts)
+        for ik = 1:n_kpts
+            for iw = 1:n_wann
+                for ib = 1:n_bands
+                    vals = parse.(Float64, split(srline()))
+                    Uᵈ[ib, iw, ik] = vals[1] + im * vals[2]
+                end
+            end
+        end
+
+    else
+        ΩI = -1.0
+        frozen_bands = zeros(Bool, 0, 0)
+        n_frozen = zeros(Int, 0)
+        Uᵈ = zeros(ComplexF64, 0, 0, 0)
+    end
+
+    # u_matrix
+    U = zeros(ComplexF64, n_wann, n_wann, n_kpts)
+    for ik = 1:n_kpts
+        for iw = 1:n_wann
+            for ib = 1:n_wann
+                vals = parse.(Float64, split(srline()))
+                U[ib, iw, ik] = vals[1] + im * vals[2]
+            end
+        end
+    end
+
+    #  m_matrix
+    M = zeros(ComplexF64, n_wann, n_wann, n_bvecs, n_kpts)
+    for ik = 1:n_kpts
+        for inn = 1:n_bvecs
+            for iw = 1:n_wann
+                for ib = 1:n_wann
+                    vals = parse.(Float64, split(srline()))
+                    M[ib, iw, inn, ik] = vals[1] + im * vals[2]
+                end
+            end
+        end
+    end
+
+    # wannier_centres
+    r = zeros(Float64, 3, n_wann)
+    for iw = 1:n_wann
+        r[:, iw] = parse.(Float64, split(srline()))
+    end
+
+    # wannier_spreads
+    ω = zeros(Float64, n_wann)
+    for iw = 1:n_wann
+        ω[iw] = parse(Float64, srline())
+    end
+
+    close(io)
+
+    Chk(
+        header,
+        exclude_bands,
+        lattice,
+        recip_lattice,
+        kgrid,
+        kpoints,
+        checkpoint,
+        have_disentangled,
+        ΩI,
+        frozen_bands,
+        Uᵈ,
+        U,
+        M,
+        r,
+        ω,
+    )
 end
