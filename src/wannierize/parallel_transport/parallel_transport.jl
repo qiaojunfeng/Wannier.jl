@@ -319,6 +319,7 @@ function compute_error(model::Model{T}, A::Array{Complex{T},3}) where {T<:Real}
 
     println("initial error = ", round(ϵ0; digits=4))
     println("final error   = ", round(ϵ1; digits=4))
+    println()
 
     ϵ0, ϵ1
 end

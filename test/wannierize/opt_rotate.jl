@@ -2,7 +2,7 @@ import LinearAlgebra as LA
 using NLSolversBase
 
 # A reusable fixture for a model
-model = read_seedname("$FIXTURE_PATH/silicon")
+model = read_seedname(joinpath(FIXTURE_PATH, "silicon"))
 
 f, g! = Wannier.get_fg!_rotate(model)
 
