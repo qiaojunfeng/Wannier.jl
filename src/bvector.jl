@@ -1,3 +1,4 @@
+using Printf: @printf
 import LinearAlgebra as LA
 import NearestNeighbors as NN
 
@@ -292,7 +293,11 @@ function search_shells(
     n_shells = length(bvectors)
 
     for i = 1:n_shells
-        @info "BVector shell $i" weight=weights[i] vectors=bvectors[i]
+        @printf("BVector shell %3d    weight = %8.5f\n", i, weights[i])
+        vecs = bvectors[i]
+        for ib = 1:size(vecs, 2)
+            @printf("  %3d    %10.5f %10.5f %10.5f\n", ib, vecs[:, ib]...)
+        end
     end
 
     BVectorShells(recip_lattice, kpoints, bvectors, weights)
@@ -508,6 +513,9 @@ function get_bvectors(kpoints::Matrix{T}, recip_lattice::Mat3{T}) where {T<:Real
     check_b1(shells)
 
     bvectors = sort_bvectors(shells)
+
+    # print a blank line to separate the following stdout
+    println()
 
     bvectors
 end

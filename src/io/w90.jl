@@ -108,7 +108,10 @@ function read_win(filename::String)::Dict
 
     any(x -> ismissing(x), unit_cell) && error("unit_cell not found in win file")
 
-    @info "$filename OK" num_wann num_bands mp_grid[1] mp_grid[2] mp_grid[3]
+    println("  num_wann  = ", num_wann)
+    println("  num_bands = ", num_bands)
+    @printf("  mp_grid   = %d %d %d\n", mp_grid...)
+    println()
 
     Dict(
         "num_wann" => num_wann,
@@ -159,7 +162,10 @@ function read_mmn(filename::String)
 
     close(io)
 
-    @info "$filename OK" header n_bands n_bvecs n_kpts
+    println("  header  = ", header)
+    println("  n_bands = ", n_bands)
+    println("  n_bvecs = ", n_bvecs)
+    println("  n_kpts  = ", n_kpts)
     println()
 
     M, kpb_k, kpb_b
@@ -249,7 +255,10 @@ function read_amn(filename::String)
 
     close(io)
 
-    @info "$filename OK" header n_bands n_wann n_kpts
+    println("  header  = ", header)
+    println("  n_bands = ", n_bands)
+    println("  n_wann  = ", n_wann)
+    println("  n_kpts  = ", n_kpts)
     println()
 
     A
@@ -327,7 +336,8 @@ function read_eig(filename::String)
         @assert issorted(E[:, ik], by = round_digits) display(ik) display(E[:, ik])
     end
 
-    @info "$filename OK" n_bands n_kpts
+    println("  n_bands = ", n_bands)
+    println("  n_kpts  = ", n_kpts)
     println()
 
     E
@@ -697,7 +707,11 @@ function read_unk(filename::String)
 
     close(io)
 
-    @info "$filename OK" n_gx, n_gy, n_gz, ik, n_bands
+    println("  n_gx    = ", n_gx)
+    println("  n_gy    = ", n_gy)
+    println("  n_gz    = ", n_gz)
+    println("  ik      = ", ik)
+    println("  n_bands = ", n_bands)
     println()
 
     # ik: at which kpoint? start from 1
@@ -732,7 +746,12 @@ function write_unk(filename::String, ik::Int, Ψ::Array{T,4}) where {T<:Complex}
 
     end
 
-    @info "$filename OK" n_gx, n_gy, n_gz, ik, n_bands
+    @info "Written to file: $(filename)"
+    println("  n_gx    = ", n_gx)
+    println("  n_gy    = ", n_gy)
+    println("  n_gz    = ", n_gz)
+    println("  ik      = ", ik)
+    println("  n_bands = ", n_bands)
     println()
 
     nothing

@@ -6,7 +6,9 @@ import LinearAlgebra as LA
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon.chk.fmt"))
     n_val = 4
 
-    Ev, Ec, U, V = Wannier.split_eig(E, chk, n_val)
+    U = get_amn(chk)
+
+    Ev, Ec, _, _ = Wannier.split_eig(E, U, n_val)
 
     Ev_ref = read_eig(joinpath(FIXTURE_PATH, "valence", "silicon.eig"))
     Ec_ref = read_eig(joinpath(FIXTURE_PATH, "conduction", "silicon.eig"))
@@ -21,16 +23,26 @@ end
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon.chk.fmt"))
     n_val = 4
 
-    Ev, Ec, U, V = Wannier.split_eig(E, chk, n_val)
+    U = get_amn(chk)
+    Ev, Ec, _, _ = Wannier.split_eig(E, U, n_val)
 
     M, kpb_k, kpb_b = read_mmn(joinpath(FIXTURE_PATH, "silicon.mmn"))
 
     # V is random, use reference V
     Vv = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.vmn"))
     Vc = read_amn(joinpath(FIXTURE_PATH, "conduction", "silicon.vmn"))
-    V_ref = cat(Vv, Vc, dims = 2)
 
-    Mv, Mc = Wannier.split_mmn(M, kpb_k, U, V_ref, n_val)
+    n_kpts = size(M, 4)
+    n_bands = size(M, 1)
+    n_wann = size(U, 2)
+    UVv = similar(U, n_bands, n_val, n_kpts)
+    UVc = similar(U, n_bands, n_wann - n_val, n_kpts)
+    for ik = 1:n_kpts
+        UVv[:, :, ik] = U[:, :, ik] * Vv[:, :, ik]
+        UVc[:, :, ik] = U[:, :, ik] * Vc[:, :, ik]
+    end
+    Mv = rotate_mmn(M, kpb_k, UVv)
+    Mc = rotate_mmn(M, kpb_k, UVc)
 
     Mv_ref, _, _ = read_mmn(joinpath(FIXTURE_PATH, "valence", "silicon.mmn"))
     Mc_ref, _, _ = read_mmn(joinpath(FIXTURE_PATH, "conduction", "silicon.mmn"))
@@ -64,26 +76,18 @@ end
 end
 
 
-@testset "split_valence_conduction" begin
-    tmpdir_val = mktempdir(cleanup = true)
-    tmpdir_cond = mktempdir(cleanup = true)
+@testset "split_model" begin
+    model = read_seedname(joinpath(FIXTURE_PATH, "silicon"))
+    chk = read_chk(joinpath(FIXTURE_PATH, "silicon.chk.fmt"))
+    model.A .= get_amn(chk)
 
     n_val = 4
-    split_valence_conduction(
-        joinpath(FIXTURE_PATH, "silicon"),
-        n_val,
-        unk = false,
-        vmn = true,
-        outdir_val = tmpdir_val,
-        outdir_cond = tmpdir_cond,
-    )
 
-    Ev = read_eig(joinpath(tmpdir_val, "silicon.eig"))
-    Ec = read_eig(joinpath(tmpdir_cond, "silicon.eig"))
+    model_v, model_c = split_model(model, n_val)
 
     Ev_ref = read_eig(joinpath(FIXTURE_PATH, "valence", "silicon.eig"))
     Ec_ref = read_eig(joinpath(FIXTURE_PATH, "conduction", "silicon.eig"))
 
-    @test isapprox(Ev, Ev_ref; atol = 1e-7)
-    @test isapprox(Ec, Ec_ref; atol = 1e-7)
+    @test isapprox(model_v.E, Ev_ref; atol = 1e-7)
+    @test isapprox(model_c.E, Ec_ref; atol = 1e-7)
 end
