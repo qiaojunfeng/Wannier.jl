@@ -5,7 +5,7 @@
 [![CI](https://github.com/qiaojunfeng/Wannier.jl/workflows/CI/badge.svg)](https://github.com/qiaojunfeng/Wannier.jl/actions?query=workflow%3ACI)
 [![Codecov](https://codecov.io/gh/qiaojunfeng/Wannier.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/qiaojunfeng/Wannier.jl)
 
-**Wannier.jl provides a playground for experimentation with Wannier functions.**
+**A playground for experimentation with Wannier functions.**
 
 ## Installation
 
@@ -23,17 +23,30 @@ julia> using Pkg; Pkg.add("Wannier")
 
 ### CLI
 
-Additionally, there is also a command line interface
+Additionally, there is a command line interface
 
 ```bash
 julia --project deps/build.jl install  # install CLI
 ```
 
-Then you will find the executable in
+The executable will be installed in ```~/.julia/bin/wannier```.
+After appending `~/.julia/bin` to your `$PATH`, you can use the CLI as follows:
 
 ```bash
-~/.julia/bin/wannier
+$ wannier -h
+
+
+  wannier v0.1.0
+
+Julia package for Wannier functions.
+
+Usage
+
+  wannier <command>
+...
 ```
+
+Note since julia needs precompilation of the code, there will be some delay when running the CLI.
 
 ## Algorithms
 
@@ -63,5 +76,5 @@ For a much more detailed overview, please see [the User Guide documentation](htt
 
 ## Contributing
 
-This is research code mainly for development and testing.
+This is a research code mainly for development and testing.
 Issues and pull requests are welcome!
