@@ -20,7 +20,22 @@
     @test bvectors.recip_lattice ≈ recip_lattice
     @test bvectors.kpoints ≈ kpoints
     @test bvectors.weights ≈ ref_weights
-    @test isapprox(bvectors.bvectors, ref_bvecs, atol = 1e-5)
+    @test begin
+        # sometimes the bvectors are not ordered
+        ret = true
+        bvecs = Vector([bvectors.bvectors[:, i] for i = 1:size(bvectors.bvectors, 2)])
+        for i = 1:size(ref_bvecs, 2)
+            b = ref_bvecs[:, i]
+            idx = findfirst(v -> isapprox(v, b, atol = 1e-5), bvecs)
+            if idx === nothing
+                ret = false
+                break
+            end
+            deleteat!(bvecs, idx)
+        end
+        length(bvecs) != 0 && (ret = false)
+        ret
+    end
     @test bvectors.kpb_k ≈ kpb_k
     @test bvectors.kpb_b ≈ kpb_b
 end

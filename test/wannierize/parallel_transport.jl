@@ -8,6 +8,7 @@ import LinearAlgebra as LA
     Amin = parallel_transport(model)
 
     Aref = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
+    println("maxabs ", maximum(abs.(Amin - Aref)))
     @test isapprox(Amin, Aref; atol = 1e-7)
 
     ϵ0, ϵ1 = Wannier.compute_error(model, Amin)
