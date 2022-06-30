@@ -1,0 +1,18 @@
+name = "wannier"
+
+[install]
+completion = true
+quiet = false
+optimize = 2
+
+[sysimg]
+incremental = false
+filter_stdlibs = true
+
+# [sysimg.precompile]
+# execution_file = ["deps/precompile.jl"]
+# [application]
+# incremental=true
+# filter_stdlibs=false
+# [application.precompile]
+# statements_file = ["deps/statements.jl"]

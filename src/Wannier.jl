@@ -47,6 +47,9 @@ include("wannierize/split.jl")
 export ones_amn, get_amn, rotate_mmn
 export split_wannierize, split_unk, split_model
 
-include("plot/parallel_transport.jl")
+include("cli/main.jl")
+
+
+# include("plot/parallel_transport.jl")
 
 end
