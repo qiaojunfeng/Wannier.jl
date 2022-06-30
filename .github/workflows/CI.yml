@@ -27,6 +27,8 @@ jobs:
         #     arch: x86
     steps:
       - uses: actions/checkout@v2
+        with:
+          lfs: 'true'
       - uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.version }}
