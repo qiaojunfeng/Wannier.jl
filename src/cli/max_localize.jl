@@ -1,6 +1,4 @@
 #!/usr/bin/env julia
-using Comonicon
-
 
 """
 Maximally localize an isolated group of bands.
@@ -25,6 +23,8 @@ Maximally localize an isolated group of bands.
     A = max_localize(model)
 
     write_amn(output, A)
+
+    nothing
 end
 
 

@@ -9,8 +9,9 @@ optimize = 2
 incremental = false
 filter_stdlibs = true
 
-# [sysimg.precompile]
-# execution_file = ["deps/precompile.jl"]
+[sysimg.precompile]
+execution_file = ["deps/precompile.jl"]
+
 # [application]
 # incremental=true
 # filter_stdlibs=false

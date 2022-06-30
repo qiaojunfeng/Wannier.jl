@@ -1,42 +1,99 @@
 #!/usr/bin/env julia
-using Wannier
 
 
-function main()
+"""
+Split valence and conduction Wannier functions.
+
+Usually start from a Wannierization of valence+conduction bands.
+Then this command split WFs into two independent groups.
+
+# Args
+
+- `seedname`: seedname for WIN/AMN/MMN/EIG files
+
+# Options
+
+- `--nval`: number of valence WFs. Default is `n_wann ÷ 2`
+- `--outdir-val`: dirname for output valence AMN/MMN/EIG. Default is `val`
+- `--outdir-cond`: dirname for output conduction AMN/MMN/EIG. Default is `cond`
+
+# Flags
+
+- `--run-disentangle`: run disentangle first, otherwise read CHK to
+    get unitary matrices from `n_bands` to `n_wann`
+- `--run-optrot`: max localize w.r.t. single unitary matrix after parallel transport.
+    Should further reduce the spread and much closer to the true max localization.
+- `--run-maxloc`: run a final max localize w.r.t. all kpoints.
+    Should reach the true max localization.
+- `--rotate-unk`: generate UNK files for valence and conduction, for plotting WFs
+"""
+@cast function splitvc(
+    seedname::String;
+    nval::Union{Int, Nothing} = nothing,
+    outdir_val::String = "val",
+    outdir_cond::String = "cond",
+    run_disentangle::Bool = false,
+    run_optrot::Bool = false,
+    run_maxloc::Bool = false,
+    rotate_unk::Bool = false,
+)
     # seedname = "silicon"
-    seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
+    # seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
 
     # Input AMN is Silicon s,p projection
     model = read_seedname(seedname)
 
-    read_chk = true
-    if read_chk
+    # calculate spread
+    f(m::Model) = omega(m.bvectors, m.M, m.A).Ω
+
+    if run_disentangle
+        # You can also use disentangle to get a good gauge from initial projection
+        model.A = disentangle(model)
+    else
         # Get max localized gauge from chk file
         chk = read_chk("$seedname.chk.fmt")
         # We replace the initial projection by the "good" max loc gauge
         model.A = get_amn(chk)
-    else
-        # You can also use disentangle to get a good gauge from initial projection
-        model.A = disentangle(model)
     end
 
-    n_val = model.n_wann ÷ 2
+    @info "Valence + conduction initial spread"
+    print_spread(f(model))
+
+    (nval === nothing) && (nval = model.n_wann ÷ 2)
 
     # UNK files for plotting WFs
-    rotate_unk = false
-    splitted = split_wannierize(model, n_val, rotate_unk)
+    splitted = split_wannierize(model, nval, rotate_unk)
     if rotate_unk
         model_val, model_cond, Uv, Uc = splitted
     else
         model_val, model_cond = splitted
     end
 
+    @info "Valence after parallel transport:"
+    print_spread(f(model_val))
+    @info "Conduction after parallel transport:"
+    print_spread(f(model_cond))
+
+    if run_optrot
+        @info "Run optimal rotation"
+        println()
+        Wv = opt_rotate(model_val)
+        model_val.A .= rotate_amn(model_val.A, Wv)
+        Wc = opt_rotate(model_cond)
+        model_cond.A .= rotate_amn(model_cond.A, Wc)
+    end
+
+    if run_maxloc
+        @info "Run max localization"
+        println()
+        model_val.A .= max_localize(model_val)
+        model_cond.A .= max_localize(model_cond)
+    end
+
     # Write files
-    outdir_val = "val"
     seedname_val = new_seedname(seedname, outdir_val)
     write_model(seedname_val, model_val)
 
-    outdir_cond = "cond"
     seedname_cond = new_seedname(seedname, outdir_cond)
     write_model(seedname_cond, model_cond)
 
@@ -55,9 +112,4 @@ function new_seedname(seedname::String, subdir::String)
     outdir = joinpath(dirname(seedname), subdir)
     !isdir(outdir) && mkdir(outdir)
     joinpath(outdir, basename(seedname))
-end
-
-
-if abspath(PROGRAM_FILE) == @__FILE__
-    main()
 end

@@ -242,12 +242,8 @@ end
 """
 Write splitted AMN/MMN/EIG/UNK(optional) files into valence and conduction groups.
 
-Args:
-    seedname: _description_
-    n_val: number of valence WFs
-    unk: Write UNK files. Defaults to False.
-    outdir_val: _description_. Defaults to "val".
-    outdir_cond: _description_. Defaults to 'cond'.
+`n_val`: number of valence WFs
+`return_rotation`: return rotation matrices for UNK files, or other operators.
 """
 function split_wannierize(model::Model, n_val::Int, return_rotation::Bool = false)
     splitted = split_model(model, n_val, return_rotation)

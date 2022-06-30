@@ -38,7 +38,7 @@ include("wannierize/disentangle.jl")
 export disentangle
 
 include("wannierize/opt_rotate.jl")
-export opt_rotate
+export opt_rotate, rotate_amn
 
 include("wannierize/parallel_transport/parallel_transport.jl")
 export parallel_transport

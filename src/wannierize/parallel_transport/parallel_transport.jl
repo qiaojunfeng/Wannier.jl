@@ -4,7 +4,7 @@ include("contraction.jl")
 
 
 """
-Assumptions: the kpoints are contained in a NxNxN cartesian grid,
+Assumptions: the kpoints are contained in a N1 x N2 x N3 cartesian grid,
 the neighbor list must contain the six cartesian neighbors along x,y,z directions.
 """
 function parallel_transport(

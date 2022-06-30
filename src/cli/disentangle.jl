@@ -1,32 +1,23 @@
 #!/usr/bin/env julia
-import ArgParse
-using Wannier
 
 
-function parse_commandline()
-    s = ArgParse.ArgParseSettings()
-    ArgParse.@add_arg_table s begin
-        # "--opt1"
-        #     help = "an option with an argument"
-        # "--opt2", "-o"
-        #     help = "another option with an argument"
-        #     arg_type = Int
-        #     default = 0
-        # "--flag1"
-        #     help = "an option without argument, i.e. a flag"
-        #     action = :store_true
-        "seedname"
-        help = "Name of the input TOML file: seedname.toml"
-        required = true
+"""
+Maximally localize a group of entangled bands.
+
+# Args
+
+- `seedname`: seedname for WIN/AMN/MMN/EIG files
+
+# Options
+
+- `-o, --output`: filename for output AMN. Default is `seedname.dis.amn`
+"""
+@cast function dis(seedname::String; output::Union{String,Nothing} = nothing)
+
+    # seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
+    if output === nothing
+        output = basename(seedname) * ".dis.amn"
     end
-    return ArgParse.parse_args(s)
-end
-
-
-function main()
-
-    # seedname = "silicon"
-    seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
 
     model = read_seedname(seedname)
 
@@ -73,13 +64,11 @@ function main()
     #     end
     # end
 
-    write_amn("$seedname.dis.amn", Amin)
+    write_amn(output, Amin)
+
+    nothing
 end
 
-
-if abspath(PROGRAM_FILE) == @__FILE__
-    main()
-end
 
 # Notes on band interpolation
 # After seedname.amn.optimized is generated, when using w90 to 

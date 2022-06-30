@@ -1,13 +1,25 @@
 #!/usr/bin/env julia
-using Wannier
 
 
-function main()
+"""
+Generate parallel transport gauge Wannier functions.
+
+# Args
+
+- `seedname`: seedname for WIN/AMN/MMN/EIG files
+
+# Options
+
+- `-o, --output`: filename for output AMN. Default is `seedname.ptg.amn`
+"""
+@cast function ptg(seedname::String; output::Union{String,Nothing} = nothing)
 
     # seedname = "tests/KaneMele/kanemele_0.0_25"
     # seedname = "tests/silicon/silicon"
-
-    seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/val/silicon"
+    # seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/val/silicon"
+    if output === nothing
+        output = basename(seedname) * ".ptg.amn"
+    end
 
     model = read_seedname(seedname; amn = false, eig = false)
 
@@ -31,10 +43,7 @@ function main()
     # Plot and display the results
     # Wannier.plot_obstruction(model, A, obs)
 
-    write_amn("silicon.ptg.amn", A)
-end
+    write_amn(output, A)
 
-
-if abspath(PROGRAM_FILE) == @__FILE__
-    main()
+    nothing
 end
