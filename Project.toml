@@ -23,6 +23,7 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
+PackageCompiler = "2"
 NLSolversBase = "7"
 FFTW = "1"
 StaticArrays = "1"
