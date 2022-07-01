@@ -7,6 +7,16 @@
 
 **A playground for experimentation with Wannier functions.**
 
+## Features
+
+* Wannierization
+  * maximal localization for isolated bands, e.g. insulators
+  * disentanglement for entangled bands, e.g. metal
+  * parallel transport gauge
+  * split valence and conduction WFs from a valence + conduction calculation
+* interpolation
+  * band structure
+
 ## Installation
 
 Install with the Julia package manager [Pkg](https://pkgdocs.julialang.org/), just like any other registered Julia package:
@@ -47,16 +57,6 @@ Usage
 ```
 
 Note since julia needs precompilation of the code, there will be some delay when running the CLI.
-
-## Algorithms
-
-* Wannierization
-  * maximal localization for isolated bands, e.g. insulators
-  * disentanglement for entangled bands, e.g. metal
-  * parallel transport gauge
-  * split valence and conduction WFs from a valence + conduction calculation
-* interpolation
-  * band structure
 
 ## Usage
 
