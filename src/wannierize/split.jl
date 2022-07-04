@@ -254,8 +254,8 @@ function split_wannierize(model::Model, n_val::Int, return_rotation::Bool = fals
         model_v, model_c = splitted
     end
 
-    model_v.A = parallel_transport(model_v)
-    model_c.A = parallel_transport(model_c)
+    model_v.A, _ = parallel_transport(model_v)
+    model_c.A, _ = parallel_transport(model_c)
 
     if return_rotation
         return model_v, model_c, UVv, UVc

@@ -11,7 +11,6 @@ function parallel_transport(
     model::Model{T};
     use_A::Bool = false,
     log_interp::Bool = false,
-    return_obs::Bool = false,
 ) where {T<:Real}
 
     if log_interp
@@ -57,7 +56,7 @@ function parallel_transport(
     # However, here we compute Vₒ = A(nkx)' * M(nkx,1) * A(0),
     # since kpoints are discretized 1...nkx, we need approximations:
     #     ũ(1) ≈ |ψ(nkx)> * A(nkx),
-    #     τ₁ ũ(0) = |ψ(1+nkx)> * A(1), 
+    #     τ₁ ũ(0) = |ψ(1+nkx)> * A(1),
     # so our Vₒ is actually the inverse of the Vₒ in the paper.
     k1 = xyz_k[end, 1, 1]
     k2 = xyz_k[1, 1, 1]
@@ -273,12 +272,8 @@ function parallel_transport(
 
     compute_error(model, A)
 
-    if return_obs
-        obs = Obstruction(Oxy, Oxz, Oyz, Uxy, Uxz, Uyz)
-        return A, obs
-    end
-
-    A
+    obs = Obstruction(Oxy, Oxz, Oyz, Uxy, Uxz, Uyz)
+    return A, obs
 end
 
 
