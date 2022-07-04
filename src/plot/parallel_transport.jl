@@ -2,27 +2,10 @@ import LinearAlgebra as LA
 using CairoMakie
 
 
-# Plot obstructions
-function plot_surface_obstructions(p, suffix="")
-    if p.N3 != 1
-        phases = zeros(p.N1, p.N2, p.nwannier)
-        for i = 1:p.N1, j = 1:p.N2
-            Obs = normalize_matrix(overlap_A([i, j, p.N3], [i, j, 1], p)) #rotation at image point
-            phases[i, j, :] = sort(imag(log.(eigvals(Obs))))
-        end
-        figure()
-        xx = [p.t1[i] for i = 1:p.N1, j = 1:p.N2]
-        yy = [p.t2[j] for i = 1:p.N1, j = 1:p.N2]
-        for n = 1:p.nwannier
-            plot_surface(xx, yy, phases[:, :, n], rstride=1, cstride=1)
-        end
-        savefig("wannierize$filename.$suffix.pdf")
-        close()
-    end
-end
-
-
-function plot_obstruction(model::Model{T}, A::Array{Complex{T},3}, obstruction::Obstruction{Complex{T}}, filename_prefix::String="obstruction") where {T<:Real}
+"""
+Plot ||∇ₖ u|| for the bottom layer (kz = 1)
+"""
+function plot_obstruction_regularity(model::Model{T}, A::Array{Complex{T},3}, obstruction::Obstruction{Complex{T}}, filename_prefix::String="obstruction") where {T<:Real}
 
     n_kx, n_ky, n_kz = model.kgrid
     k_xyz, xyz_k = get_kpoint_mappings(model.kpoints, model.kgrid)
@@ -85,14 +68,62 @@ function plot_obstruction(model::Model{T}, A::Array{Complex{T},3}, obstruction::
     save(filename, fig; px_per_unit=3)
     println("Saved to $filename")
 
+    nothing
     return 
+end
+
+
+# Plot obstructions
+function plot_surface_obstruction(model::Model{T}, A::Array{Complex{T},3}) where {T<:Real}
 
     plot_surface_obstructions(p, "_1_none")
     plot_surface_obstructions(p, "_2_corners")
     plot_surface_obstructions(p, "_3_edges")
     plot_surface_obstructions(p, "_4_surface")
+    
+    n_kx, n_ky, n_kz = model.kgrid
+    n_wann = model.n_wann
+
+    @assert n_kz > 1
+
+    k_xyz, xyz_k = get_kpoint_mappings(model.kpoints, model.kgrid)
+
+    # phases ϕ
+    ϕ = zeros(T, n_kx, n_ky, n_wann)
+
+    for i = 1:n_kx, j = 1:n_ky
+        k1 = xyz_k[i, j, n_kz]
+        k2 = xyz_k[i, j, 1]
+
+        # obstruction
+        O = overlap(model.M, model.bvectors.kpb_k, k1, k2, A)
+        O = orthonorm_lowdin(O)
+
+        ϕ[i, j, :] = sort(imag(log.(eigvals(O))))
+    end
+
+    fig = Figure()
+
+    ax = Axis(fig[1, 1], aspect=DataAspect(), xlabel=L"$k_1$", ylabel=L"$k_2$",
+     title=L"imag(log(Obs))",
+     type=Axis3,
+    )
+
+    xx = collect(1:n_kx)
+    yy = collect(1:n_ky)
+
+    for n = 1:n_wann
+        surface(xx, yy, ϕ[:, :, n], axis=ax)
+    end
+    
+
+    filename = "wannierize$filename.$suffix.png"
+    save(filename, fig)
+    println("Saved to $filename")
+end
 
 
+function plot_contraction()
     if n_kz == 1
         plot_3d = true #false
     else
@@ -247,7 +278,6 @@ function plot_Bloch_frame_slice(p, A0, A0_init)
         #title("Bloch frame slice after algorithm, N3 = $slice")
         savefig("Bloch_frame_$(p.filename)_diff_$(n_kx)_$suffix.png")
     end
-
 
 end
 
