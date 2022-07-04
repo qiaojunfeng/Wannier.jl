@@ -3,7 +3,7 @@
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://qiaojunfeng.github.io/Wannier.jl/stable)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://qiaojunfeng.github.io/Wannier.jl/dev)
 [![CI](https://github.com/qiaojunfeng/Wannier.jl/workflows/CI/badge.svg)](https://github.com/qiaojunfeng/Wannier.jl/actions?query=workflow%3ACI)
-[![codecov](https://codecov.io/gh/qiaojunfeng/Wannier.jl/branch/main/graph/badge.svg?token=197LJHtYJn)](https://codecov.io/gh/qiaojunfeng/Wannier.jl)
+[![codecov](https://codecov.io/gh/qiaojunfeng/Wannier.jl/branch/main/graph/badge.svg?token=J2c9HRdk59)](https://codecov.io/gh/qiaojunfeng/Wannier.jl)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 [![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/invenia/BlueStyle)
 
