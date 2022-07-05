@@ -4,7 +4,7 @@ import DelimitedFiles as Dlm
 import LinearAlgebra as LA
 
 
-function read_win(filename::String)::Dict
+function read_win(filename::String)
     @info "Reading win file: $filename"
     io = open(filename)
 
@@ -112,13 +112,13 @@ function read_win(filename::String)::Dict
     @printf("  mp_grid   = %d %d %d\n", mp_grid...)
     println()
 
-    Dict(
-        "num_wann" => num_wann,
-        "num_bands" => num_bands,
-        "mp_grid" => mp_grid,
-        "kpoints" => kpoints,
-        "unit_cell" => unit_cell,
-        "kpoint_path" => kpoint_path,
+    return (
+        num_wann = num_wann,
+        num_bands = num_bands,
+        mp_grid = mp_grid,
+        kpoints = kpoints,
+        unit_cell = unit_cell,
+        kpoint_path = kpoint_path,
     )
 end
 
@@ -377,13 +377,13 @@ function read_seedname(
 )
     win = read_win("$seedname.win")
 
-    n_bands = win["num_bands"]
-    n_wann = win["num_wann"]
-    kpoints = win["kpoints"]
-    kgrid = Vec3{Int}(win["mp_grid"])
+    n_bands = win.num_bands
+    n_wann = win.num_wann
+    kpoints = win.kpoints
+    kgrid = Vec3{Int}(win.mp_grid)
     n_kpts = prod(kgrid)
 
-    lattice = win["unit_cell"]
+    lattice = win.unit_cell
     recip_lattice = get_recip_lattice(lattice)
 
     bvectors = get_bvectors(kpoints, recip_lattice)
@@ -523,8 +523,8 @@ read si_band.dat  si_band.kpt  si_band.labelinfo.dat
 """
 function read_w90_bands(seedname::String)
     kpoints = Dlm.readdlm("$(seedname)_band.kpt", Float64; skipstart = 1)
-    # transpose, last idx is kpt
-    kpoints = Matrix(transpose(kpoints))
+    # remove weights, then transpose, last idx is kpt
+    kpoints = Matrix(transpose(kpoints[:, 1:3]))
     n_kpts = size(kpoints, 2)
 
     dat = Dlm.readdlm("$(seedname)_band.dat", Float64)
@@ -558,7 +558,7 @@ end
 """
 write si_band.dat  si_band.kpt  si_band.labelinfo.dat
 """
-function write_w90_bands(seedname::String, kpoints::AbstractMatrix{Real}, E::AbstractMatrix{Real}, x::AbstractVector{Real}, symm_idx::AbstractVector{Int}, symm_label::AbstractVector{String})
+function write_w90_bands(seedname::String, kpoints::AbstractMatrix{T}, E::AbstractMatrix{T}, x::AbstractVector{T}, symm_idx::AbstractVector{Int}, symm_label::AbstractVector{String}) where {T<:Real}
     n_kpts = size(kpoints, 2)
     size(kpoints, 1) != 3 && error("kpoints must be 3 x n_kpts")
 
@@ -600,9 +600,7 @@ function write_w90_bands(seedname::String, kpoints::AbstractMatrix{Real}, E::Abs
 end
 
 function read_wout(filename::String)
-    fwout = open(filename)
-
-    ret = Dict()
+    io = open(filename)
 
     start_cell = "Lattice Vectors ("
     start_atom = "|   Site       Fractional Coordinate          Cartesian Coordinate"
@@ -610,78 +608,104 @@ function read_wout(filename::String)
     start_finalstate = "Final State"
     end_finalstate = "Sum of centres and spreads"
 
-    unit_is_ang = false
-    while !eof(fwout)
-        line = strip(readline(fwout))
+    ang_unit = false
+    unit_cell = nothing
+    atoms = nothing
+    centers = nothing
+    spreads = nothing
+
+    while !eof(io)
+        line = strip(readline(io))
+
         if occursin("|  Length Unit", line)
             @assert occursin("Ang", line)
-            unit_is_ang = true
+            ang_unit = true
             continue
         end
+
         if occursin(start_cell, line)
             @assert occursin("Ang", line)
             unit_cell = zeros(Float64, 3, 3)
-            line = split(strip(readline(fwout)))
+
+            line = split(strip(readline(io)))
             @assert line[1] == "a_1"
             unit_cell[:, 1] = parse.(Float64, line[2:end])
-            line = split(strip(readline(fwout)))
+
+            line = split(strip(readline(io)))
             @assert line[1] == "a_2"
             unit_cell[:, 2] = parse.(Float64, line[2:end])
-            line = split(strip(readline(fwout)))
+
+            line = split(strip(readline(io)))
             @assert line[1] == "a_3"
             unit_cell[:, 3] = parse.(Float64, line[2:end])
-            ret["unit_cell"] = unit_cell
+
             continue
         end
+
         if occursin(start_atom, line)
             @assert occursin("Ang", line)
-            readline(fwout)
+            readline(io)
+    
             lines = Vector{String}()
-            line = strip(readline(fwout))
+            line = strip(readline(io))
             while line != end_atom
                 push!(lines, line)
-                line = strip(readline(fwout))
+                line = strip(readline(io))
             end
-            num_atoms = length(lines)
-            atoms = zeros(Float64, 3, num_atoms)
+
+            n_atom = length(lines)
+            atoms = zeros(Float64, 3, n_atom)
             for (i, line) in enumerate(lines)
                 line = split(line)
                 @assert line[1] == "|" line
+                # cartesian
                 atoms[:, i] = parse.(Float64, line[8:10])
+                # Fractional
+                atoms[:, i] = parse.(Float64, line[4:6])
             end
-            ret["atoms"] = atoms
+
             continue
         end
+
         if occursin(start_finalstate, line)
             lines = Vector{String}()
-            line = strip(readline(fwout))
+            line = strip(readline(io))
             while !occursin(end_finalstate, line)
                 push!(lines, line)
-                line = strip(readline(fwout))
+                line = strip(readline(io))
             end
-            num_wann = length(lines)
-            wf_centers = zeros(Float64, 3, num_wann)
-            wf_spreads = zeros(Float64, num_wann)
+
+            n_wann = length(lines)
+            centers = zeros(Float64, 3, n_wann)
+            spreads = zeros(Float64, n_wann)
             for (i, line) in enumerate(lines)
                 line = split(line)
                 @assert join(line[1:4], " ") == "WF centre and spread"
                 @assert i == parse(Int, line[5])
+    
                 x = parse(Float64, replace(line[7], "," => ""))
                 y = parse(Float64, replace(line[8], "," => ""))
                 z = parse(Float64, replace(line[9], "," => ""))
                 s = parse(Float64, line[11])
-                wf_centers[:, i] = [x, y, z]
-                wf_spreads[i] = s
+
+                centers[:, i] = [x, y, z]
+                spreads[i] = s
             end
-            ret["wf_centers"] = wf_centers
-            ret["wf_spreads"] = wf_spreads
+
             continue
         end
     end
-    close(fwout)
-    @assert unit_is_ang
 
-    return ret
+    close(io)
+
+    @assert ang_unit
+
+    return (
+        unit_cell = unit_cell,
+        atoms = atoms,
+        centers = centers,
+        spreads = spreads,
+    )
 end
 
 

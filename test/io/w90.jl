@@ -9,14 +9,14 @@ mat2vec(A::AbstractMatrix) = [Vector(A[:, i]) for i = 1:size(A, 2)]
     win = read_win("$FIXTURE_PATH/silicon.win")
 
     # Convert type so YAML can write it.
-    win["unit_cell"] = mat2vec(win["unit_cell"])
-    win["kpoints"] = mat2vec(win["kpoints"])
+    unit_cell = mat2vec(win.unit_cell)
+    kpoints = mat2vec(win.kpoints)
 
     # YAML.write_file(String(@__DIR__) * "/test_data/win.yaml", win)
 
     @test begin
         test_kpath = test_data["kpoint_path"]
-        win_kpath = win["kpoint_path"]
+        win_kpath = win.kpoint_path
         # println(test_kpath)
         # println(win_kpath)
 
@@ -38,18 +38,18 @@ mat2vec(A::AbstractMatrix) = [Vector(A[:, i]) for i = 1:size(A, 2)]
         true
     end
 
-    @test test_data["num_wann"] == win["num_wann"]
-    @test test_data["num_bands"] == win["num_bands"]
-    @test test_data["unit_cell"] ≈ win["unit_cell"]
-    @test test_data["mp_grid"] == win["mp_grid"]
-    @test test_data["kpoints"] ≈ win["kpoints"]
+    @test test_data["num_wann"] == win.num_wann
+    @test test_data["num_bands"] == win.num_bands
+    @test test_data["unit_cell"] ≈ unit_cell
+    @test test_data["mp_grid"] == win.mp_grid
+    @test test_data["kpoints"] ≈ kpoints
 end
 
 
 @testset "read/write mmn" begin
     M, kpb_k, kpb_b = read_mmn("$FIXTURE_PATH/silicon.mmn")
 
-    tmpfile = tempname(cleanup=true)
+    tmpfile = tempname(cleanup = true)
 
     write_mmn(tmpfile, M, kpb_k, kpb_b)
 
@@ -64,7 +64,7 @@ end
 @testset "read/write eig" begin
     E = read_eig("$FIXTURE_PATH/silicon.eig")
 
-    tmpfile = tempname(cleanup=true)
+    tmpfile = tempname(cleanup = true)
 
     write_eig(tmpfile, E)
 
@@ -109,7 +109,7 @@ end
 @testset "read/write unk" begin
     ik, Ψ = read_unk("$FIXTURE_PATH/UNK00001.1")
 
-    tmpfile = tempname(cleanup=true)
+    tmpfile = tempname(cleanup = true)
 
     write_unk(tmpfile, ik, Ψ)
 
@@ -126,4 +126,61 @@ end
     @test chk.n_wann == 8
     @test chk.n_bands == 12
 
+end
+
+@testset "read/write w90 band dat" begin
+    band = read_w90_bands("$FIXTURE_PATH/valence/band/silicon")
+
+    outdir = mktempdir(cleanup = true)
+    outseedname = joinpath(outdir, "silicon")
+
+    write_w90_bands(
+        outseedname,
+        band.kpoints,
+        band.E,
+        band.x,
+        band.symm_idx,
+        band.symm_label,
+    )
+
+    band2 = read_w90_bands(outseedname)
+
+    @test band.kpoints ≈ band2.kpoints
+    @test band.E ≈ band2.E
+    @test band.x ≈ band2.x
+    @test band.symm_idx == band2.symm_idx
+    @test band.symm_label == band2.symm_label
+end
+
+@testset "read wout" begin
+    wout = read_wout("$FIXTURE_PATH/valence/band/silicon.wout")
+
+    ref_unit_cell =
+        [
+            -2.698804 0.000000 2.698804
+            0.000000 2.698804 2.698804
+            -2.698804 2.698804 0.000000
+        ]'
+    ref_atoms = [
+        -0.25000 0.75000 -0.25000
+        0.00000 0.00000 0.00000
+    ]'
+    ref_centers =
+        [
+            -0.659352 0.658238 -0.680969
+            0.669283 0.695828 0.666806
+            0.682490 -0.683846 -0.683726
+            -0.701673 -0.656575 0.703751
+        ]'
+    ref_spreads = [
+        2.39492617
+        2.19372718
+        1.83863803
+        1.88512458
+    ]
+
+    @test wout.unit_cell ≈ ref_unit_cell
+    @test wout.atoms ≈ ref_atoms
+    @test wout.centers ≈ ref_centers
+    @test wout.spreads ≈ ref_spreads
 end
