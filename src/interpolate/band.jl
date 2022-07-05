@@ -1,6 +1,6 @@
 import LinearAlgebra as LA
 using FFTW
-# import FINUFFT
+import FINUFFT
 
 
 """
@@ -102,7 +102,7 @@ function ufft(
     O_R = zeros(Complex{T}, m, n, nx, ny, nz)
 
     for rx = 1:nx, ry = 1:ny, rz = 1:nz
-        for kx = 1:nx, ky= 1:ny, kz = 1:nz
+        for kx = 1:nx, ky = 1:ny, kz = 1:nz
             ik = xyz_k[kx, ky, kz]
             kpt = kpoints[:, ik]
             fac = exp(-im * 2π * LA.dot(kpt, [rx - 1; ry - 1; rz - 1]))
@@ -126,10 +126,10 @@ function nuifft(O_R::Array{Complex{T},5}, kpoints::Matrix{T}) where {T<:Real}
     O_k = zeros(Complex{T}, m, n, nk)
 
     for ik = 1:nk
-        for i = 1:nx, j = 1:ny, k = 1:nz
+        for rx = 1:nx, ry = 1:ny, rz = 1:nz
             kpt = kpoints[:, ik]
-            fac = exp(im * 2π * LA.dot(kpt, [i - 1; j - 1; k - 1]))
-            O_k[:, :, ik] += fac * O_R[:, :, i, j, k]
+            fac = exp(im * 2π * LA.dot(kpt, [rx - 1; ry - 1; rz - 1]))
+            O_k[:, :, ik] += fac * O_R[:, :, rx, ry, rz]
         end
     end
 
@@ -203,23 +203,24 @@ function interpolate(model::Model{T}, kpoints::Matrix{T}) where {T<:Real}
     # the results is wrong.
     model.kpoints[:, 1] ≉ zeros(T, 3) && error("kpoints[:, 0] ≉ zeros(3)")
 
+    # A simple inverse fft on parallelepiped cell has very bad interpolation
+    # H_kpath = nuifft(H_R, kpoints)
+
     n_kpath_points = size(kpoints, 2)
 
-    # atol = 1e-10
-    # H_kpath = zeros(Complex{T}, n_wann, n_wann, n_kpath_points)
-    # kx = 2π * kpoints[1, :]
-    # ky = 2π * kpoints[2, :]
-    # kz = 2π * kpoints[3, :]
-    # for m = 1:n_wann, n = 1:n_wann
-    #     # TODO: nufft3d2many
-    #     H_kpath[m, n, :] = FINUFFT.nufft3d2(
-    #         kx, ky, kz, 1, atol, H_R[m, n, :, :, :]; modeord=1)
-    #     # H_kpath[:,m,n] = nuifft(
-    #     #     kx, ky, kz, ham_R[:,:,:,m,n])
-    # end
-    # H_kpath ./= n_kx * n_ky * n_kz
-
-    H_kpath = nuifft(H_R, kpoints)
+    atol = 1e-10
+    H_kpath = zeros(Complex{T}, n_wann, n_wann, n_kpath_points)
+    kx = 2π * kpoints[1, :]
+    ky = 2π * kpoints[2, :]
+    kz = 2π * kpoints[3, :]
+    for m = 1:n_wann, n = 1:n_wann
+        # TODO: nufft3d2many
+        H_kpath[m, n, :] = FINUFFT.nufft3d2(
+            kx, ky, kz, 1, atol, H_R[m, n, :, :, :]; modeord=1)
+        # H_kpath[:,m,n] = nuifft(
+        #     kx, ky, kz, ham_R[:,:,:,m,n])
+    end
+    H_kpath ./= n_kx * n_ky * n_kz
 
     # diagonalize
     E_kpath = zeros(T, n_wann, n_kpath_points)
