@@ -11,7 +11,11 @@ n_points: number of kpoints in the first segment, remainning segments
     have the same density as 1st segment.
 return kpoints in fractional coordinates.
 """
-function get_kpath_points(kpath::Kpath{T}, n_points::Int, recip_lattice::AbstractMatrix{T}) where {T<:Real}
+function get_kpath_points(
+    kpath::Kpath{T},
+    n_points::Int,
+    recip_lattice::AbstractMatrix{T},
+) where {T<:Real}
     # Use the kpath density of first segment to generate the following kpaths,
     # also need to take care of high symmetry kpoints at the start and end of each segment.
     n_seg = length(kpath)
@@ -31,8 +35,8 @@ function get_kpath_points(kpath::Kpath{T}, n_points::Int, recip_lattice::Abstrac
 
     atol = 1e-7
 
-    k1_prev = nothing
     k2_prev = nothing
+    lab2_prev = nothing
 
     for i = 1:n_seg
         # a Pair: "L" => [0.5, 0.5, 0.5]
@@ -47,22 +51,17 @@ function get_kpath_points(kpath::Kpath{T}, n_points::Int, recip_lattice::Abstrac
             dk = seg_norm / n_points
         end
 
-        x_seg = collect(∑seg:dk:(∑seg + seg_norm))
-        n_x_seg = length(x_seg)
-        dk_seg = seg / seg_norm * dk
+        n_x_seg = Int(round(seg_norm / dk))
+        x_seg = collect(range(0, seg_norm, n_x_seg + 1))
+        dvec = seg / seg_norm
 
         # column vector * row vector = matrix
-        kpt_seg = dk_seg * collect(1:n_x_seg)'
+        kpt_seg = dvec * x_seg'
         kpt_seg .+= recip_lattice * k1
 
-        if abs(∑seg + seg_norm - x_seg[end]) > atol
-            # always include the last point
-            push!(x_seg, ∑seg + seg_norm)
-            k2_cart = recip_lattice * k2
-            kpt_seg = hcat(kpt_seg, k2_cart)
-        end
-
-        if k2_prev !== nothing && all(isapprox.(k1, k2_prev; atol=atol))
+        if k2_prev !== nothing &&
+           all(isapprox.(k1, k2_prev; atol = atol)) &&
+           lab1 == lab2_prev
             # remove repeated points
             popfirst!(x_seg)
             kpt_seg = kpt_seg[:, 2:end]
@@ -76,13 +75,13 @@ function get_kpath_points(kpath::Kpath{T}, n_points::Int, recip_lattice::Abstrac
         push!(symm_idx, length(x) + length(x_seg))
         push!(symm_label, lab2)
 
-        append!(x, x_seg)
+        append!(x, ∑seg .+ x_seg)
         kpt = hcat(kpt, kpt_seg)
 
         ∑seg += seg_norm
 
-        k1_prev = k1
         k2_prev = k2
+        lab2_prev = lab2
     end
 
     # to fractional
@@ -92,13 +91,35 @@ function get_kpath_points(kpath::Kpath{T}, n_points::Int, recip_lattice::Abstrac
     return kpt_frac, x, symm_idx, symm_label
 end
 
+function ufft(
+    O_k::Array{Complex{T},5},
+    kpoints::Matrix{T},
+    xyz_k::Array{Int,3},
+) where {T<:Real}
+    m, n, nx, ny, nz = size(O_k)
+    nk = size(kpoints, 2)
+
+    O_R = zeros(Complex{T}, m, n, nx, ny, nz)
+
+    for rx = 1:nx, ry = 1:ny, rz = 1:nz
+        for kx = 1:nx, ky= 1:ny, kz = 1:nz
+            ik = xyz_k[kx, ky, kz]
+            kpt = kpoints[:, ik]
+            fac = exp(-im * 2π * LA.dot(kpt, [rx - 1; ry - 1; rz - 1]))
+            O_R[:, :, rx, ry, rz] += fac * O_k[:, :, kx, ky, kz]
+        end
+    end
+
+    return O_R
+end
+
 """
 nonuniform ifft for several kpoints.
 
     O_R: real space operator, i.e. in the frequency domain
     kpoints: kpoints in fractional coordinates, 3 x n_kpts
 """
-function nuifft(O_R::Array{Complex{T}, 5}, kpoints::Matrix{T}) where {T<:Real}
+function nuifft(O_R::Array{Complex{T},5}, kpoints::Matrix{T}) where {T<:Real}
     m, n, nx, ny, nz = size(O_R)
 
     nk = size(kpoints, 2)
@@ -107,10 +128,12 @@ function nuifft(O_R::Array{Complex{T}, 5}, kpoints::Matrix{T}) where {T<:Real}
     for ik = 1:nk
         for i = 1:nx, j = 1:ny, k = 1:nz
             kpt = kpoints[:, ik]
-            fac = exp(im * 2π * LA.dot(kpt, [i-1;j-1;k-1]))
+            fac = exp(im * 2π * LA.dot(kpt, [i - 1; j - 1; k - 1]))
             O_k[:, :, ik] += fac * O_R[:, :, i, j, k]
         end
     end
+
+    O_k ./= (nx * ny * nz)
 
     return O_k
 end
@@ -119,7 +142,7 @@ end
 From kspace operator defined on a list of kpoints,
 to a 5 dimensional array defined on x, y, z.
 """
-function Ok_xyz(Ok::Array{T, 3}, xyz_k::Array{Int,3}) where {T<:Number}
+function Ok_xyz(Ok::Array{T,3}, xyz_k::Array{Int,3}) where {T<:Number}
     m, n, nk = size(Ok)
     nx, ny, nz = size(xyz_k)
 
@@ -135,8 +158,21 @@ function Ok_xyz(Ok::Array{T, 3}, xyz_k::Array{Int,3}) where {T<:Number}
 end
 
 
+function get_Hk(E::Matrix{T}, A::Array{U,3}) where {T<:Number,U<:Number}
+    n_bands, n_wann, n_kpts = size(A)
+    size(E) != (n_bands, n_kpts) && error("size(E) != (n_bands, n_kpts)")
+
+    Hk = zeros(U, n_bands, n_bands, n_kpts)
+    for ik = 1:n_kpts
+        Hk[:, :, ik] = A[:, :, ik]' * LA.Diagonal(E[:, ik]) * A[:, :, ik]
+    end
+
+    return Hk
+end
+
 """
 interpolate band structure along a kpath
+kpoints: interpolated kpoints in fractional coordinates, 3 x n_kpts, can be nonuniform.
 """
 function interpolate(model::Model{T}, kpoints::Matrix{T}) where {T<:Real}
 
@@ -145,52 +181,52 @@ function interpolate(model::Model{T}, kpoints::Matrix{T}) where {T<:Real}
 
     n_wann = model.n_wann
 
-    H_k = zeros(Complex{T}, n_wann, n_wann, n_kx, n_ky, n_kz)
-    # rotate
-    for i = 1:n_kx, j = 1:n_ky, k = 1:n_kz
-        ik = xyz_k[i, j, k]
-        H_k[:, :, i, j, k] = model.A[:, :, ik]' * LA.Diagonal(model.E[:, ik]) * model.A[:, :, ik]
-    end
+    # n_bands x n_bands x n_kpts
+    H_k = get_Hk(model.E, model.A)
+    # n_bands x n_bands x n_kx x n_ky x n_kz
+    H_k = Ok_xyz(H_k, xyz_k)
 
-    H_R = zeros(Complex{T}, n_wann, n_wann, n_kx, n_ky, n_kz)
-
+    # H_R = zeros(Complex{T}, n_wann, n_wann, n_kx, n_ky, n_kz)
     # bring to R space
-    # for m = 1:data.n_wann
-    #     for n = 1:data.n_wann
-    #         ham_R[:,:,:,m,n] = FFTW.fft(ham_k[:,:,:,m,n], [1,2,3])
+    # for m = 1:n_wann
+    #     for n = 1:n_wann
+    #         H_R[m, n, :, :, :] = FFTW.fft(H_k[m, n, :, :, :], [3, 4, 5])
     #     end
     # end
-    H_R .= FFTW.fft(H_k, [3, 4, 5])
+    # H_R .= FFTW.fft(H_k, [3, 4, 5])
+
+    # n_bands x n_bands x n_kx x n_ky x n_kz
+    H_R = ufft(H_k, model.kpoints, xyz_k)
 
     # default fftfreq(4, 1) = [0.0  0.25  -0.5  -0.25]
     # same as kmesh.pl, but if user use a different kgrid,
     # the results is wrong.
     model.kpoints[:, 1] ≉ zeros(T, 3) && error("kpoints[:, 0] ≉ zeros(3)")
 
-    # tol = 1e-10
-    # opts = FINUFFT.finufft_default_opts()
-    # opts.modeord = 1
-    # ham_kpath = zeros(ComplexF64, kpaths_num_kpts_tot, data.n_wann, data.n_wann)
-    # for m = 1:data.n_wann, n = 1:data.n_wann
+    n_kpath_points = size(kpoints, 2)
+
+    # atol = 1e-10
+    # H_kpath = zeros(Complex{T}, n_wann, n_wann, n_kpath_points)
+    # kx = 2π * kpoints[1, :]
+    # ky = 2π * kpoints[2, :]
+    # kz = 2π * kpoints[3, :]
+    # for m = 1:n_wann, n = 1:n_wann
     #     # TODO: nufft3d2many
-    #     ham_kpath[:, m, n] = FINUFFT.nufft3d2(
-    #         kx .* 2 * pi, ky .* 2 * pi, kz .* 2 * pi,
-    #         1, tol, ham_R[:, :, :, m, n], opts)
-    #     # ham_kpath[:,m,n] = nuifft(
+    #     H_kpath[m, n, :] = FINUFFT.nufft3d2(
+    #         kx, ky, kz, 1, atol, H_R[m, n, :, :, :]; modeord=1)
+    #     # H_kpath[:,m,n] = nuifft(
     #     #     kx, ky, kz, ham_R[:,:,:,m,n])
     # end
-    # ham_kpath ./= data.num_kpts
+    # H_kpath ./= n_kx * n_ky * n_kz
 
     H_kpath = nuifft(H_R, kpoints)
-    H_kpath ./= n_kx * n_ky * n_kz
 
-    n_kpath_points = size(kpoints, 2)
     # diagonalize
     E_kpath = zeros(T, n_wann, n_kpath_points)
     for ik = 1:n_kpath_points
         H = H_kpath[:, :, ik]
         # @assert LA.ishermitian(H) H
-        @warn LA.norm(H - H') ik
+        # @warn LA.norm(H - H') ik
         H = 0.5 * (H + H')
         F = LA.eigen(H)
         E_kpath[:, ik] = real.(F.values)

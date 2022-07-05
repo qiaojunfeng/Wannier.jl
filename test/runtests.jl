@@ -18,4 +18,6 @@ const FIXTURE_PATH = "$TEST_PATH/fixtures"
     include("wannierize/parallel_transport.jl")
 
     include("cli/help.jl")
+
+    include("interpolate/band.jl")
 end
