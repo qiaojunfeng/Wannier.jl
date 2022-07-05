@@ -78,8 +78,7 @@ function read_win(filename::String)::Dict
                 kpoints[:, i] = parse_array(lines[i])[1:3]
             end
         elseif occursin(r"begin\skpoint_path", line)
-            StrVec3 = Pair{String,Vec3{Float64}}
-            kpoint_path = Vector{Tuple{StrVec3,StrVec3}}()
+            kpoint_path = Kpath{Float64}()
 
             line = strip(readline(io))
             while !occursin(r"end\s+kpoint_path", line)
@@ -522,77 +521,83 @@ end
 """
 read si_band.dat  si_band.kpt  si_band.labelinfo.dat
 """
-function read_w90_bands(seed_name::String)
-    kpaths_coord = Dlm.readdlm("$(seed_name)_band.kpt", Float64; skipstart = 1)
-    num_kpts = size(kpaths_coord, 1)
+function read_w90_bands(seedname::String)
+    kpoints = Dlm.readdlm("$(seedname)_band.kpt", Float64; skipstart = 1)
+    # transpose, last idx is kpt
+    kpoints = Matrix(transpose(kpoints))
+    n_kpts = size(kpoints, 2)
 
-    dat = Dlm.readdlm("$(seed_name)_band.dat", Float64)
-    kpaths = reshape(dat[:, 1], num_kpts, :)[:, 1]
-    energies = reshape(dat[:, 2], num_kpts, :)
-    num_bands = size(energies, 2)
+    dat = Dlm.readdlm("$(seedname)_band.dat", Float64)
+    x = reshape(dat[:, 1], n_kpts, :)[:, 1]
+    E = reshape(dat[:, 2], n_kpts, :)
+    E = Matrix(transpose(E))
+    n_bands = size(E, 1)
 
-    flabel = open("$(seed_name)_band.labelinfo.dat")
-    labels = readlines(flabel)
-    close(flabel)
+    io = open("$(seedname)_band.labelinfo.dat")
+    labels = readlines(io)
+    close(io)
 
-    num_symm_points = length(labels)
-    symm_points = Vector{Int}(undef, num_symm_points)
-    symm_points_label = Vector{String}(undef, num_symm_points)
+    n_symm = length(labels)
+    symm_idx = Vector{Int}(undef, n_symm)
+    symm_label = Vector{String}(undef, n_symm)
     for (i, line) in enumerate(labels)
         lab, idx = split(line)[1:2]
-        symm_points[i] = parse(Int, idx)
-        symm_points_label[i] = lab
+        symm_idx[i] = parse(Int, idx)
+        symm_label[i] = lab
     end
 
-    return Bands(
-        num_kpts = num_kpts,
-        num_bands = num_bands,
-        kpaths = kpaths,
-        kpaths_coord = kpaths_coord,
-        energies = energies,
-        num_symm_points = num_symm_points,
-        symm_points = symm_points,
-        symm_points_label = symm_points_label,
+    return (
+        kpoints = kpoints, 
+        E = E, 
+        x = x, 
+        symm_idx = symm_idx, 
+        symm_label = symm_label,
     )
 end
 
-# """
-# read si_band.dat  si_band.kpt  si_band.labelinfo.dat
-# """
-# function write_w90_bands(bands::Bands, seed_name::String)
-#     open("$(seed_name)_band.kpt", "w") do io
-#         write(io, "$(bands.num_kpts)\n")
-#         for i = 1:bands.num_kpts
-#             write(io, join([bands.kpaths_coord[:, i]..., 1.0], " "))
-#             write(io, "\n")
-#         end
-#     end
-#     println("Written to $(seed_name)_band.kpt")
+"""
+write si_band.dat  si_band.kpt  si_band.labelinfo.dat
+"""
+function write_w90_bands(seedname::String, kpoints::AbstractMatrix{Real}, E::AbstractMatrix{Real}, x::AbstractVector{Real}, symm_idx::AbstractVector{Int}, symm_label::AbstractVector{String})
+    n_kpts = size(kpoints, 2)
+    size(kpoints, 1) != 3 && error("kpoints must be 3 x n_kpts")
 
-#     open("$(seed_name)_band.dat", "w") do io
-#         for i = 1:bands.num_bands
-#             for j = 1:bands.num_kpts
-#                 write(io, "$(bands.kpaths[j]) $(bands.energies[j,i])\n")
-#             end
-#             write(io, "\n")
-#         end
-#     end
-#     println("Written to $(seed_name)_band.dat")
+    n_bands = size(E, 1)
+    size(E, 2) != n_kpts && error("E must be n_bands x n_kpts")
 
-#     open("$(seed_name)_band.labelinfo.dat", "w") do io
-#         for i = 1:bands.num_symm_points
-#             line = "$(bands.symm_points_label[i]) "
-#             idx = bands.symm_points[i]
-#             line *= "$(idx) "
-#             line *= "$(bands.kpaths[idx]) "
-#             coord = join(bands.kpaths_coord[:, idx], " ")
-#             line *= "$(coord)\n"
-#             write(io, line)
-#         end
-#     end
-#     println("Written to $(seed_name)_band.labelinfo.dat")
-# end
+    length(x) != n_kpts && error("x must be n_kpts")
 
+    n_symm = length(symm_idx)
+    n_symm != length(symm_label) && error("symm_idx and symm_label must be same length")
+
+    filename = "$(seedname)_band.kpt"
+    open(filename, "w") do io
+        @printf(io, "       %5d\n", n_kpts)
+        for ik = 1:n_kpts
+            @printf(io, "  %10.6f  %10.6f  %10.6f   1.0\n", kpoints[:, ik]...)
+        end
+    end
+    @info "Written to $filename"
+
+    filename = "$(seedname)_band.dat"
+    open(filename, "w") do io
+        for ib = 1:n_bands
+            for ik = 1:n_kpts
+                @printf(io, " %15.8E %15.8E\n", x[ik], E[ib, ik])
+            end
+        end
+    end
+    @info "Written to $filename"
+
+    filename = "$(seedname)_band.labelinfo.dat"
+    open(filename, "w") do io
+        for i = 1:n_symm
+            idx = symm_idx[i]
+            @printf(io, "%2s %31d %20.10f %17.10f %17.10f %17.10f\n", symm_label[i], idx, x[i], kpoints[:, idx]...)
+        end
+    end
+    @info "Written to $filename"
+end
 
 function read_wout(filename::String)
     fwout = open(filename)
@@ -860,9 +865,13 @@ function Chk(
 
     n_wann = size(U, 1)
 
-    n_frozen = zeros(Int, n_kpts)
-    for ik = 1:n_kpts
-        n_frozen[ik] = count(frozen_bands[:, ik])
+    if have_disentangled
+        n_frozen = zeros(Int, n_kpts)
+        for ik = 1:n_kpts
+            n_frozen[ik] = count(frozen_bands[:, ik])
+        end
+    else
+        n_frozen = zeros(Int, 0)
     end
 
     Chk(

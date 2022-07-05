@@ -114,3 +114,16 @@ function powm(A::AbstractMatrix{T}, p::F) where {T<:Union{Complex,Real},F<:Real}
 
     V * LA.Diagonal(d .^ p) * V'
 end
+
+function rotate_gauge(O::Array{T,3}, A::Array{T,3}) where {T<:Number}
+    n_bands, n_wann, n_kpts = size(A)
+    size(O) != (n_bands, n_bands, n_kpts) && error("O must have size (n_bands, n_bands, n_kpts)")
+
+    O1 = similar(O, n_wann, n_wann, n_kpts)
+
+    for ik = 1:n_kpts
+        O1[:, :, ik] .= A[:, :, ik]' * O[:, :, ik] * A[:, :, ik]
+    end
+
+    return O1
+end

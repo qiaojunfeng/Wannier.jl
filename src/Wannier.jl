@@ -24,6 +24,7 @@ include("io/w90.jl")
 export read_win, read_amn, read_mmn, read_eig
 export read_seedname, read_nnkp, read_unk, read_chk
 export write_amn, write_mmn, write_eig, write_unk
+export read_w90_bands, write_w90_bands
 
 include("io/model.jl")
 export write_model
@@ -49,6 +50,10 @@ export split_wannierize, split_unk, split_model
 
 include("cli/main.jl")
 
+include("interpolate/band.jl")
+
+include("plot/band.jl")
+export plot_band, plot_band!
 
 # include("plot/parallel_transport.jl")
 

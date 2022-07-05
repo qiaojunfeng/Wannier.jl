@@ -1,172 +1,200 @@
 import LinearAlgebra as LA
-import FFTW
-import FINUFFT
-import Serialization
+using FFTW
+# import FINUFFT
 
 
 """
-kpath_startend: reduced coordiantes, 1st dim: vector x,y,z, 2nd dim: start,end, 3rd dim: num_segments
-xyz_cart: whether return Cartesian coordiantes
+Get a matrix of kpoint coordinates from a kpath defined in win file.
+
+kpath: fractional coordiantes.
+n_points: number of kpoints in the first segment, remainning segments
+    have the same density as 1st segment.
+return kpoints in fractional coordinates.
 """
-function generate_kpath_points(kpath_startend::Array{Float64,3}, kpath_label::Array{String,2}, bands_num_points::Int, recip_cell::Matrix{Float64}; xyz_cart::Bool=true)
+function get_kpath_points(kpath::Kpath{T}, n_points::Int, recip_lattice::AbstractMatrix{T}) where {T<:Real}
     # Use the kpath density of first segment to generate the following kpaths,
     # also need to take care of high symmetry kpoints at the start and end of each segment.
-    num_segments = size(kpath_startend, 3) # number of segments
-    dk = 0
-    sum_segments = 0.0
-    kpaths = Vector{Float64}() # x axis value for plotting
-    # actual coordiantes
-    kx = Vector{Float64}()
-    ky = Vector{Float64}()
-    kz = Vector{Float64}()
+    n_seg = length(kpath)
+    dk = 0.0
+    ∑seg = 0.0
+
+    # x axis value for plotting, cartesian length
+    x = Vector{Float64}()
+
+    # actual coordiantes, cartesian
+    kpt = Matrix{Float64}(undef, 3, 0)
+
     # symmetry points
-    num_symm_points = 0
-    tol = 1e-7
-    symm_points = Vector{Int}()
-    symm_points_label = Vector{String}()
+    n_symm = 0
+    symm_idx = Vector{Int}()
+    symm_label = Vector{String}()
+
+    atol = 1e-7
+
     k1_prev = nothing
     k2_prev = nothing
-    for i = 1:num_segments
-        k1 = kpath_startend[:, 1, i]
-        k2 = kpath_startend[:, 2, i]
-        seg = recip_cell * (k2 - k1)
+
+    for i = 1:n_seg
+        # a Pair: "L" => [0.5, 0.5, 0.5]
+        (lab1, k1), (lab2, k2) = kpath[i]
+
+        # to cartesian coordinates
+        seg = recip_lattice * (k2 - k1)
         seg_norm = LA.norm(seg)
+
         if i == 1
             # kpath density
-            dk = seg_norm / bands_num_points
+            dk = seg_norm / n_points
         end
-        x = collect(sum_segments:dk:(sum_segments+seg_norm))
-        dk_vec = seg / seg_norm * dk
+
+        x_seg = collect(∑seg:dk:(∑seg + seg_norm))
+        n_x_seg = length(x_seg)
+        dk_seg = seg / seg_norm * dk
+
         # column vector * row vector = matrix
-        ik_vec = reshape(dk_vec, (3, 1)) .* reshape(1:length(x), (1, length(x)))
-        ik_vec .+= recip_cell * k1
-        ikx = ik_vec[1, :] # isa Vector, can use push! on it
-        iky = ik_vec[2, :]
-        ikz = ik_vec[3, :]
-        if abs(sum_segments + seg_norm - x[end]) > tol
+        kpt_seg = dk_seg * collect(1:n_x_seg)'
+        kpt_seg .+= recip_lattice * k1
+
+        if abs(∑seg + seg_norm - x_seg[end]) > atol
             # always include the last point
-            push!(x, sum_segments + seg_norm)
-            k2_cart = recip_cell * k2
-            push!(ikx, k2_cart[1])
-            push!(iky, k2_cart[2])
-            push!(ikz, k2_cart[3])
+            push!(x_seg, ∑seg + seg_norm)
+            k2_cart = recip_lattice * k2
+            kpt_seg = hcat(kpt_seg, k2_cart)
         end
-        if k2_prev !== nothing && all(isapprox.(k1, k2_prev; atol=tol))
+
+        if k2_prev !== nothing && all(isapprox.(k1, k2_prev; atol=atol))
             # remove repeated points
-            popfirst!(x)
-            popfirst!(ikx)
-            popfirst!(iky)
-            popfirst!(ikz)
-            num_symm_points += 1
+            popfirst!(x_seg)
+            kpt_seg = kpt_seg[:, 2:end]
+            n_symm += 1
         else
-            num_symm_points += 2
-            push!(symm_points, length(kpaths) + 1)
-            push!(symm_points_label, kpath_label[1, i])
+            n_symm += 2
+            push!(symm_idx, length(x) + 1)
+            push!(symm_label, lab1)
         end
-        push!(symm_points, length(kpaths) + length(x))
-        push!(symm_points_label, kpath_label[2, i])
-        append!(kpaths, x)
-        append!(kx, ikx)
-        append!(ky, iky)
-        append!(kz, ikz)
-        sum_segments += seg_norm
+
+        push!(symm_idx, length(x) + length(x_seg))
+        push!(symm_label, lab2)
+
+        append!(x, x_seg)
+        kpt = hcat(kpt, kpt_seg)
+
+        ∑seg += seg_norm
+
         k1_prev = k1
         k2_prev = k2
     end
 
-    if !xyz_cart
-        k = zeros(Float64, 3, length(kx))
-        k[1, :] = kx
-        k[2, :] = ky
-        k[3, :] = kz
-        k = LA.inv(recip_cell) * k
-        kx = k[1, :]
-        ky = k[2, :]
-        kz = k[3, :]
-    end
-    return kpaths, kx, ky, kz, symm_points, symm_points_label
+    # to fractional
+    kpt_frac = zeros(Float64, 3, length(x))
+    kpt_frac = LA.inv(recip_lattice) * kpt
+
+    return kpt_frac, x, symm_idx, symm_label
 end
 
-function nuifft(kx, ky, kz, ham_R)
-    nx, ny, nz = size(ham_R)
-    nh = length(kx)
-    h = zeros(ComplexF64, nh)
-    for ih = 1:nh
+"""
+nonuniform ifft for several kpoints.
+
+    O_R: real space operator, i.e. in the frequency domain
+    kpoints: kpoints in fractional coordinates, 3 x n_kpts
+"""
+function nuifft(O_R::Array{Complex{T}, 5}, kpoints::Matrix{T}) where {T<:Real}
+    m, n, nx, ny, nz = size(O_R)
+
+    nk = size(kpoints, 2)
+    O_k = zeros(Complex{T}, m, n, nk)
+
+    for ik = 1:nk
         for i = 1:nx, j = 1:ny, k = 1:nz
-            h[ih] += exp(im * 2pi * (kx[ih] * (i - 1) + ky[ih] * (j - 1) + kz[ih] * (k - 1))) * ham_R[i, j, k]
+            kpt = kpoints[:, ik]
+            fac = exp(im * 2π * LA.dot(kpt, [i-1;j-1;k-1]))
+            O_k[:, :, ik] += fac * O_R[:, :, i, j, k]
         end
     end
-    return h
+
+    return O_k
 end
+
+"""
+From kspace operator defined on a list of kpoints,
+to a 5 dimensional array defined on x, y, z.
+"""
+function Ok_xyz(Ok::Array{T, 3}, xyz_k::Array{Int,3}) where {T<:Number}
+    m, n, nk = size(Ok)
+    nx, ny, nz = size(xyz_k)
+
+    nk != nx * ny * nz && error("nk != nx * ny * nz")
+
+    O_xyz = similar(Ok, m, n, nx, ny, nz)
+
+    for i = 1:nx, j = 1:ny, k = 1:nz
+        O_xyz[:, :, i, j, k] = Ok[:, :, xyz_k[i, j, k]]
+    end
+
+    return O_xyz
+end
+
 
 """
 interpolate band structure along a kpath
 """
-function interpolate(params::InputParams)
+function interpolate(model::Model{T}, kpoints::Matrix{T}) where {T<:Real}
 
-    data = read_seedname(params.seed_name; amn=true, mmn=false, eig=true)
+    n_kx, n_ky, n_kz = model.kgrid
+    k_xyz, xyz_k = get_kpoint_mappings(model.kpoints, model.kgrid)
 
-    k2ijk, ijk2k = get_kpts_mapping(data.kpts, data.kpts_size)
-    nk1, nk2, nk3 = data.kpts_size
+    n_wann = model.n_wann
 
-    ham_k = zeros(ComplexF64, nk1, nk2, nk3, data.num_wann, data.num_wann)
-    ham_R = zeros(ComplexF64, nk1, nk2, nk3, data.num_wann, data.num_wann)
+    H_k = zeros(Complex{T}, n_wann, n_wann, n_kx, n_ky, n_kz)
     # rotate
-    for i = 1:nk1, j = 1:nk2, k = 1:nk3
-        ik = ijk2k[i, j, k]
-        ham_k[i, j, k, :, :] = data.amn[:, :, ik]' * LA.Diagonal(data.eig[:, ik]) * data.amn[:, :, ik]
+    for i = 1:n_kx, j = 1:n_ky, k = 1:n_kz
+        ik = xyz_k[i, j, k]
+        H_k[:, :, i, j, k] = model.A[:, :, ik]' * LA.Diagonal(model.E[:, ik]) * model.A[:, :, ik]
     end
-    Serialization.serialize("ham_k.jls", ham_k)
+
+    H_R = zeros(Complex{T}, n_wann, n_wann, n_kx, n_ky, n_kz)
 
     # bring to R space
-    # for m = 1:data.num_wann
-    #     for n = 1:data.num_wann
+    # for m = 1:data.n_wann
+    #     for n = 1:data.n_wann
     #         ham_R[:,:,:,m,n] = FFTW.fft(ham_k[:,:,:,m,n], [1,2,3])
     #     end
     # end
-    ham_R[:, :, :, :, :] = FFTW.fft(ham_k[:, :, :, :, :], [1, 2, 3])
+    H_R .= FFTW.fft(H_k, [3, 4, 5])
 
-    # nonuniform data: kpath
-    kpaths, kx, ky, kz, symm_points, symm_points_label = generate_kpath_points(
-        params.kpath, params.kpath_label, params.bands_num_points, data.recip_cell; xyz_cart=false)
-    kpaths_num_kpts_tot = length(kpaths)
-    num_symm_points = length(symm_points)
+    # default fftfreq(4, 1) = [0.0  0.25  -0.5  -0.25]
+    # same as kmesh.pl, but if user use a different kgrid,
+    # the results is wrong.
+    model.kpoints[:, 1] ≉ zeros(T, 3) && error("kpoints[:, 0] ≉ zeros(3)")
 
-    tol = 1e-10
-    opts = FINUFFT.finufft_default_opts()
-    opts.modeord = 1
-    ham_kpath = zeros(ComplexF64, kpaths_num_kpts_tot, data.num_wann, data.num_wann)
-    for m = 1:data.num_wann, n = 1:data.num_wann
-        # TODO: nufft3d2many
-        ham_kpath[:, m, n] = FINUFFT.nufft3d2(
-            kx .* 2 * pi, ky .* 2 * pi, kz .* 2 * pi,
-            1, tol, ham_R[:, :, :, m, n], opts)
-        # ham_kpath[:,m,n] = nuifft(
-        #     kx, ky, kz, ham_R[:,:,:,m,n])
-    end
-    ham_kpath ./= data.num_kpts
+    # tol = 1e-10
+    # opts = FINUFFT.finufft_default_opts()
+    # opts.modeord = 1
+    # ham_kpath = zeros(ComplexF64, kpaths_num_kpts_tot, data.n_wann, data.n_wann)
+    # for m = 1:data.n_wann, n = 1:data.n_wann
+    #     # TODO: nufft3d2many
+    #     ham_kpath[:, m, n] = FINUFFT.nufft3d2(
+    #         kx .* 2 * pi, ky .* 2 * pi, kz .* 2 * pi,
+    #         1, tol, ham_R[:, :, :, m, n], opts)
+    #     # ham_kpath[:,m,n] = nuifft(
+    #     #     kx, ky, kz, ham_R[:,:,:,m,n])
+    # end
+    # ham_kpath ./= data.num_kpts
 
+    H_kpath = nuifft(H_R, kpoints)
+    H_kpath ./= n_kx * n_ky * n_kz
+
+    n_kpath_points = size(kpoints, 2)
     # diagonalize
-    energies = zeros(Float64, kpaths_num_kpts_tot, data.num_wann)
-    for i = 1:kpaths_num_kpts_tot
-        # @assert LA.ishermitian(ham_kpath[i,:,:]) ham_kpath[i,:,:]
-        @warn LA.norm(ham_kpath[i, :, :] - ham_kpath[i, :, :]') kx[i] ky[i] kz[i]
-        ham_kpath[i, :, :] = 0.5 * (ham_kpath[i, :, :] + ham_kpath[i, :, :]')
-        F = LA.eigen(ham_kpath[i, :, :])
-        energies[i, :] = real.(F.values)
+    E_kpath = zeros(T, n_wann, n_kpath_points)
+    for ik = 1:n_kpath_points
+        H = H_kpath[:, :, ik]
+        # @assert LA.ishermitian(H) H
+        @warn LA.norm(H - H') ik
+        H = 0.5 * (H + H')
+        F = LA.eigen(H)
+        E_kpath[:, ik] = real.(F.values)
     end
 
-    # output
-    bands = Bands(
-        num_kpts=kpaths_num_kpts_tot,
-        num_bands=data.num_wann,
-        kpaths=kpaths,
-        kpaths_coord=vcat(kx', ky', kz'),
-        energies=energies,
-        num_symm_points=num_symm_points,
-        symm_points=symm_points,
-        symm_points_label=symm_points_label
-    )
-
-    write_wannier90_bands(bands, params.seed_name)
+    return E_kpath
 end
