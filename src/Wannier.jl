@@ -1,5 +1,7 @@
 module Wannier
 
+using Requires
+
 include("common/const.jl")
 include("common/type.jl")
 include("util/io.jl")
@@ -52,9 +54,13 @@ include("cli/main.jl")
 
 include("interpolate/band.jl")
 
-include("plot/band.jl")
-export plot_band, plot_band!
+function __init__()
+    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" begin
+        include("plot/plot.jl")
+        export plot_band, plot_band!
 
-# include("plot/parallel_transport.jl")
+        # include("plot/parallel_transport.jl")
+    end
+end
 
 end
