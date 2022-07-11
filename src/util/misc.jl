@@ -70,7 +70,7 @@ function find_nearests(
 end
 
 
-function print_spread(Ω::Spread)
+function pprint(Ω::Spread)
     println("WF center (rx, ry, rz)                     WF spread")
 
     n_wann = length(Ω.ω)

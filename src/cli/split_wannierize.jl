@@ -57,7 +57,7 @@ Then this command split WFs into two independent groups.
     end
 
     @info "Valence + conduction initial spread"
-    print_spread(f(model))
+    pprint(f(model))
 
     (nval === nothing) && (nval = model.n_wann ÷ 2)
 
@@ -70,9 +70,9 @@ Then this command split WFs into two independent groups.
     end
 
     @info "Valence after parallel transport:"
-    print_spread(f(model_val))
+    pprint(f(model_val))
     @info "Conduction after parallel transport:"
-    print_spread(f(model_cond))
+    pprint(f(model_cond))
 
     if run_optrot
         @info "Run optimal rotation"

@@ -16,7 +16,7 @@ include("bvector.jl")
 export get_bvectors
 
 include("spread.jl")
-export Spread, print_spread
+export Spread, pprint
 export omega, omega_grad
 
 include("model.jl")
