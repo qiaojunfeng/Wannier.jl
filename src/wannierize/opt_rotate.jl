@@ -42,7 +42,11 @@ function opt_rotate(
 
     Ωⁱ = omega(model.bvectors, model.M, model.A)
     @info "Initial spread"
-    print_spread(Ωⁱ)
+    pprint(Ωⁱ)
+
+    # make sure A is identity matrices
+    model.M .= rotate_mmn(model.M, model.bvectors.kpb_k, model.A)
+    model.A .= ones_amn(eltype(model.A), model.n_wann, model.n_kpts)
 
     wManif = Optim.Stiefel_SVD()
 
@@ -78,7 +82,7 @@ function opt_rotate(
     A = rotate_amn(model.A, Wmin)
     Ωᶠ = omega(model.bvectors, model.M, A)
     @info "Final spread"
-    print_spread(Ωᶠ)
+    pprint(Ωᶠ)
 
     Wmin
 end

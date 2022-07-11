@@ -127,3 +127,41 @@ function rotate_gauge(O::Array{T,3}, A::Array{T,3}) where {T<:Number}
 
     return O1
 end
+
+function ones_amn(T::Type, n_wann::Int, n_kpts::Int)
+    A = zeros(T, n_wann, n_wann, n_kpts)
+    Iₖ = LA.diagm(0 => ones(n_wann))
+
+    for ik = 1:n_kpts
+        A[:, :, ik] = Iₖ
+    end
+
+    A
+end
+
+"""
+Rotate MMN matrices according to gauge U.
+"""
+function rotate_mmn(M::Array{T,4}, kpb_k::Matrix{Int}, U::Array{T,3}) where {T<:Complex}
+    n_bands, n_wann = size(U)
+    n_kpts = size(M, 4)
+    n_bvecs = size(M, 3)
+
+    n_bands != size(M, 1) && error("incompatible n_bands")
+
+    # Fill MMN
+    N = similar(M, n_wann, n_wann, n_bvecs, n_kpts)
+
+    for ik = 1:n_kpts
+        for ib = 1:n_bvecs
+            ik2 = kpb_k[ib, ik]
+
+            U₁ = U[:, :, ik]
+            U₂ = U[:, :, ik2]
+
+            N[:, :, ib, ik] = U₁' * M[:, :, ib, ik] * U₂
+        end
+    end
+
+    N
+end

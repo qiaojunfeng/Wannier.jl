@@ -7,7 +7,7 @@ include("common/type.jl")
 include("util/io.jl")
 
 include("util/linalg.jl")
-export get_recip_lattice, orthonorm_lowdin
+export get_recip_lattice, orthonorm_lowdin, ones_amn, rotate_mmn
 
 include("util/kpoint.jl")
 export get_kpoint_mappings
