@@ -13,6 +13,7 @@ const FIXTURE_PATH = "$TEST_PATH/fixtures"
     include("util/kpoint.jl")
     include("util/io.jl")
 
+    include("wannierize/max_localize.jl")
     include("wannierize/opt_rotate.jl")
     include("wannierize/split.jl")
     include("wannierize/parallel_transport.jl")
