@@ -1,40 +1,33 @@
 import LinearAlgebra as LA
 
-
 """
 Propagate A, defined at the first kpt, to the given list of kpts.
 Those must be neighbors, and only the first kpoint is assumed to have been rotated.
 """
 function propagate!(
-    A::Array{T,3},
-    kpts::Vector{Int},
-    M::Array{T,4},
-    kpb_k::Matrix{Int},
+    A::Array{T,3}, kpts::Vector{Int}, M::Array{T,4}, kpb_k::Matrix{Int}
 ) where {T<:Complex}
     N = length(kpts)
     n = size(A, 1)
     m = size(A, 2)
     @assert n == m "Non square matrix given as argument in propagate"
 
-    for i = 2:N
+    for i in 2:N
         ik = kpts[i]
-        ik0 = kpts[i-1]
+        ik0 = kpts[i - 1]
         Mᵏᵇ = overlap(M, kpb_k, ik, ik0)
         A[:, :, ik] = orthonorm_lowdin(Mᵏᵇ * A[:, :, ik0])
     end
 
-    nothing
+    return nothing
 end
-
 
 """
 Choose the column and the target point to contract the
 vector path of the columns of matrix_path
 """
 function choose_pole(
-    matrix_path::Array{T,3},
-    columns::Vector{Int},
-    prev_poles::Matrix{T},
+    matrix_path::Array{T,3}, columns::Vector{Int}, prev_poles::Matrix{T}
 ) where {T<:Complex}
     # Number of iterations to find a pole far enough from the path
     n_iter = 100
@@ -54,7 +47,7 @@ function choose_pole(
     vec_path = matrix_path[:, col, :]
 
     # diameter
-    diam = maximum([LA.norm(vec_path[:, i] - vec_path[:, j]) for i = 1:n_k, j = 1:n_k])
+    diam = maximum([LA.norm(vec_path[:, i] - vec_path[:, j]) for i in 1:n_k, j in 1:n_k])
     @debug "diamater = $diam"
 
     pole = zero(vec_path[:, 1])
@@ -68,7 +61,7 @@ function choose_pole(
         # If the diameter of the path on the sphere is too big,
         # try a list of cardinal points as poles.
         while m < n_iter
-            dist = minimum([LA.norm(pole + vec_path[:, i]) for i = 1:n_k])
+            dist = minimum([LA.norm(pole + vec_path[:, i]) for i in 1:n_k])
 
             if dist > max_dist
                 max_pole = deepcopy(pole)
@@ -80,7 +73,7 @@ function choose_pole(
                 pole[m] = 1
             elseif m > n_col && m <= 2 * n_col
                 pole = zero(pole)
-                pole[m-n_col] = -1
+                pole[m - n_col] = -1
             else
                 pole = randn(n_col) + randn(n_col) * im
             end
@@ -98,15 +91,14 @@ function choose_pole(
     else
         # If the diameter of the path is small, the Barycenter of the path is a good pole.
         @info "Pole chosen by Barycenter of path"
-        pole = dropdims(sum(vec_path; dims = 2), dims = 2)
+        pole = dropdims(sum(vec_path; dims=2); dims=2)
 
         @assert LA.norm(pole) > 1e-1
         pole = pole / LA.norm(pole)
     end
 
-    columns, pole
+    return columns, pole
 end
-
 
 """
 Compute the parallel transport of the matrix path (matrix_path)
@@ -120,7 +112,7 @@ function matrix_parallel_transport(
     frame_path::Array{T,4},
     matrix_path::Array{T,3},
     columns::Vector{Int},
-    backwards::Bool = false,
+    backwards::Bool=false,
 ) where {T<:Complex}
     n_k = size(frame_path, 3)
     n_t = size(frame_path, 4)
@@ -136,7 +128,7 @@ function matrix_parallel_transport(
     # The final spread does not change much w.r.t. the order,
     # however the numbers in AMN file will be a little bit different.
     # I choose ic increases the fastest because it is more friendly for cache.
-    for it = 1:n_t, ik = 1:n_k, ic = 1:n_col
+    for it in 1:n_t, ik in 1:n_k, ic in 1:n_col
         if !backwards
             # Compute parallel transport starting from it = 1 to it = n_t
             P[:, :, ik, it] = LA.I - frame_path[:, :, ik, it] * frame_path[:, :, ik, it]'
@@ -149,14 +141,14 @@ function matrix_parallel_transport(
                     U[:, ic, ik, it] = frame_path[:, idx, ik, it]
                 else
                     if it > 1
-                        U[:, ic, ik, it] = P[:, :, ik, it] * U[:, ic, ik, it-1]
+                        U[:, ic, ik, it] = P[:, :, ik, it] * U[:, ic, ik, it - 1]
                     else
                         U[:, ic, ik, it] = P[:, :, ik, it] * matrix_path[:, ic, ik]
                     end
                 end
             else
                 if it > 1
-                    U[:, ic, ik, it] = P[:, :, ik, it] * U[:, ic, ik, it-1]
+                    U[:, ic, ik, it] = P[:, :, ik, it] * U[:, ic, ik, it - 1]
                 else
                     U[:, ic, ik, it] = P[:, :, ik, it] * matrix_path[:, ic, ik]
                 end
@@ -176,14 +168,14 @@ function matrix_parallel_transport(
                     U[:, ic, ik, iit] = frame_path[:, idx, ik, iit]
                 else
                     if it > 1
-                        U[:, ic, ik, iit] = P[:, :, ik, iit] * U[:, ic, ik, iit+1]
+                        U[:, ic, ik, iit] = P[:, :, ik, iit] * U[:, ic, ik, iit + 1]
                     else
                         U[:, ic, ik, iit] = P[:, :, ik, iit] * matrix_path[:, ic, ik]
                     end
                 end
             else
                 if it > 1
-                    U[:, ic, ik, iit] = P[:, :, ik, iit] * U[:, ic, ik, iit+1]
+                    U[:, ic, ik, iit] = P[:, :, ik, iit] * U[:, ic, ik, iit + 1]
                 else
                     U[:, ic, ik, iit] = P[:, :, ik, iit] * matrix_path[:, ic, ik]
                 end
@@ -198,21 +190,17 @@ function matrix_parallel_transport(
         if length(not_columns) > 0
             U[:, not_columns, ik, it] = orthonorm_lowdin(U[:, not_columns, ik, it])
         end
-
     end
 
-    U
+    return U
 end
-
 
 """
 Create an interpolation path between x and y, unit vectors
 by normalizing the linear interpolation of parameter t[i].
 """
 function interpolate_vec(
-    x::AbstractVector{T},
-    y::AbstractVector{T},
-    t::AbstractVector{FT},
+    x::AbstractVector{T}, y::AbstractVector{T}, t::AbstractVector{FT}
 ) where {T<:Union{Complex,Real},FT<:Real}
     @assert length(t) > 2
     @assert length(x) == length(y)
@@ -222,7 +210,7 @@ function interpolate_vec(
 
     v = zeros(T, n_x, n_t)
 
-    for i = 1:n_t
+    for i in 1:n_t
         v[:, i] = (1 - t[i]) * x + t[i] * y
 
         n = LA.norm(v[:, i])
@@ -231,9 +219,8 @@ function interpolate_vec(
         v[:, i] /= n
     end
 
-    v
+    return v
 end
-
 
 """
 Contract the matrix_path to a single matrix point
@@ -257,7 +244,7 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
     end
 
     @assert begin
-        for i = 1:n_k
+        for i in 1:n_k
             P = matrix_path[:, :, i] * matrix_path[:, :, i]'
             LA.norm(P - LA.I) >= 1e-5 && return false
         end
@@ -271,7 +258,7 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
     frame_path = zeros(CT, n_col, n_col, n_k, n_t)
     U = zeros(CT, n_col, n_col, n_k, n_t)
 
-    for col = 1:n_col
+    for col in 1:n_col
         # TODO ensure pole' * U[:, col+1, i, end] != -1
         # TODO save prev_poles?
         columns, pole = choose_pole(matrix_path, columns, prev_poles)
@@ -288,25 +275,26 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
             e1 = zeros(CT, n_c)
             e1[1] = 1
 
-            for ik = 1:n_k
+            for ik in 1:n_k
                 Us = zeros(CT, n_col, n_c, n_k)
 
                 # compute GLS2019 Eq. (7): c(k,t=1)
-                for j = 1:n_c
-                    Us[:, j, ik] = U[:, col+j-1, ik, end]
+                for j in 1:n_c
+                    Us[:, j, ik] = U[:, col + j - 1, ik, end]
                     c[j, ik, 1] = Us[:, j, ik]' * pole
                 end
 
                 # from c(k,t=1) to c(k,t)
-                for j = 1:n_t
+                for j in 1:n_t
                     c[:, ik, j] = (1 - t[j]) * c[:, ik, 1] + t[j] * e1
                     c[:, ik, j] /= LA.norm(c[:, ik, j])
                 end
 
                 # new frame_path
-                for j = 1:n_t
-                    frame_path[:, col, ik, j] =
-                        sum(U[:, col+k-1, ik, j] * c[k, ik, j] for k = 1:n_c)
+                for j in 1:n_t
+                    frame_path[:, col, ik, j] = sum(
+                        U[:, col + k - 1, ik, j] * c[k, ik, j] for k in 1:n_c
+                    )
                     frame_path[:, col, ik, j] /= LA.norm(frame_path[:, col, ik, j])
                 end
             end
@@ -314,11 +302,11 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
             # Contract the last column by finding a continuous phase.
             ϕ = zeros(T, n_k)
 
-            for ik = 1:n_k
+            for ik in 1:n_k
                 ϕ[ik] = imag(log(pole' * U[:, col, ik, 1]))
 
                 if ik > 1
-                    kmin = argmin([abs(ϕ[ik] + 2π * k - ϕ[ik-1]) for k = -1:1])
+                    kmin = argmin([abs(ϕ[ik] + 2π * k - ϕ[ik - 1]) for k in -1:1])
                     ϕ[ik] += (kmin - 2) * 2π
                 end
             end
@@ -328,7 +316,7 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
             # @assert m % 1 ≈ 0 "m = $m"
             @info "Chern number" m
 
-            for i = 1:n_k, j = 1:n_t
+            for i in 1:n_k, j in 1:n_t
                 U[:, col, i, j] *= exp(-im * (1 - t[j]) * ϕ[i])
             end
         end
@@ -338,16 +326,15 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
     O = orthonorm_lowdin(U[:, :, 1, 1])
     @debug "obstruction matrix" O
 
-    for i = 1:n_k
-        for j = 1:n_t
+    for i in 1:n_k
+        for j in 1:n_t
             U[:, :, i, j] = powm(O', 1 - t[j]) * U[:, :, i, j]
             # U[:, :, i, j] = orthonorm_lowdin(U[:, :, i, j])
         end
     end
 
-    U
+    return U
 end
-
 
 struct Obstruction{T<:Complex}
     # obstruction matrix in x-y plane, at ky = 1 along kx = 0 -> 1

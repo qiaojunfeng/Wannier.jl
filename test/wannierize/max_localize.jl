@@ -18,7 +18,7 @@ f, g! = Wannier.get_fg!_maxloc(model)
     G_ref = NLSolversBase.gradient!(d, A0)
 
     # I am using a looser tolerance here
-    @test isapprox(G, G_ref; atol = 1e-6)
+    @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
     # This W1 is generated from opt_rotate after 1st iteration,
@@ -34,7 +34,7 @@ f, g! = Wannier.get_fg!_maxloc(model)
     g!(G, A1)
     d = OnceDifferentiable(f, A1, zero(eltype(real(A1))))
     G_ref = NLSolversBase.gradient!(d, A1)
-    @test isapprox(G, G_ref; atol = 1e-6)
+    @test isapprox(G, G_ref; atol=1e-6)
 end
 
 @testset "maxloc valence" begin
@@ -44,8 +44,8 @@ end
     Amin = max_localize(model)
     Ω = omega(model.bvectors, model.M, Amin)
 
-    @test isapprox(Ω.Ω, 6.374823673444644; atol = 1e-7)
-    @test isapprox(Ω.ΩI, 5.812709709242578; atol = 1e-7)
-    @test isapprox(Ω.ΩOD, 0.5621139641912166; atol = 1e-7)
-    @test isapprox(Ω.Ω̃, 0.5621139642020658; atol = 1e-7)
+    @test isapprox(Ω.Ω, 6.374823673444644; atol=1e-7)
+    @test isapprox(Ω.ΩI, 5.812709709242578; atol=1e-7)
+    @test isapprox(Ω.ΩOD, 0.5621139641912166; atol=1e-7)
+    @test isapprox(Ω.Ω̃, 0.5621139642020658; atol=1e-7)
 end

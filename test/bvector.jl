@@ -23,10 +23,10 @@
     @test begin
         # sometimes the bvectors are not ordered
         ret = true
-        bvecs = Vector([bvectors.bvectors[:, i] for i = 1:size(bvectors.bvectors, 2)])
-        for i = 1:size(ref_bvecs, 2)
+        bvecs = Vector([bvectors.bvectors[:, i] for i in 1:size(bvectors.bvectors, 2)])
+        for i in 1:size(ref_bvecs, 2)
             b = ref_bvecs[:, i]
-            idx = findfirst(v -> isapprox(v, b, atol = 1e-5), bvecs)
+            idx = findfirst(v -> isapprox(v, b; atol=1e-5), bvecs)
             if idx === nothing
                 ret = false
                 break

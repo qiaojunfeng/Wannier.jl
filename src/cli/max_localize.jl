@@ -1,5 +1,3 @@
-#!/usr/bin/env julia
-
 """
 Maximally localize an isolated group of bands.
 
@@ -11,7 +9,7 @@ Maximally localize an isolated group of bands.
 
 - `-o, --output`: filename for output AMN. Default is `seedname.maxloc.amn`
 """
-@cast function maxloc(seedname::String; output::Union{String,Nothing} = nothing)
+@cast function maxloc(seedname::String; output::Union{String,Nothing}=nothing)
 
     # seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
     if output === nothing
@@ -24,9 +22,8 @@ Maximally localize an isolated group of bands.
 
     write_amn(output, A)
 
-    nothing
+    return nothing
 end
-
 
 # if abspath(PROGRAM_FILE) == @__FILE__
 #     main()

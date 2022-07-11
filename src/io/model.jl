@@ -11,5 +11,5 @@ function write_model(seedname::String, model::Model)
 
     write_amn(outname("amn"), model.A)
 
-    nothing
+    return nothing
 end

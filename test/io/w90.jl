@@ -1,7 +1,6 @@
 using YAML
 
-mat2vec(A::AbstractMatrix) = [Vector(A[:, i]) for i = 1:size(A, 2)]
-
+mat2vec(A::AbstractMatrix) = [Vector(A[:, i]) for i in 1:size(A, 2)]
 
 @testset "read win" begin
     test_data = YAML.load_file(String(@__DIR__) * "/test_data/win.yaml")
@@ -22,7 +21,7 @@ mat2vec(A::AbstractMatrix) = [Vector(A[:, i]) for i = 1:size(A, 2)]
 
         length(test_kpath) != length(win_kpath) && return false
 
-        for i = 1:length(win_kpath)
+        for i in 1:length(win_kpath)
             # a Pair: "L" => [0.5, 0.5, 0.5]
             (w1_lab, w1_vec), (w2_lab, w2_vec) = win_kpath[i]
             # YAML output is a Dict: Dict("L" => [0.5, 0.5, 0.5])
@@ -45,11 +44,10 @@ mat2vec(A::AbstractMatrix) = [Vector(A[:, i]) for i = 1:size(A, 2)]
     @test test_data["kpoints"] ≈ kpoints
 end
 
-
 @testset "read/write mmn" begin
     M, kpb_k, kpb_b = read_mmn("$FIXTURE_PATH/silicon.mmn")
 
-    tmpfile = tempname(cleanup = true)
+    tmpfile = tempname(; cleanup=true)
 
     write_mmn(tmpfile, M, kpb_k, kpb_b)
 
@@ -60,11 +58,10 @@ end
     @test kpb_b ≈ kpb_b2
 end
 
-
 @testset "read/write eig" begin
     E = read_eig("$FIXTURE_PATH/silicon.eig")
 
-    tmpfile = tempname(cleanup = true)
+    tmpfile = tempname(; cleanup=true)
 
     write_eig(tmpfile, E)
 
@@ -73,7 +70,6 @@ end
     @test E ≈ E2
 end
 
-
 @testset "read_seedname" begin
     model = read_seedname("$FIXTURE_PATH/silicon")
 
@@ -81,7 +77,6 @@ end
     @test model.n_wann ≈ 8
     @test model.n_kpts ≈ 64
 end
-
 
 @testset "read nnkp" begin
     test_data = YAML.load_file(String(@__DIR__) * "/test_data/nnkp.yaml")
@@ -95,7 +90,7 @@ end
         "kpoints" => mat2vec(bvectors.kpoints),
         "bvectors" => mat2vec(bvectors.bvectors),
         "kpb_k" => mat2vec(bvectors.kpb_k),
-        "kpb_b" => [mat2vec(kpb_b[:, :, ik]) for ik = 1:size(kpb_b, 3)],
+        "kpb_b" => [mat2vec(kpb_b[:, :, ik]) for ik in 1:size(kpb_b, 3)],
     )
 
     # YAML.write_file(String(@__DIR__) * "/test_data/nnkp.yaml", dict)
@@ -105,11 +100,10 @@ end
     end
 end
 
-
 @testset "read/write unk" begin
     ik, Ψ = read_unk("$FIXTURE_PATH/UNK00001.1")
 
-    tmpfile = tempname(cleanup = true)
+    tmpfile = tempname(; cleanup=true)
 
     write_unk(tmpfile, ik, Ψ)
 
@@ -119,28 +113,21 @@ end
     @test Ψ ≈ Ψ2
 end
 
-
 @testset "read chk" begin
     chk = read_chk("$FIXTURE_PATH/silicon.chk.fmt")
 
     @test chk.n_wann == 8
     @test chk.n_bands == 12
-
 end
 
 @testset "read/write w90 band dat" begin
     band = read_w90_bands("$FIXTURE_PATH/valence/band/silicon")
 
-    outdir = mktempdir(cleanup = true)
+    outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "silicon")
 
     write_w90_bands(
-        outseedname,
-        band.kpoints,
-        band.E,
-        band.x,
-        band.symm_idx,
-        band.symm_label,
+        outseedname, band.kpoints, band.E, band.x, band.symm_idx, band.symm_label
     )
 
     band2 = read_w90_bands(outseedname)

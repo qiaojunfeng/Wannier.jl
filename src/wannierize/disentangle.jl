@@ -1,6 +1,5 @@
 import LinearAlgebra as LA
-import Optim
-
+using Optim: Optim
 
 """
 Set frozen bands according to two energy windows
@@ -8,9 +7,9 @@ Set frozen bands according to two energy windows
 function set_frozen_win!(
     model::Model{T},
     dis_froz_max::T,
-    dis_froz_min::T = -Inf;
-    degen::Bool = false,
-    degen_atol::T = 1e-4,
+    dis_froz_min::T=-Inf;
+    degen::Bool=false,
+    degen_atol::T=1e-4,
 ) where {T<:Real}
     degen_atol <= 0 && error("degen_atol must be positive")
 
@@ -19,8 +18,7 @@ function set_frozen_win!(
     # For each kpoint
     frozen_k = falses(model.n_bands)
 
-    for ik = 1:model.n_kpts
-
+    for ik in 1:(model.n_kpts)
         fill!(frozen_k, false)
 
         frozen_k .= (model.E[:, ik] .>= dis_froz_min) .& (model.E[:, ik] .<= dis_froz_max)
@@ -30,7 +28,7 @@ function set_frozen_win!(
             ib = findlast(frozen_k)
 
             while ib < model.n_wann
-                if model.E[ib+1, ik] < model.E[ib, ik] + degen_atol
+                if model.E[ib + 1, ik] < model.E[ib, ik] + degen_atol
                     ib += 1
                     frozen_k[ib] .= true
                 else
@@ -45,37 +43,30 @@ function set_frozen_win!(
     end
 end
 
-
 """
 Set frozen bands according to projectability ∈ [0.0, 1.0]
 """
 function set_frozen_proj!(
-    model::Model{T},
-    dis_proj_max::T;
-    degen::Bool = false,
-    degen_atol::T = 1e-4,
+    model::Model{T}, dis_proj_max::T; degen::Bool=false, degen_atol::T=1e-4
 ) where {T<:Real}
-
     fill!(model.frozen_bands, false)
 
     # For each kpoint
     frozen_k = falses(model.n_bands)
 
-    for ik = 1:model.n_kpts
-
+    for ik in 1:(model.n_kpts)
         fill!(frozen_k, false)
 
         # n_bands * n_wann
         Ak = model.A[:, :, ik]
 
-        proj = dropdims(real(sum(Ak .* conj(Ak), dims = 2)), dims = 2)
+        proj = dropdims(real(sum(Ak .* conj(Ak); dims=2)); dims=2)
 
         # @debug "projectability @ $ik" proj
 
-        frozen_k[proj.>=dis_proj_max] .= true
+        frozen_k[proj .>= dis_proj_max] .= true
     end
 end
-
 
 """
 normalize and freeze a block of a matrix
@@ -100,7 +91,7 @@ function orthonorm_freeze(A::Matrix{T}, frozen::BitVector) where {T<:Complex}
     # Uf = orthonorm_cholesky(Uf)
 
     # Remove Uf out of Ur, i.e. do not destroy frozen space
-    # The projector of the frozen states represented on the |g> basis is 
+    # The projector of the frozen states represented on the |g> basis is
     #     |ψf><ψf| = |g><g|ψf><ψf|g><g| = |g> Uf' * Uf <g|
     # The projector of the non-frozen states on GF basis is
     #     |ψr><ψr| = |g><g|ψr><ψr|g><g| = |g> Ur' * Ur <g|
@@ -129,8 +120,8 @@ function orthonorm_freeze(A::Matrix{T}, frozen::BitVector) where {T<:Complex}
     U, S, V = LA.svd(Ur)
     atol = 1e-10
     @assert count(x -> x > atol, S) == n_wann - count(frozen)
-    S[S.>atol] .= 1
-    S[S.<atol] .= 0
+    S[S .> atol] .= 1
+    S[S .< atol] .= 0
     Ur = U * LA.Diagonal(S) * V'
 
     B = similar(A)
@@ -138,15 +129,14 @@ function orthonorm_freeze(A::Matrix{T}, frozen::BitVector) where {T<:Complex}
     B[non_frozen, :] .= Ur
 
     # Semiunitary
-    @assert isapprox(B' * B, LA.I; atol = atol)
+    @assert isapprox(B' * B, LA.I; atol=atol)
     # Frozen
-    @assert isapprox(B[frozen, :] * B[frozen, :]', LA.I; atol = atol)
+    @assert isapprox(B[frozen, :] * B[frozen, :]', LA.I; atol=atol)
     # Independent
     @assert LA.norm(Uf * Ur') < atol
 
-    B
+    return B
 end
-
 
 # function max_projectability(A::Matrix{ComplexF64})
 #     proj = A * A'
@@ -169,7 +159,6 @@ end
 #     @debug "projectability" real(LA.diag(proj)') real(LA.diag(A_new * A_new')')
 #     return A_new, V
 # end
-
 
 # function maxproj_froz(A::Matrix{ComplexF64}, froz::BitVector)
 #     @assert length(froz) == size(A, 1)
@@ -196,7 +185,6 @@ end
 #     return R' * A, R
 # end
 
-
 """
 There are three formats: A, (X, Y), and XY stored contiguously in memory.
 A is the format used in the rest of the code, XY is the format used in the optimizer,
@@ -210,7 +198,7 @@ function XY_to_A(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
 
     A = zeros(T, n_bands, n_wann, n_kpts)
 
-    for ik = 1:n_kpts
+    for ik in 1:n_kpts
         # check
         # idx_f = model.frozen_bands[:, ik]
         # idx_nf = .!idx_f
@@ -225,9 +213,8 @@ function XY_to_A(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
         # @assert orthonorm_freeze(A[:, :, ik], frozen_bands[:, ik]) ≈ A[:, :, ik] rtol=1e-4
     end
 
-    A
+    return A
 end
-
 
 """
 size(A) = n_bands * n_wann * n_kpts
@@ -239,8 +226,7 @@ function A_to_XY(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
     X = zeros(T, n_wann, n_wann, n_kpts)
     Y = zeros(T, n_bands, n_wann, n_kpts)
 
-    for ik = 1:n_kpts
-
+    for ik in 1:n_kpts
         idx_f = frozen[:, ik]
         idx_nf = .!idx_f
         n_froz = count(idx_f)
@@ -256,7 +242,7 @@ function A_to_XY(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
             Pr = Ur * Ur'
             Pr = LA.Hermitian((Pr + Pr') / 2)
             D, V = LA.eigen(Pr) # sorted by increasing eigenvalue
-            Y[idx_nf, n_froz+1:end, ik] = V[:, end-n_wann+n_froz+1:end]
+            Y[idx_nf, (n_froz + 1):end, ik] = V[:, (end - n_wann + n_froz + 1):end]
         end
 
         # determine X
@@ -266,13 +252,12 @@ function A_to_XY(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
         @assert X[:, :, ik]' * X[:, :, ik] ≈ LA.I
         @assert Y[idx_f, 1:n_froz, ik] ≈ LA.I
         @assert LA.norm(Y[idx_nf, 1:n_froz, ik]) ≈ 0
-        @assert LA.norm(Y[idx_f, n_froz+1:end, ik]) ≈ 0
+        @assert LA.norm(Y[idx_f, (n_froz + 1):end, ik]) ≈ 0
         @assert Y[:, :, ik] * X[:, :, ik] ≈ Af
     end
 
-    X, Y
+    return X, Y
 end
-
 
 """XY to (X, Y)"""
 function XY_to_XY(XY::Matrix{T}, n_bands::Int, n_wann::Int) where {T<:Complex}
@@ -281,15 +266,14 @@ function XY_to_XY(XY::Matrix{T}, n_bands::Int, n_wann::Int) where {T<:Complex}
     X = zeros(T, n_wann, n_wann, n_kpts)
     Y = zeros(T, n_bands, n_wann, n_kpts)
 
-    for ik = 1:n_kpts
+    for ik in 1:n_kpts
         XYk = XY[:, ik]
-        X[:, :, ik] = reshape(XYk[1:n_wann^2], (n_wann, n_wann))
-        Y[:, :, ik] = reshape(XYk[n_wann^2+1:end], (n_bands, n_wann))
+        X[:, :, ik] = reshape(XYk[1:(n_wann^2)], (n_wann, n_wann))
+        Y[:, :, ik] = reshape(XYk[(n_wann^2 + 1):end], (n_bands, n_wann))
     end
 
-    X, Y
+    return X, Y
 end
-
 
 function omega(
     bvectors::BVectors{FT},
@@ -297,12 +281,10 @@ function omega(
     X::Array{Complex{FT},3},
     Y::Array{Complex{FT},3},
 ) where {FT<:Real}
-
     A = XY_to_A(X, Y)
 
-    omega(bvectors, M, A)
+    return omega(bvectors, M, A)
 end
-
 
 """
 size(M) = n_bands * n_bands * n_bvecs * n_kpts
@@ -317,7 +299,6 @@ function omega_grad(
     Y::Array{Complex{FT},3},
     frozen::BitMatrix,
 ) where {FT<:Real}
-
     n_kpts = size(Y, 3)
 
     A = XY_to_A(X, Y)
@@ -327,7 +308,7 @@ function omega_grad(
     GX = zero(X)
     GY = zero(Y)
 
-    for ik = 1:n_kpts
+    for ik in 1:n_kpts
         idx_f = frozen[:, ik]
         n_froz = count(idx_f)
 
@@ -345,15 +326,13 @@ function omega_grad(
         # GY[:,:,ik] = proj_stiefel(GY[:,:,ik], Y[:,:,ik])
     end
 
-    GX, GY
+    return GX, GY
 end
 
-
 function get_fg!_disentangle(model::Model)
-
     function f(XY)
         X, Y = XY_to_XY(XY, model.n_bands, model.n_wann)
-        omega(model.bvectors, model.M, X, Y).Ω
+        return omega(model.bvectors, model.M, X, Y).Ω
     end
 
     """size(G) == size(XY)"""
@@ -361,26 +340,24 @@ function get_fg!_disentangle(model::Model)
         X, Y = XY_to_XY(XY, model.n_bands, model.n_wann)
         GX, GY = omega_grad(model.bvectors, model.M, X, Y, model.frozen_bands)
 
-        for ik = 1:model.n_kpts
+        for ik in 1:(model.n_kpts)
             G[:, ik] .= vcat(vec(GX[:, :, ik]), vec(GY[:, :, ik]))
         end
 
-        nothing
+        return nothing
     end
 
-    f, g!
+    return f, g!
 end
-
 
 function disentangle(
     model::Model{T};
-    random_gauge::Bool = false,
-    f_tol::T = 1e-10,
-    g_tol::T = 1e-8,
-    max_iter::Int = 1000,
-    history_size::Int = 20,
+    random_gauge::Bool=false,
+    f_tol::T=1e-10,
+    g_tol::T=1e-8,
+    max_iter::Int=1000,
+    history_size::Int=20,
 ) where {T<:Real}
-
     n_bands = model.n_bands
     n_wann = model.n_wann
     n_kpts = model.n_kpts
@@ -390,7 +367,7 @@ function disentangle(
         X0 = zeros(Complex{T}, n_wann, n_wann, n_kpts)
         Y0 = zeros(Complex{T}, n_bands, n_wann, n_kpts)
 
-        for ik = 1:n_kpts
+        for ik in 1:n_kpts
             idx_f = model.frozen_bands[:, ik]
             idx_nf = .!idx_f
             n_froz = count(l_frozen)
@@ -404,7 +381,7 @@ function disentangle(
             m = n_bands - n_froz
             n = n_wann - n_froz
             N = randn(T, m, n) + im * randn(m, n)
-            Y0[idx_nf, n_froz+1:n_wann, ik] = orthonorm_lowdin(N)
+            Y0[idx_nf, (n_froz + 1):n_wann, ik] = orthonorm_lowdin(N)
         end
     else
         X0, Y0 = A_to_XY(model.A, model.frozen_bands)
@@ -412,7 +389,7 @@ function disentangle(
 
     # compact storage
     XY0 = zeros(Complex{T}, n_wann^2 + n_bands * n_wann, n_kpts)
-    for ik = 1:n_kpts
+    for ik in 1:n_kpts
         XY0[:, ik] = vcat(vec(X0[:, :, ik]), vec(Y0[:, :, ik]))
     end
 
@@ -428,10 +405,7 @@ function disentangle(
 
     # need QR orthogonalization rather than SVD to preserve the sparsity structure of Y
     XYkManif = Optim.ProductManifold(
-        Optim.Stiefel_SVD(),
-        Optim.Stiefel_SVD(),
-        (n_wann, n_wann),
-        (n_bands, n_wann),
+        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (n_wann, n_wann), (n_bands, n_wann)
     )
     XYManif = Optim.PowerManifold(XYkManif, (n_wann^2 + n_bands * n_wann,), (n_kpts,))
 
@@ -449,13 +423,13 @@ function disentangle(
         f,
         g!,
         XY0,
-        meth(manifold = XYManif, linesearch = ls, m = history_size),
-        Optim.Options(
-            show_trace = true,
-            iterations = max_iter,
-            f_tol = f_tol,
-            g_tol = g_tol,
-            allow_f_increases = true,
+        meth(; manifold=XYManif, linesearch=ls, m=history_size),
+        Optim.Options(;
+            show_trace=true,
+            iterations=max_iter,
+            f_tol=f_tol,
+            g_tol=g_tol,
+            allow_f_increases=true,
         ),
     )
     display(opt)
@@ -466,8 +440,8 @@ function disentangle(
     Amin = XY_to_A(Xmin, Ymin)
 
     Ωᶠ = omega(model.bvectors, model.M, Amin)
-    @info "Final spread" 
+    @info "Final spread"
     pprint(Ωᶠ)
 
-    Amin
+    return Amin
 end

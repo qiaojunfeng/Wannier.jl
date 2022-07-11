@@ -26,7 +26,9 @@ plotly();
 const NOTEBOOK_PATH = replace(@__FILE__, r"#==#.*" => "")
 
 # ╔═╡ c383427b-9ad4-4047-adfe-b65cbea5d9aa
-const DATA_PATH = joinpath(splitpath(NOTEBOOK_PATH)[1:end-3]..., "test/fixtures/valence/band")
+const DATA_PATH = joinpath(
+    splitpath(NOTEBOOK_PATH)[1:(end - 3)]..., "test/fixtures/valence/band"
+)
 
 # ╔═╡ 59835aaa-7b53-4b50-8cdf-0bc21a504a3b
 cd(DATA_PATH)

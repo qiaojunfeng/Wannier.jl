@@ -27,7 +27,7 @@ for line in f:
     i = i+1
 
 
-    
+
 f = open("silicon.eig")
 out = open("silicon.eig.new", "w")
 

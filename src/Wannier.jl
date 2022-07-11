@@ -56,10 +56,10 @@ include("interpolate/band.jl")
 
 # function __init__()
 #     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" begin
-        include("plot/plot.jl")
-        export plot_band, plot_band!
+include("plot/plot.jl")
+export plot_band, plot_band!
 
-        # include("plot/parallel_transport.jl")
+# include("plot/parallel_transport.jl")
 #     end
 # end
 

@@ -5,11 +5,11 @@ import matplotlib.pyplot as plt
 PLOT_EIG = True
 WRITE_AMN = True
 
-#Define some useful matrices   
+#Define some useful matrices
 I = np.eye(2)
 sigma_x = np.array([[0, 1],[1, 0]])
 sigma_y = np.array([[0, -1j],[1j, 0]])
-sigma_z = np.array([[1, 0],[0, -1]])    
+sigma_z = np.array([[1, 0],[0, -1]])
 GammaA = np.zeros((5,4,4), dtype=complex)
 GammaA[0,:,:] = np.kron(sigma_x, I)
 GammaA[1,:,:] = np.kron(sigma_z, I)
@@ -26,7 +26,7 @@ spin_op[0,:,:] = np.kron(I, sigma_x)
 spin_op[1,:,:] = np.kron(I, sigma_y)
 spin_op[2,:,:] = np.kron(I, sigma_z)
 
-#This function defines the Hamiltonian matrix of the Kane-Mele model.    
+#This function defines the Hamiltonian matrix of the Kane-Mele model.
 def Ham_KM(a,t,l_nu,l_R,l_SO,k):
     x = k[0]*a/2
     y = np.sqrt(3)*k[1]*a/2
@@ -39,7 +39,7 @@ def Ham_KM(a,t,l_nu,l_R,l_SO,k):
     d15 = l_SO*(2*np.sin(2*x) - 4*np.sin(x)*np.cos(y))
     d23 = -l_R*np.cos(x)*np.sin(y)
     d24 = np.sqrt(3)*l_R*np.sin(x)*np.cos(y)
-    
+
     ham = d1*GammaA[0,:,:] + d2*GammaA[1,:,:] + d3*GammaA[2,:,:] + d4*GammaA[3,:,:]
     ham += d12*GammaAB[0,1,:,:] + d15*GammaAB[0,4,:,:] + d23*GammaAB[1,2,:,:] + d24*GammaAB[1,3,:,:]
 
@@ -55,7 +55,7 @@ else:
 #Define parameters
 a = 1
 t = 1
-l_R = 1 #1#0 #1.5 
+l_R = 1 #1#0 #1.5
 l_SO = 1
 
 l_R = 0 #.05
@@ -65,7 +65,7 @@ l_nu = .4
 if N==0:
     N1 = 100
     N2 = 100
-    l_nu = 1.0 #6  
+    l_nu = 1.0 #6
 else:
     N1 = N
     N2 = N
@@ -146,13 +146,13 @@ for i in range(N1):
             #Compute the eigenvalues at point K
             wK, vK = np.linalg.eigh(Ham_KM(a,t,l_nu,l_R,l_SO, k_pts[i,j,k,0:2]))
             eigs[i,j,k,:] = wK
-            
+
             #Write eigenvector in amn file
             if WRITE_AMN:
                 for mn in range(nband**2):
                     m,n = np.mod(mn,nband), int(mn/nband)
-                    amn.write(str(m+1)+ ' ' + str(n+1) + ' ' + str(K+1) + ' ' + str(np.real(vK[n,m])) + ' ' + str(-np.imag(vK[n,m])) +'\n') 
-            
+                    amn.write(str(m+1)+ ' ' + str(n+1) + ' ' + str(K+1) + ' ' + str(np.real(vK[n,m])) + ' ' + str(-np.imag(vK[n,m])) +'\n')
+
             #Write spin in spn file
             if WRITE_SPN:
                 for mn in range(nband**2):
@@ -178,7 +178,7 @@ for i in range(N1):
                 #and write it to mmn file
                 disp_vec = [0, 0, 0]
                 if(N1>1):
-                    if((i==0) & (iN == N1-1)): 
+                    if((i==0) & (iN == N1-1)):
                         disp_vec[0] = -1
                         #print "i,j = "+str((i,j))+" iN,jN = "+str((iN,jN))+" K = "+str(K)+" Kpb = "+str(Kpb)
                         #print disp_vec
@@ -187,7 +187,7 @@ for i in range(N1):
                         #print "i,j = "+str((i,j))+" iN,jN = "+str((iN,jN))+" K = "+str(K)+" Kpb = "+str(Kpb)
                         #print disp_vec
                 if(N2>1):
-                    if((j==0) & (jN == N2-1)): 
+                    if((j==0) & (jN == N2-1)):
                         disp_vec[1] = -1
                         #print "i,j = "+str((i,j))+" iN,jN = "+str((iN,jN))+" K = "+str(K)+" Kpb = "+str(Kpb)
                         #print disp_vec
@@ -196,7 +196,7 @@ for i in range(N1):
                         #print "i,j = "+str((i,j))+" iN,jN = "+str((iN,jN))+" K = "+str(K)+" Kpb = "+str(Kpb)
                         #print disp_vec
                 if(N3>1):
-                    if((k==0) & (kN == N3-1)): 
+                    if((k==0) & (kN == N3-1)):
                         disp_vec[2] = -1
                     if((k==N3-1) & (kN == 0)):
                         disp_vec[2] = 1
@@ -205,9 +205,9 @@ for i in range(N1):
 
                 for mn in range(nband**2):
                     m,n = np.mod(mn,nband), int(mn/nband)
-                    overlap = np.dot(np.conj(vK[:,m]),vKpb[:,n]) 
+                    overlap = np.dot(np.conj(vK[:,m]),vKpb[:,n])
                     mmn.write(str(np.real(overlap)) + '    ' + str(np.imag(overlap)) + '\n')
-    
+
 print(f'vk.shape {vK.shape}')
 mmn.close()
 amn.close()
@@ -235,7 +235,7 @@ kpath_bands_colour = spin
 kpath_num_points = 200
 spn_formatted = true
 
-begin unit_cell_cart 
+begin unit_cell_cart
 bohr
 """)
 
@@ -263,12 +263,12 @@ t1 = [i/N1 for i in range(N1)]
 t2 = [i/N2 for i in range(N2)]
 t3 = [i/N3 for i in range(N3)]
 
-for i in range(N1): 
-    for j in range(N2): 
+for i in range(N1):
+    for j in range(N2):
         for k in range(N3):
-            t1_ = np.floor(t1[i]*10000)/10000. 
-            t2_ = np.floor(t2[j]*10000)/10000. 
-            t3_ = np.floor(t3[k]*10000)/10000. 
+            t1_ = np.floor(t1[i]*10000)/10000.
+            t2_ = np.floor(t2[j]*10000)/10000.
+            t3_ = np.floor(t3[k]*10000)/10000.
             win.write(str(t1_) + " " + str(t2_) + " "  + str(t3_) + "\n")
 
 win.write("end kpoints\n")
@@ -280,20 +280,20 @@ if(PLOT_EIG):
     #Plot eigenvalue surfaces
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
-    
+
     X, Y = np.meshgrid(range(N1),range(N2))
     Z = np.zeros((N1,N2,4))
     for i in range(N1):
         for j in range(N2):
             for n in range(4):
                 Z[i,j,n] = eigs[X[i,j],Y[i,j],0,n]
-    
+
     for n in range(4):
         ax.plot_surface(X,Y,Z[:,:,n])
-    
+
     l_nu_val = bool(l_nu>3*np.sqrt(3))*"+ " + bool(l_nu!=3*np.sqrt(3))*str(l_nu - 3*np.sqrt(3))
     plt.title("Eigenvalues of the Hamiltonian, l_nu = l_nu,c " +l_nu_val)
     l_nu_readable = str(int(l_nu*100)/100.)
-    
+
     plt.savefig("eigenvalues_ham_"+l_nu_readable+".pdf")
     plt.show()

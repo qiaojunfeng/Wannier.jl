@@ -16,7 +16,7 @@ spinors              : true
 translate_home_cell  : true
 wannier_plot         : false
 write_xyz            : true
-num_cg_steps         : 20 
+num_cg_steps         : 20
 
 dos : false
 dos_energy_step : 0.001

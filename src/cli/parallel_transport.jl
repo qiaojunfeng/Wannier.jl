@@ -1,6 +1,3 @@
-#!/usr/bin/env julia
-
-
 """
 Generate parallel transport gauge Wannier functions.
 
@@ -12,7 +9,7 @@ Generate parallel transport gauge Wannier functions.
 
 - `-o, --output`: filename for output AMN. Default is `seedname.ptg.amn`
 """
-@cast function ptg(seedname::String; output::Union{String,Nothing} = nothing)
+@cast function ptg(seedname::String; output::Union{String,Nothing}=nothing)
 
     # seedname = "tests/KaneMele/kanemele_0.0_25"
     # seedname = "tests/silicon/silicon"
@@ -21,7 +18,7 @@ Generate parallel transport gauge Wannier functions.
         output = basename(seedname) * ".ptg.amn"
     end
 
-    model = read_seedname(seedname; amn = false, eig = false)
+    model = read_seedname(seedname; amn=false, eig=false)
 
     n_bands = model.n_bands
     n_bvecs = model.n_bvecs
@@ -30,7 +27,7 @@ Generate parallel transport gauge Wannier functions.
 
     #Build the gauge that makes the Bloch frame continuous on the Brillouin Zone.
     #This is equivalent to building a set of algebraic decaying Wannier functions
-    A, obs = parallel_transport(model; log_interp = false, return_obs = true)
+    A, obs = parallel_transport(model; log_interp=false, return_obs=true)
 
     Ωⁱ = omega(model.bvectors, model.M, model.A)
     @info "Initial spread"
@@ -45,5 +42,5 @@ Generate parallel transport gauge Wannier functions.
 
     write_amn(output, A)
 
-    nothing
+    return nothing
 end

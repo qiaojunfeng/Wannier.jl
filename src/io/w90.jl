@@ -3,7 +3,6 @@ using Dates: now
 import DelimitedFiles as Dlm
 import LinearAlgebra as LA
 
-
 function read_win(filename::String)
     @info "Reading win file: $filename"
     io = open(filename)
@@ -28,7 +27,7 @@ function read_win(filename::String)
 
         i = findfirst(r"!|#", line)
         if i != nothing
-            line = strip(line[1:i.start-1])
+            line = strip(line[1:(i.start - 1)])
         end
 
         if isempty(line)
@@ -51,7 +50,7 @@ function read_win(filename::String)
             else
                 line = readline(io)
             end
-            for i = 1:3
+            for i in 1:3
                 # in win file, each line is a lattice vector, here it is stored as column vec
                 unit_cell[:, i] = parse_array(line)
                 line = readline(io)
@@ -73,7 +72,7 @@ function read_win(filename::String)
 
             n_kpts = length(lines)
             kpoints = Matrix{Float64}(undef, 3, n_kpts)
-            for i = 1:n_kpts
+            for i in 1:n_kpts
                 # There might be weight at 4th column, but we don't use it.
                 kpoints[:, i] = parse_array(lines[i])[1:3]
             end
@@ -113,15 +112,14 @@ function read_win(filename::String)
     println()
 
     return (
-        num_wann = num_wann,
-        num_bands = num_bands,
-        mp_grid = mp_grid,
-        kpoints = kpoints,
-        unit_cell = unit_cell,
-        kpoint_path = kpoint_path,
+        num_wann=num_wann,
+        num_bands=num_bands,
+        mp_grid=mp_grid,
+        kpoints=kpoints,
+        unit_cell=unit_cell,
+        kpoint_path=kpoint_path,
     )
 end
-
 
 function read_mmn(filename::String)
     @info "Reading mmn file: $filename"
@@ -140,14 +138,14 @@ function read_mmn(filename::String)
     kpb_b = zeros(Int64, 3, n_bvecs, n_kpts)
 
     while !eof(io)
-        for ib = 1:n_bvecs
+        for ib in 1:n_bvecs
             line = readline(io)
             arr = split(line)
             k = parse(Int64, arr[1])
             kpb_k[ib, k] = parse(Int64, arr[2])
             kpb_b[:, ib, k] = map(x -> parse(Int64, x), arr[3:5])
-            for n = 1:n_bands
-                for m = 1:n_bands
+            for n in 1:n_bands
+                for m in 1:n_bands
                     line = readline(io)
                     arr = split(line)
                     o = parse(Float64, arr[1]) + im * parse(Float64, arr[2])
@@ -167,9 +165,8 @@ function read_mmn(filename::String)
     println("  n_kpts  = ", n_kpts)
     println()
 
-    M, kpb_k, kpb_b
+    return M, kpb_k, kpb_b
 end
-
 
 """
 Output mmn file
@@ -181,7 +178,6 @@ function write_mmn(
     kpb_b::Array{Int,3},
     header::String,
 )
-
     n_bands, _, n_bvecs, n_kpts = size(M)
     n_bands != size(M, 2) && error("M must be n_bands x n_bands x n_bvecs x n_kpts")
 
@@ -194,41 +190,35 @@ function write_mmn(
 
         @printf(io, "    %d   %d    %d \n", n_bands, n_kpts, n_bvecs)
 
-        for ik = 1:n_kpts
-            for ib = 1:n_bvecs
+        for ik in 1:n_kpts
+            for ib in 1:n_bvecs
                 @printf(io, "%d %d %d %d %d\n", ik, kpb_k[ib, ik], kpb_b[:, ib, ik]...)
 
-                for n = 1:n_bands
-                    for m = 1:n_bands
+                for n in 1:n_bands
+                    for m in 1:n_bands
                         o = M[m, n, ib, ik]
                         @printf(io, "  %16.12f  %16.12f\n", real(o), imag(o))
                     end
                 end
             end
         end
-
     end
 
     @info "Written to file: $(filename)"
     println()
 
-    nothing
+    return nothing
 end
-
 
 """
 Output mmn file
 """
 function write_mmn(
-    filename::String,
-    M::Array{ComplexF64,4},
-    kpb_k::Matrix{Int},
-    kpb_b::Array{Int,3},
+    filename::String, M::Array{ComplexF64,4}, kpb_k::Matrix{Int}, kpb_b::Array{Int,3}
 )
     header = @sprintf "Created by Wannier.jl %s" string(now())
-    write_mmn(filename, M, kpb_k, kpb_b, header)
+    return write_mmn(filename, M, kpb_k, kpb_b, header)
 end
-
 
 function read_amn(filename::String)
     @info "Reading $filename"
@@ -260,9 +250,8 @@ function read_amn(filename::String)
     println("  n_kpts  = ", n_kpts)
     println()
 
-    A
+    return A
 end
-
 
 """
 Output amn file
@@ -277,9 +266,9 @@ function write_amn(filename::String, A::Array{ComplexF64,3}, header::String)
 
     @printf(io, "%3d %4d %4d\n", n_bands, n_kpts, n_wann)
 
-    for ik = 1:n_kpts
-        for iw = 1:n_wann
-            for ib = 1:n_bands
+    for ik in 1:n_kpts
+        for iw in 1:n_wann
+            for ib in 1:n_bands
                 a = A[ib, iw, ik]
                 @printf(io, "%5d %4d %4d  %16.12f  %16.12f\n", ib, iw, ik, real(a), imag(a))
             end
@@ -291,18 +280,16 @@ function write_amn(filename::String, A::Array{ComplexF64,3}, header::String)
     @info "Written to file: $(filename)"
     println()
 
-    nothing
+    return nothing
 end
-
 
 """
 Output amn file
 """
 function write_amn(filename::String, A::Array{ComplexF64,3})
     header = @sprintf "Created by Wannier.jl %s" string(now())
-    write_amn(filename, A, header)
+    return write_amn(filename, A, header)
 end
-
 
 function read_eig(filename::String)
     @info "Reading $filename"
@@ -316,7 +303,7 @@ function read_eig(filename::String)
     idx_k = zeros(Int, n_lines)
     eig = zeros(Float64, n_lines)
 
-    for i = 1:n_lines
+    for i in 1:n_lines
         arr = split(lines[i])
         idx_b[i] = parse(Int, arr[1])
         idx_k[i] = parse(Int, arr[2])
@@ -330,18 +317,17 @@ function read_eig(filename::String)
 
     # check eigenvalues should be in order
     # some times there are small noise
-    round_digits(x) = round(x, digits = 9)
-    for ik = 1:n_kpts
-        @assert issorted(E[:, ik], by = round_digits) display(ik) display(E[:, ik])
+    round_digits(x) = round(x; digits=9)
+    for ik in 1:n_kpts
+        @assert issorted(E[:, ik], by=round_digits) display(ik) display(E[:, ik])
     end
 
     println("  n_bands = ", n_bands)
     println("  n_kpts  = ", n_kpts)
     println()
 
-    E
+    return E
 end
-
 
 """
 Write eig file
@@ -350,31 +336,23 @@ function write_eig(filename::String, E::Matrix{T}) where {T<:Real}
     n_bands, n_kpts = size(E)
 
     open(filename, "w") do io
-
-        for ik = 1:n_kpts
-            for ib = 1:n_bands
+        for ik in 1:n_kpts
+            for ib in 1:n_bands
                 @printf(io, "%5d%5d%18.12f\n", ib, ik, E[ib, ik])
             end
         end
-
     end
 
     @info "Written to file: $(filename)"
     println()
 
-    nothing
+    return nothing
 end
-
 
 @doc raw"""
 read win, and optionally amn, mmn, eig
 """
-function read_seedname(
-    seedname::String;
-    amn::Bool = true,
-    mmn::Bool = true,
-    eig::Bool = true,
-)
+function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bool=true)
     win = read_win("$seedname.win")
 
     n_bands = win.num_bands
@@ -409,7 +387,7 @@ function read_seedname(
         n_kpts != size(A)[3] && error("n_kpts != size(A)[3]")
     else
         A = zeros(ComplexF64, n_bands, n_wann, n_kpts)
-        for n = 1:n_wann
+        for n in 1:n_wann
             A[n, n, :] .= 1
         end
     end
@@ -424,9 +402,8 @@ function read_seedname(
 
     frozen_bands = falses(n_bands, n_kpts)
 
-    Model(lattice, kgrid, kpoints, bvectors, frozen_bands, M, A, E)
+    return Model(lattice, kgrid, kpoints, bvectors, frozen_bands, M, A, E)
 end
-
 
 function read_nnkp(filename::String)
     @info "Reading nnkp file: $filename"
@@ -448,7 +425,7 @@ function read_nnkp(filename::String)
         line = readline(io)
 
         if occursin("begin real_lattice", line)
-            for i = 1:3
+            for i in 1:3
                 real_lattice[:, i] = read_array(Float64)
             end
 
@@ -456,7 +433,7 @@ function read_nnkp(filename::String)
             line != "end real_lattice" && error("expected end real_lattice")
 
         elseif occursin("begin recip_lattice", line)
-            for i = 1:3
+            for i in 1:3
                 recip_lattice[:, i] = read_array(Float64)
             end
 
@@ -467,7 +444,7 @@ function read_nnkp(filename::String)
             n_kpts = parse(Int, readline(io))
             kpoints = zeros(Float64, 3, n_kpts)
 
-            for i = 1:n_kpts
+            for i in 1:n_kpts
                 kpoints[:, i] = read_array(Float64)
             end
 
@@ -481,8 +458,8 @@ function read_nnkp(filename::String)
             kpb_k = zeros(Int, n_bvecs, n_kpts)
             kpb_b = zeros(Int, 3, n_bvecs, n_kpts)
 
-            for ik = 1:n_kpts
-                for ib = 1:n_bvecs
+            for ik in 1:n_kpts
+                for ib in 1:n_bvecs
                     arr = read_array(Int)
                     ik != arr[1] && error("expected ik = $ik, got $(arr[1])")
                     kpb_k[ib, ik] = arr[2]
@@ -504,7 +481,7 @@ function read_nnkp(filename::String)
 
     # Generate bvectors from 1st kpoint, in Cartesian coordinates
     ik = 1
-    for ib = 1:n_bvecs
+    for ib in 1:n_bvecs
         ik2 = kpb_k[ib, ik]
         b = kpb_b[:, ib, ik]
         bvec = kpoints[:, ik2] + b - kpoints[:, ik]
@@ -514,15 +491,14 @@ function read_nnkp(filename::String)
     weights = zeros(Float64, n_bvecs)
     fill!(weights, NaN)
 
-    BVectors(Mat3{Float64}(recip_lattice), kpoints, bvectors, weights, kpb_k, kpb_b)
+    return BVectors(Mat3{Float64}(recip_lattice), kpoints, bvectors, weights, kpb_k, kpb_b)
 end
-
 
 """
 read si_band.dat  si_band.kpt  si_band.labelinfo.dat
 """
 function read_w90_bands(seedname::String)
-    kpoints = Dlm.readdlm("$(seedname)_band.kpt", Float64; skipstart = 1)
+    kpoints = Dlm.readdlm("$(seedname)_band.kpt", Float64; skipstart=1)
     # remove weights, then transpose, last idx is kpt
     kpoints = Matrix(transpose(kpoints[:, 1:3]))
     n_kpts = size(kpoints, 2)
@@ -546,19 +522,20 @@ function read_w90_bands(seedname::String)
         symm_label[i] = lab
     end
 
-    return (
-        kpoints = kpoints, 
-        E = E, 
-        x = x, 
-        symm_idx = symm_idx, 
-        symm_label = symm_label,
-    )
+    return (kpoints=kpoints, E=E, x=x, symm_idx=symm_idx, symm_label=symm_label)
 end
 
 """
 write si_band.dat  si_band.kpt  si_band.labelinfo.dat
 """
-function write_w90_bands(seedname::String, kpoints::AbstractMatrix{T}, E::AbstractMatrix{T}, x::AbstractVector{T}, symm_idx::AbstractVector{Int}, symm_label::AbstractVector{String}) where {T<:Real}
+function write_w90_bands(
+    seedname::String,
+    kpoints::AbstractMatrix{T},
+    E::AbstractMatrix{T},
+    x::AbstractVector{T},
+    symm_idx::AbstractVector{Int},
+    symm_label::AbstractVector{String},
+) where {T<:Real}
     n_kpts = size(kpoints, 2)
     size(kpoints, 1) != 3 && error("kpoints must be 3 x n_kpts")
 
@@ -573,7 +550,7 @@ function write_w90_bands(seedname::String, kpoints::AbstractMatrix{T}, E::Abstra
     filename = "$(seedname)_band.kpt"
     open(filename, "w") do io
         @printf(io, "       %5d\n", n_kpts)
-        for ik = 1:n_kpts
+        for ik in 1:n_kpts
             @printf(io, "  %10.6f  %10.6f  %10.6f   1.0\n", kpoints[:, ik]...)
         end
     end
@@ -581,8 +558,8 @@ function write_w90_bands(seedname::String, kpoints::AbstractMatrix{T}, E::Abstra
 
     filename = "$(seedname)_band.dat"
     open(filename, "w") do io
-        for ib = 1:n_bands
-            for ik = 1:n_kpts
+        for ib in 1:n_bands
+            for ik in 1:n_kpts
                 @printf(io, " %15.8E %15.8E\n", x[ik], E[ib, ik])
             end
         end
@@ -591,9 +568,16 @@ function write_w90_bands(seedname::String, kpoints::AbstractMatrix{T}, E::Abstra
 
     filename = "$(seedname)_band.labelinfo.dat"
     open(filename, "w") do io
-        for i = 1:n_symm
+        for i in 1:n_symm
             idx = symm_idx[i]
-            @printf(io, "%2s %31d %20.10f %17.10f %17.10f %17.10f\n", symm_label[i], idx, x[i], kpoints[:, idx]...)
+            @printf(
+                io,
+                "%2s %31d %20.10f %17.10f %17.10f %17.10f\n",
+                symm_label[i],
+                idx,
+                x[i],
+                kpoints[:, idx]...
+            )
         end
     end
     @info "Written to $filename"
@@ -645,7 +629,7 @@ function read_wout(filename::String)
         if occursin(start_atom, line)
             @assert occursin("Ang", line)
             readline(io)
-    
+
             lines = Vector{String}()
             line = strip(readline(io))
             while line != end_atom
@@ -682,7 +666,7 @@ function read_wout(filename::String)
                 line = split(line)
                 @assert join(line[1:4], " ") == "WF centre and spread"
                 @assert i == parse(Int, line[5])
-    
+
                 x = parse(Float64, replace(line[7], "," => ""))
                 y = parse(Float64, replace(line[8], "," => ""))
                 z = parse(Float64, replace(line[9], "," => ""))
@@ -700,14 +684,8 @@ function read_wout(filename::String)
 
     @assert ang_unit
 
-    return (
-        unit_cell = unit_cell,
-        atoms = atoms,
-        centers = centers,
-        spreads = spreads,
-    )
+    return (unit_cell=unit_cell, atoms=atoms, centers=centers, spreads=spreads)
 end
-
 
 @doc raw"""
 Read UNK file for Bloch wavefunctions.
@@ -722,10 +700,10 @@ function read_unk(filename::String)
 
     Ψ = zeros(ComplexF64, n_gx, n_gy, n_gz, n_bands)
 
-    for ib = 1:n_bands
-        for iz = 1:n_gz
-            for iy = 1:n_gy
-                for ix = 1:n_gx
+    for ib in 1:n_bands
+        for iz in 1:n_gz
+            for iy in 1:n_gy
+                for ix in 1:n_gx
                     line = split(strip(readline(io)))
                     v1, v2 = parse.(Float64, line)
                     Ψ[ix, iy, iz, ib] = v1 + im * v2
@@ -744,9 +722,8 @@ function read_unk(filename::String)
     println()
 
     # ik: at which kpoint? start from 1
-    ik, Ψ
+    return ik, Ψ
 end
-
 
 @doc raw"""
 Write UNK file for Bloch wavefunctions.
@@ -758,13 +735,12 @@ function write_unk(filename::String, ik::Int, Ψ::Array{T,4}) where {T<:Complex}
     n_gx, n_gy, n_gz, n_bands = size(Ψ)
 
     open(filename, "w") do io
-
         @printf(io, " %11d %11d %11d %11d %11d\n", n_gx, n_gy, n_gz, ik, n_bands)
 
-        for ib = 1:n_bands
-            for iz = 1:n_gz
-                for iy = 1:n_gy
-                    for ix = 1:n_gx
+        for ib in 1:n_bands
+            for iz in 1:n_gz
+                for iy in 1:n_gy
+                    for ix in 1:n_gx
                         v1 = real(Ψ[ix, iy, iz, ib])
                         v2 = imag(Ψ[ix, iy, iz, ib])
                         @printf(io, " %18.10e %18.10e\n", v1, v2)
@@ -772,7 +748,6 @@ function write_unk(filename::String, ik::Int, Ψ::Array{T,4}) where {T<:Complex}
                 end
             end
         end
-
     end
 
     @info "Written to file: $(filename)"
@@ -783,9 +758,8 @@ function write_unk(filename::String, ik::Int, Ψ::Array{T,4}) where {T<:Complex}
     println("  n_bands = ", n_bands)
     println()
 
-    nothing
+    return nothing
 end
-
 
 """Struct for storing matrices in seedname.chk file."""
 struct Chk{T<:Real}
@@ -856,7 +830,6 @@ struct Chk{T<:Real}
     n_frozen::Vector{Int}
 end
 
-
 function Chk(
     header::String,
     exclude_bands::Vector{Int},
@@ -874,7 +847,6 @@ function Chk(
     r::Matrix{T},
     ω::Vector{T},
 ) where {T<:Real}
-
     if have_disentangled
         n_bands = size(Uᵈ, 1)
     else
@@ -891,14 +863,14 @@ function Chk(
 
     if have_disentangled
         n_frozen = zeros(Int, n_kpts)
-        for ik = 1:n_kpts
+        for ik in 1:n_kpts
             n_frozen[ik] = count(frozen_bands[:, ik])
         end
     else
         n_frozen = zeros(Int, 0)
     end
 
-    Chk(
+    return Chk(
         header,
         exclude_bands,
         lattice,
@@ -923,12 +895,10 @@ function Chk(
     )
 end
 
-
 @doc raw"""
 Read formatted (not Fortran binary) CHK file.
 """
 function read_chk(filename::String)
-
     if isbinary_file(filename)
         error("$filename is a binary file? Consider using `w90chk2chk.x`?")
     end
@@ -950,7 +920,7 @@ function read_chk(filename::String)
     exclude_bands = zeros(Int, n_exclude_bands)
 
     if n_exclude_bands > 0
-        for i = 1:n_exclude_bands
+        for i in 1:n_exclude_bands
             exclude_bands[i] = parse(Int, srline())
         end
     end
@@ -968,7 +938,7 @@ function read_chk(filename::String)
     kgrid = Vec3{Int}(parse.(Int, split(srline())))
 
     kpoints = zeros(Float64, 3, n_kpts)
-    for ik = 1:n_kpts
+    for ik in 1:n_kpts
         kpoints[:, ik] = parse.(Float64, split(srline()))
     end
 
@@ -986,24 +956,24 @@ function read_chk(filename::String)
         ΩI = parse(Float64, srline())
 
         frozen_bands = zeros(Bool, n_bands, n_kpts)
-        for ik = 1:n_kpts
-            for ib = 1:n_bands
+        for ik in 1:n_kpts
+            for ib in 1:n_bands
                 # 1 -> True, 0 -> False
                 frozen_bands[ib, ik] = Bool(parse(Int, srline()))
             end
         end
 
         n_frozen = zeros(Int, n_kpts)
-        for ik = 1:n_kpts
+        for ik in 1:n_kpts
             n_frozen[ik] = parse(Int, srline())
             @assert n_frozen[ik] == count(frozen_bands[:, ik])
         end
 
         # u_matrix_opt
         Uᵈ = zeros(ComplexF64, n_bands, n_wann, n_kpts)
-        for ik = 1:n_kpts
-            for iw = 1:n_wann
-                for ib = 1:n_bands
+        for ik in 1:n_kpts
+            for iw in 1:n_wann
+                for ib in 1:n_bands
                     vals = parse.(Float64, split(srline()))
                     Uᵈ[ib, iw, ik] = vals[1] + im * vals[2]
                 end
@@ -1019,9 +989,9 @@ function read_chk(filename::String)
 
     # u_matrix
     U = zeros(ComplexF64, n_wann, n_wann, n_kpts)
-    for ik = 1:n_kpts
-        for iw = 1:n_wann
-            for ib = 1:n_wann
+    for ik in 1:n_kpts
+        for iw in 1:n_wann
+            for ib in 1:n_wann
                 vals = parse.(Float64, split(srline()))
                 U[ib, iw, ik] = vals[1] + im * vals[2]
             end
@@ -1030,10 +1000,10 @@ function read_chk(filename::String)
 
     #  m_matrix
     M = zeros(ComplexF64, n_wann, n_wann, n_bvecs, n_kpts)
-    for ik = 1:n_kpts
-        for inn = 1:n_bvecs
-            for iw = 1:n_wann
-                for ib = 1:n_wann
+    for ik in 1:n_kpts
+        for inn in 1:n_bvecs
+            for iw in 1:n_wann
+                for ib in 1:n_wann
                     vals = parse.(Float64, split(srline()))
                     M[ib, iw, inn, ik] = vals[1] + im * vals[2]
                 end
@@ -1043,19 +1013,19 @@ function read_chk(filename::String)
 
     # wannier_centres
     r = zeros(Float64, 3, n_wann)
-    for iw = 1:n_wann
+    for iw in 1:n_wann
         r[:, iw] = parse.(Float64, split(srline()))
     end
 
     # wannier_spreads
     ω = zeros(Float64, n_wann)
-    for iw = 1:n_wann
+    for iw in 1:n_wann
         ω[iw] = parse(Float64, srline())
     end
 
     close(io)
 
-    Chk(
+    return Chk(
         header,
         exclude_bands,
         lattice,

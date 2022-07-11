@@ -1,6 +1,5 @@
 #!/usr/bin/env julia
 
-
 """
 Maximally localize a group of entangled bands.
 
@@ -12,7 +11,7 @@ Maximally localize a group of entangled bands.
 
 - `-o, --output`: filename for output AMN. Default is `seedname.dis.amn`
 """
-@cast function dis(seedname::String; output::Union{String,Nothing} = nothing)
+@cast function dis(seedname::String; output::Union{String,Nothing}=nothing)
 
     # seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
     if output === nothing
@@ -66,15 +65,14 @@ Maximally localize a group of entangled bands.
 
     write_amn(output, Amin)
 
-    nothing
+    return nothing
 end
 
-
 # Notes on band interpolation
-# After seedname.amn.optimized is generated, when using w90 to 
+# After seedname.amn.optimized is generated, when using w90 to
 # interpolate bands, w90 does
 #    1. Lowdin orthogonalization of AMN matrix, in disentangle.F90:dis_project, line 1418
-#       This should do no harm, since the optmized amn is already semi-unitary, 
+#       This should do no harm, since the optmized amn is already semi-unitary,
 #       a SVD of it should not change the optmized amn (apart from numerical noise)
 #    2. Generate a new amn according to frozen window, in disentangle.F90:dis_proj_froz, line 1830
 #       This will DESTROY the optmized amn matrix, if we restart w90 from the optmized Amn

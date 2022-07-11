@@ -14,12 +14,14 @@ repos:
       - id: trailing-whitespace
         exclude: &exclude_txtfiles >-
           (?x)^(
-              tests/.*\.amn|
-              tests/.*\.mmn|
-              tests/.*\.vmn|
-              tests/.*\.eig|
-              tests/.*\.chk.fmt|
-              tests/.*\.nnkp
+              test/.*\.amn|
+              test/.*\.mmn|
+              test/.*\.vmn|
+              test/.*\.eig|
+              test/.*\.chk.fmt|
+              test/.*\.nnkp|
+              test/.*\.wout|
+              test/.*_band.dat
           )$
       - id: mixed-line-ending
         exclude: *exclude_txtfiles
@@ -35,3 +37,7 @@ repos:
     rev: v0.1.1
     hooks:
     - id: julia-format
+      exclude: >-
+        (?x)^(
+            deps/statements.jl
+        )$

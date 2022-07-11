@@ -1,6 +1,3 @@
-#!/usr/bin/env julia
-
-
 """
 Split valence and conduction Wannier functions.
 
@@ -29,13 +26,13 @@ Then this command split WFs into two independent groups.
 """
 @cast function splitvc(
     seedname::String;
-    nval::Union{Int, Nothing} = nothing,
-    outdir_val::String = "val",
-    outdir_cond::String = "cond",
-    run_disentangle::Bool = false,
-    run_optrot::Bool = false,
-    run_maxloc::Bool = false,
-    rotate_unk::Bool = false,
+    nval::Union{Int,Nothing}=nothing,
+    outdir_val::String="val",
+    outdir_cond::String="cond",
+    run_disentangle::Bool=false,
+    run_optrot::Bool=false,
+    run_maxloc::Bool=false,
+    rotate_unk::Bool=false,
 )
     # seedname = "silicon"
     # seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
@@ -104,12 +101,11 @@ Then this command split WFs into two independent groups.
         split_unk(dir, Uv, Uc, outdir_val, outdir_cond)
     end
 
-    nothing
+    return nothing
 end
-
 
 function new_seedname(seedname::String, subdir::String)
     outdir = joinpath(dirname(seedname), subdir)
     !isdir(outdir) && mkdir(outdir)
-    joinpath(outdir, basename(seedname))
+    return joinpath(outdir, basename(seedname))
 end

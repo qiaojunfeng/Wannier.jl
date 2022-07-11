@@ -1,6 +1,5 @@
-import GarishPrint
-import Configurations
-
+using GarishPrint: GarishPrint
+using Configurations: Configurations
 
 Base.@kwdef mutable struct AtomicWavefunction
     # to differentiate same kind of atoms

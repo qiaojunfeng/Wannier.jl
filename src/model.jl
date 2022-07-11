@@ -45,7 +45,6 @@ struct Model{T<:Real}
     n_bvecs::Int
 end
 
-
 function Model(
     lattice::Mat3{T},
     kgrid::Vec3{Int},
@@ -57,7 +56,7 @@ function Model(
     E::Matrix{T},
     S::Array{Complex{T},4},
 ) where {T<:Real}
-    Model(
+    return Model(
         lattice,
         kgrid,
         kpoints,
@@ -75,7 +74,6 @@ function Model(
     )
 end
 
-
 function Model(
     lattice::Mat3{T},
     kgrid::Vec3{Int},
@@ -86,7 +84,7 @@ function Model(
     A::Array{Complex{T},3},
     E::Matrix{T},
 ) where {T<:Real}
-    Model(
+    return Model(
         lattice,
         kgrid,
         kpoints,

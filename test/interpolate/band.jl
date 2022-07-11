@@ -6,13 +6,11 @@
     n_points = 100
 
     kpt_frac, x, symm_idx, symm_label = Wannier.get_kpath_points(
-        win.kpoint_path,
-        n_points,
-        get_recip_lattice(win.unit_cell),
+        win.kpoint_path, n_points, get_recip_lattice(win.unit_cell)
     )
 
-    @test isapprox(kpt_frac, band.kpoints; atol = 1e-5)
-    @test isapprox(x, band.x; atol = 1e-5)
+    @test isapprox(kpt_frac, band.kpoints; atol=1e-5)
+    @test isapprox(x, band.x; atol=1e-5)
     @test symm_idx == band.symm_idx
     @test symm_label == band.symm_label
 end

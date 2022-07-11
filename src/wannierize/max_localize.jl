@@ -1,5 +1,4 @@
-import Optim
-
+using Optim: Optim
 
 function get_fg!_maxloc(model::Model)
     f(A) = omega(model.bvectors, model.M, A).Ω
@@ -9,9 +8,8 @@ function get_fg!_maxloc(model::Model)
         nothing
     end
 
-    f, g!
+    return f, g!
 end
-
 
 """
 Maximally localize spread functional w.r.t. all kpoints.
@@ -19,11 +17,7 @@ Maximally localize spread functional w.r.t. all kpoints.
 On a unitary matrix manifold.
 """
 function max_localize(
-    model::Model{T};
-    f_tol::T = 1e-10,
-    g_tol::T = 1e-8,
-    max_iter::Int = 1000,
-    history_size::Int = 20,
+    model::Model{T}; f_tol::T=1e-10, g_tol::T=1e-8, max_iter::Int=1000, history_size::Int=20
 ) where {T<:Real}
     model.n_bands != model.n_wann &&
         error("n_bands != n_wann, run instead disentanglement?")
@@ -46,13 +40,13 @@ function max_localize(
         f,
         g!,
         Ainit,
-        meth(manifold = Manif, linesearch = ls, m = history_size),
-        Optim.Options(
-            show_trace = true,
-            iterations = max_iter,
-            f_tol = f_tol,
-            g_tol = g_tol,
-            allow_f_increases = true,
+        meth(; manifold=Manif, linesearch=ls, m=history_size),
+        Optim.Options(;
+            show_trace=true,
+            iterations=max_iter,
+            f_tol=f_tol,
+            g_tol=g_tol,
+            allow_f_increases=true,
         ),
     )
     display(opt)
@@ -63,5 +57,5 @@ function max_localize(
     @info "Final spread"
     pprint(Ωᶠ)
 
-    Amin
+    return Amin
 end

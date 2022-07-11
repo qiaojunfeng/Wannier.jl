@@ -1,6 +1,5 @@
 import LinearAlgebra as LA
 
-
 """
 Split eigenvalues into two groups.
 
@@ -27,7 +26,7 @@ function split_eig(E::Matrix{T}, U::Array{Complex{T},3}, n_val::Int) where {T<:R
     # Since valence and conduction are splitd by a gap,
     # by diagonalizing the Wannier Hamiltonian and using the eigenvalues,
     # we can demix the WFs into two groups for valence and conduction, respectively.
-    for ik = 1:n_kpts
+    for ik in 1:n_kpts
         Uₖ = U[:, :, ik]
         # Hamiltonian in WF basis
         Hₖ = LA.Hermitian(Uₖ' * LA.diagm(0 => E[:, ik]) * Uₖ)
@@ -35,7 +34,7 @@ function split_eig(E::Matrix{T}, U::Array{Complex{T},3}, n_val::Int) where {T<:R
         # Diagonalize
         Dₖ, Vₖ = LA.eigen(Hₖ)
         Ev[:, ik] = Dₖ[1:n_val]
-        Ec[:, ik] = Dₖ[n_val+1:end]
+        Ec[:, ik] = Dₖ[(n_val + 1):end]
 
         # Although the diagonalization destroy the smoothness of gauge,
         # one can run max localization to smooth these random gauge, since
@@ -43,10 +42,10 @@ function split_eig(E::Matrix{T}, U::Array{Complex{T},3}, n_val::Int) where {T<:R
         # of max localization.
         # I store the gauge rotation due to diagonalization.
         Vv[:, :, ik] = Vₖ[:, 1:n_val]
-        Vv[:, :, ik] = Vₖ[:, n_val+1:end]
+        Vv[:, :, ik] = Vₖ[:, (n_val + 1):end]
     end
 
-    Ev, Ec, Vv, Vc
+    return Ev, Ec, Vv, Vc
 end
 
 """
@@ -62,8 +61,8 @@ function split_unk(
     dir::String,
     Uv::Array{T,3},
     Uc::Array{T,3},
-    outdir_val::String = "val",
-    outdir_cond::String = "cond",
+    outdir_val::String="val",
+    outdir_cond::String="cond",
 ) where {T<:Complex}
     n_kpts = size(Uv, 3)
 
@@ -102,7 +101,7 @@ function split_unk(
         println("ik = ", ik, " files written: ", val, " ", cond)
     end
 
-    nothing
+    return nothing
 end
 
 """
@@ -120,13 +119,13 @@ function get_amn(chk::Chk)
         return U
     end
 
-    for ik = 1:n_kpts
+    for ik in 1:n_kpts
         # Uᵈ: semi-unitary matrices from disentanglement
         # U: unitary matrices from maximal localization
         U[:, :, ik] = chk.Uᵈ[:, :, ik] * chk.U[:, :, ik]
     end
 
-    U
+    return U
 end
 
 """
@@ -138,7 +137,7 @@ Args:
     return_rotation: Return rotation eigenvectors or not, useful for further
     rotation of UNK files or other operators.
 """
-function split_model(model::Model, n_val::Int, return_rotation::Bool = false)
+function split_model(model::Model, n_val::Int, return_rotation::Bool=false)
     n_wann = model.n_wann
     n_kpts = model.n_kpts
     n_bands = model.n_bands
@@ -154,7 +153,7 @@ function split_model(model::Model, n_val::Int, return_rotation::Bool = false)
     Ev, Ec, Vv, Vc = split_eig(E, U, n_val)
     UVv = similar(U, n_bands, n_val, n_kpts)
     UVc = similar(U, n_bands, n_wann - n_val, n_kpts)
-    for ik = 1:n_kpts
+    for ik in 1:n_kpts
         UVv[:, :, ik] = U[:, :, ik] * Vv[:, :, ik]
         UVc[:, :, ik] = U[:, :, ik] * Vc[:, :, ik]
     end
@@ -192,9 +191,8 @@ function split_model(model::Model, n_val::Int, return_rotation::Bool = false)
         return model_v, model_c, UVv, UVc
     end
 
-    model_v, model_c
+    return model_v, model_c
 end
-
 
 """
 Write splitted AMN/MMN/EIG/UNK(optional) files into valence and conduction groups.
@@ -202,7 +200,7 @@ Write splitted AMN/MMN/EIG/UNK(optional) files into valence and conduction group
 `n_val`: number of valence WFs
 `return_rotation`: return rotation matrices for UNK files, or other operators.
 """
-function split_wannierize(model::Model, n_val::Int, return_rotation::Bool = false)
+function split_wannierize(model::Model, n_val::Int, return_rotation::Bool=false)
     splitted = split_model(model, n_val, return_rotation)
 
     if return_rotation
@@ -218,5 +216,5 @@ function split_wannierize(model::Model, n_val::Int, return_rotation::Bool = fals
         return model_v, model_c, UVv, UVc
     end
 
-    model_v, model_c
+    return model_v, model_c
 end

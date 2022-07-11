@@ -1,10 +1,8 @@
 import LinearAlgebra as LA
-import Optim
+using Optim: Optim
 import NLSolversBase: OnceDifferentiable
 
-
 function get_fg!_rotate(model::Model)
-
     function f(W)
         A = rotate_amn(model.A, W)
         return omega(model.bvectors, model.M, A).Ω
@@ -37,8 +35,8 @@ function get_fg!_rotate(model::Model)
         # G .= dropdims(sum(G_A, dims = 3); dims = 3)
         # return nothing
 
-        for ik = 1:n_kpts
-            for ib = 1:n_bvecs
+        for ik in 1:n_kpts
+            for ib in 1:n_bvecs
                 ikpb = kpb_k[ib, ik]
 
                 MWᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * W
@@ -47,7 +45,7 @@ function get_fg!_rotate(model::Model)
 
                 q = imaglog.(LA.diag(Nᵏᵇ)) + r' * b
 
-                for n = 1:n_wann
+                for n in 1:n_wann
                     # error if division by zero. Should not happen if the initial gauge is not too bad
                     if abs(Nᵏᵇ[n, n]) < 1e-10
                         error("Nᵏᵇ too small! $ik -> $ikpb, $Nᵏᵇ")
@@ -55,7 +53,7 @@ function get_fg!_rotate(model::Model)
 
                     t = -conj(Nᵏᵇ[n, n]) - im * q[n] / Nᵏᵇ[n, n]
 
-                    for m = 1:n_wann
+                    for m in 1:n_wann
                         T[m, n] = t * MWᵏᵇ[m, n]
                     end
                 end
@@ -69,19 +67,14 @@ function get_fg!_rotate(model::Model)
         return nothing
     end
 
-    f, g!
+    return f, g!
 end
-
 
 """
 Maximally localize spread functional w.r.t. single unitary matrix W.
 """
 function opt_rotate(
-    model::Model{T};
-    f_tol::T = 1e-10,
-    g_tol::T = 1e-8,
-    max_iter::Int = 1000,
-    history_size::Int = 20,
+    model::Model{T}; f_tol::T=1e-10, g_tol::T=1e-8, max_iter::Int=1000, history_size::Int=20
 ) where {T<:Real}
     n_wann = model.n_wann
 
@@ -109,14 +102,14 @@ function opt_rotate(
         f,
         g!,
         W0,
-        meth(manifold = wManif, linesearch = ls, m = history_size),
+        meth(; manifold=wManif, linesearch=ls, m=history_size),
         # autodiff=:forward,
-        Optim.Options(
-            show_trace = true,
-            iterations = max_iter,
-            f_tol = f_tol,
-            g_tol = g_tol,
-            allow_f_increases = true,
+        Optim.Options(;
+            show_trace=true,
+            iterations=max_iter,
+            f_tol=f_tol,
+            g_tol=g_tol,
+            allow_f_increases=true,
         ),
     )
     display(opt)
@@ -131,14 +124,13 @@ function opt_rotate(
     return Wmin
 end
 
-
 function rotate_amn(A::Array{T,3}, W::Matrix{T}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(A)
     size(W) != (n_wann, n_wann) && error("W must be a n_wann x n_wann matrix")
 
     A1 = similar(A)
 
-    for ik = 1:n_kpts
+    for ik in 1:n_kpts
         A1[:, :, ik] .= A[:, :, ik] * W
     end
 

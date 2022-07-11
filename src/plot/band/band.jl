@@ -1,15 +1,16 @@
 import Plots as Pl
-import Colors
+using Colors: Colors
 
-
-function merge_consecutive_labels(symm_idx::AbstractArray{Int}, symm_label::AbstractVector{String})
+function merge_consecutive_labels(
+    symm_idx::AbstractArray{Int}, symm_label::AbstractVector{String}
+)
     idx = copy(symm_idx)
     labels = copy(symm_label)
 
     counter = 2
-    for i = 2:length(symm_idx)
-        if symm_idx[i] == symm_idx[i-1] + 1
-            labels[counter-1] *= "|$(symm_label[i])"
+    for i in 2:length(symm_idx)
+        if symm_idx[i] == symm_idx[i - 1] + 1
+            labels[counter - 1] *= "|$(symm_label[i])"
         else
             idx[counter] = symm_idx[i]
             labels[counter] = symm_label[i]
@@ -17,7 +18,7 @@ function merge_consecutive_labels(symm_idx::AbstractArray{Int}, symm_label::Abst
         end
     end
 
-    return idx[1:(counter-1)], labels[1:(counter-1)]
+    return idx[1:(counter - 1)], labels[1:(counter - 1)]
 end
 
 function plot_band(x::AbstractVector{T}, E::AbstractArray{T}; kwargs...) where {T<:Real}
@@ -30,8 +31,15 @@ function plot_band(x::AbstractVector{T}, E::AbstractArray{T}; kwargs...) where {
     return plt
 end
 
-function plot_band!(plt, x::AbstractVector{T}, E::AbstractArray{T}; 
-    fermi_energy::Union{Nothing,T} = nothing, symm_idx::Union{Nothing,AbstractArray{Int}}=nothing, symm_label::Union{Nothing, AbstractVector{String}}=nothing, kwargs...) where {T<:Real}
+function plot_band!(
+    plt,
+    x::AbstractVector{T},
+    E::AbstractArray{T};
+    fermi_energy::Union{Nothing,T}=nothing,
+    symm_idx::Union{Nothing,AbstractArray{Int}}=nothing,
+    symm_label::Union{Nothing,AbstractVector{String}}=nothing,
+    kwargs...,
+) where {T<:Real}
     # color=, line_z::Union{Matrix{Float64},Missing}=missing)
 
     ndims(E) > 2 && error("E must be a 1D or 2D array")
@@ -44,13 +52,14 @@ function plot_band!(plt, x::AbstractVector{T}, E::AbstractArray{T};
 
     if symm_idx !== nothing
         n_symm = length(symm_idx)
-        n_symm != length(symm_label) && error("symm_idx and symm_label must have the same length")
+        n_symm != length(symm_label) &&
+            error("symm_idx and symm_label must have the same length")
 
         idx, label = merge_consecutive_labels(symm_idx, symm_label)
         Pl.vline!(plt, x[idx]; linecolor=:black, linewidth=0.2)
         # decrease a bit, otherwise the last label is not shown
         xtick = x[idx]
-        xtick[end] -= 0.5 * (x[end] - x[end-1])
+        xtick[end] -= 0.5 * (x[end] - x[end - 1])
         Pl.xticks!(plt, xtick, label)
     end
 

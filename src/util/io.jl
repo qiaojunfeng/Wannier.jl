@@ -7,13 +7,12 @@ function isbinary(chars::Vector{UInt8})::Bool
     deleteat!(text_chars, text_chars .== 0x7F)
 
     # remove normal ASCII
-    filter!(x->x ∉ text_chars, chars)
+    filter!(x -> x ∉ text_chars, chars)
 
     # display([Char(_) for _ in chars])
 
-    length(chars) > 0
+    return length(chars) > 0
 end
-
 
 """Check if file is in binary format"""
 function isbinary_file(filename::String)
@@ -23,5 +22,5 @@ function isbinary_file(filename::String)
     readbytes!(io, raw_data)
     close(io)
 
-    isbinary(raw_data)
+    return isbinary(raw_data)
 end

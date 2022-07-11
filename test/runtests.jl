@@ -4,7 +4,6 @@ using Test
 const TEST_PATH = @__DIR__
 const FIXTURE_PATH = joinpath(TEST_PATH, "fixtures")
 
-
 @testset "Wannier.jl" begin
     include("io/w90.jl")
     include("io/model.jl")

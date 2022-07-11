@@ -2,7 +2,7 @@
 @testset "write_model" begin
     model = read_seedname("$FIXTURE_PATH/silicon")
 
-    outdir = mktempdir(cleanup=true)
+    outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "silicon")
     write_model(outseedname, model)
 

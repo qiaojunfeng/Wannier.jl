@@ -2,17 +2,15 @@ using Printf: @printf
 import LinearAlgebra as LA
 import NearestNeighbors as NN
 
-
 function get_projectability(A)
     num_bands, num_wann, num_kpts = size(A)
     proj = zeros(num_bands, num_kpts)
-    for ik = 1:num_kpts
+    for ik in 1:num_kpts
         p = A[:, :, ik] * A[:, :, ik]'
         proj[:, ik] = real(LA.diag(p))
     end
     return proj
 end
-
 
 @doc raw"""
 Find nearest-atom to a point (usually it is the center of a Wannier function)
@@ -27,10 +25,9 @@ function find_nearests(
     unit_cell::T,
     atoms::T,
     point::Vector{Float64};
-    reduced_coord::Bool = true,
-    search_neighbors::Int = 5,
+    reduced_coord::Bool=true,
+    search_neighbors::Int=5,
 ) where {T<:Union{Matrix{Float64},LA.Adjoint{Float64,Matrix{Float64}}}}
-
     @assert size(unit_cell) == (3, 3)
     @assert size(atoms, 1) == 3
     @assert length(point) == 3
@@ -59,23 +56,23 @@ function find_nearests(
     translations = supercell_idx[:, idxs]
     atom_unit_cell = repeated_atoms_cart[:, idxs] - unit_cell * translations
     function findvec(mat, v, dims)
-        iseqv(v1, v2) = all(isapprox.(vec(v1), vec(v2); atol = 1e-6))
-        found = mapslices(elem -> iseqv(elem, v), mat; dims = dims)
-        return findfirst(dropdims(found; dims = 1))
+        iseqv(v1, v2) = all(isapprox.(vec(v1), vec(v2); atol=1e-6))
+        found = mapslices(elem -> iseqv(elem, v), mat; dims=dims)
+        return findfirst(dropdims(found; dims=1))
     end
-    idxs_unit_cell =
-        [findvec(atoms_cart, atom_unit_cell[:, i], 1) for i = 1:size(atom_unit_cell, 2)]
+    idxs_unit_cell = [
+        findvec(atoms_cart, atom_unit_cell[:, i], 1) for i in 1:size(atom_unit_cell, 2)
+    ]
 
     return dists, idxs_unit_cell, translations
 end
-
 
 function pprint(Ω::Spread)
     println("WF center (rx, ry, rz)                     WF spread")
 
     n_wann = length(Ω.ω)
 
-    for i = 1:n_wann
+    for i in 1:n_wann
         @printf("%4d %11.5f %11.5f %11.5f %11.5f\n", i, Ω.r[:, i]..., Ω.ω[i])
     end
 
@@ -88,5 +85,5 @@ function pprint(Ω::Spread)
 
     println()
 
-    nothing
+    return nothing
 end

@@ -29,14 +29,14 @@ function read_qe_bands(filename::String)
     kpaths_coord = Matrix{Float64}(undef, 3, nks)
     energies = Matrix{Float64}(undef, nks, nbnd)
 
-    for ik = 1:nks
+    for ik in 1:nks
         # QE kpt are in absolute coordinates, but is scaled by `alat`
         kpaths_coord[:, ik] = parse.(Float64, split(readline(fdat)))
         ib = 0
         while ib < nbnd
             e = parse.(Float64, split(readline(fdat)))
             len_e = length(e)
-            energies[ik, ib+1:ib+len_e] = e
+            energies[ik, (ib + 1):(ib + len_e)] = e
             ib += len_e
         end
         @assert ib == nbnd
@@ -44,16 +44,16 @@ function read_qe_bands(filename::String)
 
     @assert eof(fdat)
 
-    # detect high symmetry points - by the criteria that 
+    # detect high symmetry points - by the criteria that
     # there are angles between two consecutive kpath
     symm_points = Vector{Int}()
     symm_points_label = Vector{String}()
     # push the first kpt
     push!(symm_points, 1)
     push!(symm_points_label, "")
-    for ik = 2:nks-1
-        vec0 = kpaths_coord[:, ik] - kpaths_coord[:, ik-1]
-        vec1 = kpaths_coord[:, ik+1] - kpaths_coord[:, ik]
+    for ik in 2:(nks - 1)
+        vec0 = kpaths_coord[:, ik] - kpaths_coord[:, ik - 1]
+        vec1 = kpaths_coord[:, ik + 1] - kpaths_coord[:, ik]
         if !all(isapprox.(LA.cross(vec0, vec1), 0; atol=2e-6))
             push!(symm_points, ik)
             push!(symm_points_label, "")
@@ -67,7 +67,7 @@ function read_qe_bands(filename::String)
     # generate kpath
     kpaths = zeros(Float64, nks)
     ik_prev = 1
-    for ik = 1:nks
+    for ik in 1:nks
         dk = LA.norm(kpaths_coord[:, ik] - kpaths_coord[:, ik_prev])
         if ik != 2 && ik_prev in symm_points
             dk = 0
@@ -76,8 +76,16 @@ function read_qe_bands(filename::String)
         ik_prev = ik
     end
 
-    return Bands(nks, nbnd, kpaths, kpaths_coord, energies,
-        num_symm_points, symm_points, symm_points_label)
+    return Bands(
+        nks,
+        nbnd,
+        kpaths,
+        kpaths_coord,
+        energies,
+        num_symm_points,
+        symm_points,
+        symm_points_label,
+    )
 end
 
 function read_qe_projwfcup(filename::String)
@@ -98,12 +106,12 @@ function read_qe_projwfcup(filename::String)
         readline(fdat)
         line = splitline()
     end
-    gcutm, dual, ecutwfc = parse.(Float64, line[1:end-1])
+    gcutm, dual, ecutwfc = parse.(Float64, line[1:(end - 1)])
     magicnum = parse(Int, line[end])
     @assert magicnum == 9
     atm = Vector{String}(undef, ntyp)
     zv = zeros(Float64, ntyp)
-    for i = 1:ntyp
+    for i in 1:ntyp
         line = splitline()
         nt = parse(Int, line[1])
         @assert nt == i
@@ -112,7 +120,7 @@ function read_qe_projwfcup(filename::String)
     end
     tau = zeros(Float64, 3, nat)
     ityp = zeros(Int, nat)
-    for i = 1:nat
+    for i in 1:nat
         line = splitline()
         na = parse(Int, line[1])
         @assert na == i
@@ -127,7 +135,7 @@ function read_qe_projwfcup(filename::String)
     # projection data
     nlmchi = Vector{Dict}()
     proj = zeros(Float64, nkstot, nbnd, natomwfc)
-    for iw = 1:natomwfc
+    for iw in 1:natomwfc
         line = splitline()
         nwfc = parse(Int, line[1])
         @assert nwfc == iw
@@ -137,8 +145,8 @@ function read_qe_projwfcup(filename::String)
         els = line[4]
         n, l, m = parse.(Int, line[5:end])
         push!(nlmchi, Dict("na" => na, "els" => els, "n" => n, "l" => l, "m" => m))
-        for ik = 1:nkstot
-            for ib = 1:nbnd
+        for ik in 1:nkstot
+            for ib in 1:nbnd
                 line = splitline()
                 k, b = parse.(Int, line[1:2])
                 @assert k == ik && b == ib
@@ -149,7 +157,7 @@ function read_qe_projwfcup(filename::String)
     end
 
     wfcs_type = Vector{AtomicWavefunction}(undef, natomwfc)
-    for i = 1:natomwfc
+    for i in 1:natomwfc
         atom_index = nlmchi[i]["na"]
         atom_label = atm[ityp[atom_index]]
         wfc_label = nlmchi[i]["els"]
@@ -160,11 +168,5 @@ function read_qe_projwfcup(filename::String)
         wfcs_type[i] = wfc
     end
 
-    return Projectabilities(
-        nkstot,
-        nbnd,
-        natomwfc,
-        wfcs_type,
-        proj
-    )
+    return Projectabilities(nkstot, nbnd, natomwfc, wfcs_type, proj)
 end

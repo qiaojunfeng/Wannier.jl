@@ -7,9 +7,7 @@ Args:
     outdir: the folder for writing MMN, EIG files.
 """
 function truncate_mmn_eig(
-    seedname::String,
-    keep_bands::AbstractVector{Int},
-    outdir::String = "truncate",
+    seedname::String, keep_bands::AbstractVector{Int}, outdir::String="truncate"
 )
     !isdir(outdir) && mkdir(outdir)
 
@@ -21,9 +19,8 @@ function truncate_mmn_eig(
     M1 = M[keep_bands, keep_bands, :, :]
     write_mmn(joinpath(outdir, "$seedname.mmn"), M1, kpb_k, kpb_b)
 
-    nothing
+    return nothing
 end
-
 
 """
 Truncate UNK files for specified bands.
@@ -34,9 +31,7 @@ keep_bands: the band indexes to keep. Start from 1.
 outdir: Defaults to 'truncated'.
 """
 function truncate_unk(
-    dir::String,
-    keep_bands::AbstractVector{Int},
-    outdir::String = "truncate",
+    dir::String, keep_bands::AbstractVector{Int}, outdir::String="truncate"
 )
     !isdir(outdir) && mkdir(outdir)
 
@@ -56,9 +51,8 @@ function truncate_unk(
         write_unk(joinpath(outdir, unk), ik, Ψ1)
     end
 
-    nothing
+    return nothing
 end
-
 
 """
 Truncate AMN/MMN/EIG/UNK(optional) files.
@@ -72,8 +66,8 @@ Args:
 function truncate(
     seedname::String,
     keep_bands::AbstractVector{Int},
-    outdir::String = "truncate",
-    unk::Bool = false,
+    outdir::String="truncate",
+    unk::Bool=false,
 )
     @info "Truncat AMN/MMN/EIG files"
 
@@ -92,5 +86,5 @@ function truncate(
     end
 
     println("Truncated files written in ", outdir)
-    nothing
+    return nothing
 end

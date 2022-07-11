@@ -1,12 +1,9 @@
-#!/usr/bin/env julia
-
-
 """
 Maximally localize w.r.t a single unitary rotation of all the kpoints.
 
 Usually should start from parallel transport gauge AMN, where the gauge
 are already smoothened w.r.t. kpoints. However, there is sitll a global
-unitary transformation freedom, which will be minimized by this 
+unitary transformation freedom, which will be minimized by this
 optimal rotation function.
 
 # Args
@@ -17,7 +14,7 @@ optimal rotation function.
 
 - `-o, --output`: filename for output AMN. Default is `seedname.optrot.amn`
 """
-@cast function optrot(seedname::String; output::Union{String,Nothing} = nothing)
+@cast function optrot(seedname::String; output::Union{String,Nothing}=nothing)
 
     # seedname = "/home/jqiao/git/Wannier.jl/test/test_grad/silicon"
     if output === nothing
@@ -32,5 +29,5 @@ optimal rotation function.
 
     write_amn(output, A)
 
-    nothing
+    return nothing
 end
