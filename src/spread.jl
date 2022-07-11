@@ -82,18 +82,18 @@ end
             Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
 
-            w_ib = wb[ib]
+            wᵇ = wb[ib]
 
-            ΩI += w_ib * (n_wann - sum(abs2, Nᵏᵇ))
-            ΩOD += w_ib * sum(abs2, Nᵏᵇ .- LA.diagm(0 => LA.diag(Nᵏᵇ)))
+            ΩI += wᵇ * (n_wann - sum(abs2, Nᵏᵇ))
+            ΩOD += wᵇ * sum(abs2, Nᵏᵇ .- LA.diagm(0 => LA.diag(Nᵏᵇ)))
 
             for n = 1:n_wann
                 if !only_r2
-                    r[:, n] -= w_ib * imaglog(Nᵏᵇ[n, n]) * b
+                    r[:, n] -= wᵇ * imaglog(Nᵏᵇ[n, n]) * b
                 end
 
-                r²[n] += w_ib * (1 - abs(Nᵏᵇ[n, n])^2 + imaglog(Nᵏᵇ[n, n])^2)
-                # r²[n] += w_ib * 2*(1 - real(Nᵏᵇ[n,n]))
+                r²[n] += wᵇ * (1 - abs(Nᵏᵇ[n, n])^2 + imaglog(Nᵏᵇ[n, n])^2)
+                # r²[n] += wᵇ * 2*(1 - real(Nᵏᵇ[n,n]))
             end
         end
     end
@@ -158,7 +158,6 @@ r: WF centers, cartesian coordinates, 3 * n_wann
     MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
 
     for ik = 1:n_kpts
-
         # w_froz -= μ * sum(abs2, A[1:n_froz, :, ik])
         # G[1:n_froz, :, ik] = -2 * μ * A[1:n_froz, :, ik]
 
@@ -168,8 +167,7 @@ r: WF centers, cartesian coordinates, 3 * n_wann
             MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
             Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
-
-            w_ib = wb[ib]
+            wᵇ = wb[ib]
 
             # MV way
             # fA(B) = (B - B') / 2
@@ -179,7 +177,7 @@ r: WF centers, cartesian coordinates, 3 * n_wann
             #     R[m, n] = Nᵏᵇ[m, n] * conj(Nᵏᵇ[n, n])
             #     T[m, n] = Nᵏᵇ[m, n] / Nᵏᵇ[n, n] * q[n]
             # end
-            # G[:, :, ik] += 4 * w_ib * (fA(R) .- fS(T))
+            # G[:, :, ik] += 4 * wᵇ * (fA(R) .- fS(T))
 
             q = imaglog.(LA.diag(Nᵏᵇ))
             if !only_r2
@@ -194,16 +192,16 @@ r: WF centers, cartesian coordinates, 3 * n_wann
                     error("Nᵏᵇ too small! $ik -> $ikpb")
                 end
 
-                Tfac = -im * q[n] / Nᵏᵇ[n, n]
+                t = -im * q[n] / Nᵏᵇ[n, n]
 
                 for m = 1:n_bands
                     R[m, n] = -MAᵏᵇ[m, n] * conj(Nᵏᵇ[n, n])
                     # T[m, n] = -im * MAᵏᵇ[m, n] / (Nᵏᵇ[n, n]) * q[n]
-                    T[m, n] = Tfac * MAᵏᵇ[m, n]
+                    T[m, n] = t * MAᵏᵇ[m, n]
                 end
             end
 
-            G[:, :, ik] .+= 4 * w_ib .* (R .+ T)
+            G[:, :, ik] .+= 4 * wᵇ .* (R .+ T)
         end
     end
 
@@ -219,7 +217,8 @@ end
     A::Array{Complex{FT},3},
     only_r2::Bool = false,
 ) where {FT<:Real}
-    r = omega(bvectors, M, A, only_r2).r
+    # r = omega(bvectors, M, A, only_r2).r
+    r = center(bvectors, M, A)
     omega_grad(bvectors, M, A, r, only_r2)
 end
 
@@ -260,6 +259,45 @@ function omega_loc(
 end
 
 
+@views function center(
+    bvectors::BVectors{FT},
+    M::Array{Complex{FT},4},
+    A::Array{Complex{FT},3},
+) where {FT<:Real}
+    n_bands, n_wann, n_kpts = size(A)
+    n_bvecs = size(M, 3)
+
+    kpb_k = bvectors.kpb_k
+    kpb_b = bvectors.kpb_b
+    wb = bvectors.weights
+    recip_lattice = bvectors.recip_lattice
+    kpoints = bvectors.kpoints
+
+    r = zeros(FT, 3, n_wann)
+    b = zeros(FT, 3)
+    Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
+    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
+
+    for ik = 1:n_kpts
+        for ib = 1:n_bvecs
+            ikpb = kpb_k[ib, ik]
+
+            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
+            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+            b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
+
+            for n = 1:n_wann
+                r[:, n] -= wb[ib] * imaglog(Nᵏᵇ[n, n]) * b
+            end
+        end
+    end
+
+    r ./= n_kpts
+
+    return r
+end
+
+
 """
 WF postion operator matrix
 """
@@ -268,7 +306,6 @@ WF postion operator matrix
     A::Array{Complex{FT},3},
     bvectors::BVectors{FT},
 ) where {FT<:Real}
-
     n_bands, n_wann, n_kpts = size(A)
     n_bvecs = size(M, 3)
 
@@ -295,14 +332,14 @@ WF postion operator matrix
             Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
 
-            w_ib = wb[ib]
+            wᵇ = wb[ib]
 
             for m = 1:n_wann
                 for n = 1:n_wann
-                    R[m, n, :] += w_ib * Nᵏᵇ[m, n] * b
+                    R[m, n, :] += wᵇ * Nᵏᵇ[m, n] * b
 
                     if m == n
-                        R[m, n, :] -= w_ib * b
+                        R[m, n, :] -= wᵇ * b
                     end
                 end
             end
@@ -351,14 +388,14 @@ Berry connection at each kpoint
             Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
 
-            w_ib = wb[ib]
+            wᵇ = wb[ib]
 
             for m = 1:n_wann
                 for n = 1:n_wann
-                    A[m, n, :, ik] += w_ib * Nᵏᵇ[m, n] * b
+                    A[m, n, :, ik] += wᵇ * Nᵏᵇ[m, n] * b
 
                     if m == n
-                        A[m, n, :, ik] -= w_ib * b
+                        A[m, n, :, ik] -= wᵇ * b
                     end
                 end
             end

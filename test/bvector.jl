@@ -1,9 +1,9 @@
 @testset "get_bvectors" begin
-    win = read_win("$FIXTURE_PATH/silicon.win")
-    _, kpb_k, kpb_b = read_mmn("$FIXTURE_PATH/silicon.mmn")
+    win = read_win(joinpath(FIXTURE_PATH, "silicon.win"))
+    _, kpb_k, kpb_b = read_mmn(joinpath(FIXTURE_PATH, "silicon.mmn"))
 
-    kpoints = win["kpoints"]
-    recip_lattice = get_recip_lattice(win["unit_cell"])
+    kpoints = win.kpoints
+    recip_lattice = get_recip_lattice(win.unit_cell)
 
     bvectors = get_bvectors(kpoints, recip_lattice)
 

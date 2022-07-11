@@ -1,8 +1,8 @@
 
 @testset "get_kpoint_mappings" begin
     win = read_win(joinpath(FIXTURE_PATH, "silicon.win"))
-    kpoints = win["kpoints"]
-    kgrid = win["mp_grid"]
+    kpoints = win.kpoints
+    kgrid = win.mp_grid
 
     k_xyz, xyz_k = get_kpoint_mappings(kpoints, kgrid)
 

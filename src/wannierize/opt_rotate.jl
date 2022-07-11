@@ -7,17 +7,66 @@ function get_fg!_rotate(model::Model)
 
     function f(W)
         A = rotate_amn(model.A, W)
-        omega(model.bvectors, model.M, A).Ω
+        return omega(model.bvectors, model.M, A).Ω
     end
 
     function g!(G, W)
-        A = rotate_amn(model.A, W)
-        GA = omega_grad(model.bvectors, model.M, A)
+        n_wann = size(W, 1)
+        M = model.M
+        n_bvecs = size(M, 3)
+        n_kpts = model.n_kpts
 
-        # sum w.r.t. kpoints
-        G .= dropdims(sum(GA, dims = 3); dims = 3)
+        bvectors = model.bvectors
+        kpb_k = bvectors.kpb_k
+        kpb_b = bvectors.kpb_b
+        wb = bvectors.weights
+        recip_lattice = bvectors.recip_lattice
+        kpoints = bvectors.kpoints
 
-        nothing
+        fill!(G, 0.0)
+        T = zeros(eltype(W), n_wann, n_wann)
+        b = zeros(eltype(real(W)), 3)
+        MWᵏᵇ = zeros(eltype(W), n_wann, n_wann)
+        Nᵏᵇ = zeros(eltype(W), n_wann, n_wann)
+
+        AW = rotate_amn(model.A, W)
+        r = center(bvectors, M, AW)
+        # actually I can just call this, equivalent to the for loop below.
+        # G_A = omega_grad(bvectors, M, AW, r)
+        # # sum w.r.t. kpoints
+        # G .= dropdims(sum(G_A, dims = 3); dims = 3)
+        # return nothing
+
+        for ik = 1:n_kpts
+            for ib = 1:n_bvecs
+                ikpb = kpb_k[ib, ik]
+
+                MWᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * W
+                Nᵏᵇ .= W' * MWᵏᵇ
+                b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
+
+                q = imaglog.(LA.diag(Nᵏᵇ)) + r' * b
+
+                for n = 1:n_wann
+                    # error if division by zero. Should not happen if the initial gauge is not too bad
+                    if abs(Nᵏᵇ[n, n]) < 1e-10
+                        error("Nᵏᵇ too small! $ik -> $ikpb, $Nᵏᵇ")
+                    end
+
+                    t = -conj(Nᵏᵇ[n, n]) - im * q[n] / Nᵏᵇ[n, n]
+
+                    for m = 1:n_wann
+                        T[m, n] = t * MWᵏᵇ[m, n]
+                    end
+                end
+
+                G .+= 4 * wb[ib] * T
+            end
+        end
+
+        G ./= n_kpts
+
+        return nothing
     end
 
     f, g!
@@ -58,7 +107,7 @@ function opt_rotate(
     # Comment g! to use finite differences to compute the gradient
     opt = Optim.optimize(
         f,
-        # g!,
+        g!,
         W0,
         meth(manifold = wManif, linesearch = ls, m = history_size),
         # autodiff=:forward,
@@ -74,17 +123,12 @@ function opt_rotate(
 
     Wmin = Optim.minimizer(opt)
 
-    # Wmin = [  0.396394+0.304749im  -0.0652139-0.49573im     -0.382338+0.322204im  -0.420344-0.27076im
-    # -0.254709-0.410673im    0.702612-0.0688952im  -0.0219307+0.433408im   -0.26895+0.086048im
-    #  0.526111+0.233063im    0.429235+0.0678782im    0.624165-0.22825im   -0.187253-0.0574045im
-    #  0.428172-0.04504im     0.182706-0.17134im    -0.0799552+0.337054im     0.7812+0.147068im]
-
     A = rotate_amn(model.A, Wmin)
     Ωᶠ = omega(model.bvectors, model.M, A)
     @info "Final spread"
     pprint(Ωᶠ)
 
-    Wmin
+    return Wmin
 end
 
 
@@ -98,5 +142,5 @@ function rotate_amn(A::Array{T,3}, W::Matrix{T}) where {T<:Complex}
         A1[:, :, ik] .= A[:, :, ik] * W
     end
 
-    A1
+    return A1
 end
