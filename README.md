@@ -80,7 +80,13 @@ For a much more detailed overview, please see [the User Guide documentation](htt
 
 * clone repo: `git clone https://github.com/qiaojunfeng/Wannier.jl`
 * install pre-commit: `pre-commit install`
-* test: `julia --project=. test/runtests.jl`
+* test:
+
+  ```bash
+  julia --project=.  # start REPL
+  ]                  # activate Pkg mode
+  test               # run tests
+  ```
 
 ## Contributing
 
