@@ -15,14 +15,13 @@ function read_win(filename::String)
     kpoints = missing
     kpoint_path = missing
 
-    parse_array(line::String) = map(x -> parse(Float64, x), split(line))
+    # handle case insensitive win files (relic of Fortran)
+    read_lowercase_line() = strip(lowercase(readline(io)))
+    parse_array(line::AbstractString) = map(x -> parse(Float64, x), split(line))
     read_array(f::IOStream) = parse_array(readline(f))
 
     while !eof(io)
-        line = readline(io)
-        # handle case insensitive win files (relic of Fortran)
-        line = strip(lowercase(line))
-
+        line = read_lowercase_line()
         line = replace(line, "=" => " ", ":" => " ", "," => " ")
 
         i = findfirst(r"!|#", line)
@@ -43,17 +42,17 @@ function read_win(filename::String)
             num_wann = parse(Int, split(line)[2])
         elseif occursin(r"begin\s+unit_cell_cart", line)
             unit_cell = zeros(Float64, 3, 3)
-            line = readline(io)
-            unit = strip(lowercase(line))
+            line = read_lowercase_line()
+            unit = line
             if !startswith(unit, "b") && !startswith(unit, "a")
                 unit = "ang"
             else
-                line = readline(io)
+                line = read_lowercase_line()
             end
             for i in 1:3
                 # in win file, each line is a lattice vector, here it is stored as column vec
                 unit_cell[:, i] = parse_array(line)
-                line = readline(io)
+                line = read_lowercase_line()
             end
             if startswith(unit, "b")
                 # convert to angstrom
@@ -61,13 +60,13 @@ function read_win(filename::String)
             end
             unit_cell = Mat3{Float64}(unit_cell)
         elseif occursin(r"begin\s+kpoints", line)
-            line = strip(readline(io))
+            line = read_lowercase_line()
             # kpoints block might be defined before mp_grid!
             # I need to read all lines and get n_kpts
             lines = Vector{String}()
             while !occursin(r"end\s+kpoints", line)
                 push!(lines, line)
-                line = strip(readline(io))
+                line = read_lowercase_line()
             end
 
             n_kpts = length(lines)
@@ -79,8 +78,9 @@ function read_win(filename::String)
         elseif occursin(r"begin\skpoint_path", line)
             kpoint_path = Kpath{Float64}()
 
+            # allow uppercase
             line = strip(readline(io))
-            while !occursin(r"end\s+kpoint_path", line)
+            while !occursin(r"end\s+kpoint_path", lowercase(line))
                 l = split(line)
                 length(l) != 8 && error("Invalid kpoint_path line: $line")
 
