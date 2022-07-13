@@ -341,6 +341,125 @@ function flatten_shells(shells::BVectorShells{T}) where {T<:Real}
     return bvecs, bvecs_weight
 end
 
+"""Equivalent to periodic image?"""
+function isequiv(v1::AbstractVector{T}, v2::AbstractVector{T}; atol::T=1e-5) where {T<:Real}
+    d = v1 - v2
+    d -= round.(d)
+    return all(isapprox.(d, 0; atol=atol))
+end
+
+"""Find vector in the columns of a matrix"""
+function findvector(predicate::Function, v::AbstractVector, M::AbstractMatrix)
+    for (i, col) in enumerate(eachcol(M))
+        predicate(v, col) && return i
+    end
+    return error("$v not found in array!")
+end
+
+"""
+kb1, kb2, k: cartesian coordinates
+inv_recip: inverse of recip_lattice
+kpoints: 3 x n_kpts matrix of fractional coordinates
+kpoints_cart: 3 x n_kpts matrix of cartesian coordinates
+"""
+function _bvec_isless(
+    kb1::AbstractVector,
+    kb2::AbstractVector,
+    k::AbstractVector,
+    inv_recip::AbstractMatrix,
+    kpoints::AbstractMatrix,
+    kpoints_cart::AbstractMatrix,
+    supercell_idx::AbstractMatrix;
+    atol::Real=1e-5,
+)
+    # Firstly, sort by length of bvectors: nearest k+b goes first
+    # Secondly, sort by supercell: k+b which is in the same cell as k goes first
+    # Thirdly, sort by the index (in the supercell array) of supercell:
+    #     the larger-index one goes first.
+    #     Note this also relies on the order of supercell_cart, see make_supercell()
+    # Fourthly, sort by k+b index: the smaller-index k+b point goes first
+
+    # Float64 comparsion is tricky, esp. for norm
+    if isapprox(kb1, kb2; atol=atol)
+        return true
+    end
+
+    normkb1 = LA.norm(kb1 - k)
+    normkb2 = LA.norm(kb2 - k)
+    if abs(normkb1 - normkb2) < atol
+        # using outter scope variable: inv_recip, kpoints, kpoints_cart
+        # bring back to fractional coord, easier to compare
+        kb1_frac = inv_recip * kb1
+        kb2_frac = inv_recip * kb2
+        kb1_equiv_idx = findvector(isequiv, kb1_frac, kpoints)
+        kb2_equiv_idx = findvector(isequiv, kb2_frac, kpoints)
+        celldisp_kb1 = kb1 - kpoints_cart[:, kb1_equiv_idx]
+        celldisp_kb2 = kb2 - kpoints_cart[:, kb2_equiv_idx]
+        @debug "bvec_isless" celldisp_kb1, celldisp_kb2
+        normkb1 = LA.norm(celldisp_kb1)
+        normkb2 = LA.norm(celldisp_kb2)
+        @debug "bvec_isless" normkb1, normkb2
+        # to be consistent with w90, use explicitly 1e-8
+        if abs(normkb1 - normkb2) < 1e-8
+            # using outter scope variable: supercell_idx
+            celldisp_kb1_frac = round.(Int, inv_recip * celldisp_kb1)
+            celldisp_kb2_frac = round.(Int, inv_recip * celldisp_kb2)
+            idx1 = findvector(==, celldisp_kb1_frac, supercell_idx)
+            idx2 = findvector(==, celldisp_kb2_frac, supercell_idx)
+            @debug "bvec_isless", idx1, idx2
+            if idx1 > idx2
+                return true
+            elseif idx1 < idx2
+                return false
+            else
+                if kb1_equiv_idx < kb2_equiv_idx
+                    return true
+                elseif kb1_equiv_idx > kb2_equiv_idx
+                    return false
+                else
+                    error("Comparing equivalent k+b points, this should not happen!")
+                end
+            end
+        elseif normkb1 < normkb2
+            return true
+        else # normkb1 > normkb2
+            return false
+        end
+    elseif normkb1 < normkb2
+        return true
+    else # normkb1 > normkb2
+        return false
+    end
+end
+
+"""
+kb1, kb2, k: cartesian coordinates
+
+not used, just a user-friendly version.
+"""
+function bvec_isless(
+    kb1::AbstractVector,
+    kb2::AbstractVector,
+    k::AbstractVector;
+    shells::BVectorShells,
+    atol::Real=1e-5,
+)
+    kpoints = shells.kpoints
+    recip_lattice = shells.recip_lattice
+
+    inv_recip = inv(recip_lattice)
+    kpoints_cart = recip_lattice * kpoints
+
+    # To sort bvectors for each kpoints, I need to
+    # calculate distances of supercells to original cell
+    # Just pass a fake kpoint, I only need the cell translations.
+    _, supercell_idx = make_supercell(zeros(eltype(k), 3, 1))
+
+    return _bvec_isless(
+        kb1, kb2, k, inv_recip, kpoints, kpoints_cart, supercell_idx; atol=atol
+    )
+end
+
 @doc raw"""
 Sort bvectors in shells for each kpoints, to be consistent with wannier90
 
@@ -350,97 +469,23 @@ written in such order, so I need to sort bvectors and calculate
 weights, since nnkp file has no section of weights.
 """
 function sort_bvectors(shells::BVectorShells{T}) where {T<:Real}
-    # Firstly, sort by length of bvectors: nearest k+b goes first
-    # Secondly, sort by supercell: k+b which is in the same cell as k goes first
-    # Thirdly, sort by the index (in the supercell array) of supercell:
-    #     the larger-index one goes first.
-    #     Note this also relies on the order of supercell_cart, see make_supercell()
-    # Fourthly, sort by k+b index: the smaller-index k+b point goes first
-
     kpoints = shells.kpoints
     recip_lattice = shells.recip_lattice
 
     n_kpts = size(kpoints, 2)
 
     inv_recip = inv(recip_lattice)
-    kpts_cart = recip_lattice * kpoints
+    kpoints_cart = recip_lattice * kpoints
 
     # To sort bvectors for each kpoints, I need to
     # calculate distances of supercells to original cell
     # Just pass a fake kpoint, I only need the cell translations.
     _, supercell_idx = make_supercell(zeros(T, 3, 1))
 
-    """Equivalent to periodic image?"""
-    function isequiv(v1, v2; atol=1e-5)
-        d = v1 - v2
-        d -= round.(d)
-
-        return all(isapprox.(d, 0; atol=atol))
-    end
-
-    """Find vector in the columns of a matrix"""
-    function findvector(predicate::Function, v, M)
-        for (i, col) in enumerate(eachcol(M))
-            predicate(v, col) && return i
-        end
-        return error("$v not found in array!")
-    end
-
-    """
-    kb1, kb2, k: cartesian coordinates
-    """
-    function bvec_isless(kb1, kb2, k; atol=1e-5)
-        # Float64 comparsion is tricky, esp. for norm
-
-        if isapprox(kb1, kb2; atol=atol)
-            return true
-        end
-
-        normkb1 = LA.norm(kb1 - k)
-        normkb2 = LA.norm(kb2 - k)
-        if abs(normkb1 - normkb2) < atol
-            # using outter scope variable: inv_recip, kpoints, kpts_cart
-            # bring back to fractional coord, easier to compare
-            kb1_frac = inv_recip * kb1
-            kb2_frac = inv_recip * kb2
-            kb1_equiv_idx = findvector(isequiv, kb1_frac, kpoints)
-            kb2_equiv_idx = findvector(isequiv, kb2_frac, kpoints)
-            celldisp_kb1 = kb1 - kpts_cart[:, kb1_equiv_idx]
-            celldisp_kb2 = kb2 - kpts_cart[:, kb2_equiv_idx]
-            # @debug "bvec_isless" celldisp_kb1, celldisp_kb2
-            normkb1 = LA.norm(celldisp_kb1)
-            normkb2 = LA.norm(celldisp_kb2)
-            # @debug "bvec_isless" normkb1, normkb2
-            if abs(normkb1 - normkb2) < atol
-                # using outter scope variable: supercell_idx
-                celldisp_kb1_frac = round.(Int, inv_recip * celldisp_kb1)
-                celldisp_kb2_frac = round.(Int, inv_recip * celldisp_kb2)
-                idx1 = findvector(==, celldisp_kb1_frac, supercell_idx)
-                idx2 = findvector(==, celldisp_kb2_frac, supercell_idx)
-                # @debug "bvec_isless", idx1, idx2
-                if idx1 > idx2
-                    return true
-                elseif idx1 < idx2
-                    return false
-                else
-                    if kb1_equiv_idx < kb2_equiv_idx
-                        return true
-                    elseif kb1_equiv_idx > kb2_equiv_idx
-                        return false
-                    else
-                        error("Comparing equivalent k+b points, this should not happen!")
-                    end
-                end
-            elseif normkb1 < normkb2
-                return true
-            else # normkb1 > normkb2
-                return false
-            end
-        elseif normkb1 < normkb2
-            return true
-        else # normkb1 > normkb2
-            return false
-        end
+    # this comparison function will be called many times,
+    # so I pass directly these keyword params to avoid repeated calculations.
+    function bvec_isless(kb1, kb2, k)
+        return _bvec_isless(kb1, kb2, k, inv_recip, kpoints, kpoints_cart, supercell_idx)
     end
 
     # Test: check the order of b vectors is the same as wannier90
@@ -462,7 +507,7 @@ function sort_bvectors(shells::BVectorShells{T}) where {T<:Real}
     ikpb = Vector{Vec3{T}}(undef, n_bvecs)
 
     for ik in 1:n_kpts
-        k_cart = kpts_cart[:, ik]
+        k_cart = kpoints_cart[:, ik]
 
         for ib in 1:n_bvecs
             ikpb[ib] = k_cart .+ bvecs[:, ib]
