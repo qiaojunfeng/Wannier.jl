@@ -3,7 +3,7 @@ import LinearAlgebra as LA
 import NearestNeighbors as NN
 
 @doc raw"""
-Store shells of bvectors.
+Shells of bvectors.
 """
 struct BVectorShells{T<:Real}
     # reciprocal lattice, 3 * 3
@@ -39,8 +39,21 @@ function BVectorShells(
     )
 end
 
+function pprint(shells::BVectorShells)
+    for i in 1:(shells.n_shells)
+        @printf("BVector shell %3d    weight = %8.5f\n", i, shells.weights[i])
+        vecs = shells.bvectors[i]
+        for ib in 1:size(vecs, 2)
+            @printf("  %3d    %10.5f %10.5f %10.5f\n", ib, vecs[:, ib]...)
+        end
+    end
+    # print a blank line to separate the following stdout
+    println()
+    return nothing
+end
+
 @doc raw"""
-The bvectors for each kpoint, sorted the same as the Wannier90 nnkp order.
+The bvectors for each kpoint, sorted in the same order as the W90 nnkp file.
 """
 struct BVectors{T<:Real}
     # reciprocal lattice, 3 * 3
@@ -103,89 +116,6 @@ function make_supercell(kpoints::Matrix{T}, supercell_size::Int=5) where {T<:Rea
     end
 
     return supercell, translations
-end
-
-@doc raw"""
-Check if the columns of matrix A and columns of matrix B are parallel.
-"""
-function are_parallel(A::Matrix{T}, B::Matrix{T}; atol::T=1e-5) where {T<:Real}
-    n_dim = size(A, 1)
-    if n_dim != 3 || size(B, 1) != n_dim
-        error("only support 3-vectors")
-    end
-
-    ncol_A = size(A, 2)
-    ncol_B = size(B, 2)
-    result = fill(false, ncol_A, ncol_B)
-
-    for (i, col1) in enumerate(eachcol(A))
-        for (j, col2) in enumerate(eachcol(B))
-            p = LA.cross(col1, col2)
-            if all(isapprox.(0, p; atol=atol))
-                result[i, j] = true
-            end
-        end
-    end
-
-    return result
-end
-
-@doc raw"""
-Try to guess bvector weights from MV1997 Eq. (B1).
-
-input bvectors are overcomplete vectors found during shell search.
-return: bvectors and weights satisfing B1 condition.
-"""
-function get_weights(bvectors::Vector{Matrix{T}}; b1_atol::T=1e-6) where {T<:Real}
-    n_shells = length(bvectors)
-    n_shells == 0 && error("empty bvectors?")
-    size(bvectors[1], 1) != 3 && error("only support 3-vectors")
-
-    # only compare the upper triangular part of bvec * bvec', 6 elements
-    B = zeros(T, 6, n_shells)
-
-    # return the upper triangular part of a matrix as a vector
-    triu2vec(m) = m[LA.triu!(trues(size(m)), 0)]
-    # triu2vec(I) = [1 0 1 0 0 1]
-    triu_I = triu2vec(LA.diagm([1, 1, 1]))
-
-    W = zeros(n_shells)
-
-    # sigular value tolerance
-    σ_atol = 1e-5
-
-    keep_shells = zeros(Int, 0)
-    ishell = 1
-    while ishell <= n_shells
-        push!(keep_shells, ishell)
-        B[:, ishell] = triu2vec(bvectors[ishell] * bvectors[ishell]')
-        # Solve equation B * W = triu_I
-        # size(B) = (6, ishell), W is diagonal matrix of size ishell
-        # B = U * S * V' -> W = V * S^-1 * U' * triu_I
-        U, S, V = LA.svd(B[:, keep_shells])
-        @debug "S" ishell S = S' keep_shells = keep_shells'
-        if all(S .> σ_atol)
-            W[keep_shells] = V * LA.Diagonal(S)^-1 * U' * triu_I
-            BW = B[:, keep_shells] * W[keep_shells]
-            @debug "BW" ishell BW = BW'
-            if isapprox(BW, triu_I; atol=b1_atol)
-                break
-            end
-        else
-            pop!(keep_shells)
-        end
-        ishell += 1
-    end
-    if ishell == n_shells + 1
-        error("not enough shells to satisfy B1 condition")
-    end
-    n_shells = length(keep_shells)
-
-    # resize
-    weights = W[keep_shells]
-    new_bvectors = bvectors[keep_shells]
-
-    return new_bvectors, weights
 end
 
 @doc raw"""
@@ -255,19 +185,51 @@ function search_shells(
     end
     @debug "Found bvector shells" bvectors
 
-    # 5. Remove shells with parallel bvectors
+    weights = zeros(T, 0)
+
+    return BVectorShells(recip_lattice, kpoints, bvectors, weights)
+end
+
+@doc raw"""
+Check if the columns of matrix A and columns of matrix B are parallel.
+"""
+function are_parallel(A::Matrix{T}, B::Matrix{T}; atol::T=1e-5) where {T<:Real}
+    n_dim = size(A, 1)
+    if n_dim != 3 || size(B, 1) != n_dim
+        error("only support 3-vectors")
+    end
+
+    ncol_A = size(A, 2)
+    ncol_B = size(B, 2)
+    result = fill(false, ncol_A, ncol_B)
+
+    for (i, col1) in enumerate(eachcol(A))
+        for (j, col2) in enumerate(eachcol(B))
+            p = LA.cross(col1, col2)
+            if all(isapprox.(0, p; atol=atol))
+                result[i, j] = true
+            end
+        end
+    end
+
+    return result
+end
+
+@doc raw"""
+Remove shells having parallel bvectors
+"""
+function delete_parallel(bvectors::Vector{Matrix{T}}) where {T<:Real}
+    n_shells = length(bvectors)
     keep_shells = collect(1:n_shells)
+
     for ishell in 2:n_shells
         has_parallel = false
         for jshell in 1:(ishell - 1)
             if !(jshell in keep_shells)
                 continue
             end
-            if has_parallel
-                break
-            end
+
             p = are_parallel(bvectors[jshell], bvectors[ishell])
-            # @debug "are_parallel($jshell, $ishell)" p
             if any(p)
                 @debug "has parallel bvectors $jshell, $ishell"
                 has_parallel = true
@@ -278,24 +240,82 @@ function search_shells(
             filter!(s -> s != ishell, keep_shells)
         end
     end
-    n_shells = length(keep_shells)
-    bvectors = bvectors[keep_shells]
+    new_bvectors = bvectors[keep_shells]
 
-    @debug "After check_parallel bvector shells" [size(b, 2) for b in bvectors]' bvectors
+    @debug "After delete_parallel" [size(b, 2) for b in new_bvectors]' new_bvectors
+    return new_bvectors
+end
 
-    # 6. Calculate weights to satisfy B1 condition
-    bvectors, weights = get_weights(bvectors)
+function delete_parallel(shells::BVectorShells)
+    bvectors = delete_parallel(shells.bvectors)
+    return BVectorShells(shells.recip_lattice, shells.kpoints, bvectors, shells.weights)
+end
+
+@doc raw"""
+Try to guess bvector weights from MV1997 Eq. (B1).
+
+input bvectors are overcomplete vectors found during shell search.
+return: bvectors and weights satisfing B1 condition.
+"""
+function compute_weights(bvectors::Vector{Matrix{T}}; b1_atol::T=1e-6) where {T<:Real}
     n_shells = length(bvectors)
-
+    n_shells == 0 && error("empty bvectors?")
     for i in 1:n_shells
-        @printf("BVector shell %3d    weight = %8.5f\n", i, weights[i])
-        vecs = bvectors[i]
-        for ib in 1:size(vecs, 2)
-            @printf("  %3d    %10.5f %10.5f %10.5f\n", ib, vecs[:, ib]...)
+        if size(bvectors[i], 1) != 3
+            error("only support 3-vectors")
         end
     end
 
-    return BVectorShells(recip_lattice, kpoints, bvectors, weights)
+    # only compare the upper triangular part of bvec * bvec', 6 elements
+    B = zeros(T, 6, n_shells)
+
+    # return the upper triangular part of a matrix as a vector
+    triu2vec(m) = m[LA.triu!(trues(size(m)), 0)]
+    # triu2vec(I) = [1 0 1 0 0 1]
+    triu_I = triu2vec(LA.diagm([1, 1, 1]))
+
+    W = zeros(n_shells)
+
+    # sigular value tolerance
+    σ_atol = 1e-5
+
+    keep_shells = zeros(Int, 0)
+    ishell = 1
+    while ishell <= n_shells
+        push!(keep_shells, ishell)
+        B[:, ishell] = triu2vec(bvectors[ishell] * bvectors[ishell]')
+        # Solve equation B * W = triu_I
+        # size(B) = (6, ishell), W is diagonal matrix of size ishell
+        # B = U * S * V' -> W = V * S^-1 * U' * triu_I
+        U, S, V = LA.svd(B[:, keep_shells])
+        @debug "S" ishell S = S' keep_shells = keep_shells'
+        if all(S .> σ_atol)
+            W[keep_shells] = V * LA.Diagonal(S)^-1 * U' * triu_I
+            BW = B[:, keep_shells] * W[keep_shells]
+            @debug "BW" ishell BW = BW'
+            if isapprox(BW, triu_I; atol=b1_atol)
+                break
+            end
+        else
+            pop!(keep_shells)
+        end
+        ishell += 1
+    end
+    if ishell == n_shells + 1
+        error("not enough shells to satisfy B1 condition")
+    end
+    n_shells = length(keep_shells)
+
+    # resize
+    weights = W[keep_shells]
+    new_bvectors = bvectors[keep_shells]
+
+    return new_bvectors, weights
+end
+
+function compute_weights(shells::BVectorShells{T}) where {T<:Real}
+    bvectors, weights = compute_weights(shells.bvectors)
+    return BVectorShells(shells.recip_lattice, shells.kpoints, bvectors, weights)
 end
 
 @doc raw"""
@@ -489,11 +509,12 @@ function sort_bvectors(shells::BVectorShells{T}) where {T<:Real}
     end
 
     # Test: check the order of b vectors is the same as wannier90
-    # k = kpts_cart[:, 1]
-    # kb1 = recip_lattice * (kpoints[:, 9] + [0 0 0]')
-    # kb2 = recip_lattice * (kpoints[:, 65] + [0 0 0]')
-    # @debug "islesss" bvec_isless(kb1, kb2, k)
-    # throw(ErrorException)
+    # k = kpoints_cart[:, end]
+    # kb1 = dropdims(recip_lattice * (kpoints[:, 23] + [1 0 0]'), dims=2)
+    # kb2 = dropdims(recip_lattice * (kpoints[:, 529] + [0 1 0]'), dims=2)
+    # @debug "isless" bvec_isless(kb1, kb2, k)
+    # @debug "isless" kb1, kb2, k
+    # error("debug")
 
     bvecs, bvecs_weight = flatten_shells(shells)
     n_bvecs = size(bvecs, 2)
@@ -542,13 +563,10 @@ Generate bvectors for all the kpoints.
 """
 function get_bvectors(kpoints::Matrix{T}, recip_lattice::Mat3{T}) where {T<:Real}
     shells = search_shells(kpoints, recip_lattice)
-
+    shells = delete_parallel(shells)
+    shells = compute_weights(shells)
+    pprint(shells)
     check_b1(shells)
-
     bvectors = sort_bvectors(shells)
-
-    # print a blank line to separate the following stdout
-    println()
-
     return bvectors
 end
