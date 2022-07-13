@@ -43,7 +43,6 @@ end
 The bvectors for each kpoint, sorted the same as the Wannier90 nnkp order.
 """
 struct BVectors{T<:Real}
-
     # reciprocal lattice, 3 * 3
     recip_lattice::Mat3{T}
 
@@ -112,7 +111,7 @@ Check if the columns of matrix A and columns of matrix B are parallel.
 function are_parallel(A::Matrix{T}, B::Matrix{T}; atol::T=1e-5) where {T<:Real}
     n_dim = size(A, 1)
     if n_dim != 3 || size(B, 1) != n_dim
-        throw(ArgumentError("only support 3-vectors"))
+        error("only support 3-vectors")
     end
 
     ncol_A = size(A, 2)
@@ -137,14 +136,10 @@ Try to guess bvector weights from MV1997 Eq. (B1).
 input bvectors are overcomplete vectors found during shell search.
 return: bvectors and weights satisfing B1 condition.
 """
-function get_weights(bvectors::Vector{Matrix{T}}; atol::T=1e-8) where {T<:Real}
+function get_weights(bvectors::Vector{Matrix{T}}; b1_atol::T=1e-6) where {T<:Real}
     n_shells = length(bvectors)
-    if n_shells == 0
-        throw(ArgumentError("empty bvectors?"))
-    end
-    if size(bvectors[1], 1) != 3
-        throw(ArgumentError("only support 3-vectors"))
-    end
+    n_shells == 0 && error("empty bvectors?")
+    size(bvectors[1], 1) != 3 && error("only support 3-vectors")
 
     # only compare the upper triangular part of bvec * bvec', 6 elements
     B = zeros(T, 6, n_shells)
@@ -156,30 +151,39 @@ function get_weights(bvectors::Vector{Matrix{T}}; atol::T=1e-8) where {T<:Real}
 
     W = zeros(n_shells)
 
+    # sigular value tolerance
+    σ_atol = 1e-5
+
+    keep_shells = zeros(Int, 0)
     ishell = 1
     while ishell <= n_shells
+        push!(keep_shells, ishell)
         B[:, ishell] = triu2vec(bvectors[ishell] * bvectors[ishell]')
         # Solve equation B * W = triu_I
         # size(B) = (6, ishell), W is diagonal matrix of size ishell
         # B = U * S * V' -> W = V * S^-1 * U' * triu_I
-        U, S, V = LA.svd(B[:, 1:ishell])
-        # @debug "S" ishell B[:,ishell]' S
-        if all(S .> atol)
-            W[1:ishell] = V * LA.Diagonal(S)^-1 * U' * triu_I
-            if isapprox(B[:, 1:ishell] * W[1:ishell], triu_I; atol=atol)
+        U, S, V = LA.svd(B[:, keep_shells])
+        @debug "S" ishell S = S' keep_shells = keep_shells'
+        if all(S .> σ_atol)
+            W[keep_shells] = V * LA.Diagonal(S)^-1 * U' * triu_I
+            BW = B[:, keep_shells] * W[keep_shells]
+            @debug "BW" ishell BW = BW'
+            if isapprox(BW, triu_I; atol=b1_atol)
                 break
             end
+        else
+            pop!(keep_shells)
         end
         ishell += 1
     end
     if ishell == n_shells + 1
         error("not enough shells to satisfy B1 condition")
     end
-    n_shells = ishell
+    n_shells = length(keep_shells)
 
     # resize
-    weights = W[1:n_shells]
-    new_bvectors = bvectors[1:n_shells]
+    weights = W[keep_shells]
+    new_bvectors = bvectors[keep_shells]
 
     return new_bvectors, weights
 end
@@ -296,7 +300,7 @@ end
 @doc raw"""
 Check completeness (B1 condition) of bvectors.
 """
-function check_b1(shells::BVectorShells{T}) where {T<:Real}
+function check_b1(shells::BVectorShells{T}, b1_atol::T=1e-6) where {T<:Real}
     M = zeros(T, 3, 3)
 
     for ish in 1:(shells.n_shells)
@@ -305,7 +309,7 @@ function check_b1(shells::BVectorShells{T}) where {T<:Real}
     end
 
     @debug "Bvector sum" M
-    if !isapprox(M, LA.I)
+    if !isapprox(M, LA.I; atol=b1_atol)
         error("B1 condition is not satisfied")
     end
 
