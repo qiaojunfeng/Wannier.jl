@@ -39,3 +39,59 @@
     @test bvectors.kpb_k ≈ kpb_k
     @test bvectors.kpb_b ≈ kpb_b
 end
+
+@testset "get_bvectors 2D" begin
+    win = read_win(joinpath(FIXTURE_PATH, "graphene", "graphene.win"))
+    nnkp = read_nnkp(joinpath(FIXTURE_PATH, "graphene", "graphene.nnkp"))
+
+    kpoints = win.kpoints
+    recip_lattice = get_recip_lattice(win.unit_cell)
+
+    bvectors = get_bvectors(kpoints, recip_lattice)
+
+    ref_bvecs = zeros(Float64, 3, 8)
+    ref_bvecs =
+        [
+            0.000000 0.070948 0.000000
+            0.061443 0.035474 0.000000
+            -0.061443 -0.035474 0.000000
+            -0.061443 0.035474 0.000000
+            0.000000 -0.070948 0.000000
+            0.061443 -0.035474 0.000000
+            0.000000 0.000000 0.209440
+            0.000000 0.000000 -0.209440
+        ]'
+
+    ref_weights = [
+        66.220759
+        66.220759
+        66.220759
+        66.220759
+        66.220759
+        66.220759
+        11.398633
+        11.398633
+    ]
+
+    @test bvectors.recip_lattice ≈ recip_lattice
+    @test bvectors.kpoints ≈ kpoints
+    @test bvectors.weights ≈ ref_weights
+    @test begin
+        # sometimes the bvectors are not ordered
+        ret = true
+        bvecs = Vector([bvectors.bvectors[:, i] for i in 1:size(bvectors.bvectors, 2)])
+        for i in 1:size(ref_bvecs, 2)
+            b = ref_bvecs[:, i]
+            idx = findfirst(v -> isapprox(v, b; atol=1e-5), bvecs)
+            if idx === nothing
+                ret = false
+                break
+            end
+            deleteat!(bvecs, idx)
+        end
+        length(bvecs) != 0 && (ret = false)
+        ret
+    end
+    @test bvectors.kpb_k ≈ nnkp.kpb_k
+    @test bvectors.kpb_b ≈ nnkp.kpb_b
+end
