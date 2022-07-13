@@ -200,11 +200,11 @@ function search_shells(
 ) where {T<:Real}
     # Usually these "magic" numbers work well for normal recip_lattice.
     # Number of nearest-neighbors to be returned
-    max_neighbors = 100
+    max_neighbors = 500
     # Max number of stencils in one shell
     max_multiplicity = 40
     # Max number of nearest-neighbor shells
-    max_shells = 5
+    max_shells = 40
     # max_shells = round(Int, max_neighbors / max_multiplicity)
 
     # 1. Generate a supercell to search bvectors
