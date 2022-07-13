@@ -269,18 +269,19 @@ function search_shells(
             p = are_parallel(bvectors[jshell], bvectors[ishell])
             # @debug "are_parallel($jshell, $ishell)" p
             if any(p)
+                @debug "has parallel bvectors $jshell, $ishell"
                 has_parallel = true
                 break
             end
         end
         if has_parallel
-            splice!(keep_shells, ishell)
+            filter!(s -> s != ishell, keep_shells)
         end
     end
     n_shells = length(keep_shells)
     bvectors = bvectors[keep_shells]
 
-    # @debug "After check_parallel bvector shells" bvectors
+    @debug "After check_parallel bvector shells" [size(b, 2) for b in bvectors]' bvectors
 
     # 6. Calculate weights to satisfy B1 condition
     bvectors, weights = get_weights(bvectors)
