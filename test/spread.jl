@@ -6,6 +6,7 @@ model = read_seedname(joinpath(FIXTURE_PATH, "silicon/silicon"))
 f, g! = Wannier.get_fg!_maxloc(model)
 
 @testset "spread" begin
+    # should be roughly the same as test/fixtures/silicon/silicon.wout
     Ω = omega(model.bvectors, model.M, model.A)
 
     @test Ω.Ω ≈ 63.52324857972985
