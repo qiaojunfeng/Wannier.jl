@@ -40,9 +40,6 @@ Then this command split WFs into two independent groups.
     # Input AMN is Silicon s,p projection
     model = read_seedname(seedname; amn=false)
 
-    # calculate spread
-    f(m::Model) = omega(m.bvectors, m.M, m.A)
-
     if run_disentangle
         # You can also use disentangle to get a good gauge from initial projection
         model.A .= read_amn("$seedname.amn")
@@ -55,7 +52,7 @@ Then this command split WFs into two independent groups.
     end
 
     @info "Valence + conduction initial spread"
-    pprint(f(model))
+    pprint(omega(model))
 
     (nval === nothing) && (nval = model.n_wann ÷ 2)
 
@@ -63,9 +60,9 @@ Then this command split WFs into two independent groups.
     model_val, model_cond, Uv, Uc = split_wannierize(model, nval)
 
     @info "Valence after parallel transport:"
-    pprint(f(model_val))
+    pprint(omega(model_val))
     @info "Conduction after parallel transport:"
-    pprint(f(model_cond))
+    pprint(omega(model_cond))
 
     if run_optrot
         @info "Run optimal rotation"

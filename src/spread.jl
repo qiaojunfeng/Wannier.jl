@@ -67,7 +67,6 @@ end
     MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
 
     for ik in 1:n_kpts
-
         # w_froz -= μ * sum(abs2, A[1:n_froz, :, ik])
 
         for ib in 1:n_bvecs
@@ -114,6 +113,8 @@ end
     return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r)
     # Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, w_froz)
 end
+
+omega(model::Model) = omega(model.bvectors, model.M, model.A)
 
 """
 dΩ/dU, n_bands * n_wann * n_kpts

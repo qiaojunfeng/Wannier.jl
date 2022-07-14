@@ -7,7 +7,7 @@ f, g! = Wannier.get_fg!_maxloc(model)
 
 @testset "spread" begin
     # should be roughly the same as test/fixtures/silicon/silicon.wout
-    Ω = omega(model.bvectors, model.M, model.A)
+    Ω = omega(model)
 
     @test Ω.Ω ≈ 63.52324857972985
     @test Ω.ΩI ≈ 49.83393864002448
