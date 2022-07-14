@@ -16,7 +16,7 @@ Then this command split WFs into two independent groups.
 
 # Flags
 
-- `--run-disentangle`: run disentangle first, otherwise read CHK to
+- `--run-disentangle`: read AMN and run disentangle first, otherwise read CHK to
     get unitary matrices from `n_bands` to `n_wann`
 - `--run-optrot`: max localize w.r.t. single unitary matrix after parallel transport.
     Should further reduce the spread and much closer to the true max localization.
@@ -38,19 +38,20 @@ Then this command split WFs into two independent groups.
     # seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
 
     # Input AMN is Silicon s,p projection
-    model = read_seedname(seedname)
+    model = read_seedname(seedname; amn=false)
 
     # calculate spread
     f(m::Model) = omega(m.bvectors, m.M, m.A).Ω
 
     if run_disentangle
         # You can also use disentangle to get a good gauge from initial projection
-        model.A = disentangle(model)
+        model.A .= read_amn("$seedname.amn")
+        model.A .= disentangle(model)
     else
         # Get max localized gauge from chk file
         chk = read_chk("$seedname.chk.fmt")
         # We replace the initial projection by the "good" max loc gauge
-        model.A = get_amn(chk)
+        model.A .= get_amn(chk)
     end
 
     @info "Valence + conduction initial spread"
