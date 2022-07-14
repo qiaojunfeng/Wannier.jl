@@ -337,6 +337,7 @@ function check_b1(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
     end
 
     println("Finite difference condition satisfied")
+    println()
     return nothing
 end
 
