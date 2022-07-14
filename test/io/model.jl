@@ -1,6 +1,6 @@
 
 @testset "write_model" begin
-    model = read_seedname("$FIXTURE_PATH/silicon")
+    model = read_seedname(joinpath(FIXTURE_PATH, "silicon/silicon"))
 
     outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "silicon")

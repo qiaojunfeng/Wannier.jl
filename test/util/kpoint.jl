@@ -1,6 +1,6 @@
 
 @testset "get_kpoint_mappings" begin
-    win = read_win(joinpath(FIXTURE_PATH, "silicon.win"))
+    win = read_win(joinpath(FIXTURE_PATH, "silicon/silicon.win"))
     kpoints = win.kpoints
     kgrid = win.mp_grid
 

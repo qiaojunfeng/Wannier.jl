@@ -5,7 +5,7 @@ mat2vec(A::AbstractMatrix) = [Vector(A[:, i]) for i in 1:size(A, 2)]
 @testset "read win" begin
     test_data = YAML.load_file(String(@__DIR__) * "/test_data/win.yaml")
 
-    win = read_win("$FIXTURE_PATH/silicon.win")
+    win = read_win(joinpath(FIXTURE_PATH, "silicon/silicon.win"))
 
     # Convert type so YAML can write it.
     unit_cell = mat2vec(win.unit_cell)
@@ -45,7 +45,7 @@ mat2vec(A::AbstractMatrix) = [Vector(A[:, i]) for i in 1:size(A, 2)]
 end
 
 @testset "read/write mmn" begin
-    M, kpb_k, kpb_b = read_mmn("$FIXTURE_PATH/silicon.mmn")
+    M, kpb_k, kpb_b = read_mmn(joinpath(FIXTURE_PATH, "silicon/silicon.mmn"))
 
     tmpfile = tempname(; cleanup=true)
 
@@ -59,7 +59,7 @@ end
 end
 
 @testset "read/write eig" begin
-    E = read_eig("$FIXTURE_PATH/silicon.eig")
+    E = read_eig(joinpath(FIXTURE_PATH, "silicon/silicon.eig"))
 
     tmpfile = tempname(; cleanup=true)
 
@@ -71,7 +71,7 @@ end
 end
 
 @testset "read_seedname" begin
-    model = read_seedname("$FIXTURE_PATH/silicon")
+    model = read_seedname(joinpath(FIXTURE_PATH, "silicon/silicon"))
 
     @test model.n_bands ≈ 12
     @test model.n_wann ≈ 8
@@ -81,7 +81,7 @@ end
 @testset "read nnkp" begin
     test_data = YAML.load_file(String(@__DIR__) * "/test_data/nnkp.yaml")
 
-    bvectors = read_nnkp("$FIXTURE_PATH/silicon.nnkp")
+    bvectors = read_nnkp(joinpath(FIXTURE_PATH, "silicon/silicon.nnkp"))
 
     # Convert type so YAML can write it.
     kpb_b = bvectors.kpb_b
@@ -101,7 +101,7 @@ end
 end
 
 @testset "read/write unk" begin
-    ik, Ψ = read_unk("$FIXTURE_PATH/UNK00001.1")
+    ik, Ψ = read_unk(joinpath(FIXTURE_PATH, "silicon/UNK00001.1"))
 
     tmpfile = tempname(; cleanup=true)
 
@@ -114,14 +114,14 @@ end
 end
 
 @testset "read chk" begin
-    chk = read_chk("$FIXTURE_PATH/silicon.chk.fmt")
+    chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
 
     @test chk.n_wann == 8
     @test chk.n_bands == 12
 end
 
 @testset "read/write w90 band dat" begin
-    band = read_w90_bands("$FIXTURE_PATH/valence/band/silicon")
+    band = read_w90_bands(joinpath(FIXTURE_PATH, "valence/band/silicon"))
 
     outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "silicon")
@@ -140,7 +140,7 @@ end
 end
 
 @testset "read wout" begin
-    wout = read_wout("$FIXTURE_PATH/valence/band/silicon.wout")
+    wout = read_wout(joinpath(FIXTURE_PATH, "valence/band/silicon.wout"))
 
     ref_unit_cell =
         [

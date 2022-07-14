@@ -1,8 +1,8 @@
 import LinearAlgebra as LA
 
 @testset "split_eig" begin
-    E = read_eig(joinpath(FIXTURE_PATH, "silicon.eig"))
-    chk = read_chk(joinpath(FIXTURE_PATH, "silicon.chk.fmt"))
+    E = read_eig(joinpath(FIXTURE_PATH, "silicon/silicon.eig"))
+    chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
     n_val = 4
 
     U = get_amn(chk)
@@ -17,14 +17,14 @@ import LinearAlgebra as LA
 end
 
 @testset "split_mmn" begin
-    E = read_eig(joinpath(FIXTURE_PATH, "silicon.eig"))
-    chk = read_chk(joinpath(FIXTURE_PATH, "silicon.chk.fmt"))
+    E = read_eig(joinpath(FIXTURE_PATH, "silicon/silicon.eig"))
+    chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
     n_val = 4
 
     U = get_amn(chk)
     Ev, Ec, _, _ = Wannier.split_eig(E, U, n_val)
 
-    M, kpb_k, kpb_b = read_mmn(joinpath(FIXTURE_PATH, "silicon.mmn"))
+    M, kpb_k, kpb_b = read_mmn(joinpath(FIXTURE_PATH, "silicon/silicon.mmn"))
 
     # V is random, use reference V
     Vv = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.vmn"))
@@ -73,8 +73,8 @@ end
 end
 
 @testset "split_model" begin
-    model = read_seedname(joinpath(FIXTURE_PATH, "silicon"))
-    chk = read_chk(joinpath(FIXTURE_PATH, "silicon.chk.fmt"))
+    model = read_seedname(joinpath(FIXTURE_PATH, "silicon/silicon"))
+    chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
     model.A .= get_amn(chk)
 
     n_val = 4

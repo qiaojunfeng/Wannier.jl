@@ -1,4 +1,4 @@
 
 @testset "isbinary_file" begin
-    @test !Wannier.isbinary_file("$FIXTURE_PATH/UNK00001.1")
+    @test !Wannier.isbinary_file(joinpath(FIXTURE_PATH, "silicon/UNK00001.1"))
 end
