@@ -495,7 +495,8 @@ function read_nnkp(filename::String)
     end
     close(io)
 
-    @info "$filename OK" n_kpts n_bvecs
+    println("  n_kpts  = ", n_kpts)
+    println("  n_bvecs = ", n_bvecs)
     println()
 
     bvectors = Matrix{Float64}(undef, 3, n_bvecs)
