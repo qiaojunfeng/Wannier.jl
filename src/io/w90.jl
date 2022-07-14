@@ -387,9 +387,6 @@ function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bo
         n_kpts != size(A)[3] && error("n_kpts != size(A)[3]")
     else
         A = zeros(ComplexF64, n_bands, n_wann, n_kpts)
-        for n in 1:n_wann
-            A[n, n, :] .= 1
-        end
     end
 
     if eig

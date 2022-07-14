@@ -125,6 +125,18 @@ function ones_amn(T::Type, n_wann::Int, n_kpts::Int)
     return A
 end
 
+function ones_amn(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
+    A = zeros(T, n_bands, n_wann, n_kpts)
+    n = min(n_bands, n_wann)
+    Iₖ = LA.diagm(0 => ones(n))
+
+    for ik in 1:n_kpts
+        A[1:n, 1:n, ik] = Iₖ
+    end
+
+    return A
+end
+
 """
 Rotate MMN matrices according to gauge U.
 """
