@@ -6,7 +6,7 @@
     outseedname = joinpath(outdir, "silicon")
     write_model(outseedname, model)
 
-    A = read_amn("$outseedname.amn")
+    A = read_orthonorm_amn("$outseedname.amn")
     @test A ≈ model.A
 
     E = read_eig("$outseedname.eig")

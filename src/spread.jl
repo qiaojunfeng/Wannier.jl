@@ -1,4 +1,4 @@
-import LinearAlgebra as LA
+using LinearAlgebra
 
 @doc raw"""
 compute the MV energy
@@ -34,10 +34,7 @@ struct Spread{T<:Real}
 end
 
 @views function omega(
-    bvectors::BVectors{FT},
-    M::Array{Complex{FT},4},
-    A::Array{Complex{FT},3},
-    only_r2::Bool=false,
+    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
 ) where {FT<:Real}
     n_bands, n_wann, n_kpts = size(A)
     n_bvecs = size(M, 3)
@@ -81,14 +78,14 @@ end
             wᵇ = wb[ib]
 
             ΩI += wᵇ * (n_wann - sum(abs2, Nᵏᵇ))
-            ΩOD += wᵇ * sum(abs2, Nᵏᵇ .- LA.diagm(0 => LA.diag(Nᵏᵇ)))
+            ΩOD += wᵇ * sum(abs2, Nᵏᵇ .- diagm(0 => diag(Nᵏᵇ)))
 
             for n in 1:n_wann
-                if !only_r2
-                    r[:, n] -= wᵇ * imaglog(Nᵏᵇ[n, n]) * b
-                end
+                imlogN = imaglog(Nᵏᵇ[n, n])
 
-                r²[n] += wᵇ * (1 - abs(Nᵏᵇ[n, n])^2 + imaglog(Nᵏᵇ[n, n])^2)
+                r[:, n] -= wᵇ * imlogN * b
+
+                r²[n] += wᵇ * (1 - abs2(Nᵏᵇ[n, n]) + imlogN^2)
                 # r²[n] += wᵇ * 2*(1 - real(Nᵏᵇ[n,n]))
             end
         end
@@ -98,10 +95,27 @@ end
     r² /= n_kpts
     ΩI /= n_kpts
     ΩOD /= n_kpts
-    ΩD /= n_kpts
     # w_froz /= n_kpts
 
-    # @debug "Spreads" r r²' ΩI ΩOD ΩD
+    # ΩD requires r, so we need different loops
+    # However, since ΩD = Ω - ΩI - ΩOD, we can skip these loops
+    # for ik in 1:n_kpts
+    #     for ib in 1:n_bvecs
+    #         ikpb = kpb_k[ib, ik]
+    #         Nᵏᵇ .= overlap(M, kpb_k, ik, ikpb, A)
+    #         b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
+    #         wᵇ = wb[ib]
+
+    #         for n in 1:n_wann
+    #             ΩD += wᵇ * (-imaglog(Nᵏᵇ[n, n]) - b' * r[:, n])^2
+    #         end
+    #     end
+    # end
+    # ΩD /= n_kpts
+    # Ω̃ = ΩOD + ΩD
+
+    # @debug "Spread" r r²'
+    # @debug "Spread" ΩI ΩOD ΩD
 
     # Ω of each WF
     ω = r² - dropdims(sum(abs.(r) .^ 2; dims=1); dims=1)
@@ -109,9 +123,10 @@ end
     Ω = sum(ω)
     # Ω += w_froz
     Ω̃ = Ω - ΩI
+    ΩD = Ω̃ - ΩOD
 
     return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r)
-    # Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, w_froz)
+    # return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, w_froz)
 end
 
 omega(model::Model) = omega(model.bvectors, model.M, model.A)
@@ -143,11 +158,7 @@ dΩ/dU, n_bands * n_wann * n_kpts
 r: WF centers, cartesian coordinates, 3 * n_wann
 """
 @views function omega_grad(
-    bvectors::BVectors{FT},
-    M::Array{Complex{FT},4},
-    A::Array{Complex{FT},3},
-    r::Matrix{FT},
-    only_r2::Bool=false,
+    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}, r::Matrix{FT}
 ) where {FT<:Real}
     n_bands, n_wann, n_kpts = size(A)
     n_bvecs = size(M, 3)
@@ -189,17 +200,15 @@ r: WF centers, cartesian coordinates, 3 * n_wann
             # MV way
             # fA(B) = (B - B') / 2
             # fS(B) = (B + B') / (2 * im)
-            # q = imaglog.(LA.diag(Nᵏᵇ)) + r' * b
+            # q = imaglog.(diag(Nᵏᵇ)) + r' * b
             # for m = 1:n_wann, n = 1:n_wann
             #     R[m, n] = Nᵏᵇ[m, n] * conj(Nᵏᵇ[n, n])
             #     T[m, n] = Nᵏᵇ[m, n] / Nᵏᵇ[n, n] * q[n]
             # end
             # G[:, :, ik] += 4 * wᵇ * (fA(R) .- fS(T))
 
-            q = imaglog.(LA.diag(Nᵏᵇ))
-            if !only_r2
-                q += r' * b
-            end
+            q = imaglog.(diag(Nᵏᵇ))
+            q += r' * b
 
             for n in 1:n_wann
                 # error if division by zero. Should not happen if the initial gauge is not too bad
@@ -228,14 +237,11 @@ r: WF centers, cartesian coordinates, 3 * n_wann
 end
 
 @views function omega_grad(
-    bvectors::BVectors{FT},
-    M::Array{Complex{FT},4},
-    A::Array{Complex{FT},3},
-    only_r2::Bool=false,
+    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
 ) where {FT<:Real}
-    # r = omega(bvectors, M, A, only_r2).r
+    # r = omega(bvectors, M, A).r
     r = center(bvectors, M, A)
-    return omega_grad(bvectors, M, A, r, only_r2)
+    return omega_grad(bvectors, M, A, r)
 end
 
 """

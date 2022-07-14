@@ -20,9 +20,6 @@ Maximally localize a group of entangled bands.
 
     model = read_seedname(seedname)
 
-    # Orthonormalize Amn, make it semiunitary
-    model.A .= orthonorm_lowdin(model.A)
-
     # eV
     dis_froz_max = 10.0
 

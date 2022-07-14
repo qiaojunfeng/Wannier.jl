@@ -39,7 +39,7 @@ end
 
 @testset "maxloc valence" begin
     # start from parallel transport gauge
-    model.A .= read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
+    model.A .= read_orthonorm_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
 
     Amin = max_localize(model)
     Ω = omega(model.bvectors, model.M, Amin)

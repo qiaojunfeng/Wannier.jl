@@ -34,15 +34,12 @@ Then this command split WFs into two independent groups.
     run_maxloc::Bool=false,
     rotate_unk::Bool=false,
 )
-    # seedname = "silicon"
-    # seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
-
     # Input AMN is Silicon s,p projection
     model = read_seedname(seedname; amn=false)
 
     if run_disentangle
         # You can also use disentangle to get a good gauge from initial projection
-        model.A .= read_amn("$seedname.amn")
+        model.A .= read_orthonorm_amn("$seedname.amn")
         model.A .= disentangle(model)
     else
         # Get max localized gauge from chk file

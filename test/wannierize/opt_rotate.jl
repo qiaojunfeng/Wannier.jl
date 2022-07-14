@@ -36,7 +36,7 @@ end
 
 @testset "opt_rotate valence" begin
     # start from parallel transport gauge
-    A0 = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
+    A0 = read_orthonorm_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
     model.A .= A0
 
     Wmin = opt_rotate(model)

@@ -254,6 +254,17 @@ function read_amn(filename::String)
 end
 
 """
+Wrapper function to read AMN and Lowdin orthonormalize it.
+
+Usually A matrix needs to be unitary or semi-unitary.
+"""
+function read_orthonorm_amn(filename::String)
+    A = read_amn(filename)
+    A .= orthonorm_lowdin(A)
+    return A
+end
+
+"""
 Output amn file
 """
 function write_amn(filename::String, A::Array{ComplexF64,3}, header::String)
@@ -351,8 +362,18 @@ end
 
 @doc raw"""
 read win, and optionally amn, mmn, eig
+
+orthonorm_amn: Lowdin orthonormalization of AMN matrices.
+    Should be true for most cases, since usually the input AMN matrices are
+    projections onto atomic orbitals, and are not unitary or semi-unitary.
 """
-function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bool=true)
+function read_seedname(
+    seedname::String;
+    amn::Bool=true,
+    orthonorm_amn::Bool=true,
+    mmn::Bool=true,
+    eig::Bool=true,
+)
     win = read_win("$seedname.win")
 
     n_bands = win.num_bands
@@ -381,7 +402,11 @@ function read_seedname(seedname::String; amn::Bool=true, mmn::Bool=true, eig::Bo
     end
 
     if amn
-        A = read_amn("$seedname.amn")
+        if orthonorm_amn
+            A = read_orthonorm_amn("$seedname.amn")
+        else
+            A = read_amn("$seedname.amn")
+        end
         n_bands != size(A)[1] && error("n_bands != size(A)[1]")
         n_wann != size(A)[2] && error("n_wann != size(A)[2]")
         n_kpts != size(A)[3] && error("n_kpts != size(A)[3]")
