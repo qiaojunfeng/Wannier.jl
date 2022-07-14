@@ -12,15 +12,16 @@ export get_recip_lattice, orthonorm_lowdin, ones_amn, rotate_mmn
 include("util/kpoint.jl")
 export get_kpoint_mappings
 
+include("util/misc.jl")
+
 include("bvector.jl")
 export get_bvectors
+
+include("model.jl")
 
 include("spread.jl")
 export Spread, pprint
 export omega, omega_grad, center
-
-include("model.jl")
-include("util/misc.jl")
 
 include("io/w90.jl")
 export read_win, read_wout, read_amn, read_mmn, read_eig
