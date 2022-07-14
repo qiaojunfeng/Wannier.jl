@@ -41,7 +41,7 @@ Then this command split WFs into two independent groups.
     model = read_seedname(seedname; amn=false)
 
     # calculate spread
-    f(m::Model) = omega(m.bvectors, m.M, m.A).Ω
+    f(m::Model) = omega(m.bvectors, m.M, m.A)
 
     if run_disentangle
         # You can also use disentangle to get a good gauge from initial projection
@@ -60,12 +60,7 @@ Then this command split WFs into two independent groups.
     (nval === nothing) && (nval = model.n_wann ÷ 2)
 
     # UNK files for plotting WFs
-    splitted = split_wannierize(model, nval, rotate_unk)
-    if rotate_unk
-        model_val, model_cond, Uv, Uc = splitted
-    else
-        model_val, model_cond = splitted
-    end
+    model_val, model_cond, Uv, Uc = split_wannierize(model, nval)
 
     @info "Valence after parallel transport:"
     pprint(f(model_val))

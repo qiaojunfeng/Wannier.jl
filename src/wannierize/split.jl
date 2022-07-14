@@ -134,10 +134,10 @@ Write splitted AMN/MMN/EIG/UNK(optional) files into valence and conduction group
 Args:
     seedname: _description_
     n_val: number of valence WFs
-    return_rotation: Return rotation eigenvectors or not, useful for further
-    rotation of UNK files or other operators.
+    Rotation eigenvectors are also returned, useful for further
+        rotation of UNK files or other operators.
 """
-function split_model(model::Model, n_val::Int, return_rotation::Bool=false)
+function split_model(model::Model, n_val::Int)
     n_wann = model.n_wann
     n_kpts = model.n_kpts
     n_bands = model.n_bands
@@ -187,34 +187,22 @@ function split_model(model::Model, n_val::Int, return_rotation::Bool=false)
         Ec,
     )
 
-    if return_rotation
-        return model_v, model_c, UVv, UVc
-    end
-
-    return model_v, model_c
+    return model_v, model_c, UVv, UVc
 end
 
 """
 Write splitted AMN/MMN/EIG/UNK(optional) files into valence and conduction groups.
 
 `n_val`: number of valence WFs
-`return_rotation`: return rotation matrices for UNK files, or other operators.
+return: models and rotation matrices for UNK files or other operators.
 """
-function split_wannierize(model::Model, n_val::Int, return_rotation::Bool=false)
-    splitted = split_model(model, n_val, return_rotation)
+function split_wannierize(model::Model, n_val::Int)
+    model_v, model_c, UVv, UVc = split_model(model, n_val)
 
-    if return_rotation
-        model_v, model_c, UVv, UVc = splitted
-    else
-        model_v, model_c = splitted
-    end
+    Av, _ = parallel_transport(model_v)
+    model_v.A .= Av
+    Ac, _ = parallel_transport(model_c)
+    model_c.A .= Ac
 
-    model_v.A, _ = parallel_transport(model_v)
-    model_c.A, _ = parallel_transport(model_c)
-
-    if return_rotation
-        return model_v, model_c, UVv, UVc
-    end
-
-    return model_v, model_c
+    return model_v, model_c, UVv, UVc
 end
