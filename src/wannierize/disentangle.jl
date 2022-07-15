@@ -417,8 +417,8 @@ end
 function disentangle(
     model::Model{T};
     random_gauge::Bool=false,
-    f_tol::T=1e-10,
-    g_tol::T=1e-8,
+    f_tol::T=1e-7,
+    g_tol::T=1e-5,
     max_iter::Int=200,
     history_size::Int=20,
 ) where {T<:Real}

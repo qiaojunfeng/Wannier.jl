@@ -74,7 +74,7 @@ end
 Maximally localize spread functional w.r.t. single unitary matrix W.
 """
 function opt_rotate(
-    model::Model{T}; f_tol::T=1e-10, g_tol::T=1e-8, max_iter::Int=1000, history_size::Int=20
+    model::Model{T}; f_tol::T=1e-7, g_tol::T=1e-5, max_iter::Int=200, history_size::Int=20
 ) where {T<:Real}
     n_wann = model.n_wann
 
