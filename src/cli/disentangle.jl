@@ -12,18 +12,15 @@ Maximally localize a group of entangled bands.
 - `-o, --output`: filename for output AMN. Default is `seedname.dis.amn`
 """
 @cast function dis(seedname::String; output::Union{String,Nothing}=nothing)
-
-    # seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
     if output === nothing
         output = basename(seedname) * ".dis.amn"
     end
 
     model = read_seedname(seedname)
 
-    # eV
-    dis_froz_max = 10.0
-
-    Wannier.set_frozen_win!(model, dis_froz_max)
+    # the dis_froz_max was set during reading win file, you can still change it here
+    # dis_froz_max = 10.0  # eV
+    # Wannier.set_frozen_win!(model, dis_froz_max)
 
     # if params.dis_froz_pao
     #     V = zeros(ComplexF64, data.num_bands, data.num_bands, data.num_kpts)

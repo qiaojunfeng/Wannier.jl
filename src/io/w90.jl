@@ -14,6 +14,10 @@ function read_win(filename::String)
     unit_cell = missing
     kpoints = missing
     kpoint_path = missing
+    dis_froz_min = missing
+    dis_froz_max = missing
+    dis_win_min = missing
+    dis_win_max = missing
 
     # handle case insensitive win files (relic of Fortran)
     read_lowercase_line() = strip(lowercase(readline(io)))
@@ -40,6 +44,14 @@ function read_win(filename::String)
             num_bands = parse(Int, split(line)[2])
         elseif occursin("num_wann", line)
             num_wann = parse(Int, split(line)[2])
+        elseif occursin("dis_froz_min", line)
+            dis_froz_min = parse(Float64, split(line)[2])
+        elseif occursin("dis_froz_max", line)
+            dis_froz_max = parse(Float64, split(line)[2])
+        elseif occursin("dis_win_min", line)
+            dis_win_min = parse(Float64, split(line)[2])
+        elseif occursin("dis_win_max", line)
+            dis_win_max = parse(Float64, split(line)[2])
         elseif occursin(r"begin\s+unit_cell_cart", line)
             unit_cell = zeros(Float64, 3, 3)
             line = read_lowercase_line()
@@ -118,6 +130,10 @@ function read_win(filename::String)
         kpoints=kpoints,
         unit_cell=unit_cell,
         kpoint_path=kpoint_path,
+        dis_froz_min=dis_froz_min,
+        dis_froz_max=dis_froz_max,
+        dis_win_min=dis_win_min,
+        dis_win_max=dis_win_max,
     )
 end
 
@@ -422,7 +438,18 @@ function read_seedname(
         E = zeros(Float64, n_bands, n_kpts)
     end
 
-    frozen_bands = falses(n_bands, n_kpts)
+    if eig && n_bands != n_wann
+        dis_froz_max = win.dis_froz_max
+        dis_froz_min = win.dis_froz_min
+        if dis_froz_max !== missing
+            if dis_froz_min === missing
+                dis_froz_min = -Inf
+            end
+            frozen_bands = get_frozen_bands(E, dis_froz_max, dis_froz_min)
+        end
+    else
+        frozen_bands = falses(n_bands, n_kpts)
+    end
 
     return Model(lattice, kgrid, kpoints, bvectors, frozen_bands, M, A, E)
 end

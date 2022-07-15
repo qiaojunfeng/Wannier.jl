@@ -1,6 +1,67 @@
 import LinearAlgebra as LA
 using Optim: Optim
 
+function get_frozen_bands(
+    E::AbstractMatrix{T}, dis_froz_max::T, dis_froz_min::T=-Inf
+) where {T<:Real}
+    n_bands, n_kpts = size(E)
+    frozen_bands = falses(n_bands, n_kpts)
+
+    # For each kpoint
+    frozen_k = falses(n_bands)
+
+    for ik in 1:n_kpts
+        fill!(frozen_k, false)
+
+        frozen_k .= (E[:, ik] .>= dis_froz_min) .& (E[:, ik] .<= dis_froz_max)
+        frozen_bands[:, ik] = frozen_k
+    end
+
+    return frozen_bands
+end
+
+function set_frozen_degen!(
+    frozen_bands::AbstractMatrix{Bool}, E::AbstractMatrix{T}, atol::T=1e-4
+) where {T<:Real}
+    atol <= 0 && error("atol must be positive")
+
+    for ik in 1:n_kpts
+        frozen_k = frozen_bands[:, ik]
+
+        # if cluster of eigenvalues and count(frozen_k) > 0, take them all
+        if degen && count(frozen_k) > 0
+            ib = findlast(frozen_k)
+
+            while ib < n_bands
+                if E[ib + 1, ik] < E[ib, ik] + atol
+                    ib += 1
+                    frozen_k[ib] .= true
+                else
+                    break
+                end
+            end
+        end
+
+        frozen_bands[:, ik] .= frozen_k
+    end
+
+    return nothing
+end
+
+"""Make sure number of frozen bands at each kpoint <= n_wann"""
+function check_frozen_bands(frozen_bands::AbstractMatrix{Bool}, n_wann::Int)
+    n_bands, n_kpts = size(frozen_bands)
+    n_wann > n_bands && error("n_wann > n_bands")
+
+    for ik in 1:n_kpts
+        frozen_k = frozen_bands[:, ik]
+
+        if count(frozen_k) > n_wann
+            error("Too many frozen bands")
+        end
+    end
+end
+
 """
 Set frozen bands according to two energy windows
 """
@@ -11,36 +72,45 @@ function set_frozen_win!(
     degen::Bool=false,
     degen_atol::T=1e-4,
 ) where {T<:Real}
-    degen_atol <= 0 && error("degen_atol must be positive")
+    frozen_bands = get_frozen_bands(model.E, dis_froz_max, dis_froz_min)
 
-    fill!(model.frozen_bands, false)
+    if degen
+        set_frozen_degen!(frozen_bands, model.E, degen_atol)
+    end
+
+    check_frozen_bands(frozen_bands, model.n_wann)
+
+    model.frozen_bands .= frozen_bands
+
+    return nothing
+end
+
+"""
+Get frozen bands according to projectability ∈ [0.0, 1.0]
+"""
+function get_frozen_proj(
+    E::AbstractMatrix{T}, A::AbstractArray{Complex{T}}, dis_proj_max::T
+) where {T<:Real}
+    n_bands, n_kpts = size(E)
+    frozen_bands = falses(n_bands, n_kpts)
 
     # For each kpoint
-    frozen_k = falses(model.n_bands)
+    frozen_k = falses(n_bands)
 
-    for ik in 1:(model.n_kpts)
+    for ik in 1:n_kpts
         fill!(frozen_k, false)
 
-        frozen_k .= (model.E[:, ik] .>= dis_froz_min) .& (model.E[:, ik] .<= dis_froz_max)
+        # n_bands * n_wann
+        Aₖ = A[:, :, ik]
+        # projectability
+        p = dropdims(real(sum(Aₖ .* conj(Aₖ); dims=2)); dims=2)
+        # @debug "projectability" ik p
 
-        # if cluster of eigenvalues and count(frozen_k) > 0, take them all
-        if degen && count(frozen_k) > 0
-            ib = findlast(frozen_k)
-
-            while ib < model.n_wann
-                if model.E[ib + 1, ik] < model.E[ib, ik] + degen_atol
-                    ib += 1
-                    frozen_k[ib] .= true
-                else
-                    break
-                end
-            end
-        end
-
-        count(frozen_k) > model.n_wann && error("Too many frozen bands")
-
-        model.frozen_bands[:, ik] = frozen_k
+        frozen_k[p .>= dis_proj_max] .= true
+        frozen_bands[:, ik] = frozen_k
     end
+
+    return frozen_bands
 end
 
 """
@@ -49,23 +119,17 @@ Set frozen bands according to projectability ∈ [0.0, 1.0]
 function set_frozen_proj!(
     model::Model{T}, dis_proj_max::T; degen::Bool=false, degen_atol::T=1e-4
 ) where {T<:Real}
-    fill!(model.frozen_bands, false)
+    frozen_bands = get_frozen_bands_proj(model.E, model.A, dis_proj_max)
 
-    # For each kpoint
-    frozen_k = falses(model.n_bands)
-
-    for ik in 1:(model.n_kpts)
-        fill!(frozen_k, false)
-
-        # n_bands * n_wann
-        Ak = model.A[:, :, ik]
-
-        proj = dropdims(real(sum(Ak .* conj(Ak); dims=2)); dims=2)
-
-        # @debug "projectability @ $ik" proj
-
-        frozen_k[proj .>= dis_proj_max] .= true
+    if degen
+        set_frozen_degen!(frozen_bands, model.E, degen_atol)
     end
+
+    check_frozen_bands(frozen_bands, model.n_wann)
+
+    model.frozen_bands .= frozen_bands
+
+    return nothing
 end
 
 """
@@ -355,7 +419,7 @@ function disentangle(
     random_gauge::Bool=false,
     f_tol::T=1e-10,
     g_tol::T=1e-8,
-    max_iter::Int=1000,
+    max_iter::Int=200,
     history_size::Int=20,
 ) where {T<:Real}
     n_bands = model.n_bands
