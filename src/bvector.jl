@@ -6,19 +6,20 @@ import NearestNeighbors as NN
 Shells of bvectors.
 """
 struct BVectorShells{T<:Real}
-    # reciprocal lattice, 3 * 3
+    # reciprocal lattice, 3 * 3, Å⁻¹ unit, each column is a lattice vector
     recip_lattice::Mat3{T}
 
-    # kpoints array, fractional coordinates, n_kpts of Vec3
+    # kpoints array, fractional coordinates, 3 * n_kpts
     kpoints::Matrix{T}
 
-    # bvectors of each shell, Cartesian coordinates, n_shells of 3 * multiplicity
+    # bvectors of each shell, Cartesian! coordinates, Å⁻¹ unit
+    # n_shells of 3 * multiplicity
     bvectors::Vector{Matrix{T}}
 
-    # weight of each shell, n_shells
+    # weight of each shell, length = n_shells
     weights::Vector{T}
 
-    # multiplicity of each shell, num_shells
+    # multiplicity of each shell, length = num_shells
     multiplicities::Vector{Int}
 
     # number of shells
@@ -56,22 +57,24 @@ end
 The bvectors for each kpoint, sorted in the same order as the W90 nnkp file.
 """
 struct BVectors{T<:Real}
-    # reciprocal lattice, 3 * 3
+    # reciprocal lattice, 3 * 3, Å⁻¹ unit, each column is a lattice vector
     recip_lattice::Mat3{T}
 
     # kpoints array, fractional coordinates, n_kpts of Vec3
     kpoints::Matrix{T}
 
-    # bvectors, Cartesian coordinates, 3 * n_bvecs
+    # bvectors, Cartesian! coordinates, Å⁻¹ unit, 3 * n_bvecs
     bvectors::Matrix{T}
 
     # weight of each bvec, n_bvecs
     weights::Vector{T}
 
-    # k+b vectors, k -> k + b (index of equivalent kpt in the 1st BZ), n_bvecs * n_kpts
+    # k+b vectors, k -> k + b (index of equivalent kpt in the recip_cell), n_bvecs * n_kpts
     kpb_k::Matrix{Int}
 
     # displacements between k + b and k + b wrapped around into the recip_cell,
+    # fractional coordinates, actually always integers since they are
+    # the number of times to shift along each recip lattice.
     # 3 * n_bvecs * n_kpts, where 3 is [b_x, b_y, b_z]
     kpb_b::Array{Int,3}
 end

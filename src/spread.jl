@@ -1,32 +1,33 @@
 using LinearAlgebra
 
 @doc raw"""
-compute the MV energy
+The MV spread.
 
-From MV: Omega = sum_n <r2>n - |<r>n|^2
-<r>n = -1/N sum_k,b wb b Im ln(Mnn,kb)
-<r2>n = 1/N sum_k,b wb [(1 - |Mnn,kb|^2) + (Im ln(Mnn,kb))^2]
+From MV:
+Omega = ∑ₙ <r²>ₙ - |<r>ₙ|²
+<r>ₙ = -1/N ∑_k,b wb b Im ln(Mnn,kb)
+<r²>ₙ = 1/N ∑_k,b wb [(1 - |Mnn,kb|^2) + (Im ln(Mnn,kb))^2]
 """
 struct Spread{T<:Real}
-    # Total, Ω = ΩI + Ω̃
+    # Total spread, unit Å², Ω = ΩI + Ω̃
     Ω::T
 
-    # gauge-invarient part
+    # gauge-invarient part, unit Å²
     ΩI::T
 
-    # off-diagonal part
+    # off-diagonal part, unit Å²
     ΩOD::T
 
-    # diagonal part, not implemented yet
+    # diagonal part, unit Å²
     ΩD::T
 
-    # Ω̃ = ΩOD + ΩD
+    # Ω̃ = ΩOD + ΩD, unit Å²
     Ω̃::T
 
-    # Ω of each WF, n_wann
+    # Ω of each WF, unit Å², length = n_wann
     ω::Vector{T}
 
-    # WF center, cartesian coordinates, 3 * n_wann
+    # WF center, Cartesian! coordinates, unit Å, 3 * n_wann
     r::Matrix{T}
 
     # frozen_weight::T
