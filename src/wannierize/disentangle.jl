@@ -1,4 +1,4 @@
-import LinearAlgebra as LA
+using LinearAlgebra
 using Optim: Optim
 
 function get_frozen_bands(
@@ -181,46 +181,46 @@ function orthonorm_freeze(A::Matrix{T}, frozen::BitVector) where {T<:Complex}
     # after removal of Uf, we need to renormalize so the |wr> are orthonormal.
     # I = <wr|wr> = Ur' <ψ|ψ> Ur  =>  Ur' * Ur = I
     # Use Lowdin normalization but needs to limit the number of independent vectors.
-    U, S, V = LA.svd(Ur)
+    U, S, V = svd(Ur)
     atol = 1e-10
     @assert count(x -> x > atol, S) == n_wann - count(frozen)
     S[S .> atol] .= 1
     S[S .< atol] .= 0
-    Ur = U * LA.Diagonal(S) * V'
+    Ur = U * Diagonal(S) * V'
 
     B = similar(A)
     B[frozen, :] .= Uf
     B[non_frozen, :] .= Ur
 
     # Semiunitary
-    @assert isapprox(B' * B, LA.I; atol=atol)
+    @assert isapprox(B' * B, I; atol=atol)
     # Frozen
-    @assert isapprox(B[frozen, :] * B[frozen, :]', LA.I; atol=atol)
+    @assert isapprox(B[frozen, :] * B[frozen, :]', I; atol=atol)
     # Independent
-    @assert LA.norm(Uf * Ur') < atol
+    @assert norm(Uf * Ur') < atol
 
     return B
 end
 
 # function max_projectability(A::Matrix{ComplexF64})
 #     proj = A * A'
-#     proj_ortho = LA.I - proj
-#     U, S, V = LA.svd(proj_ortho)
+#     proj_ortho = I - proj
+#     U, S, V = svd(proj_ortho)
 #     n = abs(size(A, 1) - size(A, 2))
 #     @assert count(S .> 1e-5) >= n
 #     R = hcat(A, V[:, 1:n])
-#     @assert R * R' ≈ LA.I
+#     @assert R * R' ≈ I
 #     return R' * A, R
 
-#     U, S, V = LA.svd(A)
+#     U, S, V = svd(A)
 #     return V' * A, V
 #     proj = A * A'
 #     # A * A' = V D V'  =>  (V'A) (A'V) = D
-#     D, V = LA.eigen(proj)
+#     D, V = eigen(proj)
 #     # sort eigenvalues in descending order
 #     V = V[:, sortperm(D, rev = true)]
 #     A_new = V' * A
-#     @debug "projectability" real(LA.diag(proj)') real(LA.diag(A_new * A_new')')
+#     @debug "projectability" real(diag(proj)') real(diag(A_new * A_new')')
 #     return A_new, V
 # end
 
@@ -236,15 +236,15 @@ end
 #             c += 1
 #         end
 #     end
-#     U, S, V = LA.svd(D)
+#     U, S, V = svd(D)
 
 #     nbasis = count(S .> 1e-5)
 #     V_new = V[:, 1:nbasis]
 #     proj = V_new * V_new'
-#     proj_ortho = LA.I - proj
-#     U, S, V = LA.svd(proj_ortho)
+#     proj_ortho = I - proj
+#     U, S, V = svd(proj_ortho)
 #     R = hcat(V_new, V[:, 1:m-nbasis])
-#     @assert R * R' ≈ LA.I
+#     @assert R * R' ≈ I
 
 #     return R' * A, R
 # end
@@ -267,11 +267,11 @@ function XY_to_A(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
         # idx_f = model.frozen_bands[:, ik]
         # idx_nf = .!idx_f
         # n_froz = count(idx_f)
-        # @assert Y[:, :, ik]' * Y[:, :, ik] ≈ LA.I
-        # @assert X[:, :, ik]' * X[:, :, ik] ≈ LA.I
-        # @assert Y[idx_f, 1:n_froz, ik] ≈ LA.I
-        # @assert LA.norm(Y[idx_nf, 1:n_froz, ik]) ≈ 0
-        # @assert LA.norm(Y[idx_f, n_froz+1:end, ik]) ≈ 0
+        # @assert Y[:, :, ik]' * Y[:, :, ik] ≈ I
+        # @assert X[:, :, ik]' * X[:, :, ik] ≈ I
+        # @assert Y[idx_f, 1:n_froz, ik] ≈ I
+        # @assert norm(Y[idx_nf, 1:n_froz, ik]) ≈ 0
+        # @assert norm(Y[idx_f, n_froz+1:end, ik]) ≈ 0
 
         A[:, :, ik] = Y[:, :, ik] * X[:, :, ik]
         # @assert orthonorm_freeze(A[:, :, ik], frozen_bands[:, ik]) ≈ A[:, :, ik] rtol=1e-4
@@ -300,23 +300,23 @@ function A_to_XY(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
         Ur = Af[idx_nf, :]
 
         # determine Y
-        Y[idx_f, 1:n_froz, ik] = Matrix{T}(LA.I, n_froz, n_froz)
+        Y[idx_f, 1:n_froz, ik] = Matrix{T}(I, n_froz, n_froz)
 
         if n_froz != n_wann
             Pr = Ur * Ur'
-            Pr = LA.Hermitian((Pr + Pr') / 2)
-            D, V = LA.eigen(Pr) # sorted by increasing eigenvalue
+            Pr = Hermitian((Pr + Pr') / 2)
+            D, V = eigen(Pr) # sorted by increasing eigenvalue
             Y[idx_nf, (n_froz + 1):end, ik] = V[:, (end - n_wann + n_froz + 1):end]
         end
 
         # determine X
         X[:, :, ik] = orthonorm_lowdin(Y[:, :, ik]' * Af)
 
-        @assert Y[:, :, ik]' * Y[:, :, ik] ≈ LA.I
-        @assert X[:, :, ik]' * X[:, :, ik] ≈ LA.I
-        @assert Y[idx_f, 1:n_froz, ik] ≈ LA.I
-        @assert LA.norm(Y[idx_nf, 1:n_froz, ik]) ≈ 0
-        @assert LA.norm(Y[idx_f, (n_froz + 1):end, ik]) ≈ 0
+        @assert Y[:, :, ik]' * Y[:, :, ik] ≈ I
+        @assert X[:, :, ik]' * X[:, :, ik] ≈ I
+        @assert Y[idx_f, 1:n_froz, ik] ≈ I
+        @assert norm(Y[idx_nf, 1:n_froz, ik]) ≈ 0
+        @assert norm(Y[idx_f, (n_froz + 1):end, ik]) ≈ 0
         @assert Y[:, :, ik] * X[:, :, ik] ≈ Af
     end
 
@@ -441,7 +441,7 @@ function disentangle(
             M = randn(T, m, n) + im * randn(T, m, n)
             X0[:, :, ik] = orthonorm_lowdin(M)
 
-            Y0[idx_f, 1:n_froz, ik] = LA.I
+            Y0[idx_f, 1:n_froz, ik] = I
             m = n_bands - n_froz
             n = n_wann - n_froz
             N = randn(T, m, n) + im * randn(m, n)

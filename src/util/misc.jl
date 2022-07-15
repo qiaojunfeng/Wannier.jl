@@ -1,5 +1,5 @@
 using Printf: @printf
-import LinearAlgebra as LA
+using LinearAlgebra
 import NearestNeighbors as NN
 
 function get_projectability(A)
@@ -7,7 +7,7 @@ function get_projectability(A)
     proj = zeros(num_bands, num_kpts)
     for ik in 1:num_kpts
         p = A[:, :, ik] * A[:, :, ik]'
-        proj[:, ik] = real(LA.diag(p))
+        proj[:, ik] = real(diag(p))
     end
     return proj
 end
@@ -27,7 +27,7 @@ function find_nearests(
     point::Vector{Float64};
     reduced_coord::Bool=true,
     search_neighbors::Int=5,
-) where {T<:Union{Matrix{Float64},LA.Adjoint{Float64,Matrix{Float64}}}}
+) where {T<:Union{Matrix{Float64},Adjoint{Float64,Matrix{Float64}}}}
     @assert size(unit_cell) == (3, 3)
     @assert size(atoms, 1) == 3
     @assert length(point) == 3

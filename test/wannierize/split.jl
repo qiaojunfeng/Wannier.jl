@@ -1,4 +1,3 @@
-import LinearAlgebra as LA
 
 @testset "split_eig" begin
     E = read_eig(joinpath(FIXTURE_PATH, "silicon/silicon.eig"))

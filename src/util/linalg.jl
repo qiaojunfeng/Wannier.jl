@@ -1,4 +1,4 @@
-import LinearAlgebra as LA
+using LinearAlgebra
 
 imaglog(z::T) where {T<:Complex} = atan(imag(z), real(z))
 
@@ -19,7 +19,7 @@ function overlap(
     n_bvecs = size(M, 3)
 
     if (k1 == k2)
-        return Matrix{Complex{FT}}((1.0 + 0.0im)LA.I, n_bands, n_bands)
+        return Matrix{Complex{FT}}((1.0 + 0.0im)I, n_bands, n_bands)
     end
 
     for ib in 1:n_bvecs
@@ -30,7 +30,7 @@ function overlap(
 
     return error("No neighbors found, k1 = $(k1), k2 = $(k2)")
 
-    # Matrix{Complex{FT}}((1.0 + 0.0im)LA.I, n_bands, n_bands)
+    # Matrix{Complex{FT}}((1.0 + 0.0im)I, n_bands, n_bands)
 end
 
 @doc raw"""
@@ -52,8 +52,8 @@ If X is a matrix with orthogonal columns and A a non-singular matrix,
 then Lowdin-orthogonalizing X*A is equivalent to computing X*normalize_matrix(A)
 """
 function orthonorm_lowdin(A::Matrix{T}) where {T<:Union{Complex,Real}}
-    U, S, V = LA.svd(A)
-    # @assert A ≈ U * LA.Diagonal(S) * V'
+    U, S, V = svd(A)
+    # @assert A ≈ U * Diagonal(S) * V'
     return U * V'
 end
 
@@ -70,7 +70,7 @@ function orthonorm_lowdin(A::Array{T,3}) where {T<:Union{Complex,Real}}
 end
 
 function orthonorm_cholesky(A)
-    return A / LA.chol(A'A)
+    return A / chol(A'A)
 end
 
 function fix_global_phase!(A::Array{T,3}) where {T<:Complex}
@@ -91,13 +91,13 @@ Power of a unitary (or at least, normal) matrix A
 """
 function powm(A::AbstractMatrix{T}, p::F) where {T<:Union{Complex,Real},F<:Real}
     # Workaround, eigen incompatible with lazy adjoint.
-    d, V = LA.eigen(Matrix(A))
+    d, V = eigen(Matrix(A))
 
     V = orthonorm_lowdin(V)
-    # accuracy = LA.norm(V * Diagonal(d) * V' - A)
+    # accuracy = norm(V * Diagonal(d) * V' - A)
     # @assert accuracy < 1e-10
 
-    return V * LA.Diagonal(d .^ p) * V'
+    return V * Diagonal(d .^ p) * V'
 end
 
 function rotate_gauge(O::Array{T,3}, A::Array{T,3}) where {T<:Number}
@@ -116,7 +116,7 @@ end
 
 function ones_amn(T::Type, n_wann::Int, n_kpts::Int)
     A = zeros(T, n_wann, n_wann, n_kpts)
-    Iₖ = LA.diagm(0 => ones(n_wann))
+    Iₖ = diagm(0 => ones(n_wann))
 
     for ik in 1:n_kpts
         A[:, :, ik] = Iₖ
@@ -128,7 +128,7 @@ end
 function ones_amn(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
     A = zeros(T, n_bands, n_wann, n_kpts)
     n = min(n_bands, n_wann)
-    Iₖ = LA.diagm(0 => ones(n))
+    Iₖ = diagm(0 => ones(n))
 
     for ik in 1:n_kpts
         A[1:n, 1:n, ik] = Iₖ

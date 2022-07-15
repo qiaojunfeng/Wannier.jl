@@ -1,5 +1,5 @@
 using Printf: @printf
-import LinearAlgebra as LA
+using LinearAlgebra
 import NearestNeighbors as NN
 
 @doc raw"""
@@ -207,7 +207,7 @@ function are_parallel(A::Matrix{T}, B::Matrix{T}; atol::T=1e-6) where {T<:Real}
 
     for (i, c1) in enumerate(eachcol(A))
         for (j, c2) in enumerate(eachcol(B))
-            p = LA.cross(c1, c2)
+            p = cross(c1, c2)
             if all(isapprox.(0, p; atol=atol))
                 checkerboard[i, j] = true
             end
@@ -270,9 +270,9 @@ function compute_weights(bvectors::Vector{Matrix{T}}; atol::T=1e-6) where {T<:Re
     B = zeros(T, 6, n_shells)
 
     # return the upper triangular part of a matrix as a vector
-    triu2vec(m) = m[LA.triu!(trues(size(m)), 0)]
+    triu2vec(m) = m[triu!(trues(size(m)), 0)]
     # triu2vec(I) = [1 0 1 0 0 1]
-    triu_I = triu2vec(LA.diagm([1, 1, 1]))
+    triu_I = triu2vec(diagm([1, 1, 1]))
 
     W = zeros(n_shells)
 
@@ -287,10 +287,10 @@ function compute_weights(bvectors::Vector{Matrix{T}}; atol::T=1e-6) where {T<:Re
         # Solve equation B * W = triu_I
         # size(B) = (6, ishell), W is diagonal matrix of size ishell
         # B = U * S * V' -> W = V * S^-1 * U' * triu_I
-        U, S, V = LA.svd(B[:, keep_shells])
+        U, S, V = svd(B[:, keep_shells])
         @debug "S" ish S = S' keep_shells = keep_shells'
         if all(S .> σ_atol)
-            W[keep_shells] = V * LA.Diagonal(S)^-1 * U' * triu_I
+            W[keep_shells] = V * Diagonal(S)^-1 * U' * triu_I
             BW = B[:, keep_shells] * W[keep_shells]
             @debug "BW" ish BW = BW'
             if isapprox(BW, triu_I; atol=atol)
@@ -332,7 +332,7 @@ function check_b1(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
     end
 
     @debug "Bvector sum" M
-    if !isapprox(M, LA.I; atol=atol)
+    if !isapprox(M, I; atol=atol)
         error("B1 condition is not satisfied")
     end
 
@@ -378,7 +378,7 @@ function sort_supercell(
     distances = zeros(eltype(recip_lattice), n_cells)
 
     for i in 1:n_cells
-        distances[i] = LA.norm(recip_lattice * translations[:, i])
+        distances[i] = norm(recip_lattice * translations[:, i])
     end
 
     # In W90, if the distances are degenerate, the distance which has larger index
@@ -513,7 +513,7 @@ function sort_bvectors(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
     bvecs, bvecs_weight = flatten_shells(shells)
     n_bvecs = size(bvecs, 2)
     bvecs_frac = inv(recip_lattice) * bvecs
-    bvecs_norm = [LA.norm(bvecs[:, i]) for i in 1:n_bvecs]
+    bvecs_norm = [norm(bvecs[:, i]) for i in 1:n_bvecs]
 
     # find k+b indexes
     kpb_k = zeros(Int, n_bvecs, n_kpts)

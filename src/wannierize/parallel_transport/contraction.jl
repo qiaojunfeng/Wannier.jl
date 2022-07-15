@@ -1,4 +1,4 @@
-import LinearAlgebra as LA
+using LinearAlgebra
 
 """
 Propagate A, defined at the first kpt, to the given list of kpts.
@@ -47,7 +47,7 @@ function choose_pole(
     vec_path = matrix_path[:, col, :]
 
     # diameter
-    diam = maximum([LA.norm(vec_path[:, i] - vec_path[:, j]) for i in 1:n_k, j in 1:n_k])
+    diam = maximum([norm(vec_path[:, i] - vec_path[:, j]) for i in 1:n_k, j in 1:n_k])
     @debug "diamater = $diam"
 
     pole = zero(vec_path[:, 1])
@@ -61,7 +61,7 @@ function choose_pole(
         # If the diameter of the path on the sphere is too big,
         # try a list of cardinal points as poles.
         while m < n_iter
-            dist = minimum([LA.norm(pole + vec_path[:, i]) for i in 1:n_k])
+            dist = minimum([norm(pole + vec_path[:, i]) for i in 1:n_k])
 
             if dist > max_dist
                 max_pole = deepcopy(pole)
@@ -78,9 +78,9 @@ function choose_pole(
                 pole = randn(n_col) + randn(n_col) * im
             end
 
-            P = Matrix{T}(LA.I, n_col, n_col) - prev_poles * prev_poles'
+            P = Matrix{T}(I, n_col, n_col) - prev_poles * prev_poles'
             pole = P * pole
-            pole = pole / LA.norm(pole)
+            pole = pole / norm(pole)
 
             m += 1
         end
@@ -93,8 +93,8 @@ function choose_pole(
         @info "Pole chosen by Barycenter of path"
         pole = dropdims(sum(vec_path; dims=2); dims=2)
 
-        @assert LA.norm(pole) > 1e-1
-        pole = pole / LA.norm(pole)
+        @assert norm(pole) > 1e-1
+        pole = pole / norm(pole)
     end
 
     return columns, pole
@@ -131,13 +131,13 @@ function matrix_parallel_transport(
     for it in 1:n_t, ik in 1:n_k, ic in 1:n_col
         if !backwards
             # Compute parallel transport starting from it = 1 to it = n_t
-            P[:, :, ik, it] = LA.I - frame_path[:, :, ik, it] * frame_path[:, :, ik, it]'
+            P[:, :, ik, it] = I - frame_path[:, :, ik, it] * frame_path[:, :, ik, it]'
 
             # Propagate column ic of matrix_path along frame_path
             if ic ∈ columns
                 idx = findfirst(column -> column == ic, columns)
 
-                if abs(LA.norm(frame_path[:, idx, ik, it]) - 1) < 1e-2
+                if abs(norm(frame_path[:, idx, ik, it]) - 1) < 1e-2
                     U[:, ic, ik, it] = frame_path[:, idx, ik, it]
                 else
                     if it > 1
@@ -154,17 +154,17 @@ function matrix_parallel_transport(
                 end
             end
 
-            U[:, ic, ik, it] /= LA.norm(U[:, ic, ik, it])
+            U[:, ic, ik, it] /= norm(U[:, ic, ik, it])
         else
             # Compute parallel transport from it = n_t to it = 1
             iit = n_t - it + 1  # inverse of it
-            P[:, :, ik, iit] = LA.I - frame_path[:, :, ik, iit] * frame_path[:, :, ik, iit]'
+            P[:, :, ik, iit] = I - frame_path[:, :, ik, iit] * frame_path[:, :, ik, iit]'
 
             # Propagate column ic of matrix_path along frame_path
             if ic ∈ columns
                 idx = findfirst(column -> column == ic, columns)
 
-                if abs(LA.norm(frame_path[:, idx, ik, iit]) - 1) < 1e-2
+                if abs(norm(frame_path[:, idx, ik, iit]) - 1) < 1e-2
                     U[:, ic, ik, iit] = frame_path[:, idx, ik, iit]
                 else
                     if it > 1
@@ -181,7 +181,7 @@ function matrix_parallel_transport(
                 end
             end
 
-            U[:, ic, ik, iit] /= LA.norm(U[:, ic, ik, iit])
+            U[:, ic, ik, iit] /= norm(U[:, ic, ik, iit])
         end
 
         not_columns = [j for j = 1:n_col if j ∉ columns]
@@ -213,7 +213,7 @@ function interpolate_vec(
     for i in 1:n_t
         v[:, i] = (1 - t[i]) * x + t[i] * y
 
-        n = LA.norm(v[:, i])
+        n = norm(v[:, i])
         @assert n > 1e-2
 
         v[:, i] /= n
@@ -246,7 +246,7 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
     @assert begin
         for i in 1:n_k
             P = matrix_path[:, :, i] * matrix_path[:, :, i]'
-            LA.norm(P - LA.I) >= 1e-5 && return false
+            norm(P - I) >= 1e-5 && return false
         end
         true
     end
@@ -287,7 +287,7 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
                 # from c(k,t=1) to c(k,t)
                 for j in 1:n_t
                     c[:, ik, j] = (1 - t[j]) * c[:, ik, 1] + t[j] * e1
-                    c[:, ik, j] /= LA.norm(c[:, ik, j])
+                    c[:, ik, j] /= norm(c[:, ik, j])
                 end
 
                 # new frame_path
@@ -295,7 +295,7 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
                     frame_path[:, col, ik, j] = sum(
                         U[:, col + k - 1, ik, j] * c[k, ik, j] for k in 1:n_c
                     )
-                    frame_path[:, col, ik, j] /= LA.norm(frame_path[:, col, ik, j])
+                    frame_path[:, col, ik, j] /= norm(frame_path[:, col, ik, j])
                 end
             end
         else

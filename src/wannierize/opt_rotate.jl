@@ -1,4 +1,4 @@
-import LinearAlgebra as LA
+using LinearAlgebra
 using Optim: Optim
 import NLSolversBase: OnceDifferentiable
 
@@ -43,7 +43,7 @@ function get_fg!_rotate(model::Model)
                 Nᵏᵇ .= W' * MWᵏᵇ
                 b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
 
-                q = imaglog.(LA.diag(Nᵏᵇ)) + r' * b
+                q = imaglog.(diag(Nᵏᵇ)) + r' * b
 
                 for n in 1:n_wann
                     # error if division by zero. Should not happen if the initial gauge is not too bad
@@ -95,7 +95,7 @@ function opt_rotate(
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
-    W0 = Matrix{eltype(model.A)}(LA.I, n_wann, n_wann)
+    W0 = Matrix{eltype(model.A)}(I, n_wann, n_wann)
 
     # Comment g! to use finite differences to compute the gradient
     opt = Optim.optimize(

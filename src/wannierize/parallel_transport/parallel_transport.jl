@@ -1,4 +1,4 @@
-import LinearAlgebra as LA
+using LinearAlgebra
 
 include("contraction.jl")
 
@@ -59,7 +59,7 @@ function parallel_transport(
     O1 = orthonorm_lowdin(overlap(M, kpb_k, k1, k2, A))
     @debug "Obstruction matrix =" V = O1
 
-    d, V = LA.eigen(O1)
+    d, V = eigen(O1)
     logd = log.(d)
     # Hack to avoid separating eigenvalues at -1. TODO understand that
     for i in 1:n_wann
@@ -74,7 +74,7 @@ function parallel_transport(
         ik = xyz_k[i, 1, 1]
         # Since our Vₒ is the inverse of the Vₒ in the paper,
         # we don't need a minus sign here.
-        Oₖ = V * LA.diagm(0 => exp.(tx[i] * logd)) * V'
+        Oₖ = V * diagm(0 => exp.(tx[i] * logd)) * V'
         A[:, :, ik] *= Oₖ
     end
 
@@ -90,7 +90,7 @@ function parallel_transport(
     k2 = xyz_k[1, 1, 1]
     O2 = orthonorm_lowdin(overlap(M, kpb_k, k1, k2, A))
 
-    d, V = LA.eigen(O2)
+    d, V = eigen(O2)
     logd = log.(d)
     # Hack to avoid separating eigenvalues at -1. TODO understand that
     for i in 1:n_wann
@@ -104,7 +104,7 @@ function parallel_transport(
         for j in 1:n_ky
             ik = xyz_k[i, j, 1]
             # no need a minus sign here
-            Oₖ = V * LA.diagm(0 => exp.(ty[j] * logd)) * V'
+            Oₖ = V * diagm(0 => exp.(ty[j] * logd)) * V'
             A[:, :, ik] *= Oₖ
         end
     end
@@ -118,7 +118,7 @@ function parallel_transport(
         k2 = xyz_k[i, 1, 1]
         Mᵏᵇ = overlap(M, kpb_k, k1, k2, A)
         Oxy[:, :, i] = orthonorm_lowdin(Mᵏᵇ)
-        detO3[i] = LA.det(Oxy[:, :, i])
+        detO3[i] = det(Oxy[:, :, i])
     end
 
     # find a continuous log of the determinant
@@ -129,7 +129,7 @@ function parallel_transport(
     end
     for i in 1:n_kx
         Oxy[:, :, i] = exp(-im * logD[i] / n_wann) * Oxy[:, :, i]
-        # eigs[:, i] = LA.eigvals(Oxy[:, :, i])
+        # eigs[:, i] = eigvals(Oxy[:, :, i])
     end
 
     # Interpolate the line obstruction
@@ -141,7 +141,7 @@ function parallel_transport(
 
     for i in 1:n_kx
         O = Oxy[:, :, i]
-        d, V = LA.eigen(O)
+        d, V = eigen(O)
 
         if log_interp
             for j in 1:n_ky
@@ -168,7 +168,7 @@ function parallel_transport(
     k1 = xyz_k[1, 1, n_kz]
     k2 = xyz_k[1, 1, 1]
     O4 = orthonorm_lowdin(overlap(M, kpb_k, k1, k2, A))
-    d, V = LA.eigen(O4)
+    d, V = eigen(O4)
     logd = log.(d)
 
     # Hack to avoid separating eigenvalues at -1. TODO understand that
@@ -180,7 +180,7 @@ function parallel_transport(
 
     for k in 1:n_kz
         # fixer = powm(O4, t3[k])
-        W = V * LA.diagm(0 => exp.(tz[k] * logd)) * V'
+        W = V * diagm(0 => exp.(tz[k] * logd)) * V'
 
         for i in 1:n_kx, j in 1:n_ky
             ik = xyz_k[i, j, k]
@@ -284,7 +284,7 @@ function compute_error(model::Model{T}, A::Array{Complex{T},3}) where {T<:Real}
     M = model.M
     A0 = model.A
 
-    epsilon(i, j, B) = LA.norm(orthonorm_lowdin(overlap(M, kpb_k, i, j, B)) - LA.I)^2
+    epsilon(i, j, B) = norm(orthonorm_lowdin(overlap(M, kpb_k, i, j, B)) - I)^2
 
     for i in 1:n_kx, j in 1:n_ky, k in 1:n_kz
         k1 = xyz_k[i, j, k]

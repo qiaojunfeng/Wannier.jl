@@ -1,4 +1,4 @@
-import LinearAlgebra as LA
+using LinearAlgebra
 
 # the conduction bands poles are chosen randomly, skip test on conduction.
 @testset "parallel_transport valence" begin
@@ -8,7 +8,7 @@ import LinearAlgebra as LA
 
     Aref = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
     # println("maxabs ", maximum(abs.(Amin - Aref)))
-    # println("norm ", LA.norm(Amin - Aref))
+    # println("norm ", norm(Amin - Aref))
     # somehow in GitHub CI, the maxabs = 3.774913572015048e-7,
     # the norm = norm 4.7457964893612196e-6,
     # I increase a bit the tolerance here

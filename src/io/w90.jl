@@ -1,7 +1,6 @@
 using Printf: @printf, @sprintf
 using Dates: now
 import DelimitedFiles as Dlm
-import LinearAlgebra as LA
 
 function read_win(filename::String)
     @info "Reading win file: $filename"
@@ -45,13 +44,13 @@ function read_win(filename::String)
         elseif occursin("num_wann", line)
             num_wann = parse(Int, split(line)[2])
         elseif occursin("dis_froz_min", line)
-            dis_froz_min = parse(Float64, split(line)[2])
+            dis_froz_min = parse_float(split(line)[2])
         elseif occursin("dis_froz_max", line)
-            dis_froz_max = parse(Float64, split(line)[2])
+            dis_froz_max = parse_float(split(line)[2])
         elseif occursin("dis_win_min", line)
-            dis_win_min = parse(Float64, split(line)[2])
+            dis_win_min = parse_float(split(line)[2])
         elseif occursin("dis_win_max", line)
-            dis_win_max = parse(Float64, split(line)[2])
+            dis_win_max = parse_float(split(line)[2])
         elseif occursin(r"begin\s+unit_cell_cart", line)
             unit_cell = zeros(Float64, 3, 3)
             line = read_lowercase_line()
@@ -631,6 +630,8 @@ function write_w90_bands(
         end
     end
     @info "Written to $filename"
+    println()
+    return nothing
 end
 
 function read_wout(filename::String)
@@ -958,6 +959,7 @@ function read_chk(filename::String)
 
     io = open(filename)
 
+    # strip and read line
     srline() = strip(readline(io))
 
     # Read formatted chk file

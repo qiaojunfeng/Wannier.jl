@@ -1,4 +1,4 @@
-import LinearAlgebra as LA
+using LinearAlgebra
 using CairoMakie
 
 """
@@ -33,8 +33,8 @@ function plot_obstruction_regularity(
         Mright = overlap(model.M, model.bvectors.kpb_k, ik_right, ik)
         Mup = overlap(model.M, model.bvectors.kpb_k, ik_up, ik)
 
-        Ωright[i, j] = n_kx * LA.norm(A[:, :, ik_right] - Mright * A[:, :, ik])
-        Ωup[i, j] = n_ky * LA.norm(A[:, :, ik_up] - Mup * A[:, :, ik])
+        Ωright[i, j] = n_kx * norm(A[:, :, ik_right] - Mright * A[:, :, ik])
+        Ωup[i, j] = n_ky * norm(A[:, :, ik_up] - Mup * A[:, :, ik])
 
         if Ωright[i, j] + Ωup[i, j] > Ωmax
             Ωmax = Ωright[i, j] + Ωup[i, j]

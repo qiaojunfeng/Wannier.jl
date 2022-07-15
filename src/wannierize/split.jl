@@ -1,4 +1,4 @@
-import LinearAlgebra as LA
+using LinearAlgebra
 
 """
 Split eigenvalues into two groups.
@@ -29,10 +29,10 @@ function split_eig(E::Matrix{T}, U::Array{Complex{T},3}, n_val::Int) where {T<:R
     for ik in 1:n_kpts
         Uₖ = U[:, :, ik]
         # Hamiltonian in WF basis
-        Hₖ = LA.Hermitian(Uₖ' * LA.diagm(0 => E[:, ik]) * Uₖ)
+        Hₖ = Hermitian(Uₖ' * diagm(0 => E[:, ik]) * Uₖ)
 
         # Diagonalize
-        Dₖ, Vₖ = LA.eigen(Hₖ)
+        Dₖ, Vₖ = eigen(Hₖ)
         Ev[:, ik] = Dₖ[1:n_val]
         Ec[:, ik] = Dₖ[(n_val + 1):end]
 

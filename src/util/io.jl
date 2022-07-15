@@ -24,3 +24,10 @@ function isbinary_file(filename::String)
 
     return isbinary(raw_data)
 end
+
+"""
+Parse a string as Float64.
+
+Fortran some times use e.g. 1.0D-10 for 1e-10.
+"""
+parse_float(str::AbstractString) = parse(Float64, replace(lowercase(str), "d" => "e"))

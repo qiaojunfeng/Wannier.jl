@@ -1,4 +1,4 @@
-import LinearAlgebra as LA
+using LinearAlgebra
 using NLSolversBase
 
 # A reusable fixture for a model
@@ -7,7 +7,7 @@ model = read_seedname(joinpath(FIXTURE_PATH, "valence", "silicon"))
 f, g! = Wannier.get_fg!_rotate(model)
 
 @testset "opt_rotate spread gradient" begin
-    W0 = LA.diagm(0 => fill(1.0 + 0 * im, model.n_wann))
+    W0 = diagm(0 => fill(1.0 + 0 * im, model.n_wann))
 
     # analytical gradient
     G = similar(W0)

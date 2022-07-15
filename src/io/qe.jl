@@ -1,3 +1,4 @@
+using LinearAlgebra
 
 """
 read QE bands.x output dat file
@@ -54,7 +55,7 @@ function read_qe_bands(filename::String)
     for ik in 2:(nks - 1)
         vec0 = kpaths_coord[:, ik] - kpaths_coord[:, ik - 1]
         vec1 = kpaths_coord[:, ik + 1] - kpaths_coord[:, ik]
-        if !all(isapprox.(LA.cross(vec0, vec1), 0; atol=2e-6))
+        if !all(isapprox.(cross(vec0, vec1), 0; atol=2e-6))
             push!(symm_points, ik)
             push!(symm_points_label, "")
         end
@@ -68,7 +69,7 @@ function read_qe_bands(filename::String)
     kpaths = zeros(Float64, nks)
     ik_prev = 1
     for ik in 1:nks
-        dk = LA.norm(kpaths_coord[:, ik] - kpaths_coord[:, ik_prev])
+        dk = norm(kpaths_coord[:, ik] - kpaths_coord[:, ik_prev])
         if ik != 2 && ik_prev in symm_points
             dk = 0
         end

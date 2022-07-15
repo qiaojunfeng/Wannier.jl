@@ -1,4 +1,3 @@
-import LinearAlgebra as LA
 using NLSolversBase
 
 # A reusable fixture for a model

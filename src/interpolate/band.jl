@@ -1,4 +1,4 @@
-import LinearAlgebra as LA
+using LinearAlgebra
 using FFTW
 using FINUFFT: FINUFFT
 
@@ -41,7 +41,7 @@ function get_kpath_points(
 
         # to cartesian coordinates
         seg = recip_lattice * (k2 - k1)
-        seg_norm = LA.norm(seg)
+        seg_norm = norm(seg)
 
         if i == 1
             # kpath density
@@ -83,7 +83,7 @@ function get_kpath_points(
 
     # to fractional
     kpt_frac = zeros(Float64, 3, length(x))
-    kpt_frac = LA.inv(recip_lattice) * kpt
+    kpt_frac = inv(recip_lattice) * kpt
 
     return kpt_frac, x, symm_idx, symm_label
 end
@@ -100,7 +100,7 @@ function ufft(
         for kx in 1:nx, ky in 1:ny, kz in 1:nz
             ik = xyz_k[kx, ky, kz]
             kpt = kpoints[:, ik]
-            fac = exp(-im * 2π * LA.dot(kpt, [rx - 1; ry - 1; rz - 1]))
+            fac = exp(-im * 2π * dot(kpt, [rx - 1; ry - 1; rz - 1]))
             O_R[:, :, rx, ry, rz] += fac * O_k[:, :, kx, ky, kz]
         end
     end
@@ -123,7 +123,7 @@ function nuifft(O_R::Array{Complex{T},5}, kpoints::Matrix{T}) where {T<:Real}
     for ik in 1:nk
         for rx in 1:nx, ry in 1:ny, rz in 1:nz
             kpt = kpoints[:, ik]
-            fac = exp(im * 2π * LA.dot(kpt, [rx - 1; ry - 1; rz - 1]))
+            fac = exp(im * 2π * dot(kpt, [rx - 1; ry - 1; rz - 1]))
             O_k[:, :, ik] += fac * O_R[:, :, rx, ry, rz]
         end
     end
@@ -158,7 +158,7 @@ function get_Hk(E::Matrix{T}, A::Array{U,3}) where {T<:Number,U<:Number}
 
     Hk = zeros(U, n_bands, n_bands, n_kpts)
     for ik in 1:n_kpts
-        Hk[:, :, ik] = A[:, :, ik]' * LA.Diagonal(E[:, ik]) * A[:, :, ik]
+        Hk[:, :, ik] = A[:, :, ik]' * Diagonal(E[:, ik]) * A[:, :, ik]
     end
 
     return Hk
@@ -220,10 +220,10 @@ function interpolate(model::Model{T}, kpoints::Matrix{T}) where {T<:Real}
     E_kpath = zeros(T, n_wann, n_kpath_points)
     for ik in 1:n_kpath_points
         H = H_kpath[:, :, ik]
-        # @assert LA.ishermitian(H) H
-        # @warn LA.norm(H - H') ik
+        # @assert ishermitian(H) H
+        # @warn norm(H - H') ik
         H = 0.5 * (H + H')
-        F = LA.eigen(H)
+        F = eigen(H)
         E_kpath[:, ik] = real.(F.values)
     end
 
