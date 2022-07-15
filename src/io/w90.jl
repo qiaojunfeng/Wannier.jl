@@ -1095,3 +1095,124 @@ function read_chk(filename::String)
         ω,
     )
 end
+
+@doc raw"""
+Write formatted (not Fortran binary) CHK file.
+"""
+function write_chk(filename::String, chk::Chk)
+    @info "Writing chk file:" filename
+    io = open(filename, "w")
+
+    n_bands = chk.n_bands
+    n_wann = chk.n_wann
+    n_kpts = chk.n_kpts
+    n_bvecs = chk.n_bvecs
+
+    # Read formatted chk file
+    @printf(io, "%33s\n", chk.header)
+
+    @printf(io, "%d\n", n_bands)
+
+    @printf(io, "%d\n", chk.n_exclude_bands)
+
+    if chk.n_exclude_bands > 0
+        for i in 1:(chk.n_exclude_bands)
+            @printf(io, "%d\n", chk.exclude_bands[i])
+        end
+    end
+
+    # Each column is a lattice vector
+    for v in reshape(chk.lattice, 9)
+        @printf(io, "%25.17f", v)
+    end
+    @printf(io, "\n")
+
+    # Each column is a lattice vector
+    for v in reshape(chk.recip_lattice, 9)
+        @printf(io, "%25.17f", v)
+    end
+    @printf(io, "\n")
+
+    @printf(io, "%d\n", n_kpts)
+
+    @printf(io, "%d %d %d\n", chk.kgrid...)
+
+    for ik in 1:n_kpts
+        @printf(io, "%25.17f %25.17f %25.17f\n", chk.kpoints[:, ik]...)
+    end
+
+    @printf(io, "%d\n", n_bvecs)
+
+    @printf(io, "%d\n", n_wann)
+
+    # left-justified
+    @printf(io, "%-20s\n", chk.checkpoint)
+
+    # 1 -> True, 0 -> False
+    # v = chk.have_disentangled ? 1 : 0
+    @printf(io, "%d\n", chk.have_disentangled)
+
+    if chk.have_disentangled
+        # omega_invariant
+        @printf(io, "%25.17f\n", chk.ΩI)
+
+        for ik in 1:n_kpts
+            for ib in 1:n_bands
+                # 1 -> True, 0 -> False
+                @printf(io, "%d\n", chk.frozen_bands[ib, ik])
+            end
+        end
+
+        for ik in 1:n_kpts
+            @printf(io, "%d\n", chk.n_frozen[ik])
+        end
+
+        # u_matrix_opt
+        for ik in 1:n_kpts
+            for iw in 1:n_wann
+                for ib in 1:n_bands
+                    v = chk.Uᵈ[ib, iw, ik]
+                    @printf(io, "%25.17f %25.17f\n", real(v), imag(v))
+                end
+            end
+        end
+    end
+
+    # u_matrix
+    for ik in 1:n_kpts
+        for iw in 1:n_wann
+            for ib in 1:n_wann
+                v = chk.U[ib, iw, ik]
+                @printf(io, "%25.17f %25.17f\n", real(v), imag(v))
+            end
+        end
+    end
+
+    #  m_matrix
+    for ik in 1:n_kpts
+        for inn in 1:n_bvecs
+            for iw in 1:n_wann
+                for ib in 1:n_wann
+                    v = chk.M[ib, iw, inn, ik]
+                    @printf(io, "%25.17f %25.17f\n", real(v), imag(v))
+                end
+            end
+        end
+    end
+
+    # wannier_centres
+    for iw in 1:n_wann
+        @printf(io, "%25.17f %25.17f %25.17f\n", chk.r[:, iw]...)
+    end
+
+    # wannier_spreads
+    for iw in 1:n_wann
+        @printf(io, "%25.17f\n", chk.ω[iw])
+    end
+
+    close(io)
+
+    @info "Written to file: $(filename)"
+    println()
+    return nothing
+end

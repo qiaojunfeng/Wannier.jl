@@ -27,7 +27,7 @@ include("io/w90.jl")
 export read_win, read_wout, read_nnkp
 export read_amn, read_orthonorm_amn, read_mmn, read_eig
 export read_seedname, read_unk, read_chk
-export write_amn, write_mmn, write_eig, write_unk
+export write_amn, write_mmn, write_eig, write_unk, write_chk
 export read_w90_bands, write_w90_bands
 
 include("io/model.jl")
