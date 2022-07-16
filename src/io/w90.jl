@@ -851,8 +851,14 @@ struct Chk{T<:Real}
     # omega invariant
     ΩI::T
 
+    # Bands taking part in disentanglement, not frozen bands!
+    # This is needed since W90 puts all the disentanglement bands
+    # in the first several rows of Uᵈ,
+    # (and the first few columns of Uᵈ are the frozen bands)
+    # so directly multiplying eigenvalues e.g.
+    # (Uᵈ * U)' * diag(eigenvalues) * (Uᵈ * U) is wrong!
     # 2D bool array, size: n_bands x n_kpts
-    frozen_bands::Matrix{Bool}
+    dis_bands::Matrix{Bool}
 
     # 1D int array, size: n_kpts
     # n_dimfrozen:: Vector{Int}
@@ -878,7 +884,7 @@ struct Chk{T<:Real}
     n_kpts::Int
     n_bvecs::Int
     n_wann::Int
-    n_frozen::Vector{Int}
+    n_dis::Vector{Int}
 end
 
 function Chk(
@@ -891,7 +897,7 @@ function Chk(
     checkpoint::String,
     have_disentangled::Bool,
     ΩI::T,
-    frozen_bands::Matrix{Bool},
+    dis_bands::Matrix{Bool},
     Uᵈ::Array{Complex{T},3},
     U::Array{Complex{T},3},
     M::Array{Complex{T},4},
@@ -913,12 +919,12 @@ function Chk(
     n_wann = size(U, 1)
 
     if have_disentangled
-        n_frozen = zeros(Int, n_kpts)
+        n_dis = zeros(Int, n_kpts)
         for ik in 1:n_kpts
-            n_frozen[ik] = count(frozen_bands[:, ik])
+            n_dis[ik] = count(dis_bands[:, ik])
         end
     else
-        n_frozen = zeros(Int, 0)
+        n_dis = zeros(Int, 0)
     end
 
     return Chk(
@@ -931,7 +937,7 @@ function Chk(
         checkpoint,
         have_disentangled,
         ΩI,
-        frozen_bands,
+        dis_bands,
         Uᵈ,
         U,
         M,
@@ -942,7 +948,7 @@ function Chk(
         n_kpts,
         n_bvecs,
         n_wann,
-        n_frozen,
+        n_dis,
     )
 end
 
@@ -1007,18 +1013,18 @@ function read_chk(filename::String)
         # omega_invariant
         ΩI = parse(Float64, srline())
 
-        frozen_bands = zeros(Bool, n_bands, n_kpts)
+        dis_bands = zeros(Bool, n_bands, n_kpts)
         for ik in 1:n_kpts
             for ib in 1:n_bands
                 # 1 -> True, 0 -> False
-                frozen_bands[ib, ik] = Bool(parse(Int, srline()))
+                dis_bands[ib, ik] = Bool(parse(Int, srline()))
             end
         end
 
-        n_frozen = zeros(Int, n_kpts)
+        n_dis = zeros(Int, n_kpts)
         for ik in 1:n_kpts
-            n_frozen[ik] = parse(Int, srline())
-            @assert n_frozen[ik] == count(frozen_bands[:, ik])
+            n_dis[ik] = parse(Int, srline())
+            @assert n_dis[ik] == count(dis_bands[:, ik])
         end
 
         # u_matrix_opt
@@ -1034,8 +1040,8 @@ function read_chk(filename::String)
 
     else
         ΩI = -1.0
-        frozen_bands = zeros(Bool, 0, 0)
-        n_frozen = zeros(Int, 0)
+        dis_bands = zeros(Bool, 0, 0)
+        n_dis = zeros(Int, 0)
         Uᵈ = zeros(ComplexF64, 0, 0, 0)
     end
 
@@ -1087,7 +1093,7 @@ function read_chk(filename::String)
         checkpoint,
         have_disentangled,
         ΩI,
-        frozen_bands,
+        dis_bands,
         Uᵈ,
         U,
         M,
@@ -1159,12 +1165,12 @@ function write_chk(filename::String, chk::Chk)
         for ik in 1:n_kpts
             for ib in 1:n_bands
                 # 1 -> True, 0 -> False
-                @printf(io, "%d\n", chk.frozen_bands[ib, ik])
+                @printf(io, "%d\n", chk.dis_bands[ib, ik])
             end
         end
 
         for ik in 1:n_kpts
-            @printf(io, "%d\n", chk.n_frozen[ik])
+            @printf(io, "%d\n", chk.n_dis[ik])
         end
 
         # u_matrix_opt
@@ -1215,4 +1221,45 @@ function write_chk(filename::String, chk::Chk)
     @info "Written to file: $(filename)"
     println()
     return nothing
+end
+
+"""
+Extract AMN matrices from chk.
+"""
+function get_amn(chk::Chk)
+    n_kpts = chk.n_kpts
+    n_bands = chk.n_bands
+    n_wann = chk.n_wann
+
+    U = similar(chk.U, n_bands, n_wann, n_kpts)
+
+    if !chk.have_disentangled
+        U .= chk.U
+        return U
+    end
+
+    # need to permute wavefunctions since Uᵈ is stored in a way that
+    # the bands taking part in disentanglement are in the first few rows
+    Iᵏ = Matrix{eltype(U)}(I, n_bands, n_bands)
+
+    for ik in 1:n_kpts
+        # sortperm is stable, and
+        # need descending order (dis bands at the front)
+        p = sortperm(chk.dis_bands[:, ik]; order=Base.Order.Reverse)
+        # usually we don't need this permutation, but if
+        # 1. the dis_win_min > minimum(E), then these below
+        #    dis_win_min bands are shifted to the last rows of Uᵈ
+        # 2. use projectability disentanglement, then
+        #    there might be cases that the lower (bonding) and
+        #    higher (anti-bonding) bands participate in disentanglement,
+        #    but some low-projectability bands are excluded from
+        #    disentanglement, then these low-proj bands are shifted to
+        #    the last rows of Uᵈ
+        # so we need to permute the Bloch states before multiplying Uᵈ
+        # Uᵈ: semi-unitary matrices from disentanglement
+        # U: unitary matrices from maximal localization
+        U[:, :, ik] = Iᵏ[:, p] * chk.Uᵈ[:, :, ik] * chk.U[:, :, ik]
+    end
+
+    return U
 end

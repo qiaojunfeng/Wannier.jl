@@ -2,9 +2,7 @@ using LinearAlgebra
 
 imaglog(z::T) where {T<:Complex} = atan(imag(z), real(z))
 
-function get_recip_lattice(lattice::Mat3)
-    return 2pi * inv(lattice)'
-end
+get_recip_lattice(lattice::Mat3) = 2π * inv(lattice)'
 
 @doc raw"""
 Computes overlap between two neighboring kpoints
@@ -140,7 +138,9 @@ end
 """
 Rotate MMN matrices according to gauge U.
 """
-function rotate_mmn(M::Array{T,4}, kpb_k::Matrix{Int}, U::Array{T,3}) where {T<:Complex}
+@views function rotate_mmn(
+    M::Array{T,4}, kpb_k::Matrix{Int}, U::Array{T,3}
+) where {T<:Complex}
     n_bands, n_wann = size(U)
     n_kpts = size(M, 4)
     n_bvecs = size(M, 3)
@@ -162,4 +162,21 @@ function rotate_mmn(M::Array{T,4}, kpb_k::Matrix{Int}, U::Array{T,3}) where {T<:
     end
 
     return N
+end
+
+"""
+Is matrix unitary or semi-unitary for all the kpoints?
+i.e. does it have orthogonal columns?
+"""
+function isunitary(A::AbstractArray{T,3}; atol::Real=1e-10) where {T<:Number}
+    n_bands, n_wann, n_kpts = size(A)
+
+    for ik in 1:n_kpts
+        Aₖ = @view A[:, :, ik]
+        if norm(Aₖ' * Aₖ - I) > atol
+            @debug "not unitary" ik norm(Aₖ' * Aₖ - I)
+            return false
+        end
+    end
+    return true
 end

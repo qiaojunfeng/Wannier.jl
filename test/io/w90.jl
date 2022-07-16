@@ -156,13 +156,13 @@ end
     @test chk.checkpoint == chk2.checkpoint
     @test chk.have_disentangled == chk2.have_disentangled
     @test chk.ΩI ≈ chk2.ΩI
-    @test chk.frozen_bands == chk2.frozen_bands
+    @test chk.dis_bands == chk2.dis_bands
     @test chk.Uᵈ ≈ chk2.Uᵈ
     @test chk.U ≈ chk2.U
     @test chk.M ≈ chk2.M
     @test chk.r ≈ chk2.r
     @test chk.ω ≈ chk2.ω
-    @test chk.n_frozen == chk2.n_frozen
+    @test chk.n_dis == chk2.n_dis
 end
 
 @testset "read wout" begin

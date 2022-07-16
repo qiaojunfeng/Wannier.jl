@@ -105,30 +105,6 @@ function split_unk(
 end
 
 """
-Extract AMN matrices from chk.
-"""
-function get_amn(chk::Chk)
-    n_kpts = chk.n_kpts
-    n_bands = chk.n_bands
-    n_wann = chk.n_wann
-
-    U = similar(chk.U, n_bands, n_wann, n_kpts)
-
-    if !chk.have_disentangled
-        U .= chk.U
-        return U
-    end
-
-    for ik in 1:n_kpts
-        # Uᵈ: semi-unitary matrices from disentanglement
-        # U: unitary matrices from maximal localization
-        U[:, :, ik] = chk.Uᵈ[:, :, ik] * chk.U[:, :, ik]
-    end
-
-    return U
-end
-
-"""
 Write splitted AMN/MMN/EIG/UNK(optional) files into valence and conduction groups.
 
 Args:
