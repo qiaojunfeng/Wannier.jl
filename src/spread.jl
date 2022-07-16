@@ -296,14 +296,12 @@ end
     r = zeros(FT, 3, n_wann)
     b = zeros(FT, 3)
     Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
-    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
 
     for ik in 1:n_kpts
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
 
-            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
-            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+            Nᵏᵇ .= overlap(M, kpb_k, ik, ikpb, A)
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
 
             for n in 1:n_wann
@@ -315,6 +313,11 @@ end
     r ./= n_kpts
 
     return r
+end
+
+center(model::Model) = center(model.bvectors, model.M, model.A)
+function center(model::Model, A::AbstractArray{T,3}) where {T<:Number}
+    return center(model.bvectors, model.M, A)
 end
 
 """
