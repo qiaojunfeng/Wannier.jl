@@ -131,9 +131,12 @@ end
 end
 
 omega(model::Model) = omega(model.bvectors, model.M, model.A)
+function omega(model::Model, A::AbstractArray{T,3}) where {T<:Number}
+    return omega(model.bvectors, model.M, A)
+end
 
 function pprint(Ω::Spread)
-    println("WF center (rx, ry, rz)/Å                   WF spread/Å²")
+    println("  WF     center [rx, ry, rz]/Å              spread/Å²")
 
     n_wann = length(Ω.ω)
 

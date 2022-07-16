@@ -101,13 +101,19 @@ function Model(
 end
 
 function pprint(model::Model)
-    @printf("lattice (Å):\n")
+    @printf("lattice: Å\n")
     for i in 1:3
         @printf("  a%d: %8.5f %8.5f %8.5f\n", i, model.lattice[:, i]...)
     end
+    println()
+
+    @printf("n_bands: %d\n", model.n_bands)
+    @printf("n_wann : %d\n", model.n_wann)
     @printf("kgrid  : %d %d %d\n", model.kgrid...)
     @printf("n_kpts : %d\n", model.n_kpts)
     @printf("n_bvecs: %d\n", model.n_bvecs)
-    @printf("n_bands: %d\n", model.n_bands)
-    @printf("n_wann : %d\n", model.n_wann)
+
+    println()
+    pprint(model.bvectors)
+    return nothing
 end

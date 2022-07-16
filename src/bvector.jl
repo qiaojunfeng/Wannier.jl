@@ -42,7 +42,7 @@ end
 
 function pprint(shells::BVectorShells)
     for i in 1:(shells.n_shells)
-        @printf("BVector shell %3d    weight = %8.5f\n", i, shells.weights[i])
+        @printf("b-vector shell %3d    weight = %8.5f\n", i, shells.weights[i])
         vecs = shells.bvectors[i]
         for ib in 1:size(vecs, 2)
             @printf("  %3d    %10.5f %10.5f %10.5f\n", ib, vecs[:, ib]...)
@@ -88,6 +88,19 @@ function Base.getproperty(x::BVectors, sym::Symbol)
         # fallback to getfield
         getfield(x, sym)
     end
+end
+
+function pprint(bvectors::BVectors)
+    println("b-vectors:")
+    @printf("         [bx, by, bz] / Å⁻¹                weight\n")
+    for i in 1:(bvectors.n_bvecs)
+        v = bvectors.bvectors[:, i]
+        w = bvectors.weights[i]
+        @printf("%3d    %10.5f %10.5f %10.5f %10.5f\n", i, v..., w)
+    end
+    # print a blank line to separate the following stdout
+    println()
+    return nothing
 end
 
 @doc raw"""
