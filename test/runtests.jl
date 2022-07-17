@@ -13,6 +13,7 @@ const FIXTURE_PATH = joinpath(TEST_PATH, "fixtures")
     include("util/io.jl")
 
     include("wannierize/max_localize.jl")
+    include("wannierize/disentangle.jl")
     include("wannierize/opt_rotate.jl")
     include("wannierize/split.jl")
     include("wannierize/parallel_transport.jl")

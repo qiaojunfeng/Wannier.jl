@@ -257,7 +257,7 @@ A is n_bands * n_wann,
 X is n_wann * n_wann,
 Y is n_bands * n_wann and has first block equal to [I 0].
 """
-function XY_to_A(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
+function X_Y_to_A(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(Y)
 
     A = zeros(T, n_bands, n_wann, n_kpts)
@@ -284,7 +284,7 @@ end
 size(A) = n_bands * n_wann * n_kpts
 size(frozen) = n_bands * n_kpts
 """
-function A_to_XY(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
+function A_to_X_Y(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(A)
 
     X = zeros(T, n_wann, n_wann, n_kpts)
@@ -324,19 +324,38 @@ function A_to_XY(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
 end
 
 """XY to (X, Y)"""
-function XY_to_XY(XY::Matrix{T}, n_bands::Int, n_wann::Int) where {T<:Complex}
+function XY_to_X_Y(XY::Matrix{T}, n_bands::Int, n_wann::Int) where {T<:Complex}
     n_kpts = size(XY, 2)
 
     X = zeros(T, n_wann, n_wann, n_kpts)
     Y = zeros(T, n_bands, n_wann, n_kpts)
 
+    n = n_wann^2
+
     for ik in 1:n_kpts
         XYk = XY[:, ik]
-        X[:, :, ik] = reshape(XYk[1:(n_wann^2)], (n_wann, n_wann))
-        Y[:, :, ik] = reshape(XYk[(n_wann^2 + 1):end], (n_bands, n_wann))
+        X[:, :, ik] = reshape(XYk[1:n], (n_wann, n_wann))
+        Y[:, :, ik] = reshape(XYk[(n + 1):end], (n_bands, n_wann))
     end
 
     return X, Y
+end
+
+"""XY to (X, Y)"""
+function X_Y_to_XY(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
+    n_bands, n_wann, n_kpts = size(Y)
+    # n_wann, n_wann, n_kpts = size(X)
+
+    n = n_wann^2
+    XY = zeros(T, n + n_bands * n_wann, n_kpts)
+
+    for ik in 1:n_kpts
+        # XY[:, ik] = vcat(vec(X[:, :, ik]), vec(Y[:, :, ik]))
+        XY[1:n, ik] = reshape(X[:, :, ik], n)
+        XY[(n + 1):end, ik] = reshape(Y[:, :, ik], n_bands * n_wann)
+    end
+
+    return XY
 end
 
 function omega(
@@ -345,8 +364,7 @@ function omega(
     X::Array{Complex{FT},3},
     Y::Array{Complex{FT},3},
 ) where {FT<:Real}
-    A = XY_to_A(X, Y)
-
+    A = X_Y_to_A(X, Y)
     return omega(bvectors, M, A)
 end
 
@@ -365,7 +383,7 @@ function omega_grad(
 ) where {FT<:Real}
     n_kpts = size(Y, 3)
 
-    A = XY_to_A(X, Y)
+    A = X_Y_to_A(X, Y)
 
     G = omega_grad(bvectors, M, A)
 
@@ -395,17 +413,21 @@ end
 
 function get_fg!_disentangle(model::Model)
     function f(XY)
-        X, Y = XY_to_XY(XY, model.n_bands, model.n_wann)
+        X, Y = XY_to_X_Y(XY, model.n_bands, model.n_wann)
         return omega(model.bvectors, model.M, X, Y).Ω
     end
 
     """size(G) == size(XY)"""
     function g!(G, XY)
-        X, Y = XY_to_XY(XY, model.n_bands, model.n_wann)
+        X, Y = XY_to_X_Y(XY, model.n_bands, model.n_wann)
         GX, GY = omega_grad(model.bvectors, model.M, X, Y, model.frozen_bands)
 
+        n = model.n_wann^2
+
         for ik in 1:(model.n_kpts)
-            G[:, ik] .= vcat(vec(GX[:, :, ik]), vec(GY[:, :, ik]))
+            # G[:, ik] .= vcat(vec(GX[:, :, ik]), vec(GY[:, :, ik]))
+            G[1:n, ik] = vec(GX[:, :, ik])
+            G[(n + 1):end, ik] = vec(GY[:, :, ik])
         end
 
         return nothing
@@ -448,14 +470,11 @@ function disentangle(
             Y0[idx_nf, (n_froz + 1):n_wann, ik] = orthonorm_lowdin(N)
         end
     else
-        X0, Y0 = A_to_XY(model.A, model.frozen_bands)
+        X0, Y0 = A_to_X_Y(model.A, model.frozen_bands)
     end
 
     # compact storage
-    XY0 = zeros(Complex{T}, n_wann^2 + n_bands * n_wann, n_kpts)
-    for ik in 1:n_kpts
-        XY0[:, ik] = vcat(vec(X0[:, :, ik]), vec(Y0[:, :, ik]))
-    end
+    XY0 = X_Y_to_XY(X0, Y0)
 
     # We have three storage formats:
     # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
@@ -500,8 +519,8 @@ function disentangle(
 
     XYmin = Optim.minimizer(opt)
 
-    Xmin, Ymin = XY_to_XY(XYmin, n_bands, n_wann)
-    Amin = XY_to_A(Xmin, Ymin)
+    Xmin, Ymin = XY_to_X_Y(XYmin, n_bands, n_wann)
+    Amin = X_Y_to_A(Xmin, Ymin)
 
     Ωᶠ = omega(model.bvectors, model.M, Amin)
     @info "Final spread"
