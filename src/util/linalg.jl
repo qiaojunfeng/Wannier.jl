@@ -113,7 +113,7 @@ function rotate_gauge(O::Array{T,3}, A::Array{T,3}) where {T<:Number}
     return O1
 end
 
-function ones_amn(T::Type, n_wann::Int, n_kpts::Int)
+function eyes_amn(T::Type, n_wann::Int, n_kpts::Int)
     A = zeros(T, n_wann, n_wann, n_kpts)
     Iₖ = diagm(0 => ones(n_wann))
 
@@ -124,7 +124,7 @@ function ones_amn(T::Type, n_wann::Int, n_kpts::Int)
     return A
 end
 
-function ones_amn(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
+function eyes_amn(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
     A = zeros(T, n_bands, n_wann, n_kpts)
     n = min(n_bands, n_wann)
     Iₖ = diagm(0 => ones(n))

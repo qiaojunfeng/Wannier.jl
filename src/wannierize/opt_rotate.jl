@@ -88,7 +88,7 @@ function opt_rotate(
 
     # make sure A is identity matrices
     model.M .= rotate_mmn(model.M, model.bvectors.kpb_k, model.A)
-    model.A .= ones_amn(eltype(model.A), model.n_wann, model.n_kpts)
+    model.A .= eyes_amn(eltype(model.A), model.n_wann, model.n_kpts)
 
     wManif = Optim.Stiefel_SVD()
 

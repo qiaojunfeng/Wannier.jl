@@ -139,8 +139,8 @@ function split_model(model::Model, n_val::Int)
     Mc = rotate_mmn(M, kpb_k, UVc)
 
     # AMN
-    Av = ones_amn(eltype(M), n_val, n_kpts)
-    Ac = ones_amn(eltype(M), n_wann - n_val, n_kpts)
+    Av = eyes_amn(eltype(M), n_val, n_kpts)
+    Ac = eyes_amn(eltype(M), n_wann - n_val, n_kpts)
 
     model_v = Model(
         model.lattice,

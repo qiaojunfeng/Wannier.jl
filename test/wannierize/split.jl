@@ -55,11 +55,11 @@ end
     # write_mmn(joinpath(FIXTURE_PATH, "conduction", "silicon.mmn"), Mc, kpb_k, kpb_b)
 end
 
-@testset "ones_amn" begin
+@testset "eyes_amn" begin
     n_wann = 4
     n_kpts = 64
 
-    A = ones_amn(ComplexF64, n_wann, n_kpts)
+    A = eyes_amn(ComplexF64, n_wann, n_kpts)
 
     Av = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.amn"))
     Ac = read_amn(joinpath(FIXTURE_PATH, "conduction", "silicon.amn"))
