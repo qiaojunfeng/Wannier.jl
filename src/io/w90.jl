@@ -17,6 +17,9 @@ function read_win(filename::String)
     dis_froz_max = missing
     dis_win_min = missing
     dis_win_max = missing
+    atoms_frac = missing
+    atoms_cart = missing
+    atom_labels = missing
 
     # handle case insensitive win files (relic of Fortran)
     read_lowercase_line() = strip(lowercase(readline(io)))
@@ -70,6 +73,50 @@ function read_win(filename::String)
                 unit_cell .*= Bohr
             end
             unit_cell = Mat3{Float64}(unit_cell)
+        elseif occursin(r"begin\s+atoms_frac", line)
+            line = strip(readline(io))
+            # I need to read all lines and get n_atoms
+            lines = Vector{String}()
+            while !occursin(r"end\s+atoms_frac", lowercase(line))
+                push!(lines, line)
+                # do not lowercase due to atomic label
+                line = strip(readline(io))
+            end
+            n_atoms = length(lines)
+            atoms_frac = zeros(Float64, 3, n_atoms)
+            atom_labels = Vector{String}()
+            for i in 1:n_atoms
+                l = split(lines[i])
+                push!(atom_labels, l[1])
+                atoms_frac[:, i] = parse_float.(l[2:end])
+            end
+        elseif occursin(r"begin\s+atoms_cart", line)
+            line = strip(readline(io))
+            unit = lowercase(line)
+            if !startswith(unit, "b") && !startswith(unit, "a")
+                unit = "ang"
+            else
+                # do not lowercase due to atomic label
+                line = strip(readline(io))
+            end
+            # I need to read all lines and get n_atoms
+            lines = Vector{String}()
+            while !occursin(r"end\s+atoms_cart", lowercase(line))
+                push!(lines, line)
+                line = strip(readline(io))
+            end
+            n_atoms = length(lines)
+            atoms_cart = zeros(Float64, 3, n_atoms)
+            atom_labels = Vector{String}()
+            for i in 1:n_atoms
+                l = split(lines[i])
+                push!(atom_labels, l[1])
+                atoms_cart[:, i] = parse_float.(l[2:end])
+            end
+            if startswith(unit, "b")
+                # convert to angstrom
+                atoms_cart .*= Bohr
+            end
         elseif occursin(r"begin\s+kpoints", line)
             line = read_lowercase_line()
             # kpoints block might be defined before mp_grid!
@@ -117,6 +164,12 @@ function read_win(filename::String)
 
     any(x -> ismissing(x), unit_cell) && error("unit_cell not found in win file")
 
+    # if atoms_cart, convert to fractional
+    if ismissing(atoms_frac)
+        ismissing(atoms_cart) && error("both atoms_frac and atoms_cart are missing")
+        atoms_frac = inv(unit_cell) * atoms_cart
+    end
+
     println("  num_wann  = ", num_wann)
     println("  num_bands = ", num_bands)
     @printf("  mp_grid   = %d %d %d\n", mp_grid...)
@@ -128,6 +181,8 @@ function read_win(filename::String)
         mp_grid=mp_grid,
         kpoints=kpoints,
         unit_cell=unit_cell,
+        atoms_frac=atoms_frac,
+        atom_labels=atom_labels,
         kpoint_path=kpoint_path,
         dis_froz_min=dis_froz_min,
         dis_froz_max=dis_froz_max,
@@ -450,7 +505,18 @@ function read_seedname(
         frozen_bands = falses(n_bands, n_kpts)
     end
 
-    return Model(lattice, kgrid, kpoints, bvectors, frozen_bands, M, A, E)
+    return Model(
+        lattice,
+        win.atoms_frac,
+        win.atom_labels,
+        kgrid,
+        kpoints,
+        bvectors,
+        frozen_bands,
+        M,
+        A,
+        E,
+    )
 end
 
 function read_nnkp(filename::String)

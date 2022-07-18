@@ -1,3 +1,17 @@
+atom_labels:
+  - "Si"
+  - "Si"
+dis_froz_max: 10.0
+dis_win_max: 17.0
+atoms_frac:
+  -
+    - -0.25
+    - 0.75
+    - -0.25
+  -
+    - 0.0
+    - 0.0
+    - 0.0
 kpoint_path:
   -
     - L:
@@ -35,8 +49,8 @@ kpoint_path:
         - 0.0
         - 0.0
         - 0.0
-num_wann: 8
 num_bands: 12
+num_wann: 8
 unit_cell:
   -
     - -2.698803775692

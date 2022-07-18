@@ -144,6 +144,8 @@ function split_model(model::Model, n_val::Int)
 
     model_v = Model(
         model.lattice,
+        model.atom_positions,
+        model.atom_labels,
         model.kgrid,
         model.kpoints,
         model.bvectors,
@@ -154,6 +156,8 @@ function split_model(model::Model, n_val::Int)
     )
     model_c = Model(
         model.lattice,
+        model.atom_positions,
+        model.atom_labels,
         model.kgrid,
         model.kpoints,
         model.bvectors,
