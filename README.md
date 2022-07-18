@@ -7,7 +7,7 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 [![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/invenia/BlueStyle)
 
-**A playground for experimentation with Wannier functions.**
+**A playground for experimentation with Wannier functions (WFs).**
 
 ## Features
 
@@ -16,6 +16,8 @@
   * disentanglement for entangled bands, e.g. metal
   * parallel transport gauge
   * split valence and conduction WFs from a valence + conduction calculation
+    * As a by-product, automated initial projection for valence WFs
+  * constraint center with Lagrange multiplier for max localization or disentanglement
 * interpolation
   * band structure
 

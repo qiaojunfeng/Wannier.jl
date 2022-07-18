@@ -1,5 +1,7 @@
 using LinearAlgebra
 
+abstract type AbstractSpread end
+
 @doc raw"""
 The MV spread.
 
@@ -8,7 +10,7 @@ Omega = ∑ₙ <r²>ₙ - |<r>ₙ|²
 <r>ₙ = -1/N ∑_k,b wb b Im ln(Mnn,kb)
 <r²>ₙ = 1/N ∑_k,b wb [(1 - |Mnn,kb|^2) + (Im ln(Mnn,kb))^2]
 """
-struct Spread{T<:Real}
+struct Spread{T<:Real} <: AbstractSpread
     # Total spread, unit Å², Ω = ΩI + Ω̃
     Ω::T
 

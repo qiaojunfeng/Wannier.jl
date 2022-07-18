@@ -23,19 +23,6 @@ end
     @test isapprox(Y, Y1; atol=1e-6)
 end
 
-"""Set grad of frozen bands to 0"""
-function zero_froz_grad!(G::Matrix, model::Wannier.Model)
-    GX, GY = Wannier.XY_to_X_Y(G, model.n_bands, model.n_wann)
-    for ik in 1:size(G, 2)
-        idx_f = model.frozen_bands[:, ik]
-        n_froz = count(idx_f)
-        GY[idx_f, :, ik] .= 0
-        GY[:, 1:n_froz, ik] .= 0
-    end
-    G .= Wannier.X_Y_to_XY(GX, GY)
-    return nothing
-end
-
 @testset "disentangle spread gradient" begin
     A0 = deepcopy(model.A)
 
@@ -50,7 +37,7 @@ end
     G_ref = NLSolversBase.gradient!(d, XY)
 
     # The gradient for frozen bands need to be set as 0 explicitly
-    zero_froz_grad!(G_ref, model)
+    Wannier.zero_froz_grad!(G_ref, model)
     @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
@@ -61,7 +48,7 @@ end
     g!(G, XY)
     d = OnceDifferentiable(f, XY, zero(eltype(real(XY))))
     G_ref = NLSolversBase.gradient!(d, XY)
-    zero_froz_grad!(G_ref, model)
+    Wannier.zero_froz_grad!(G_ref, model)
     @test isapprox(G, G_ref; atol=1e-6)
 end
 

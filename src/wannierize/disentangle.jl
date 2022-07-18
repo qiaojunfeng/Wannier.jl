@@ -411,6 +411,23 @@ function omega_grad(
     return GX, GY
 end
 
+"""
+Set grad of frozen bands to 0.
+
+This is used in test.
+"""
+function zero_froz_grad!(G::Matrix, model::Wannier.Model)
+    GX, GY = Wannier.XY_to_X_Y(G, model.n_bands, model.n_wann)
+    for ik in 1:size(G, 2)
+        idx_f = model.frozen_bands[:, ik]
+        n_froz = count(idx_f)
+        GY[idx_f, :, ik] .= 0
+        GY[:, 1:n_froz, ik] .= 0
+    end
+    G .= Wannier.X_Y_to_XY(GX, GY)
+    return nothing
+end
+
 function get_fg!_disentangle(model::Model)
     function f(XY)
         X, Y = XY_to_X_Y(XY, model.n_bands, model.n_wann)

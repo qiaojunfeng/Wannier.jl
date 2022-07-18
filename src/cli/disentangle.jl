@@ -1,5 +1,3 @@
-#!/usr/bin/env julia
-
 """
 Maximally localize a group of entangled bands.
 
