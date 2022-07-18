@@ -57,10 +57,11 @@ end
 The bvectors for each kpoint, sorted in the same order as the W90 nnkp file.
 """
 struct BVectors{T<:Real}
-    # reciprocal lattice, 3 * 3, Å⁻¹ unit, each column is a lattice vector
+    # reciprocal lattice, 3 * 3, Å⁻¹ unit
+    # each column is a reciprocal lattice vector
     recip_lattice::Mat3{T}
 
-    # kpoints array, fractional coordinates, n_kpts of Vec3
+    # kpoints array, fractional coordinates, 3 * n_kpts
     kpoints::Matrix{T}
 
     # bvectors, Cartesian! coordinates, Å⁻¹ unit, 3 * n_bvecs
@@ -81,7 +82,7 @@ end
 
 function Base.getproperty(x::BVectors, sym::Symbol)
     if sym == :n_kpts
-        return length(x.kpoints)
+        return size(x.kpoints, 2)
     elseif sym == :n_bvecs
         return size(x.bvectors, 2)
     else

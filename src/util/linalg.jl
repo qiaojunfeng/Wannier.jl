@@ -3,6 +3,7 @@ using LinearAlgebra
 imaglog(z::T) where {T<:Complex} = atan(imag(z), real(z))
 
 get_recip_lattice(lattice::Mat3) = 2π * inv(lattice)'
+get_lattice(recip_lattice::Mat3) = inv(recip_lattice / (2π))'
 
 @doc raw"""
 Computes overlap between two neighboring kpoints

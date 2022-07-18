@@ -98,6 +98,20 @@ end
     end
 end
 
+@testset "read/write nnkp" begin
+    bvectors = read_nnkp(joinpath(FIXTURE_PATH, "silicon/silicon.nnkp"))
+    tmpfile = tempname(; cleanup=true)
+    n_wann = 8
+    write_nnkp(tmpfile, bvectors, n_wann)
+
+    bvectors2 = read_nnkp(tmpfile)
+    @test bvectors.recip_lattice ≈ bvectors2.recip_lattice
+    @test bvectors.kpoints ≈ bvectors2.kpoints
+    @test bvectors.bvectors ≈ bvectors2.bvectors
+    @test bvectors.kpb_k ≈ bvectors2.kpb_k
+    @test bvectors.kpb_b ≈ bvectors2.kpb_b
+end
+
 @testset "read/write unk" begin
     ik, Ψ = read_unk(joinpath(FIXTURE_PATH, "silicon/UNK00001.1"))
 

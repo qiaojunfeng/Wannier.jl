@@ -7,7 +7,8 @@ include("common/type.jl")
 include("util/io.jl")
 
 include("util/linalg.jl")
-export get_recip_lattice, orthonorm_lowdin, ones_amn, rotate_mmn
+export get_recip_lattice, get_lattice
+export orthonorm_lowdin, ones_amn, rotate_mmn
 export isunitary
 
 include("util/kpoint.jl")
@@ -25,7 +26,7 @@ export Spread, pprint
 export omega, omega_grad, center
 
 include("io/w90.jl")
-export read_win, read_wout, read_nnkp
+export read_win, read_wout, read_nnkp, write_nnkp
 export read_amn, read_orthonorm_amn, read_mmn, read_eig
 export read_seedname, read_unk, read_chk
 export write_amn, write_mmn, write_eig, write_unk, write_chk

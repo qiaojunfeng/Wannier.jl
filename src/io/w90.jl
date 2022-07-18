@@ -544,6 +544,80 @@ function read_nnkp(filename::String)
 end
 
 """
+Write nnkp for pw2wannier90.
+
+Use auto_projections, no exclude_bands
+"""
+function write_nnkp(filename::String, bvectors::BVectors, n_wann::Int)
+    @info "Writing nnkp file: $filename"
+
+    io = open(filename, "w")
+
+    @printf(io, "File written on %s\n", string(now()))
+    @printf(io, "\n")
+    # mysterious line, seems not used in W90
+    @printf(io, "calc_only_A  :  F\n")
+    @printf(io, "\n")
+
+    lattice = get_lattice(bvectors.recip_lattice)
+    @printf(io, "begin real_lattice\n")
+    for i in 1:3
+        @printf(io, "%12.7f %12.7f %12.7f\n", lattice[:, i]...)
+    end
+    @printf(io, "end real_lattice\n")
+    @printf(io, "\n")
+
+    @printf(io, "begin recip_lattice\n")
+    for i in 1:3
+        @printf(io, "%12.7f %12.7f %12.7f\n", bvectors.recip_lattice[:, i]...)
+    end
+    @printf(io, "end recip_lattice\n")
+    @printf(io, "\n")
+
+    @printf(io, "begin kpoints\n")
+    @printf(io, "%d\n", bvectors.n_kpts)
+    for i in 1:(bvectors.n_kpts)
+        @printf(io, "%14.8f %14.8f %14.8f\n", bvectors.kpoints[:, i]...)
+    end
+    @printf(io, "end kpoints\n")
+    @printf(io, "\n")
+
+    @printf(io, "begin projections\n")
+    @printf(io, "%d\n", 0)
+    @printf(io, "end projections\n")
+    @printf(io, "\n")
+
+    @printf(io, "begin auto_projections\n")
+    @printf(io, "%d\n", n_wann)
+    @printf(io, "%d\n", 0)
+    @printf(io, "end auto_projections\n")
+    @printf(io, "\n")
+
+    @printf(io, "begin nnkpts\n")
+    @printf(io, "%d\n", bvectors.n_bvecs)
+    for ik in 1:(bvectors.n_kpts)
+        for ib in 1:(bvectors.n_bvecs)
+            @printf(
+                io,
+                "%6d %6d %6d %6d %6d\n",
+                ik,
+                bvectors.kpb_k[ib, ik],
+                bvectors.kpb_b[:, ib, ik]...
+            )
+        end
+    end
+    @printf(io, "end nnkpts\n")
+    @printf(io, "\n")
+
+    @printf(io, "begin exclude_bands\n")
+    @printf(io, "%d\n", 0)
+    @printf(io, "end exclude_bands\n")
+    @printf(io, "\n")
+
+    return close(io)
+end
+
+"""
 read si_band.dat  si_band.kpt  si_band.labelinfo.dat
 """
 function read_w90_bands(seedname::String)
