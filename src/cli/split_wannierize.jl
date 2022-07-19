@@ -65,9 +65,9 @@ Then this command split WFs into two independent groups.
         @info "Run optimal rotation"
         println()
         Wv = opt_rotate(model_val)
-        model_val.A .= rotate_amn(model_val.A, Wv)
+        model_val.A .= rotate_A(model_val.A, Wv)
         Wc = opt_rotate(model_cond)
-        model_cond.A .= rotate_amn(model_cond.A, Wc)
+        model_cond.A .= rotate_A(model_cond.A, Wc)
     end
 
     if run_maxloc

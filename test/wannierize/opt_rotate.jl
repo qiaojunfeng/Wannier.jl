@@ -49,7 +49,7 @@ end
     # display(Wmin)
     @test isapprox(Wmin, Wref; atol=1e-5)
 
-    # Amin = rotate_amn(A0, Wmin)
+    # Amin = rotate_A(A0, Wmin)
     # Aref = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.optrot.amn"))
     # @test isapprox(Amin, Aref; atol=1e-6)
 

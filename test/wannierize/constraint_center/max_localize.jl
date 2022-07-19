@@ -30,7 +30,7 @@ f, g! = Wannier.get_fg!_center_maxloc(model, r₀, λ)
         -0.0956088+0.205024im 0.468778+0.234124im 0.563928-0.141122im -0.572565+0.0921779im
         0.561868-0.269944im 0.350754-0.00970417im 0.451343+0.247661im 0.471665-0.0282528im
     ]
-    A1 = rotate_amn(A0, W1)
+    A1 = rotate_A(A0, W1)
 
     g!(G, A1)
     d = OnceDifferentiable(f, A1, zero(eltype(real(A1))))

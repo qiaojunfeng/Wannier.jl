@@ -130,8 +130,8 @@ function split_model(model::Model, n_val::Int)
     E = model.E
     U = model.A
     Ev, Ec, Vv, Vc = split_eig(E, U, n_val)
-    UVv = rotate_amn(U, Vv)
-    UVc = rotate_amn(U, Vc)
+    UVv = rotate_A(U, Vv)
+    UVc = rotate_A(U, Vc)
 
     model_v = rotate_gauge(model, UVv)
     @assert model_v.E ≈ Ev

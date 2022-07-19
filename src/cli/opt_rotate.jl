@@ -25,7 +25,7 @@ optimal rotation function.
     model = read_seedname(seedname)
 
     W = opt_rotate(model)
-    A = rotate_amn(model.A, W)
+    A = rotate_A(model.A, W)
 
     write_amn(output, A)
 

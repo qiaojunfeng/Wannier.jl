@@ -8,7 +8,7 @@ include("util/io.jl")
 
 include("util/linalg.jl")
 export get_recip_lattice, get_lattice
-export orthonorm_lowdin, eyes_amn, rotate_mmn
+export orthonorm_lowdin, eyes_A, rotate_M
 export isunitary
 
 include("util/kpoint.jl")
@@ -48,7 +48,7 @@ include("wannierize/disentangle.jl")
 export disentangle
 
 include("wannierize/opt_rotate.jl")
-export opt_rotate, rotate_amn
+export opt_rotate, rotate_A
 
 include("wannierize/parallel_transport/parallel_transport.jl")
 export parallel_transport

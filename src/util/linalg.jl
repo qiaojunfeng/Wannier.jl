@@ -121,7 +121,7 @@ function rotate_gauge(O::Array{T,3}, A::Array{T,3}) where {T<:Number}
     return O1
 end
 
-function eyes_amn(T::Type, n_wann::Int, n_kpts::Int)
+function eyes_A(T::Type, n_wann::Int, n_kpts::Int)
     A = zeros(T, n_wann, n_wann, n_kpts)
     Iₖ = diagm(0 => ones(n_wann))
 
@@ -132,7 +132,7 @@ function eyes_amn(T::Type, n_wann::Int, n_kpts::Int)
     return A
 end
 
-function eyes_amn(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
+function eyes_A(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
     A = zeros(T, n_bands, n_wann, n_kpts)
     n = min(n_bands, n_wann)
     Iₖ = diagm(0 => ones(n))
@@ -144,7 +144,7 @@ function eyes_amn(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
     return A
 end
 
-function rotate_amn(A::Array{T,3}, U::Array{T,3}) where {T<:Complex}
+function rotate_A(A::Array{T,3}, U::Array{T,3}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(A)
     size(U)[[1, 3]] != (n_wann, n_kpts) && error("U must be a n_wann x ? x n_kpts matrix")
     m = size(U, 2)
@@ -161,7 +161,7 @@ end
 """
 Rotate MMN matrices according to gauge U.
 """
-@views function rotate_mmn(
+@views function rotate_M(
     M::Array{T,4}, kpb_k::Matrix{Int}, U::Array{T,3}
 ) where {T<:Complex}
     n_bands, n_wann = size(U)

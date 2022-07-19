@@ -4,7 +4,7 @@ import NLSolversBase: OnceDifferentiable
 
 function get_fg!_rotate(model::Model)
     function f(W)
-        A = rotate_amn(model.A, W)
+        A = rotate_A(model.A, W)
         return omega(model.bvectors, model.M, A).Ω
     end
 
@@ -27,7 +27,7 @@ function get_fg!_rotate(model::Model)
         MWᵏᵇ = zeros(eltype(W), n_wann, n_wann)
         Nᵏᵇ = zeros(eltype(W), n_wann, n_wann)
 
-        AW = rotate_amn(model.A, W)
+        AW = rotate_A(model.A, W)
         r = center(bvectors, M, AW)
         # actually I can just call this, equivalent to the for loop below.
         # G_A = omega_grad(bvectors, M, AW, r)
@@ -87,8 +87,8 @@ function opt_rotate(
     pprint(Ωⁱ)
 
     # make sure A is identity matrices
-    model.M .= rotate_mmn(model.M, model.bvectors.kpb_k, model.A)
-    model.A .= eyes_amn(eltype(model.A), model.n_wann, model.n_kpts)
+    model.M .= rotate_M(model.M, model.bvectors.kpb_k, model.A)
+    model.A .= eyes_A(eltype(model.A), model.n_wann, model.n_kpts)
 
     wManif = Optim.Stiefel_SVD()
 
@@ -116,7 +116,7 @@ function opt_rotate(
 
     Wmin = Optim.minimizer(opt)
 
-    A = rotate_amn(model.A, Wmin)
+    A = rotate_A(model.A, Wmin)
     Ωᶠ = omega(model.bvectors, model.M, A)
     @info "Final spread"
     pprint(Ωᶠ)
@@ -124,7 +124,7 @@ function opt_rotate(
     return Wmin
 end
 
-function rotate_amn(A::Array{T,3}, W::Matrix{T}) where {T<:Complex}
+function rotate_A(A::Array{T,3}, W::Matrix{T}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(A)
     size(W) != (n_wann, n_wann) && error("W must be a n_wann x n_wann matrix")
 

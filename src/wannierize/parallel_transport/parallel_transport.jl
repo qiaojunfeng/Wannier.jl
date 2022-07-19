@@ -34,7 +34,7 @@ function parallel_transport(
     if use_A
         A = deepcopy(model.A)
     else
-        A = eyes_amn(Complex{T}, n_wann, n_kpts)
+        A = eyes_A(Complex{T}, n_wann, n_kpts)
     end
 
     # 1. propagate along kx

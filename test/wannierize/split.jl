@@ -38,8 +38,8 @@ end
         UVv[:, :, ik] = U[:, :, ik] * Vv[:, :, ik]
         UVc[:, :, ik] = U[:, :, ik] * Vc[:, :, ik]
     end
-    Mv = rotate_mmn(M, kpb_k, UVv)
-    Mc = rotate_mmn(M, kpb_k, UVc)
+    Mv = rotate_M(M, kpb_k, UVv)
+    Mc = rotate_M(M, kpb_k, UVc)
 
     Mv_ref, _, _ = read_mmn(joinpath(FIXTURE_PATH, "valence", "silicon.mmn"))
     Mc_ref, _, _ = read_mmn(joinpath(FIXTURE_PATH, "conduction", "silicon.mmn"))
@@ -55,11 +55,11 @@ end
     # write_mmn(joinpath(FIXTURE_PATH, "conduction", "silicon.mmn"), Mc, kpb_k, kpb_b)
 end
 
-@testset "eyes_amn" begin
+@testset "eyes_A" begin
     n_wann = 4
     n_kpts = 64
 
-    A = eyes_amn(ComplexF64, n_wann, n_kpts)
+    A = eyes_A(ComplexF64, n_wann, n_kpts)
 
     Av = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.amn"))
     Ac = read_amn(joinpath(FIXTURE_PATH, "conduction", "silicon.amn"))

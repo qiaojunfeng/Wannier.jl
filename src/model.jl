@@ -175,10 +175,10 @@ function rotate_gauge(model::Model, A::Array{T,3}) where {T<:Number}
     # MMN
     M = model.M
     kpb_k = model.bvectors.kpb_k
-    M2 = rotate_mmn(M, kpb_k, A)
+    M2 = rotate_M(M, kpb_k, A)
 
     # AMN
-    A2 = eyes_amn(eltype(M), n_wann, n_kpts)
+    A2 = eyes_A(eltype(M), n_wann, n_kpts)
 
     model2 = Model(
         model.lattice,
