@@ -4,7 +4,7 @@
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
     n_val = 4
 
-    U = get_amn(chk)
+    U = get_A(chk)
 
     Ev, Ec, _, _ = Wannier.split_eig(E, U, n_val)
 
@@ -20,7 +20,7 @@ end
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
     n_val = 4
 
-    U = get_amn(chk)
+    U = get_A(chk)
     Ev, Ec, _, _ = Wannier.split_eig(E, U, n_val)
 
     M, kpb_k, kpb_b = read_mmn(joinpath(FIXTURE_PATH, "silicon/silicon.mmn"))
@@ -74,7 +74,7 @@ end
 @testset "split_model" begin
     model = read_seedname(joinpath(FIXTURE_PATH, "silicon/silicon"))
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
-    model.A .= get_amn(chk)
+    model.A .= get_A(chk)
 
     n_val = 4
 

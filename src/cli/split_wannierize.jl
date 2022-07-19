@@ -45,7 +45,7 @@ Then this command split WFs into two independent groups.
         # Get max localized gauge from chk file
         chk = read_chk("$seedname.chk.fmt")
         # We replace the initial projection by the "good" max loc gauge
-        model.A .= get_amn(chk)
+        model.A .= get_A(chk)
     end
 
     @info "Valence + conduction initial spread"

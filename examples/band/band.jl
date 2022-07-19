@@ -37,7 +37,7 @@ cd(DATA_PATH)
 readdir()
 
 # ╔═╡ 39c610b0-3634-4341-8eb2-aa8a4722dc0c
-band = read_w90_bands("silicon")
+band = read_w90_band("silicon")
 
 # ╔═╡ 49ebb057-d25b-45e8-92fa-9b074a80aa94
 Wannier.plot_band(band.x, band.E; symm_idx=band.symm_idx, symm_label=band.symm_label)

@@ -1,6 +1,6 @@
 @testset "get_kpath_points" begin
     win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
-    band = read_w90_bands(joinpath(FIXTURE_PATH, "valence/band/silicon"))
+    band = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/silicon"))
 
     # num points of 1st segment
     n_points = 100
@@ -18,7 +18,7 @@ end
 # TODO implement WS interpolation
 # @testset "interpolate" begin
 #     model = read_seedname(joinpath(FIXTURE_PATH, "valence/band/silicon"))
-#     band = read_w90_bands(joinpath(FIXTURE_PATH, "valence/band/silicon"))
+#     band = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/silicon"))
 
 #     E = Wannier.interpolate(model, band.kpoints)
 

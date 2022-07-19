@@ -150,16 +150,16 @@ end
 end
 
 @testset "read/write w90 band dat" begin
-    band = read_w90_bands(joinpath(FIXTURE_PATH, "valence/band/silicon"))
+    band = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/silicon"))
 
     outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "silicon")
 
-    write_w90_bands(
+    write_w90_band(
         outseedname, band.kpoints, band.E, band.x, band.symm_idx, band.symm_label
     )
 
-    band2 = read_w90_bands(outseedname)
+    band2 = read_w90_band(outseedname)
 
     @test band.kpoints ≈ band2.kpoints
     @test band.E ≈ band2.E
