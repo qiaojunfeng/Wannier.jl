@@ -72,17 +72,24 @@ function orthonorm_cholesky(A)
     return A / chol(A'A)
 end
 
-function fix_global_phase!(A::Array{T,3}) where {T<:Complex}
-    n_wann = size(A, 2)
-
-    for i in 1:n_wann
-        imax = indmax(abs.(A[:, i, 1]))
-        a = A[imax, i, 1]
-        @assert abs(a) > 1e-2
-        A[:, i, :] *= conj(a / abs(a))
-    end
-
+"""
+Fix global phase of wavefunction
+usually size(W) = n_gx * n_gy * n_gz
+"""
+function fix_global_phase!(W::AbstractArray)
+    m, idx = findmax(abs, W)
+    @assert m > 1e-2
+    f = conj(W[idx]) / m
+    W .*= f
     return nothing
+end
+
+"""Im/Re ratio"""
+function compute_imre_ratio(W::AbstractArray)
+    # only calculate real >= 0.01 elements, same as W90
+    V = W[real(W) .>= 0.01]
+    r = maximum(abs.(imag(V) ./ real(V)))
+    return r
 end
 
 """

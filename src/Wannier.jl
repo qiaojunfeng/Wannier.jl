@@ -39,6 +39,8 @@ export write_model
 include("io/truncate.jl")
 export truncate
 
+include("io/cube.jl")
+
 include("wannierize/max_localize.jl")
 export max_localize
 
@@ -66,7 +68,7 @@ include("interpolate/band.jl")
 
 # function __init__()
 #     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" begin
-include("plot/plot.jl")
+include("plot.jl")
 export plot_band, plot_band!
 
 # include("plot/parallel_transport.jl")

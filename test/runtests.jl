@@ -11,6 +11,7 @@ const FIXTURE_PATH = joinpath(TEST_PATH, "fixtures")
     include("spread.jl")
     include("util/kpoint.jl")
     include("util/io.jl")
+    include("util/misc.jl")
 
     include("wannierize/max_localize.jl")
     include("wannierize/disentangle.jl")
