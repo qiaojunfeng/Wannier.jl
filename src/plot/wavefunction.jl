@@ -119,16 +119,26 @@ function get_realspace_wf(
     return get_realspace_wf(A, kpoints, [n_supercells, n_supercells, n_supercells], unkdir)
 end
 
+"""
+Write realspace Wannier functions to cube files.
+
+seedname: the name prefix for cube files, e.g., `seedname_00001.cube`
+A: gauge rotation matrix
+part: which part to plot? :real, :imag, or :abs2?
+"""
 function write_realspace_wf_cube(
     seedname::String,
     A::AbstractArray,
     kpoints::AbstractMatrix,
     lattice::AbstractMatrix,
     atom_positions::AbstractMatrix,
-    atom_labels::AbstractVector{String},
+    atom_labels::AbstractVector{String};
     n_supercells::Int=2,
     unkdir::String=".",
+    part::Symbol=:real,
 )
+    part in [:real, :imag, :abs2] || error("part must be :real, :imag, or :abs2")
+
     X, Y, Z, W = get_realspace_wf(A, kpoints, n_supercells, unkdir)
     n_wann = size(W, 4)
 
@@ -138,10 +148,15 @@ function write_realspace_wf_cube(
         @printf("Im/Re ratio of WF %4d = %10.4f\n", i, r)
     end
 
-    # modulus of W
-    # W2 = abs.(W)
-    # seems W90 always write the real part
-    W2 = real(W)
+    if part == :real
+        # seems W90 always write the real part
+        W2 = real(W)
+    elseif part == :imag
+        W2 = imag(W)
+    elseif part == :abs2
+        # modulus^2 of W
+        W2 = abs2.(W)
+    end
 
     atom_numbers = get_atom_number(atom_labels)
 
@@ -154,7 +169,11 @@ function write_realspace_wf_cube(
 end
 
 function write_realspace_wf_cube(
-    seedname::String, model::Model, n_supercells::Int=2, unkdir::String="."
+    seedname::String,
+    model::Model;
+    n_supercells::Int=2,
+    unkdir::String=".",
+    part::Symbol=:real,
 )
     return write_realspace_wf_cube(
         seedname,
@@ -162,8 +181,9 @@ function write_realspace_wf_cube(
         model.kpoints,
         model.lattice,
         model.atom_positions,
-        model.atom_labels,
+        model.atom_labels;
         n_supercells,
         unkdir,
+        part,
     )
 end
