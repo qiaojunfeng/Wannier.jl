@@ -65,8 +65,9 @@ function split_unk(
     outdir_cond::String="cond",
 ) where {T<:Complex}
     n_kpts = size(Uv, 3)
-
     n_kpts != size(Uc, 3) && error("incompatible n_kpts")
+    n_val = size(Uv, 2)
+    n_cond = size(Uc, 2)
 
     !isdir(outdir_val) && mkdir(outdir_val)
     !isdir(outdir_cond) && mkdir(outdir_cond)
@@ -97,8 +98,8 @@ function split_unk(
         ΨUv = Ψ * Uvₖ
         ΨUc = Ψ * Ucₖ
         # reshape back
-        ΨUv = reshape(ΨUv, n_gx, n_gy, n_gz, size(Uvₖ, 2))
-        ΨUc = reshape(ΨUc, n_gx, n_gy, n_gz, size(Ucₖ, 2))
+        ΨUv = reshape(ΨUv, n_gx, n_gy, n_gz, n_val)
+        ΨUc = reshape(ΨUc, n_gx, n_gy, n_gz, n_cond)
 
         val = joinpath(outdir_val, unk)
         write_unk(val, ik, ΨUv)
@@ -123,57 +124,19 @@ Args:
 """
 function split_model(model::Model, n_val::Int)
     n_wann = model.n_wann
-    n_kpts = model.n_kpts
-    n_bands = model.n_bands
-
     !(0 < n_val < n_wann) && error("n_val <= 0 or n_val >= n_wann")
 
-    E = model.E
-    M = model.M
-    kpb_k = model.bvectors.kpb_k
-
     # EIG
+    E = model.E
     U = model.A
     Ev, Ec, Vv, Vc = split_eig(E, U, n_val)
-    UVv = similar(U, n_bands, n_val, n_kpts)
-    UVc = similar(U, n_bands, n_wann - n_val, n_kpts)
-    for ik in 1:n_kpts
-        UVv[:, :, ik] = U[:, :, ik] * Vv[:, :, ik]
-        UVc[:, :, ik] = U[:, :, ik] * Vc[:, :, ik]
-    end
+    UVv = rotate_amn(U, Vv)
+    UVc = rotate_amn(U, Vc)
 
-    # MMN
-    Mv = rotate_mmn(M, kpb_k, UVv)
-    Mc = rotate_mmn(M, kpb_k, UVc)
-
-    # AMN
-    Av = eyes_amn(eltype(M), n_val, n_kpts)
-    Ac = eyes_amn(eltype(M), n_wann - n_val, n_kpts)
-
-    model_v = Model(
-        model.lattice,
-        model.atom_positions,
-        model.atom_labels,
-        model.kgrid,
-        model.kpoints,
-        model.bvectors,
-        zeros(Bool, 0, 0),
-        Mv,
-        Av,
-        Ev,
-    )
-    model_c = Model(
-        model.lattice,
-        model.atom_positions,
-        model.atom_labels,
-        model.kgrid,
-        model.kpoints,
-        model.bvectors,
-        zeros(Bool, 0, 0),
-        Mc,
-        Ac,
-        Ec,
-    )
+    model_v = rotate_gauge(model, UVv)
+    @assert model_v.E ≈ Ev
+    model_c = rotate_gauge(model, UVc)
+    @assert model_c.E ≈ Ec
 
     return model_v, model_c, UVv, UVc
 end

@@ -145,3 +145,52 @@ function pprint(model::Model)
     pprint(model.bvectors)
     return nothing
 end
+
+"""Rotate the gauge of a Model"""
+function rotate_gauge(model::Model, A::Array{T,3}) where {T<:Number}
+    n_bands = model.n_bands
+    n_kpts = model.n_kpts
+    size(A)[[1, 3]] != (n_bands, n_kpts) && error("A must have size (n_bands, ?, n_kpts)")
+    # The new n_wann
+    n_wann = size(A, 2)
+
+    # EIG
+    E = model.E
+    E2 = zeros(eltype(E), n_wann, n_kpts)
+    H = zeros(eltype(model.A), n_wann, n_wann)
+    # tolerance for checking Hamiltonian
+    atol = 1e-8
+    for ik in 1:n_kpts
+        Aₖ = A[:, :, ik]
+        H .= Aₖ' * diagm(0 => E[:, ik]) * Aₖ
+        if norm(H - diagm(0 => diag(H))) > atol
+            error("H is not diagonal after gauge rotation")
+        end
+        if any(imag(diag(H)) .> atol)
+            error("H has non-zero imaginary part")
+        end
+        E2[:, ik] = real(diag(H))
+    end
+
+    # MMN
+    M = model.M
+    kpb_k = model.bvectors.kpb_k
+    M2 = rotate_mmn(M, kpb_k, A)
+
+    # AMN
+    A2 = eyes_amn(eltype(M), n_wann, n_kpts)
+
+    model2 = Model(
+        model.lattice,
+        model.atom_positions,
+        model.atom_labels,
+        model.kgrid,
+        model.kpoints,
+        model.bvectors,
+        zeros(Bool, n_wann, n_kpts),
+        M2,
+        A2,
+        E2,
+    )
+    return model2
+end

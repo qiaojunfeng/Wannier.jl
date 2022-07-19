@@ -265,7 +265,6 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
 
     for col in 1:n_col
         # TODO ensure pole' * U[:, col+1, i, end] != -1
-        # TODO save prev_poles?
         columns, pole = choose_pole(matrix_path, columns, prev_poles)
         prev_poles[:, col] = pole
         @debug "matrix_transport" columns pole

@@ -106,6 +106,7 @@ function powm(A::AbstractMatrix{T}, p::F) where {T<:Union{Complex,Real},F<:Real}
     return V * Diagonal(d .^ p) * V'
 end
 
+"""Rotate the gauge of an operator"""
 function rotate_gauge(O::Array{T,3}, A::Array{T,3}) where {T<:Number}
     n_bands, n_wann, n_kpts = size(A)
     size(O) != (n_bands, n_bands, n_kpts) &&
@@ -141,6 +142,20 @@ function eyes_amn(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
     end
 
     return A
+end
+
+function rotate_amn(A::Array{T,3}, U::Array{T,3}) where {T<:Complex}
+    n_bands, n_wann, n_kpts = size(A)
+    size(U)[[1, 3]] != (n_wann, n_kpts) && error("U must be a n_wann x ? x n_kpts matrix")
+    m = size(U, 2)
+
+    A1 = similar(A, n_bands, m, n_kpts)
+
+    for ik in 1:n_kpts
+        A1[:, :, ik] .= A[:, :, ik] * U[:, :, ik]
+    end
+
+    return A1
 end
 
 """

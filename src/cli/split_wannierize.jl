@@ -54,7 +54,6 @@ Then this command split WFs into two independent groups.
     (nval === nothing) && (nval = model.n_wann ÷ 2)
     @info "number of valence WFs = $nval"
 
-    # UNK files for plotting WFs
     model_val, model_cond, Uv, Uc = split_wannierize(model, nval)
 
     @info "Valence after parallel transport:"
@@ -85,8 +84,12 @@ Then this command split WFs into two independent groups.
     seedname_cond = new_seedname(seedname, outdir_cond)
     write_model(seedname_cond, model_cond)
 
+    # UNK files for plotting WFs
     if rotate_unk
         dir = dirname(seedname)
+        if dir == ""
+            dir = "."
+        end
         outdir_val = dirname(seedname_val)
         outdir_cond = dirname(seedname_cond)
         split_unk(dir, Uv, Uc, outdir_val, outdir_cond)
