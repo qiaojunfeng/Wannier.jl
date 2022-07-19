@@ -52,6 +52,7 @@ Then this command split WFs into two independent groups.
     pprint(omega(model))
 
     (nval === nothing) && (nval = model.n_wann ÷ 2)
+    @info "number of valence WFs = $nval"
 
     # UNK files for plotting WFs
     model_val, model_cond, Uv, Uc = split_wannierize(model, nval)

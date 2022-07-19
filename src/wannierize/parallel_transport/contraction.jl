@@ -87,7 +87,12 @@ function choose_pole(
 
         pole = max_pole
 
-        @info "Pole chosen" pole max_dist
+        # @info "Pole chosen" pole max_dist
+        if m <= 2 * n_col
+            @info "Pole chosen by cardinal point" max_dist
+        else
+            @info "Pole chosen randomly" max_dist
+        end
     else
         # If the diameter of the path is small, the Barycenter of the path is a good pole.
         @info "Pole chosen by Barycenter of path"
@@ -262,6 +267,7 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
         # TODO ensure pole' * U[:, col+1, i, end] != -1
         # TODO save prev_poles?
         columns, pole = choose_pole(matrix_path, columns, prev_poles)
+        prev_poles[:, col] = pole
         @debug "matrix_transport" columns pole
 
         U = matrix_parallel_transport(frame_path, matrix_path, columns, true)

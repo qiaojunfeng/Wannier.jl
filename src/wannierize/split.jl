@@ -42,7 +42,7 @@ function split_eig(E::Matrix{T}, U::Array{Complex{T},3}, n_val::Int) where {T<:R
         # of max localization.
         # I store the gauge rotation due to diagonalization.
         Vv[:, :, ik] = Vₖ[:, 1:n_val]
-        Vv[:, :, ik] = Vₖ[:, (n_val + 1):end]
+        Vc[:, :, ik] = Vₖ[:, (n_val + 1):end]
     end
 
     return Ev, Ec, Vv, Vc
@@ -78,19 +78,27 @@ function split_unk(
     regex = r"UNK(\d{5})\.\d"
 
     for unk in readdir(dir)
-        match = match(regex, unk)
-        match === nothing && continue
+        m = match(regex, unk)
+        m === nothing && continue
 
-        ik = parse(Int, match.captures[1])
+        ik = parse(Int, m.captures[1])
 
-        ik2, Ψ = read_unk(unk)
+        ik2, Ψ = read_unk(joinpath(dir, unk))
         @assert ik2 == ik
 
         Uvₖ = Uv[:, :, ik]
         Ucₖ = Uc[:, :, ik]
 
+        # * does not support multiplication of high-dimensional arrays,
+        # reshape it to matrix
+        n_gx, n_gy, n_gz, n_bands = size(Ψ)
+        Ψ = reshape(Ψ, :, n_bands)
+        # rotate
         ΨUv = Ψ * Uvₖ
         ΨUc = Ψ * Ucₖ
+        # reshape back
+        ΨUv = reshape(ΨUv, n_gx, n_gy, n_gz, size(Uvₖ, 2))
+        ΨUc = reshape(ΨUc, n_gx, n_gy, n_gz, size(Ucₖ, 2))
 
         val = joinpath(outdir_val, unk)
         write_unk(val, ik, ΨUv)
