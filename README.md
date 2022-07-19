@@ -13,19 +13,22 @@
 
 * Wannierization
   * maximal localization for isolated bands, e.g. insulators
-    * different from[^MV97], this is an optimization on unitary matrix manifolds (adaptation of [^DLL19] to isolated bands)
+    * different from[^MV97], optimize on unitary matrix manifolds (adaptation of [^DLL19] to isolated bands)
   * disentanglement for entangled bands, e.g. metal
-    * different from[^SMV01], this is an optimization on Stiefel manifolds[^DLL19]
+    * different from[^SMV01], optimize on Stiefel manifolds[^DLL19]
   * parallel transport gauge[^GLS19]
     * you can further improve the spread by optimization w.r.t. a single rotation matrix[^QMP21]
   * split valence and conduction WFs from a valence + conduction calculation[^QMP21]
     * as a by-product, automated initial projection for valence or conduction WFs
     * for the initial projection of valence + conduction calculation, you can start with either conventional spdf projection, SCDM[^DL18], or an automated projection and disentanglement from pseudopotential orbitals[^QPM21]
-    * different from SCDM, the valence+conduction manifold is chosen by the valence+conduction calculation, instead of SCDM μ and σ. Moreover, this works in reciprocal space, more memory efficient
+    * different from SCDM, the valence+conduction manifold is chosen by the valence+conduction calculation, instead of SCDM μ and σ. Moreover, works in reciprocal space thus more memory-efficient
   * constraint center for max localization or disentanglement[^QMP21]
-    * similar to[^WLPMM14], add an Lagrange multiplier term to spread functional, but this is an optimization on matrix manifolds, applying to both max localization and disentanglement (whereas in [^WLPMM14] the center is constrained during max localization).
+    * similar to[^WLPMM14], add an Lagrange multiplier term to spread functional, but optimize on matrix manifolds, and applying to both max localization and disentanglement (whereas in [^WLPMM14] the center is constrained during max localization)
 * interpolation
-  * band structure
+  * band structure along a kpath or on a grid
+    * Wigner-Seitz interpolation (TODO)
+    * Minimal-distance replica selection method (TODO)
+  * realspace WFs
 
 ## Installation
 
