@@ -26,7 +26,7 @@ Then this command split WFs into two independent groups.
 """
 @cast function splitvc(
     seedname::String;
-    nval::Union{Int,Nothing}=nothing,
+    nval::Int=0,
     outdir_val::String="val",
     outdir_cond::String="cond",
     run_disentangle::Bool=false,
@@ -51,7 +51,7 @@ Then this command split WFs into two independent groups.
     @info "Valence + conduction initial spread"
     pprint(omega(model))
 
-    (nval === nothing) && (nval = model.n_wann ÷ 2)
+    (nval == 0) && (nval = model.n_wann ÷ 2)
     @info "number of valence WFs = $nval"
 
     model_val, model_cond, Uv, Uc = split_wannierize(model, nval)
