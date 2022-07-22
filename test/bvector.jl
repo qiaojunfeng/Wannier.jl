@@ -95,3 +95,63 @@ end
     @test bvectors.kpb_k ≈ nnkp.kpb_k
     @test bvectors.kpb_b ≈ nnkp.kpb_b
 end
+
+@testset "get_bvectors kmesh_tol" begin
+    win = read_win(joinpath(FIXTURE_PATH, "kmesh_tol", "Se2Sn.win"))
+    nnkp = read_nnkp(joinpath(FIXTURE_PATH, "kmesh_tol", "Se2Sn.nnkp"))
+
+    kpoints = win.kpoints
+    recip_lattice = get_recip_lattice(win.unit_cell)
+
+    bvectors = get_bvectors(kpoints, recip_lattice; win.kmesh_tol)
+
+    ref_bvecs = zeros(Float64, 3, 8)
+    ref_bvecs =
+        [
+            0.000000 0.000000 0.180597
+            0.000000 0.000000 -0.180597
+            0.188176 0.000000 0.000001
+            -0.188176 0.000000 -0.000001
+            -0.094088 0.162971 -0.000000
+            0.094088 0.162971 0.000000
+            0.094088 -0.162971 0.000000
+            -0.094088 -0.162971 -0.000000
+            -0.188176 0.000000 0.180597
+            0.188176 0.000000 -0.180597
+        ]'
+
+    ref_weights = [
+        15.330158
+        15.330158
+        9.413752
+        9.413752
+        9.412853
+        9.412853
+        9.412853
+        9.412853
+        0.000048
+        0.000048
+    ]
+
+    @test bvectors.recip_lattice ≈ recip_lattice
+    @test bvectors.kpoints ≈ kpoints
+    @test all(isapprox.(bvectors.weights, ref_weights; atol=1e-5))
+    @test begin
+        # sometimes the bvectors are not ordered
+        ret = true
+        bvecs = Vector([bvectors.bvectors[:, i] for i in 1:size(bvectors.bvectors, 2)])
+        for i in 1:size(ref_bvecs, 2)
+            b = ref_bvecs[:, i]
+            idx = findfirst(v -> isapprox(v, b; atol=1e-5), bvecs)
+            if idx === nothing
+                ret = false
+                break
+            end
+            deleteat!(bvecs, idx)
+        end
+        length(bvecs) != 0 && (ret = false)
+        ret
+    end
+    @test bvectors.kpb_k ≈ nnkp.kpb_k
+    @test bvectors.kpb_b ≈ nnkp.kpb_b
+end

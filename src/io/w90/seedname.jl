@@ -24,7 +24,11 @@ function read_seedname(
     lattice = win.unit_cell
     recip_lattice = get_recip_lattice(lattice)
 
-    bvectors = get_bvectors(kpoints, recip_lattice)
+    if ismissing(win.kmesh_tol)
+        bvectors = get_bvectors(kpoints, recip_lattice)
+    else
+        bvectors = get_bvectors(kpoints, recip_lattice; kmesh_tol=win.kmesh_tol)
+    end
     n_bvecs = bvectors.n_bvecs
 
     if mmn

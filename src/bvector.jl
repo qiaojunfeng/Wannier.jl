@@ -349,8 +349,14 @@ function check_b1(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
     end
 
     @debug "Bvector sum" M
-    if !isapprox(M, I; atol=atol)
-        error("B1 condition is not satisfied")
+    Δ = M - Matrix(I, 3, 3)
+    # compare element-wise, to be consistent with W90
+    if !all(isapprox.(Δ, 0; atol=atol))
+        msg = "B1 condition is not satisfied\n"
+        msg *= "  kmesh_tol = $atol\n"
+        msg *= "  Δ = $(maximum(abs.(Δ)))\n"
+        msg *= "  try increasing kmesh_tol?"
+        error(msg)
     end
 
     println("Finite difference condition satisfied")

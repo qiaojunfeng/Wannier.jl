@@ -26,9 +26,11 @@ function read_eig(filename::String)
 
     # check eigenvalues should be in order
     # some times there are small noise
-    round_digits(x) = round(x; digits=9)
+    round_digits(x) = round(x; digits=7)
     for ik in 1:n_kpts
-        @assert issorted(E[:, ik], by=round_digits) display(ik) display(E[:, ik])
+        if !issorted(E[:, ik]; by=round_digits)
+            @warn "Eigenvalues are not sorted at " ik E[:, ik]
+        end
     end
 
     println("  n_bands = ", n_bands)

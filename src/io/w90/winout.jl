@@ -11,6 +11,7 @@ function read_win(filename::String)
     unit_cell = missing
     kpoints = missing
     kpoint_path = missing
+    kmesh_tol = missing
     dis_froz_min = missing
     dis_froz_max = missing
     dis_win_min = missing
@@ -44,6 +45,8 @@ function read_win(filename::String)
             num_bands = parse(Int, split(line)[2])
         elseif occursin("num_wann", line)
             num_wann = parse(Int, split(line)[2])
+        elseif occursin("kmesh_tol", line)
+            kmesh_tol = parse_float(split(line)[2])
         elseif occursin("dis_froz_min", line)
             dis_froz_min = parse_float(split(line)[2])
         elseif occursin("dis_froz_max", line)
@@ -178,6 +181,7 @@ function read_win(filename::String)
         num_bands=num_bands,
         mp_grid=mp_grid,
         kpoints=kpoints,
+        kmesh_tol=kmesh_tol,
         unit_cell=unit_cell,
         atoms_frac=atoms_frac,
         atom_labels=atom_labels,
