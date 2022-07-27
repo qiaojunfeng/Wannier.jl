@@ -124,7 +124,7 @@ Write realspace Wannier functions to cube files.
 
 seedname: the name prefix for cube files, e.g., `seedname_00001.cube`
 A: gauge rotation matrix
-part: which part to plot? :real, :imag, or :abs2?
+part: which part to plot? pass a Function, e.g. real, imag, abs2
 """
 function write_realspace_wf_cube(
     seedname::String,
@@ -135,10 +135,8 @@ function write_realspace_wf_cube(
     atom_labels::AbstractVector{String};
     n_supercells::Int=2,
     unkdir::String=".",
-    part::Symbol=:real,
+    part::Function=real,
 )
-    part in [:real, :imag, :abs2] || error("part must be :real, :imag, or :abs2")
-
     X, Y, Z, W = get_realspace_wf(A, kpoints, n_supercells, unkdir)
     n_wann = size(W, 4)
 
@@ -148,15 +146,8 @@ function write_realspace_wf_cube(
         @printf("Im/Re ratio of WF %4d = %10.4f\n", i, r)
     end
 
-    if part == :real
-        # seems W90 always write the real part
-        W2 = real(W)
-    elseif part == :imag
-        W2 = imag(W)
-    elseif part == :abs2
-        # modulus^2 of W
-        W2 = abs2.(W)
-    end
+    # seems W90 always write the real part, so I use real as default
+    W2 = part(W)
 
     atom_numbers = get_atom_number(atom_labels)
 
@@ -173,7 +164,7 @@ function write_realspace_wf_cube(
     model::Model;
     n_supercells::Int=2,
     unkdir::String=".",
-    part::Symbol=:real,
+    part::Function=real,
 )
     return write_realspace_wf_cube(
         seedname,

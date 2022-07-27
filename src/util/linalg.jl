@@ -95,6 +95,7 @@ end
 """
 Power of a unitary (or at least, normal) matrix A
 """
+# TODO cleanup this, seems not used anymore
 function powm(A::AbstractMatrix{T}, p::F) where {T<:Union{Complex,Real},F<:Real}
     # Workaround, eigen incompatible with lazy adjoint.
     d, V = eigen(Matrix(A))
