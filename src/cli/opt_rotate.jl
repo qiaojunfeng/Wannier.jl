@@ -23,10 +23,11 @@ optimal rotation function.
 
     # Input AMN is parallel transport gauge
     model = read_seedname(seedname)
+    A0 = deepcopy(model.A)
 
     W = opt_rotate(model)
-    A = rotate_A(model.A, W)
 
+    A = rotate_A(A0, W)
     write_amn(output, A)
 
     return nothing

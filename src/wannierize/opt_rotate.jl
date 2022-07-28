@@ -116,6 +116,7 @@ function opt_rotate(
 
     Wmin = Optim.minimizer(opt)
 
+    # model.A is actually identity
     A = rotate_A(model.A, Wmin)
     Ωᶠ = omega(model.bvectors, model.M, A)
     @info "Final spread"
