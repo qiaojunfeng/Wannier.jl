@@ -9,10 +9,8 @@ Maximally localize an isolated group of bands.
 
 - `-o, --output`: filename for output AMN. Default is `seedname.maxloc.amn`
 """
-@cast function maxloc(seedname::String; output::Union{String,Nothing}=nothing)
-
-    # seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/silicon"
-    if output === nothing
+@cast function maxloc(seedname::String; output::String="")
+    if output == ""
         output = basename(seedname) * ".maxloc.amn"
     end
 

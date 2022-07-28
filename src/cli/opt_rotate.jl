@@ -14,10 +14,8 @@ optimal rotation function.
 
 - `-o, --output`: filename for output AMN. Default is `seedname.optrot.amn`
 """
-@cast function optrot(seedname::String; output::Union{String,Nothing}=nothing)
-
-    # seedname = "/home/jqiao/git/Wannier.jl/test/test_grad/silicon"
-    if output === nothing
+@cast function optrot(seedname::String; output::String="")
+    if output == ""
         output = basename(seedname) * ".optrot.amn"
     end
 

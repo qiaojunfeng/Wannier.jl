@@ -9,8 +9,8 @@ Maximally localize a group of entangled bands.
 
 - `-o, --output`: filename for output AMN. Default is `seedname.dis.amn`
 """
-@cast function dis(seedname::String; output::Union{String,Nothing}=nothing)
-    if output === nothing
+@cast function dis(seedname::String; output::String="")
+    if output == ""
         output = basename(seedname) * ".dis.amn"
     end
 

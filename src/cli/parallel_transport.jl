@@ -9,12 +9,8 @@ Generate parallel transport gauge Wannier functions.
 
 - `-o, --output`: filename for output AMN. Default is `seedname.ptg.amn`
 """
-@cast function ptg(seedname::String; output::Union{String,Nothing}=nothing)
-
-    # seedname = "tests/KaneMele/kanemele_0.0_25"
-    # seedname = "tests/silicon/silicon"
-    # seedname = "/home/jqiao/git/Wannier.jl/test/fixtures/val/silicon"
-    if output === nothing
+@cast function ptg(seedname::String; output::String="")
+    if output == ""
         output = basename(seedname) * ".ptg.amn"
     end
 
