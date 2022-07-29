@@ -11,13 +11,17 @@ function truncate_mmn_eig(
 )
     !isdir(outdir) && mkdir(outdir)
 
+    # for safety, in case seedname = "../si" then joinpath(outdir, seedname)
+    # will overwrite the original file
+    seedname_base = basename(seedname)
+
     E = read_eig("$seedname.eig")
     E1 = E[keep_bands, :]
-    write_eig(joinpath(outdir, "$seedname.eig"), E1)
+    write_eig(joinpath(outdir, "$seedname_base.eig"), E1)
 
     M, kpb_k, kpb_b = read_mmn("$seedname.mmn")
     M1 = M[keep_bands, keep_bands, :, :]
-    write_mmn(joinpath(outdir, "$seedname.mmn"), M1, kpb_k, kpb_b)
+    write_mmn(joinpath(outdir, "$seedname_base.mmn"), M1, kpb_k, kpb_b)
 
     return nothing
 end
@@ -38,12 +42,15 @@ function truncate_unk(
     regex = r"UNK(\d{5})\.\d"
 
     for unk in readdir(dir)
-        match = match(regex, unk)
-        match === nothing && continue
+        m = match(regex, unk)
+        m === nothing && continue
 
         println(unk)
+        # for safety, in case unk = "../UNK00001.1" then joinpath(dir, unk)
+        # will overwrite the original file
+        unk_base = basename(unk)
 
-        ik = parse(Int, match.captures[1])
+        ik = parse(Int, m.captures[1])
         ik1, Ψ = read_unk(joinpath(dir, unk))
         @assert ik == ik1
 
@@ -63,10 +70,10 @@ Args:
     unk: Whether truncate UNK files. Defaults to false.
     outdir: output folder
 """
-function truncate(
-    seedname::String,
+function truncate_w90(
+    seedname::AbstractString,
     keep_bands::AbstractVector{Int},
-    outdir::String="truncate",
+    outdir::AbstractString="truncate",
     unk::Bool=false,
 )
     @info "Truncat AMN/MMN/EIG files"

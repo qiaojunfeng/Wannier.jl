@@ -31,7 +31,7 @@ include("io/model.jl")
 export write_model
 
 include("io/truncate.jl")
-export truncate
+export truncate_w90
 
 include("io/cube.jl")
 export read_cube
