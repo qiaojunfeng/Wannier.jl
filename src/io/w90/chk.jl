@@ -46,7 +46,7 @@ struct Chk{T<:Real}
     # so directly multiplying eigenvalues e.g.
     # (Uᵈ * U)' * diag(eigenvalues) * (Uᵈ * U) is wrong!
     # 2D bool array, size: n_bands x n_kpts
-    dis_bands::Matrix{Bool}
+    dis_bands::BitMatrix
 
     # 1D int array, size: n_kpts
     # n_dimfrozen:: Vector{Int}
@@ -85,7 +85,7 @@ function Chk(
     checkpoint::String,
     have_disentangled::Bool,
     ΩI::T,
-    dis_bands::Matrix{Bool},
+    dis_bands::BitMatrix,
     Uᵈ::Array{Complex{T},3},
     U::Array{Complex{T},3},
     M::Array{Complex{T},4},
@@ -202,7 +202,7 @@ function read_chk(filename::String)
         # omega_invariant
         ΩI = parse(Float64, srline())
 
-        dis_bands = zeros(Bool, n_bands, n_kpts)
+        dis_bands = falses(n_bands, n_kpts)
         for ik in 1:n_kpts
             for ib in 1:n_bands
                 # 1 -> True, 0 -> False
@@ -229,7 +229,7 @@ function read_chk(filename::String)
 
     else
         ΩI = -1.0
-        dis_bands = zeros(Bool, 0, 0)
+        dis_bands = falses(0, 0)
         n_dis = zeros(Int, 0)
         Uᵈ = zeros(ComplexF64, 0, 0, 0)
     end
