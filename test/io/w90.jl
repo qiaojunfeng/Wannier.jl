@@ -171,6 +171,9 @@ end
 @testset "read/write chk" begin
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
 
+    win = read_win(joinpath(FIXTURE_PATH, "silicon/silicon.win"))
+    @test chk.lattice ≈ win.unit_cell
+
     tmpfile = tempname(; cleanup=true)
     write_chk(tmpfile, chk)
     chk2 = read_chk(tmpfile)

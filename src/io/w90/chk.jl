@@ -172,12 +172,13 @@ function read_chk(filename::String)
     end
 
     # Each column is a lattice vector
+    # but W90 writes x components first, then y, z. Not a1 first, then a2, a3.
     line = parse.(Float64, split(srline()))
-    lattice = Mat3{Float64}(reshape(line, (3, 3)))
+    lattice = Mat3{Float64}(reshape(line, (3, 3))')
 
     # Each column is a lattice vector
     line = parse.(Float64, split(srline()))
-    recip_lattice = Mat3{Float64}(reshape(line, (3, 3)))
+    recip_lattice = Mat3{Float64}(reshape(line, (3, 3))')
 
     n_kpts = parse(Int, srline())
 
@@ -316,13 +317,14 @@ function write_chk(filename::String, chk::Chk)
     end
 
     # Each column is a lattice vector
-    for v in reshape(chk.lattice, 9)
+    # but W90 writes x components first, then y, z. Not a1 first, then a2, a3.
+    for v in reshape(chk.lattice', 9)
         @printf(io, "%25.17f", v)
     end
     @printf(io, "\n")
 
     # Each column is a lattice vector
-    for v in reshape(chk.recip_lattice, 9)
+    for v in reshape(chk.recip_lattice', 9)
         @printf(io, "%25.17f", v)
     end
     @printf(io, "\n")
