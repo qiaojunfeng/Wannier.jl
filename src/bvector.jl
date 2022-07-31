@@ -583,3 +583,28 @@ function get_bvectors(
 
     return bvectors
 end
+
+@doc raw"""
+Given bvector (b) connecting kpoints k1 and k2, return the index of the bvector ib.
+
+size(kpb_k) = (n_bvecs, n_kpts)
+size(kpb_b) = (3, n_bvecs, n_kpts)
+size(b) = (3,)
+"""
+function index_bvector(
+    kpb_k::Matrix{Int}, kpb_b::Array{Int,3}, k1::Int, k2::Int, b::AbstractVector{Int}
+)
+    n_bvecs = size(kpb_k, 1)
+
+    for ib in 1:n_bvecs
+        if kpb_k[ib, k1] == k2 && kpb_b[:, ib, k1] == b
+            return ib
+        end
+    end
+
+    return error("No neighbors found, k1 = $(k1), k2 = $(k2), b = $(b)")
+end
+
+function index_bvector(bvectors::BVectors, k1, k2, b)
+    return index_bvector(bvectors.kpb_k, bvectors.kpb_b, k1, k2, b)
+end

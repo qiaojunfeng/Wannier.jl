@@ -5,7 +5,7 @@ Propagate A, defined at the first kpt, to the given list of kpts.
 Those must be neighbors, and only the first kpoint is assumed to have been rotated.
 """
 function propagate!(
-    A::Array{T,3}, kpts::Vector{Int}, M::Array{T,4}, kpb_k::Matrix{Int}
+    A::Array{T,3}, kpts::Vector{Int}, M::Array{T,4}, kpb_k::Matrix{Int}, kpb_b::Array{Int,3}
 ) where {T<:Complex}
     N = length(kpts)
     n = size(A, 1)
@@ -15,11 +15,16 @@ function propagate!(
     for i in 2:N
         ik = kpts[i]
         ik0 = kpts[i - 1]
-        Mᵏᵇ = overlap(M, kpb_k, ik, ik0)
+        ib = index_bvector(kpb_k, kpb_b, ik, ik0, [0, 0, 0])
+        Mᵏᵇ = M[:, :, ib, ik]
         A[:, :, ik] = orthonorm_lowdin(Mᵏᵇ * A[:, :, ik0])
     end
 
     return nothing
+end
+
+function propagate!(A, kpts, M, bvectors::BVectors)
+    return propagate!(A, kpts, M, bvectors.kpb_k, bvectors.kpb_b)
 end
 
 """

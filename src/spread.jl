@@ -72,9 +72,10 @@ end
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
 
-            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
+            MAᵏᵇ .= M[:, :, ib, ik] * A[:, :, ikpb]
             # compute-intensive, but should be true
-            # @assert overlap(M, kpb_k, ik, ikpb)' ≈ overlap(M, kpb_k, ikpb, ik)
+            # ibm = index_bvector(bvectors, ikpb, ik, -kpb_b[:, ib, ik])
+            # @assert M[:, :, ib, ik]' ≈ M[:, :, ibm, ikpb]
             Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
 
@@ -105,7 +106,7 @@ end
     # for ik in 1:n_kpts
     #     for ib in 1:n_bvecs
     #         ikpb = kpb_k[ib, ik]
-    #         Nᵏᵇ .= overlap(M, kpb_k, ik, ikpb, A)
+    #         Nᵏᵇ .= A[:, :, ik]' * M[:, :, ib, ik] * A[:, :, ikpb]
     #         b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
     #         wᵇ = wb[ib]
 
@@ -198,7 +199,7 @@ r: WF centers, cartesian coordinates, 3 * n_wann
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
 
-            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
+            MAᵏᵇ .= M[:, :, ib, ik] * A[:, :, ikpb]
             Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
             wᵇ = wb[ib]
@@ -265,14 +266,11 @@ function omega_loc(
     loc = zeros(FT, n_kpts)
 
     Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
-    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
 
     for ik in 1:n_kpts
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
-
-            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
-            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+            Nᵏᵇ .= A[:, :, ik]' * M[:, :, ib, ik] * A[:, :, ikpb]
 
             for n in 1:n_wann
                 loc[ik] += wb[ib] * (1 - abs(Nᵏᵇ[n, n])^2 + imaglog(Nᵏᵇ[n, n])^2)
@@ -302,8 +300,7 @@ end
     for ik in 1:n_kpts
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
-
-            Nᵏᵇ .= overlap(M, kpb_k, ik, ikpb, A)
+            Nᵏᵇ .= A[:, :, ik]' * M[:, :, ib, ik] * A[:, :, ikpb]
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
 
             for n in 1:n_wann
@@ -343,14 +340,12 @@ WF postion operator matrix
     b = zeros(FT, 3)
 
     Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
-    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
 
     for ik in 1:n_kpts
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
 
-            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
-            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+            Nᵏᵇ .= A[:, :, ik]' * M[:, :, ib, ik] * A[:, :, ikpb]
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
 
             wᵇ = wb[ib]
@@ -389,20 +384,15 @@ Berry connection at each kpoint
 
     # along x, y, z directions
     A = zeros(Complex{FT}, n_wann, n_wann, 3, n_kpts)
-
     b = zeros(FT, 3)
-
     Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
-    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
 
     for ik in 1:n_kpts
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
 
-            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
-            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+            Nᵏᵇ .= A[:, :, ik]' * M[:, :, ib, ik] * A[:, :, ikpb]
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
-
             wᵇ = wb[ib]
 
             for m in 1:n_wann

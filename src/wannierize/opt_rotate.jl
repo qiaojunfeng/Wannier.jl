@@ -39,7 +39,7 @@ function get_fg!_rotate(model::Model)
             for ib in 1:n_bvecs
                 ikpb = kpb_k[ib, ik]
 
-                MWᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * W
+                MWᵏᵇ .= M[:, :, ib, ik] * W
                 Nᵏᵇ .= W' * MWᵏᵇ
                 b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
 

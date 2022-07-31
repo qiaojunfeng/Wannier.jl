@@ -23,15 +23,29 @@ function plot_obstruction_regularity(
     Ωmax = 0.0
 
     for i in 1:n_kx, j in 1:n_ky
-        right = i % n_kx + 1
-        up = j % n_ky + 1
+        if i == n_kx
+            right = 1
+            b_right = [1, 0, 0]
+        else
+            right = i + 1
+            b_right = [0, 0, 0]
+        end
+        if j == n_ky
+            up = 1
+            b_up = [0, 1, 0]
+        else
+            up = j + 1
+            b_up = [0, 0, 0]
+        end
 
-        ik_right = xyz_k[right, j, 1]
         ik = xyz_k[i, j, 1]
+        ik_right = xyz_k[right, j, 1]
         ik_up = xyz_k[i, up, 1]
 
-        Mright = overlap(model.M, model.bvectors.kpb_k, ik_right, ik)
-        Mup = overlap(model.M, model.bvectors.kpb_k, ik_up, ik)
+        ib = index_bvector(model.bvectors, ik_right, ik, b_right)
+        Mright = M[:, :, ib, ik_right]
+        ib = index_bvector(model.bvectors, ik_up, ik, b_up)
+        Mup = M[:, :, ib, ik_up]
 
         Ωright[i, j] = n_kx * norm(A[:, :, ik_right] - Mright * A[:, :, ik])
         Ωup[i, j] = n_ky * norm(A[:, :, ik_up] - Mup * A[:, :, ik])
@@ -81,7 +95,6 @@ function plot_obstruction_regularity(
     save(filename, fig; px_per_unit=3)
     println("Saved to $filename")
 
-    nothing
     return nothing
 end
 
@@ -107,8 +120,9 @@ function plot_surface_obstruction(model::Model{T}, A::Array{Complex{T},3}) where
         k2 = xyz_k[i, j, 1]
 
         # obstruction
-        O = overlap(model.M, model.bvectors.kpb_k, k1, k2, A)
-        O = orthonorm_lowdin(O)
+        ib = index_bvector(model.bvectors, k1, k2, [0, 0, 1])
+        Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
+        O = orthonorm_lowdin(Nᵏᵇ)
 
         ϕ[i, j, :] = sort(imag(log.(eigvals(O))))
     end

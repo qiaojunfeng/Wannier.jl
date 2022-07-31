@@ -113,7 +113,7 @@ end
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
 
-            MAᵏᵇ .= overlap(M, kpb_k, ik, ikpb) * A[:, :, ikpb]
+            MAᵏᵇ .= M[:, :, ib, ik] * A[:, :, ikpb]
             Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
             wᵇ = wb[ib]

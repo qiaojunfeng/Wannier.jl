@@ -5,46 +5,6 @@ imaglog(z::T) where {T<:Complex} = atan(imag(z), real(z))
 get_recip_lattice(lattice::Mat3) = 2π * inv(lattice)'
 get_lattice(recip_lattice::Mat3) = inv(recip_lattice / (2π))'
 
-@doc raw"""
-Computes overlap between two neighboring kpoints
-
-size(M) = (n_bands, n_bands, n_bvecs, n_kpts)
-size(kpb_k) = (n_bvecs, n_kpts)
-"""
-function overlap(
-    M::Array{Complex{FT},4}, kpb_k::Matrix{Int}, k1::Int, k2::Int
-) where {FT<:Real}
-    n_bands = size(M, 1)
-    n_bvecs = size(M, 3)
-
-    if (k1 == k2)
-        return Matrix{Complex{FT}}((1.0 + 0.0im)I, n_bands, n_bands)
-    end
-
-    for ib in 1:n_bvecs
-        if kpb_k[ib, k1] == k2
-            return view(M, :, :, ib, k1)
-        end
-    end
-
-    return error("No neighbors found, k1 = $(k1), k2 = $(k2)")
-
-    # Matrix{Complex{FT}}((1.0 + 0.0im)I, n_bands, n_bands)
-end
-
-@doc raw"""
-Computes overlap between two neighboring kpoints, and rotate by gauge from A matrices.
-
-size(M) = (n_bands, n_bands, n_bvecs, n_kpts)
-size(kpb_k) = (n_bvecs, n_kpts)
-size(A) = (n_bands, n_wann, n_kpts)
-"""
-function overlap(
-    M::Array{Complex{FT},4}, kpb_k::Matrix{Int}, k1::Int, k2::Int, A::Array{Complex{FT},3}
-) where {FT<:Real}
-    return A[:, :, k1]' * overlap(M, kpb_k, k1, k2) * A[:, :, k2]
-end
-
 """
 Normalize a matrix A to be (semi-)unitary.
 If X is a matrix with orthogonal columns and A a non-singular matrix,
