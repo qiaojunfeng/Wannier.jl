@@ -7,9 +7,10 @@ Maximally localize a group of entangled bands.
 
 # Options
 
-- `-o, --output`: filename for output AMN. Default is `seedname.dis.amn`
+- `-o, --output=<str>`: filename for output AMN. Default is `seedname.dis.amn`
+- `-m, --maxiter=<int>`: max number of iterations. Default is `50`
 """
-@cast function dis(seedname::String; output::String="")
+@cast function dis(seedname::String; output::String="", maxiter::Int=50)
     if output == ""
         output = basename(seedname) * ".dis.amn"
     end
@@ -47,7 +48,7 @@ Maximally localize a group of entangled bands.
     #     Wan.Disentangle.set_frozen_bands!(data, params)
     # end
 
-    Amin = disentangle(model)
+    Amin = disentangle(model; max_iter=maxiter)
 
     # if dis_froz_pao
     #     for ik = 1:data.num_kpts

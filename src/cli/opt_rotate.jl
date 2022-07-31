@@ -12,9 +12,10 @@ optimal rotation function.
 
 # Options
 
-- `-o, --output`: filename for output AMN. Default is `seedname.optrot.amn`
+- `-o, --output=<str>`: filename for output AMN. Default is `seedname.optrot.amn`
+- `-m, --maxiter=<int>`: max number of iterations. Default is `50`
 """
-@cast function optrot(seedname::String; output::String="")
+@cast function optrot(seedname::String; output::String="", maxiter::Int=50)
     if output == ""
         output = basename(seedname) * ".optrot.amn"
     end
@@ -23,7 +24,7 @@ optimal rotation function.
     model = read_seedname(seedname)
     A0 = deepcopy(model.A)
 
-    W = opt_rotate(model)
+    W = opt_rotate(model; max_iter=maxiter)
 
     A = rotate_A(A0, W)
     write_amn(output, A)
