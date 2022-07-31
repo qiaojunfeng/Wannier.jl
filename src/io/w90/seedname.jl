@@ -73,6 +73,8 @@ function read_seedname(
                 dis_froz_min = -Inf
             end
             frozen_bands = get_frozen_bands(E, dis_froz_max, dis_froz_min)
+        else
+            frozen_bands = falses(n_bands, n_kpts)
         end
     else
         frozen_bands = falses(n_bands, n_kpts)
