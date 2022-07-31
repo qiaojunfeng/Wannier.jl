@@ -87,8 +87,8 @@ end
     @test E ≈ E2
 end
 
-@testset "read_seedname" begin
-    model = read_seedname(joinpath(FIXTURE_PATH, "silicon/silicon"))
+@testset "read_w90" begin
+    model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
 
     @test model.n_bands ≈ 12
     @test model.n_wann ≈ 8

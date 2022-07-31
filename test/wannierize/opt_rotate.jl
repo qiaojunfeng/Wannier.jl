@@ -3,7 +3,7 @@ using NLSolversBase
 
 # A reusable fixture for a model
 # no disentanglement
-model = read_seedname(joinpath(FIXTURE_PATH, "valence", "silicon"))
+model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
 f, g! = Wannier.get_fg!_rotate(model)
 
 @testset "opt_rotate spread gradient" begin

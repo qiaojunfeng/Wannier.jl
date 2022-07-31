@@ -28,7 +28,7 @@ export omega, omega_grad, center
 include("io/w90.jl")
 
 include("io/model.jl")
-export write_model
+export write_w90
 
 include("io/truncate.jl")
 export truncate_w90

@@ -2,7 +2,7 @@ using LinearAlgebra
 
 # the conduction bands poles are chosen randomly, skip test on conduction.
 @testset "parallel_transport valence" begin
-    model = read_seedname(joinpath(FIXTURE_PATH, "valence", "silicon"))
+    model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
 
     Amin, _ = parallel_transport(model)
 

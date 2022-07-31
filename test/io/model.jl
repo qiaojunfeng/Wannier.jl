@@ -1,10 +1,10 @@
 
-@testset "write_model" begin
-    model = read_seedname(joinpath(FIXTURE_PATH, "silicon/silicon"))
+@testset "write_w90" begin
+    model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
 
     outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "silicon")
-    write_model(outseedname, model)
+    write_w90(outseedname, model)
 
     A = read_orthonorm_amn("$outseedname.amn")
     @test A ≈ model.A

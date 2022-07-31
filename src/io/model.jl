@@ -1,4 +1,4 @@
-function write_model(seedname::String, model::Model)
+function write_w90(seedname::String, model::Model)
     # Note I need to use basename! If seedname is absolute path the joinpath
     # will just return seedname.
     outname(suffix::String) = "$seedname.$suffix"

@@ -43,7 +43,7 @@ band = read_w90_band("silicon")
 Wannier.plot_band(band.x, band.E; symm_idx=band.symm_idx, symm_label=band.symm_label)
 
 # ╔═╡ 8315073f-f96f-4fa7-9ae4-362c38b73ac0
-model = read_seedname("silicon");
+model = read_w90("silicon");
 
 # ╔═╡ 770646d5-daa0-4afb-b37e-c9b98e942824
 E = Wannier.interpolate(model, band.kpoints)

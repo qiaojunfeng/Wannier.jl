@@ -17,7 +17,7 @@ end
 
 # TODO implement WS interpolation
 # @testset "interpolate" begin
-#     model = read_seedname(joinpath(FIXTURE_PATH, "valence/band/silicon"))
+#     model = read_w90(joinpath(FIXTURE_PATH, "valence/band/silicon"))
 #     band = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/silicon"))
 
 #     E = Wannier.interpolate(model, band.kpoints)

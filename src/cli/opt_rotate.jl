@@ -21,7 +21,7 @@ optimal rotation function.
     end
 
     # Input AMN is parallel transport gauge
-    model = read_seedname(seedname)
+    model = read_w90(seedname)
     A0 = deepcopy(model.A)
 
     W = opt_rotate(model; max_iter=maxiter)

@@ -15,7 +15,7 @@ Maximally localize a group of entangled bands.
         output = basename(seedname) * ".dis.amn"
     end
 
-    model = read_seedname(seedname)
+    model = read_w90(seedname)
 
     # the dis_froz_max was set during reading win file, you can still change it here
     # dis_froz_max = 10.0  # eV

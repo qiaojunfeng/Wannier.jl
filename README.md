@@ -78,7 +78,7 @@ For example, running a maximal localization can be easily achieved by
 ```jl
 using Wannier
 
-model = read_seedname("silicon")
+model = read_w90("silicon")
 A = max_localize(model)
 write_amn("silicon.amn", A)
 ```

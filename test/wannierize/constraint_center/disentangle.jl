@@ -2,7 +2,7 @@ using NLSolversBase
 
 # A reusable fixture for a model
 # no disentanglement
-model = read_seedname(joinpath(FIXTURE_PATH, "silicon/silicon"))
+model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
 r₀ = zeros(eltype(model.lattice), 3, model.n_wann)
 r₀[:, 1:4] .= 1.34940  # bond center
 λ = 10.0

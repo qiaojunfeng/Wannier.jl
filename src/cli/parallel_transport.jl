@@ -14,7 +14,7 @@ Generate parallel transport gauge Wannier functions.
         output = basename(seedname) * ".ptg.amn"
     end
 
-    model = read_seedname(seedname; amn=false, eig=false)
+    model = read_w90(seedname; amn=false, eig=false)
 
     n_bands = model.n_bands
     n_bvecs = model.n_bvecs

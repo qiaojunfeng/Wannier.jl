@@ -35,7 +35,7 @@ Then this command split WFs into two independent groups.
     rotate_unk::Bool=false,
 )
     # Input AMN is Silicon s,p projection
-    model = read_seedname(seedname; amn=false)
+    model = read_w90(seedname; amn=false)
 
     if run_disentangle
         # You can also use disentangle to get a good gauge from initial projection
@@ -79,10 +79,10 @@ Then this command split WFs into two independent groups.
 
     # Write files
     seedname_val = new_seedname(seedname, outdir_val)
-    write_model(seedname_val, model_val)
+    write_w90(seedname_val, model_val)
 
     seedname_cond = new_seedname(seedname, outdir_cond)
-    write_model(seedname_cond, model_cond)
+    write_w90(seedname_cond, model_cond)
 
     # UNK files for plotting WFs
     if rotate_unk

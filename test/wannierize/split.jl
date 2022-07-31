@@ -72,7 +72,7 @@ end
 end
 
 @testset "split_model" begin
-    model = read_seedname(joinpath(FIXTURE_PATH, "silicon/silicon"))
+    model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
     model.A .= get_A(chk)
 

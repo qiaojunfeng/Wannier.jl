@@ -6,7 +6,7 @@ orthonorm_amn: Lowdin orthonormalization of AMN matrices.
     Should be true for most cases, since usually the input AMN matrices are
     projections onto atomic orbitals, and are not unitary or semi-unitary.
 """
-function read_seedname(
+function read_w90(
     seedname::String;
     amn::Bool=true,
     orthonorm_amn::Bool=true,

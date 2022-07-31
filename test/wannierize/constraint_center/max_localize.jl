@@ -2,7 +2,7 @@ using NLSolversBase
 
 # A reusable fixture for a model
 # no disentanglement
-model = read_seedname(joinpath(FIXTURE_PATH, "valence", "silicon"))
+model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
 r₀ = zeros(eltype(model.lattice), 3, model.n_wann)
 λ = 10.0
 f, g! = Wannier.get_fg!_center_maxloc(model, r₀, λ)

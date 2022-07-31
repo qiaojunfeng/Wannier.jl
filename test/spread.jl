@@ -1,7 +1,7 @@
 using NLSolversBase
 
 # A reusable fixture for a model
-model = read_seedname(joinpath(FIXTURE_PATH, "silicon/silicon"))
+model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
 
 f, g! = Wannier.get_fg!_maxloc(model)
 
