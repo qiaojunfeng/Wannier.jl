@@ -193,6 +193,13 @@ function read_win(filename::String)
     )
 end
 
+"""
+Parse wout file.
+
+Return lattice in angstrom (each column is a lattice vector),
+atom positions in fractional coordinates (each column is a coordinate),
+WF centers in angstrom, and WF spreads in angstrom^2.
+"""
 function read_wout(filename::String)
     io = open(filename)
 
@@ -203,8 +210,9 @@ function read_wout(filename::String)
     end_finalstate = "Sum of centres and spreads"
 
     ang_unit = false
-    unit_cell = nothing
-    atoms = nothing
+    lattice = nothing
+    atom_labels = nothing
+    atom_positions = nothing
     centers = nothing
     spreads = nothing
 
@@ -219,19 +227,19 @@ function read_wout(filename::String)
 
         if occursin(start_cell, line)
             @assert occursin("Ang", line)
-            unit_cell = zeros(Float64, 3, 3)
+            lattice = zeros(Float64, 3, 3)
 
             line = split(strip(readline(io)))
             @assert line[1] == "a_1"
-            unit_cell[:, 1] = parse.(Float64, line[2:end])
+            lattice[:, 1] = parse.(Float64, line[2:end])
 
             line = split(strip(readline(io)))
             @assert line[1] == "a_2"
-            unit_cell[:, 2] = parse.(Float64, line[2:end])
+            lattice[:, 2] = parse.(Float64, line[2:end])
 
             line = split(strip(readline(io)))
             @assert line[1] == "a_3"
-            unit_cell[:, 3] = parse.(Float64, line[2:end])
+            lattice[:, 3] = parse.(Float64, line[2:end])
 
             continue
         end
@@ -248,14 +256,16 @@ function read_wout(filename::String)
             end
 
             n_atom = length(lines)
-            atoms = zeros(Float64, 3, n_atom)
+            atom_labels = Vector{String}()
+            atom_positions = zeros(Float64, 3, n_atom)
             for (i, line) in enumerate(lines)
                 line = split(line)
                 @assert line[1] == "|" line
+                push!(atom_labels, line[2])
                 # cartesian
-                atoms[:, i] = parse.(Float64, line[8:10])
-                # Fractional
-                atoms[:, i] = parse.(Float64, line[4:6])
+                # atom_positions[:, i] = parse.(Float64, line[8:10])
+                # fractional
+                atom_positions[:, i] = parse.(Float64, line[4:6])
             end
 
             continue
@@ -294,5 +304,11 @@ function read_wout(filename::String)
 
     @assert ang_unit
 
-    return (unit_cell=unit_cell, atoms=atoms, centers=centers, spreads=spreads)
+    return (
+        lattice=lattice,
+        atom_labels=atom_labels,
+        atom_positions=atom_positions,
+        centers=centers,
+        spreads=spreads,
+    )
 end

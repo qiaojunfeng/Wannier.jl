@@ -19,7 +19,7 @@ struct BVectorShells{T<:Real}
     # weight of each shell, length = n_shells
     weights::Vector{T}
 
-    # multiplicity of each shell, length = num_shells
+    # multiplicity of each shell, length = n_shells
     multiplicities::Vector{Int}
 
     # number of shells
@@ -102,38 +102,6 @@ function pprint(bvectors::BVectors)
     # print a blank line to separate the following stdout
     println()
     return nothing
-end
-
-@doc raw"""
-Make a supercell of kpoints by translating it along 3 directions.
-Input and returned kpoints are in fractional coordinates.
-
-repeat: number of repetitions along ±x, ±y, ±z directions, on output
-there are (2*repeat + 1)^3 cells.
-"""
-function make_supercell(kpoints::Matrix{T}, replica::Int=5) where {T<:Real}
-    size(kpoints, 1) ≉ 3 && error("kpoints must be 3 * n_kpts")
-    n_kpts = size(kpoints, 2)
-
-    n_cell = (2 * replica + 1)^3
-
-    supercell = Matrix{T}(undef, 3, n_cell * n_kpts)
-    translations = Matrix{Int}(undef, 3, n_cell * n_kpts)
-
-    counter = 1
-    for ix in (-replica):replica
-        for iy in (-replica):replica
-            for iz in (-replica):replica
-                for ik in 1:n_kpts
-                    supercell[:, counter] = kpoints[:, ik] + [ix, iy, iz]
-                    translations[:, counter] = [ix, iy, iz]
-                    counter += 1
-                end
-            end
-        end
-    end
-
-    return supercell, translations
 end
 
 @doc raw"""
@@ -417,15 +385,6 @@ function sort_supercell(
     idxs = collect(n_cells:-1:1)[perm]
 
     return translations[:, idxs]
-end
-
-"""Find vector in the columns of a matrix"""
-function findvector(predicate::Function, v::AbstractVector, M::AbstractMatrix)
-    for (i, col) in enumerate(eachcol(M))
-        predicate(v, col) && return i
-    end
-    error("$v not found in array!")
-    return nothing
 end
 
 """

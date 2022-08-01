@@ -14,7 +14,8 @@ export isunitary
 include("util/kpoint.jl")
 export get_kpoint_mappings
 
-include("util/misc.jl")
+include("util/element.jl")
+include("util/center.jl")
 
 include("bvector.jl")
 export get_bvectors

@@ -164,3 +164,22 @@ function isunitary(A::AbstractArray{T,3}; atol::Real=1e-10) where {T<:Number}
     end
     return true
 end
+
+function get_projectability(A::AbstractArray{T,3}) where {T<:Number}
+    n_bands, n_wann, n_kpts = size(A)
+    P = zeros(T, n_bands, n_kpts)
+    for ik in 1:n_kpts
+        p = A[:, :, ik] * A[:, :, ik]'
+        P[:, ik] = real(diag(p))
+    end
+    return P
+end
+
+"""Find vector in the columns of a matrix"""
+function findvector(predicate::Function, v::AbstractVector, M::AbstractMatrix)
+    for (i, col) in enumerate(eachcol(M))
+        predicate(v, col) && return i
+    end
+    error("$v not found in array!")
+    return nothing
+end

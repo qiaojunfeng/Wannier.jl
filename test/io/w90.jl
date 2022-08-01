@@ -204,13 +204,14 @@ end
 @testset "read wout" begin
     wout = read_wout(joinpath(FIXTURE_PATH, "valence/band/silicon.wout"))
 
-    ref_unit_cell =
+    ref_lattice =
         [
             -2.698804 0.000000 2.698804
             0.000000 2.698804 2.698804
             -2.698804 2.698804 0.000000
         ]'
-    ref_atoms = [
+    ref_atom_labels = ["Si", "Si"]
+    ref_atom_positions = [
         -0.25000 0.75000 -0.25000
         0.00000 0.00000 0.00000
     ]'
@@ -228,8 +229,9 @@ end
         1.88512458
     ]
 
-    @test wout.unit_cell ≈ ref_unit_cell
-    @test wout.atoms ≈ ref_atoms
+    @test wout.lattice ≈ ref_lattice
+    @test wout.atom_labels == ref_atom_labels
+    @test wout.atom_positions ≈ ref_atom_positions
     @test wout.centers ≈ ref_centers
     @test wout.spreads ≈ ref_spreads
 end
