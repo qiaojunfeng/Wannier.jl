@@ -1,6 +1,7 @@
 using YAML
+using Brillouin
 
-mat2vec(A::AbstractMatrix) = [Vector(A[:, i]) for i in 1:size(A, 2)]
+mat2vec(A::AbstractMatrix) = [v for v in eachcol(A)]
 
 @testset "read win" begin
     test_data = YAML.load_file(String(@__DIR__) * "/test_data/win.yaml")
@@ -22,33 +23,23 @@ mat2vec(A::AbstractMatrix) = [Vector(A[:, i]) for i in 1:size(A, 2)]
     #     "kpoints" => kpoints,
     #     "dis_froz_max" => win.dis_froz_max,
     #     "dis_win_max" => win.dis_win_max,
-    #     "kpoint_path" => [[a[1], a[2]] for a in win.kpoint_path],
+    #     "kpoint_path" => Dict(
+    #         "basis" => win.kpoint_path.basis,
+    #         "paths" => win.kpoint_path.paths,
+    #         "points" => win.kpoint_path.points,
+    #         "setting" => win.kpoint_path.setting,
+    #     ),
     # )
     # YAML.write_file(String(@__DIR__) * "/test_data/win.yaml", yaml_dict)
 
-    @test begin
-        test_kpath = test_data["kpoint_path"]
-        win_kpath = win.kpoint_path
-        # println(test_kpath)
-        # println(win_kpath)
-
-        length(test_kpath) != length(win_kpath) && return false
-
-        for i in 1:length(win_kpath)
-            # a Pair: "L" => [0.5, 0.5, 0.5]
-            (w1_lab, w1_vec), (w2_lab, w2_vec) = win_kpath[i]
-            # YAML output is a Dict: Dict("L" => [0.5, 0.5, 0.5])
-            tk1, tk2 = test_kpath[i]
-            t1_lab, t1_vec = [(k, v) for (k, v) in tk1][1]
-            t2_lab, t2_vec = [(k, v) for (k, v) in tk2][1]
-
-            w1_lab != t1_lab && return false
-            w1_vec ≉ t1_vec && return false
-            w2_lab != t2_lab && return false
-            w2_vec ≉ t2_vec && return false
-        end
-        true
-    end
+    test_kpath = test_data["kpoint_path"]
+    win_kpath = win.kpoint_path
+    t_points = Dict(Symbol(k) => v for (k, v) in test_kpath["points"])
+    @test t_points == win_kpath.points
+    t_paths = [[Symbol(i) for i in l] for l in test_kpath["paths"]]
+    @test t_paths == win_kpath.paths
+    @test test_kpath["basis"] == win_kpath.basis
+    @test Symbol(test_kpath["setting"]) == Symbol(win_kpath.setting)
 
     @test test_data["num_wann"] == win.num_wann
     @test test_data["num_bands"] == win.num_bands
@@ -107,7 +98,7 @@ end
         "kpoints" => mat2vec(bvectors.kpoints),
         "bvectors" => mat2vec(bvectors.bvectors),
         "kpb_k" => mat2vec(bvectors.kpb_k),
-        "kpb_b" => [mat2vec(kpb_b[:, :, ik]) for ik in 1:size(kpb_b, 3)],
+        "kpb_b" => [mat2vec(kpb_b[:, :, ik]) for ik in axes(kpb_b, 3)],
     )
 
     # YAML.write_file(String(@__DIR__) * "/test_data/nnkp.yaml", dict)
@@ -166,6 +157,25 @@ end
     @test band.x ≈ band2.x
     @test band.symm_idx == band2.symm_idx
     @test band.symm_label == band2.symm_label
+end
+
+@testset "read/write w90 band dat kpi" begin
+    win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
+    recip_lattice = Wannier.get_recip_lattice(win.unit_cell)
+    kpi, E = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/silicon"), recip_lattice)
+
+    outdir = mktempdir(; cleanup=false)#true)
+    outseedname = joinpath(outdir, "silicon")
+
+    write_w90_band(outseedname, kpi, E)
+
+    kpi2, E2 = read_w90_band(outseedname, recip_lattice)
+
+    @test kpi.kpaths ≈ kpi2.kpaths
+    @test kpi.labels == kpi2.labels
+    @test kpi.basis ≈ kpi2.basis
+    @test Symbol(kpi.setting) == Symbol(kpi2.setting)
+    @test E ≈ E2
 end
 
 @testset "read/write chk" begin

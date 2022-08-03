@@ -1,10 +1,13 @@
 using Printf: @printf, @sprintf
 import DelimitedFiles as Dlm
+using Brillouin
+using Bravais: ReciprocalBasis
 
 """
 read si_band.dat  si_band.kpt  si_band.labelinfo.dat
 """
 function read_w90_band(seedname::String)
+    # in fractional coordinates
     kpoints = Dlm.readdlm("$(seedname)_band.kpt", Float64; skipstart=1)
     # remove weights, then transpose, last idx is kpt
     kpoints = Matrix(transpose(kpoints[:, 1:3]))
@@ -30,6 +33,60 @@ function read_w90_band(seedname::String)
     end
 
     return (kpoints=kpoints, E=E, x=x, symm_idx=symm_idx, symm_label=symm_label)
+end
+
+"""
+Generate a KPathInterpolant from kpoints in seedname_band.dat/kpt/labelinfo.
+
+kpoints: fractional coordinate
+"""
+function get_kpath_interpolant(
+    kpoints::AbstractMatrix,
+    symm_idx::AbstractVector{T},
+    symm_label::AbstractVector{R},
+    recip_lattice::AbstractMatrix,
+) where {T<:Integer,R<:AbstractString}
+    # kpoints along path
+    kpaths = Vector{Vector{Vec3{Float64}}}()
+    # symmetry points
+    labels = Vector{Dict{Int,Symbol}}()
+
+    i0 = symm_idx[1]  # 1st point
+    lab = Dict{Int,Symbol}()  # label of each line
+    push!(lab, i0 => Symbol(symm_label[1]))
+    for (i, l) in zip(symm_idx[2:end], symm_label[2:end])
+        if i == i0 + 1
+            push!(labels, lab)
+            lab = Dict{Int,Symbol}()
+        end
+        push!(lab, i => Symbol(l))
+        i0 = i
+    end
+    push!(labels, lab)
+
+    for lab in labels
+        kp = Vector{Vec3{Float64}}()  # kpath of each line
+        ik1 = minimum(keys(lab))
+        ik2 = maximum(keys(lab))
+        append!(kp, [v for v in eachcol(kpoints[:, ik1:ik2])])
+        push!(kpaths, kp)
+    end
+
+    for (i, lab) in enumerate(labels)
+        ik1 = minimum(keys(lab)) - 1
+        labels[i] = Dict(((k - ik1) => v) for (k, v) in lab)
+    end
+
+    basis = ReciprocalBasis([v for v in eachcol(recip_lattice)])
+    setting = Ref(Brillouin.LATTICE)
+    kpi = KPathInterpolant(kpaths, labels, basis, setting)
+    return kpi
+end
+
+function read_w90_band(seedname::String, recip_lattice::AbstractMatrix)
+    band = read_w90_band(seedname)
+    kpi = get_kpath_interpolant(band.kpoints, band.symm_idx, band.symm_label, recip_lattice)
+    return kpi, band.E
 end
 
 """
@@ -90,4 +147,36 @@ function write_w90_band(
     @info "Written to $filename"
     println()
     return nothing
+end
+
+function write_w90_band(seedname::String, kpi::KPathInterpolant, E::AbstractMatrix)
+    kpi_frac = latticize(kpi)
+    n_kpts = sum(length(kp) for kp in kpi_frac.kpaths)
+    kpoints = zeros(Float64, 3, n_kpts)
+    ik = 1
+    for kp in kpi_frac.kpaths
+        for k in kp
+            kpoints[:, ik] = k
+            ik += 1
+        end
+    end
+
+    x = get_x(kpi)
+
+    symm_idx = Vector{Int}()
+    symm_label = Vector{String}()
+    ik0 = 0
+    for lab in kpi_frac.labels
+        for (ik, l) in lab
+            push!(symm_idx, ik + ik0)
+            push!(symm_label, String(l))
+        end
+        ik0 = maximum(keys(lab))
+    end
+
+    perm = sortperm(symm_idx)
+    symm_idx = symm_idx[perm]
+    symm_label = symm_label[perm]
+
+    return write_w90_band(seedname, kpoints, E, x, symm_idx, symm_label)
 end

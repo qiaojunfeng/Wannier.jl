@@ -1,91 +1,96 @@
 using LinearAlgebra
-using FFTW
-using FINUFFT: FINUFFT
+using Brillouin
 
 """
-Get a matrix of kpoint coordinates from a kpath defined in win file.
+Get kpoint coordinates from a KPath, same as W90.
 
-kpath: fractional coordiantes.
-n_points: number of kpoints in the first segment, remainning segments
+Use the kpath density of first segment to generate the following kpaths,
+also need to take care of high symmetry kpoints at the start and end of each segment.
+
+n_points: number of kpoints in the first segment, remaining segments
     have the same density as 1st segment.
-return kpoints in fractional coordinates.
 """
-function get_kpath_points(
-    kpath::Kpath{T}, n_points::Int, recip_lattice::AbstractMatrix{T}
-) where {T<:Real}
-    # Use the kpath density of first segment to generate the following kpaths,
-    # also need to take care of high symmetry kpoints at the start and end of each segment.
-    n_seg = length(kpath)
-    dk = 0.0
-    ∑seg = 0.0
+function interpolate_w90(kpath::KPath, n_points::Int)
+    # cartesian
+    kpath_cart = cartesianize(kpath)
+    # kpath density from first two kpoints
+    k1, k2 = kpath_cart.paths[1][1:2]
+    seg = kpath_cart.points[k2] - kpath_cart.points[k1]
+    seg_norm = norm(seg)
+    dk = seg_norm / n_points
 
-    # x axis value for plotting, cartesian length
-    x = Vector{Float64}()
-
-    # actual coordiantes, cartesian
-    kpt = Matrix{Float64}(undef, 3, 0)
-
+    # kpoints along path
+    kpaths = Vector{Vector{Vec3{Float64}}}()
     # symmetry points
-    n_symm = 0
-    symm_idx = Vector{Int}()
-    symm_label = Vector{String}()
+    labels = Vector{Dict{Int,Symbol}}()
 
-    atol = 1e-7
+    for path in kpath_cart.paths
+        kpaths_line = Vector{Vec3{Float64}}()
+        labels_line = Dict{Int,Symbol}()
 
-    k2_prev = nothing
-    lab2_prev = nothing
+        n_seg = length(path) - 1
+        n_x_line = 0
+        for j in 1:n_seg
+            k1 = path[j]
+            k2 = path[j + 1]
 
-    for i in 1:n_seg
-        # a Pair: "L" => [0.5, 0.5, 0.5]
-        (lab1, k1), (lab2, k2) = kpath[i]
+            seg = kpath_cart.points[k2] - kpath_cart.points[k1]
+            seg_norm = norm(seg)
 
-        # to cartesian coordinates
-        seg = recip_lattice * (k2 - k1)
-        seg_norm = norm(seg)
+            n_x_seg = Int(round(seg_norm / dk))
+            x_seg = collect(range(0, seg_norm, n_x_seg + 1))
+            dvec = seg / seg_norm
 
-        if i == 1
-            # kpath density
-            dk = seg_norm / n_points
+            # column vector * row vector = matrix
+            kpt_seg = dvec * x_seg'
+            kpt_seg .+= kpath_cart.points[k1]
+
+            if j == 1
+                push!(labels_line, 1 => k1)
+            else
+                # remove repeated points
+                popfirst!(x_seg)
+                kpt_seg = kpt_seg[:, 2:end]
+            end
+            n_x_line += length(x_seg)
+            push!(labels_line, n_x_line => k2)
+
+            append!(kpaths_line, [v for v in eachcol(kpt_seg)])
         end
 
-        n_x_seg = Int(round(seg_norm / dk))
-        x_seg = collect(range(0, seg_norm, n_x_seg + 1))
-        dvec = seg / seg_norm
-
-        # column vector * row vector = matrix
-        kpt_seg = dvec * x_seg'
-        kpt_seg .+= recip_lattice * k1
-
-        if k2_prev !== nothing &&
-            all(isapprox.(k1, k2_prev; atol=atol)) &&
-            lab1 == lab2_prev
-            # remove repeated points
-            popfirst!(x_seg)
-            kpt_seg = kpt_seg[:, 2:end]
-            n_symm += 1
-        else
-            n_symm += 2
-            push!(symm_idx, length(x) + 1)
-            push!(symm_label, lab1)
-        end
-
-        push!(symm_idx, length(x) + length(x_seg))
-        push!(symm_label, lab2)
-
-        append!(x, ∑seg .+ x_seg)
-        kpt = hcat(kpt, kpt_seg)
-
-        ∑seg += seg_norm
-
-        k2_prev = k2
-        lab2_prev = lab2
+        push!(kpaths, kpaths_line)
+        push!(labels, labels_line)
     end
 
+    basis = kpath.basis
+    setting = Ref(Brillouin.CARTESIAN)
+    kpi = KPathInterpolant(kpaths, labels, basis, setting)
     # to fractional
-    kpt_frac = zeros(Float64, 3, length(x))
-    kpt_frac = inv(recip_lattice) * kpt
+    latticize!(kpi)
 
-    return kpt_frac, x, symm_idx, symm_label
+    return kpi
+end
+
+"""
+Get x axis value for plotting, cartesian length
+"""
+function get_x(kpi::KPathInterpolant)
+    kpi_cart = cartesianize(kpi)
+    x = Vector{Float64}()
+
+    for path in kpi_cart.kpaths
+        n_points = length(path)
+
+        push!(x, 0)
+        for j in 2:n_points
+            k1 = path[j - 1]
+            k2 = path[j]
+            dx = norm(k2 - k1)
+            push!(x, dx)
+        end
+    end
+
+    return cumsum(x)
 end
 
 function ufft(

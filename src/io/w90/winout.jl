@@ -1,4 +1,6 @@
 using Printf: @printf
+using Bravais: reciprocalbasis
+using Brillouin: KPath, LATTICE
 
 function read_win(filename::String)
     @info "Reading win file: $filename"
@@ -11,6 +13,8 @@ function read_win(filename::String)
     unit_cell = missing
     kpoints = missing
     kpoint_path = missing
+    _points = missing
+    _paths = missing
     kmesh_tol = missing
     dis_froz_min = missing
     dis_froz_max = missing
@@ -24,13 +28,24 @@ function read_win(filename::String)
     read_lowercase_line() = strip(lowercase(readline(io)))
     parse_array(line::AbstractString) = map(x -> parse(Float64, x), split(line))
     read_array(f::IOStream) = parse_array(readline(f))
+    function new_kpath_label(l::Symbol, all_labels)
+        i = 1
+        while true
+            new_label = Symbol(String(l) * "_$i")
+            if new_label ∉ all_labels
+                return new_label
+            end
+            i += 1
+        end
+        return error("Cannot find a new label?")
+    end
 
     while !eof(io)
         line = read_lowercase_line()
         line = replace(line, "=" => " ", ":" => " ", "," => " ")
 
         i = findfirst(r"!|#", line)
-        if i != nothing
+        if i !== nothing
             line = strip(line[1:(i.start - 1)])
         end
 
@@ -135,19 +150,38 @@ function read_win(filename::String)
                 kpoints[:, i] = parse_array(lines[i])[1:3]
             end
         elseif occursin(r"begin\skpoint_path", line)
-            kpoint_path = Kpath{Float64}()
+            _points = Dict{Symbol,Vec3{Float64}}()
+            _paths = Vector{Vector{Symbol}}()
 
             # allow uppercase
             line = strip(readline(io))
             while !occursin(r"end\s+kpoint_path", lowercase(line))
                 l = split(line)
                 length(l) != 8 && error("Invalid kpoint_path line: $line")
-
-                start_label = String(l[1])
+                # start kpoint
+                start_label = Symbol(l[1])
                 start_kpt = Vec3{Float64}(parse.(Float64, l[2:4]))
-                end_label = String(l[5])
+                if start_label ∈ keys(_points) && _points[start_label] ≉ start_kpt
+                    @warn "Two kpoints in kpoint_path have same label but different coordinates, I will append a number to the label" label =
+                        start_label k1 = _points[start_label] k2 = start_kpt
+                    start_label = new_kpath_label(start_label, keys(_points))
+                end
+                _points[start_label] = start_kpt
+                # end kpoint
+                end_label = Symbol(l[5])
                 end_kpt = Vec3{Float64}(parse.(Float64, l[6:8]))
-                push!(kpoint_path, (start_label => start_kpt, end_label => end_kpt))
+                if end_label ∈ keys(_points) && _points[end_label] ≉ end_kpt
+                    @warn "Two kpoints in kpoint_path have same label but different coordinates, I will append a number to the label" label =
+                        end_label k1 = _points[end_label] k2 = end_kpt
+                    end_label = new_kpath_label(end_label, keys(_points))
+                end
+                _points[end_label] = end_kpt
+                # push to kpath
+                if length(_paths) > 0 && start_label == _paths[end][end]
+                    push!(_paths[end], end_label)
+                else
+                    push!(_paths, [start_label, end_label])
+                end
 
                 line = strip(readline(io))
             end
@@ -164,6 +198,11 @@ function read_win(filename::String)
     any(i -> i <= 0, mp_grid) && error("mp_grid must be positive")
 
     any(x -> ismissing(x), unit_cell) && error("unit_cell not found in win file")
+    if !ismissing(_points)
+        _basis = reciprocalbasis([v for v in eachcol(unit_cell)])
+        _setting = Ref(LATTICE)
+        kpoint_path = KPath(_points, _paths, _basis, _setting)
+    end
 
     # if atoms_cart, convert to fractional
     if ismissing(atoms_frac)
