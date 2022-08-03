@@ -1,4 +1,5 @@
 using LinearAlgebra
+using FFTW
 
 function interpfft(A, newSize)
     Y = fft(A)

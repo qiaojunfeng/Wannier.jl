@@ -44,7 +44,7 @@ function pprint(shells::BVectorShells)
     for i in 1:(shells.n_shells)
         @printf("b-vector shell %3d    weight = %8.5f\n", i, shells.weights[i])
         vecs = shells.bvectors[i]
-        for ib in 1:size(vecs, 2)
+        for ib in axes(vecs, 2)
             @printf("  %3d    %10.5f %10.5f %10.5f\n", ib, vecs[:, ib]...)
         end
     end
@@ -129,7 +129,7 @@ function search_shells(
 
     # To cartesian coordinates
     supercell_cart = similar(supercell)
-    for ik in 1:size(supercell, 2)
+    for ik in axes(supercell, 2)
         supercell_cart[:, ik] = recip_lattice * supercell[:, ik]
     end
     # use the 1st kpt to search bvectors, usually Gamma point

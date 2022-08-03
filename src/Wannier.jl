@@ -61,6 +61,8 @@ export disentangle_center
 
 include("cli/main.jl")
 
+include("interpolate/rvectors.jl")
+include("interpolate/kpath.jl")
 include("interpolate/band.jl")
 
 # function __init__()

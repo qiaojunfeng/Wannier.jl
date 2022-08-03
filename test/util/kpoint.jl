@@ -26,3 +26,35 @@
     @test k_xyz == k_xyz_ref
     @test xyz_k == xyz_k_ref
 end
+
+@testset "get_kpoints" begin
+    kpoints = Wannier.get_kpoints([2, 2, 2])
+
+    ref_kpoints = [
+        0.0 0.0 0.0 0.0 0.5 0.5 0.5 0.5
+        0.0 0.0 0.5 0.5 0.0 0.0 0.5 0.5
+        0.0 0.5 0.0 0.5 0.0 0.5 0.0 0.5
+    ]
+    @test kpoints == ref_kpoints
+end
+
+@testset "sort_kpoints" begin
+    ref_kpoints = [
+        0.0 0.0 0.0 0.0 0.5 0.5 0.5 0.5
+        0.0 0.0 0.5 0.5 0.0 0.0 0.5 0.5
+        0.0 0.5 0.0 0.5 0.0 0.5 0.0 0.5
+    ]
+    unsorted_kpoints = deepcopy(ref_kpoints)
+    unsorted_kpoints[:, 1] = [0.5, 0.5, 0.0]
+    unsorted_kpoints[:, end - 1] = [0, 0, 0]
+    sorted_kpoints = Wannier.sort_kpoints(unsorted_kpoints)
+    @test sorted_kpoints ≈ ref_kpoints
+end
+
+@testset "get_kgrid" begin
+    kgrid = [2, 2, 2]
+    kpoints = Wannier.get_kpoints(kgrid)
+    kpoints[:, 1] = [0.5, 0.5, 0.0]
+    kpoints[:, end - 1] = [0, 0, 0]
+    @test Wannier.get_kgrid(kpoints) == kgrid
+end
