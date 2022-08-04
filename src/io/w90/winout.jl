@@ -23,6 +23,7 @@ function read_win(filename::String)
     atoms_frac = missing
     atoms_cart = missing
     atom_labels = missing
+    use_ws_distance = missing
 
     # handle case insensitive win files (relic of Fortran)
     read_lowercase_line() = strip(lowercase(readline(io)))
@@ -70,6 +71,8 @@ function read_win(filename::String)
             dis_win_min = parse_float(split(line)[2])
         elseif occursin("dis_win_max", line)
             dis_win_max = parse_float(split(line)[2])
+        elseif occursin("use_ws_distance", line)
+            use_ws_distance = parse_bool(split(line)[2])
         elseif occursin(r"begin\s+unit_cell_cart", line)
             unit_cell = zeros(Float64, 3, 3)
             line = read_lowercase_line()
@@ -229,6 +232,7 @@ function read_win(filename::String)
         dis_froz_max=dis_froz_max,
         dis_win_min=dis_win_min,
         dis_win_max=dis_win_max,
+        use_ws_distance=use_ws_distance,
     )
 end
 

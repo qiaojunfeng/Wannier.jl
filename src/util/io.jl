@@ -30,4 +30,14 @@ Parse a string as Float64.
 
 Fortran some times use e.g. 1.0D-10 for 1e-10.
 """
-parse_float(str::AbstractString) = parse(Float64, replace(lowercase(str), "d" => "e"))
+parse_float(s::AbstractString) = parse(Float64, replace(lowercase(strip(s)), "d" => "e"))
+
+"""
+Parse a string as bool.
+
+Fortran use: `.true.`, `.false.`, `true`, `T`.
+"""
+function parse_bool(s::AbstractString)
+    s = replace(lowercase(strip(s)), "." => "")[1]  # only 1st char
+    return s == "t" || s == "1"
+end

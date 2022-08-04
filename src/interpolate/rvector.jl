@@ -39,6 +39,17 @@ function RVectors(
     return RVectors(Mat3(lattice), Vec3(grid), R, N)
 end
 
+function Base.show(io::IO, rvectors::RVectors)
+    @printf(io, "lattice: Å\n")
+    for i in 1:3
+        @printf(io, "  a%d: %8.5f %8.5f %8.5f\n", i, rvectors.lattice[:, i]...)
+    end
+    println(io)
+
+    @printf(io, "grid    = %d %d %d\n", rvectors.grid...)
+    @printf(io, "n_rvecs = %d", rvectors.n_rvecs)
+end
+
 function check_weights(R::RVectors)
     if sum(1 ./ R.N) ≉ prod(R.grid)
         error("weights do not sum to 1")
@@ -49,7 +60,7 @@ end
 atol: equivalent to `ws_distance_tol` in wannier90.
 max_cell: equivalent to `ws_search_size` in wannier90.
 """
-function get_Rvectors_ws(
+function get_rvectors_ws(
     lattice::AbstractMatrix{T}, rgrid::AbstractVector{R}; atol::T=1e-5, max_cell::Int=3
 ) where {T<:Real,R<:Integer}
     # 1. Generate a supercell where WFs live in
@@ -122,16 +133,31 @@ end
 function Base.getproperty(x::RVectorsMDRS, sym::Symbol)
     if sym ∈ fieldnames(RVectors)
         return getfield(x.rvectors, sym)
+    elseif sym == :n_rvecs
+        return getproperty(x.rvectors, sym)
     else
         # fallback to getfield
         getfield(x, sym)
     end
 end
 
+function Base.show(io::IO, rvectors::RVectorsMDRS)
+    @printf(io, "lattice: Å\n")
+    for i in 1:3
+        @printf(io, "  a%d: %8.5f %8.5f %8.5f\n", i, rvectors.lattice[:, i]...)
+    end
+    println(io)
+
+    @printf(io, "grid    = %d %d %d\n", rvectors.grid...)
+    @printf(io, "n_rvecs = %d", rvectors.n_rvecs)
+    println(io, "\n")
+    return print(io, "using MDRS interpolation")
+end
+
 """
 centers: fractional coordinates, 3 * n_wann
 """
-function get_Rvectors_mdrs(
+function get_rvectors_mdrs(
     lattice::AbstractMatrix{T},
     rgrid::AbstractVector{Int},
     centers::AbstractMatrix{T};
@@ -139,7 +165,7 @@ function get_Rvectors_mdrs(
     max_cell::Int=3,
 ) where {T<:Real}
     n_wann = size(centers, 2)
-    Rvec = get_Rvectors_ws(lattice, rgrid; atol=atol, max_cell=max_cell)
+    Rvec = get_rvectors_ws(lattice, rgrid; atol=atol, max_cell=max_cell)
     n_rvecs = Rvec.n_rvecs
 
     # 1. generate WS cell around origin to check WF |nR> is inside |m0> or not

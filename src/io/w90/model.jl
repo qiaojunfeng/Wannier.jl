@@ -93,3 +93,36 @@ function read_w90(
         E,
     )
 end
+
+"""
+Return an `InterpolationModel` for Wanier interpolation.
+
+Need to read chk file.
+"""
+function read_w90_post(seedname::String)
+    model = read_w90(seedname)
+    chk = read_chk("$seedname.chk.fmt")
+    model.A .= get_A(chk)
+    centers = chk.r
+
+    # read for kpoint_path, use_ws_distance
+    win = read_win("$seedname.win")
+    if !ismissing(win.use_ws_distance) && win.use_ws_distance
+        Rvectors = get_rvectors_mdrs(model.lattice, model.kgrid, centers)
+    else
+        Rvectors = get_rvectors_ws(model.lattice, model.kgrid)
+    end
+
+    if !ismissing(win.kpoint_path)
+        kpath = win.kpoint_path
+    else
+        # an empty kpath
+        points = Dict{Symbol,Vec3{Float64}}()
+        paths = Vector{Vector{Symbol}}()
+        basis = ReciprocalBasis([v for v in eachcol(model.recip_lattice)])
+        setting = Ref(Brillouin.LATTICE)
+        kpath = KPath{3}(points, paths, basis, setting)
+    end
+
+    return InterpolationModel(model, Rvectors, kpath)
+end
