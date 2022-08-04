@@ -40,17 +40,15 @@ function BVectorShells(
     )
 end
 
-function pprint(shells::BVectorShells)
+function Base.show(io::IO, shells::BVectorShells)
     for i in 1:(shells.n_shells)
-        @printf("b-vector shell %3d    weight = %8.5f\n", i, shells.weights[i])
+        @printf(io, "b-vector shell %3d    weight = %8.5f\n", i, shells.weights[i])
         vecs = shells.bvectors[i]
         for ib in axes(vecs, 2)
-            @printf("  %3d    %10.5f %10.5f %10.5f\n", ib, vecs[:, ib]...)
+            ending = (i == shells.n_shells) && (ib == size(vecs, 2)) ? "" : "\n"
+            @printf(io, "  %3d    %10.5f %10.5f %10.5f%s", ib, vecs[:, ib]..., ending)
         end
     end
-    # print a blank line to separate the following stdout
-    println()
-    return nothing
 end
 
 @doc raw"""
@@ -91,17 +89,15 @@ function Base.getproperty(x::BVectors, sym::Symbol)
     end
 end
 
-function pprint(bvectors::BVectors)
-    println("b-vectors:")
-    @printf("         [bx, by, bz] / Å⁻¹                weight\n")
+function Base.show(io::IO, bvectors::BVectors)
+    println(io, "b-vectors:")
+    @printf(io, "         [bx, by, bz] / Å⁻¹                weight\n")
     for i in 1:(bvectors.n_bvecs)
         v = bvectors.bvectors[:, i]
         w = bvectors.weights[i]
-        @printf("%3d    %10.5f %10.5f %10.5f %10.5f\n", i, v..., w)
+        ending = i < bvectors.n_bvecs ? "\n" : ""
+        @printf(io, "%3d    %10.5f %10.5f %10.5f %10.5f%s", i, v..., w, ending)
     end
-    # print a blank line to separate the following stdout
-    println()
-    return nothing
 end
 
 @doc raw"""
@@ -534,7 +530,8 @@ function get_bvectors(
     shells = search_shells(kpoints, recip_lattice; atol=kmesh_tol)
     shells = delete_parallel(shells)
     shells = compute_weights(shells; atol=kmesh_tol)
-    pprint(shells)
+    show(shells)
+    println("\n")
     check_b1(shells; atol=kmesh_tol)
 
     # generate bvectors for each kpoint

@@ -27,11 +27,13 @@ Generate parallel transport gauge Wannier functions.
 
     Ωⁱ = omega(model.bvectors, model.M, model.A)
     @info "Initial spread"
-    pprint(Ωⁱ)
+    show(Ωⁱ)
+    println("\n")
 
     Ωᶠ = omega(model.bvectors, model.M, A)
     @info "Final spread"
-    pprint(Ωᶠ)
+    show(Ωᶠ)
+    println("\n")
 
     # Plot and display the results
     # Wannier.plot_obstruction(model, A, obs)

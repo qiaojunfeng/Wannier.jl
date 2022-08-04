@@ -84,7 +84,8 @@ function opt_rotate(
 
     Ωⁱ = omega(model.bvectors, model.M, model.A)
     @info "Initial spread"
-    pprint(Ωⁱ)
+    show(Ωⁱ)
+    println("\n")
 
     # make sure A is identity matrices
     model.M .= rotate_M(model.M, model.bvectors.kpb_k, model.A)
@@ -120,7 +121,8 @@ function opt_rotate(
     A = rotate_A(model.A, Wmin)
     Ωᶠ = omega(model.bvectors, model.M, A)
     @info "Final spread"
-    pprint(Ωᶠ)
+    show(Ωᶠ)
+    println("\n")
 
     return Wmin
 end

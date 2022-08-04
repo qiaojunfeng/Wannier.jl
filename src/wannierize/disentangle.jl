@@ -501,7 +501,8 @@ function disentangle(
 
     Ωⁱ = omega(model.bvectors, model.M, model.A)
     @info "Initial spread"
-    pprint(Ωⁱ)
+    show(Ωⁱ)
+    println("\n")
 
     # need QR orthogonalization rather than SVD to preserve the sparsity structure of Y
     XYkManif = Optim.ProductManifold(
@@ -541,7 +542,8 @@ function disentangle(
 
     Ωᶠ = omega(model.bvectors, model.M, Amin)
     @info "Final spread"
-    pprint(Ωᶠ)
+    show(Ωᶠ)
+    println("\n")
 
     return Amin
 end

@@ -37,13 +37,14 @@ struct SpreadCenter{T} <: AbstractSpread
     ωt::Vector{T}
 end
 
-function pprint(Ω::SpreadCenter)
-    println("  WF     center [rx, ry, rz]/Å              spread/Å²  ω  ωc  ωt")
+function Base.show(io::IO, Ω::SpreadCenter)
+    println(io, "  WF     center [rx, ry, rz]/Å              spread/Å²  ω  ωc  ωt")
 
     n_wann = length(Ω.ω)
 
     for i in 1:n_wann
         @printf(
+            io,
             "%4d %11.5f %11.5f %11.5f %11.5f %11.5f %11.5f\n",
             i,
             Ω.r[:, i]...,
@@ -53,18 +54,14 @@ function pprint(Ω::SpreadCenter)
         )
     end
 
-    @printf("Sum spread: Ωt = Ω + Ωc, Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n")
-    @printf("   Ωt  = %11.5f\n", Ω.Ωt)
-    @printf("   Ωc  = %11.5f\n", Ω.Ωc)
-    @printf("   Ω   = %11.5f\n", Ω.Ω)
-    @printf("   ΩI  = %11.5f\n", Ω.ΩI)
-    @printf("   ΩOD = %11.5f\n", Ω.ΩOD)
-    @printf("   ΩD  = %11.5f\n", Ω.ΩD)
-    @printf("   Ω̃   = %11.5f\n", Ω.Ω̃)
-
-    println()
-
-    return nothing
+    @printf(io, "Sum spread: Ωt = Ω + Ωc, Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n")
+    @printf(io, "   Ωt  = %11.5f\n", Ω.Ωt)
+    @printf(io, "   Ωc  = %11.5f\n", Ω.Ωc)
+    @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
+    @printf(io, "   ΩI  = %11.5f\n", Ω.ΩI)
+    @printf(io, "   ΩOD = %11.5f\n", Ω.ΩOD)
+    @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
+    @printf(io, "   Ω̃   = %11.5f", Ω.Ω̃)
 end
 
 @views function omega_center(
@@ -193,7 +190,8 @@ function max_localize_center(
 
     Ωⁱ = omega_center(model.bvectors, model.M, model.A, r₀, λ)
     @info "Initial spread"
-    pprint(Ωⁱ)
+    show(Ωⁱ)
+    println("\n")
 
     kManif = Optim.Stiefel_SVD()
     Manif = Optim.PowerManifold(kManif, (model.n_wann, model.n_wann), (model.n_kpts,))
@@ -222,7 +220,8 @@ function max_localize_center(
 
     Ωᶠ = omega_center(model.bvectors, model.M, Amin, r₀, λ)
     @info "Final spread"
-    pprint(Ωᶠ)
+    show(Ωᶠ)
+    println("\n")
 
     return Amin
 end

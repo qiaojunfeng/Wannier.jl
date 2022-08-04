@@ -26,7 +26,8 @@ function max_localize(
 
     Ωⁱ = omega(model.bvectors, model.M, model.A)
     @info "Initial spread"
-    pprint(Ωⁱ)
+    show(Ωⁱ)
+    println("\n")
 
     kManif = Optim.Stiefel_SVD()
     Manif = Optim.PowerManifold(kManif, (model.n_wann, model.n_wann), (model.n_kpts,))
@@ -55,7 +56,8 @@ function max_localize(
 
     Ωᶠ = omega(model.bvectors, model.M, Amin)
     @info "Final spread"
-    pprint(Ωᶠ)
+    show(Ωᶠ)
+    println("\n")
 
     return Amin
 end

@@ -23,8 +23,7 @@ export get_bvectors
 include("model.jl")
 
 include("spread.jl")
-export Spread, pprint
-export omega, omega_grad, center
+export Spread, omega, omega_grad, center
 
 include("io/w90.jl")
 

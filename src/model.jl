@@ -120,29 +120,29 @@ function Model(
     )
 end
 
-function pprint(model::Model)
-    @printf("lattice: Å\n")
+function Base.show(io::IO, model::Model)
+    @printf(io, "lattice: Å\n")
     for i in 1:3
-        @printf("  a%d: %8.5f %8.5f %8.5f\n", i, model.lattice[:, i]...)
+        @printf(io, "  a%d: %8.5f %8.5f %8.5f\n", i, model.lattice[:, i]...)
     end
-    println()
+    println(io)
 
-    @printf("atoms: fractional\n")
+    @printf(io, "atoms: fractional\n")
     for i in 1:(model.n_atoms)
         l = model.atom_labels[i]
         pos = model.atom_positions[:, i]
-        @printf(" %3s: %8.5f %8.5f %8.5f\n", l, pos...)
+        @printf(io, " %3s: %8.5f %8.5f %8.5f\n", l, pos...)
     end
-    println()
+    println(io)
 
-    @printf("n_bands: %d\n", model.n_bands)
-    @printf("n_wann : %d\n", model.n_wann)
-    @printf("kgrid  : %d %d %d\n", model.kgrid...)
-    @printf("n_kpts : %d\n", model.n_kpts)
-    @printf("n_bvecs: %d\n", model.n_bvecs)
+    @printf(io, "n_bands: %d\n", model.n_bands)
+    @printf(io, "n_wann : %d\n", model.n_wann)
+    @printf(io, "kgrid  : %d %d %d\n", model.kgrid...)
+    @printf(io, "n_kpts : %d\n", model.n_kpts)
+    @printf(io, "n_bvecs: %d\n", model.n_bvecs)
 
-    println()
-    pprint(model.bvectors)
+    println(io)
+    show(io, model.bvectors)
     return nothing
 end
 

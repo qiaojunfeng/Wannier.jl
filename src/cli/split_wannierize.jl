@@ -49,7 +49,8 @@ Then this command split WFs into two independent groups.
     end
 
     @info "Valence + conduction initial spread"
-    pprint(omega(model))
+    show(omega(model))
+    println("\n")
 
     (nval == 0) && (nval = model.n_wann ÷ 2)
     @info "number of valence WFs = $nval"
@@ -57,9 +58,11 @@ Then this command split WFs into two independent groups.
     model_val, model_cond, Uv, Uc = split_wannierize(model, nval)
 
     @info "Valence after parallel transport:"
-    pprint(omega(model_val))
+    show(omega(model_val))
+    println("\n")
     @info "Conduction after parallel transport:"
-    pprint(omega(model_cond))
+    show(omega(model_cond))
+    println("\n")
 
     if run_optrot
         @info "Run optimal rotation"
