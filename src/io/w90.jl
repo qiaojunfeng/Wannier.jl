@@ -7,6 +7,7 @@ include("w90/unk.jl")
 include("w90/winout.jl")
 include("w90/band.jl")
 include("w90/model.jl")
+include("w90/tb.jl")
 
 export read_win, read_wout, read_nnkp, write_nnkp
 export read_amn, read_orthonorm_amn, read_mmn, read_eig

@@ -24,5 +24,6 @@ const FIXTURE_PATH = joinpath(TEST_PATH, "fixtures")
 
     include("cli/help.jl")
 
+    include("interpolate/rvectors.jl")
     include("interpolate/band.jl")
 end

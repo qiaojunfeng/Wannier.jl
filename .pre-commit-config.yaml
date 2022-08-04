@@ -21,7 +21,11 @@ repos:
               test/.*\.chk.fmt|
               test/.*\.nnkp|
               test/.*\.wout|
-              test/.*_band.dat
+              test/.*_band.dat|
+              test/.*_band.kpt|
+              test/.*_band.labelinfo.dat|
+              test/.*_tb.dat|
+              test/.*_wsvec.dat
           )$
       - id: mixed-line-ending
         exclude: *exclude_txtfiles

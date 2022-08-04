@@ -73,21 +73,32 @@ Generate list of kpoint coordinates from kpoint grid.
 Work just like `kmesh.pl` of W90.
 
 kgrid: contains a N1 * N2 * N3 mesh
-return an explicit list of kpoints in fractional coordinates
+fractional: return an explicit list of kpoints in fractional coordinates, else integers
 """
-function get_kpoints(kgrid::AbstractVector{Int})
+function get_kpoints(kgrid::AbstractVector{Int}; fractional::Bool=true)
     n_pts = prod(kgrid)
     nx, ny, nz = kgrid
 
-    kpoints = zeros(Float64, 3, n_pts)
+    if fractional
+        kpoints = zeros(Float64, 3, n_pts)
+    else
+        kpoints = zeros(Int, 3, n_pts)
+    end
+
     idx = 1
     for x in 0:(nx - 1)
         for y in 0:(ny - 1)
             for z in 0:(nz - 1)
-                kpoints[:, idx] = [x / nx, y / ny, z / nz]
+                kpoints[:, idx] = [x, y, z]
                 idx += 1
             end
         end
+    end
+
+    if fractional
+        kpoints[1, :] ./= nx
+        kpoints[2, :] ./= ny
+        kpoints[3, :] ./= nz
     end
 
     return kpoints
@@ -117,7 +128,11 @@ function get_kgrid(kpoints::AbstractMatrix{T}) where {T<:Real}
         error("kgrid and kpoints do not match")
     end
 
-    kpoints_recovered = get_kpoints(kgrid)
+    if T <: Integer
+        kpoints_recovered = get_kpoints(kgrid; fractional=false)
+    else
+        kpoints_recovered = get_kpoints(kgrid)
+    end
     kpoints_sorted = sort_kpoints(kpoints)
     if !all(isapprox.(kpoints_recovered, kpoints_sorted; atol=1e-5))
         error("cannot convert kpoints to a kgrid")

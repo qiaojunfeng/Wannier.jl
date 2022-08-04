@@ -119,6 +119,15 @@ struct RVectorsMDRS{U<:Real}
     Nᵀ::Array{Int,3}
 end
 
+function Base.getproperty(x::RVectorsMDRS, sym::Symbol)
+    if sym ∈ fieldnames(RVectors)
+        return getfield(x.rvectors, sym)
+    else
+        # fallback to getfield
+        getfield(x, sym)
+    end
+end
+
 """
 centers: fractional coordinates, 3 * n_wann
 """
