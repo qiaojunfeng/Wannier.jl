@@ -108,10 +108,11 @@ function read_w90_post(seedname::String)
     # read for kpoint_path, use_ws_distance
     win = read_win("$seedname.win")
     if !ismissing(win.use_ws_distance) && win.use_ws_distance
-        Rvectors = get_rvectors_mdrs(model.lattice, model.kgrid, centers)
+        Rvectors = get_Rvectors_mdrs(model.lattice, model.kgrid, centers)
     else
-        Rvectors = get_rvectors_ws(model.lattice, model.kgrid)
+        Rvectors = get_Rvectors_ws(model.lattice, model.kgrid)
     end
+    kRvectors = KRVectors(model.lattice, model.kgrid, model.kpoints, Rvectors)
 
     if !ismissing(win.kpoint_path)
         kpath = win.kpoint_path
@@ -124,5 +125,5 @@ function read_w90_post(seedname::String)
         kpath = KPath{3}(points, paths, basis, setting)
     end
 
-    return InterpolationModel(model, Rvectors, kpath)
+    return InterpolationModel(model, kRvectors, kpath)
 end

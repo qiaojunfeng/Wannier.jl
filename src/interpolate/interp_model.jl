@@ -3,7 +3,7 @@ struct InterpolationModel{T<:Real}
     model::Model{T}
 
     # R vectors for Fourier transform
-    Rvectors::Union{RVectors{T},RVectorsMDRS{T}}
+    kRvectors::KRVectors{T}
 
     # kpoint path for band structure
     kpath::KPath
@@ -12,6 +12,10 @@ end
 function Base.getproperty(x::InterpolationModel, sym::Symbol)
     if sym ∈ fieldnames(Model)
         return getfield(x.model, sym)
+    elseif sym ∈ fieldnames(KRVectors)
+        return getfield(x.kRvectors, sym)
+    elseif sym == :n_rvecs
+        return getproperty(x.kRvectors, sym)
     else
         # fallback to getfield
         getfield(x, sym)
@@ -22,7 +26,7 @@ function Base.show(io::IO, model::InterpolationModel)
     show(io, model.model)
     println(io, "\n")
 
-    show(io, model.Rvectors)
+    show(io, model.kRvectors)
     println(io, "\n")
 
     show(io, "text/plain", model.kpath)

@@ -15,3 +15,4 @@ export read_w90, read_unk, read_chk
 export write_amn, write_mmn, write_eig, write_unk, write_chk
 export read_w90_band, write_w90_band
 export get_A
+export read_w90_post
