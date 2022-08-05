@@ -39,5 +39,5 @@ Fortran use: `.true.`, `.false.`, `true`, `T`.
 """
 function parse_bool(s::AbstractString)
     s = replace(lowercase(strip(s)), "." => "")[1]  # only 1st char
-    return s == "t" || s == "1"
+    return s == 't' || s == '1'
 end

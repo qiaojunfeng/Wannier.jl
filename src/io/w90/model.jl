@@ -98,21 +98,33 @@ end
 Return an `InterpolationModel` for Wanier interpolation.
 
 Need to read chk file.
+
+Rvectors: which kind of interpolation? Wigner-Seitz, MDRS, or detect from win file.
 """
-function read_w90_post(seedname::String)
-    model = read_w90(seedname)
+function read_w90_post(seedname::String; Rvectors::Union{Symbol,Nothing}=nothing)
+    # read for kpoint_path, use_ws_distance
+    win = read_win("$seedname.win")
+    if isnothing(Rvectors)
+        if !ismissing(win.use_ws_distance) && win.use_ws_distance
+            Rvectors = :mdrs
+        else
+            Rvectors = :ws
+        end
+    else
+        Rvectors ∈ [:ws, :mdrs] || error("Rvectors must be :ws or :mdrs")
+    end
+
+    model = read_w90(seedname; amn=false)
     chk = read_chk("$seedname.chk.fmt")
     model.A .= get_A(chk)
     centers = chk.r
 
-    # read for kpoint_path, use_ws_distance
-    win = read_win("$seedname.win")
-    if !ismissing(win.use_ws_distance) && win.use_ws_distance
-        Rvectors = get_Rvectors_mdrs(model.lattice, model.kgrid, centers)
+    if Rvectors == :ws
+        Rvecs = get_Rvectors_ws(model.lattice, model.kgrid)
     else
-        Rvectors = get_Rvectors_ws(model.lattice, model.kgrid)
+        Rvecs = get_Rvectors_mdrs(model.lattice, model.kgrid, centers)
     end
-    kRvectors = KRVectors(model.lattice, model.kgrid, model.kpoints, Rvectors)
+    kRvecs = KRVectors(model.lattice, model.kgrid, model.kpoints, Rvecs)
 
     if !ismissing(win.kpoint_path)
         kpath = win.kpoint_path
@@ -125,5 +137,5 @@ function read_w90_post(seedname::String)
         kpath = KPath{3}(points, paths, basis, setting)
     end
 
-    return InterpolationModel(model, kRvectors, kpath)
+    return InterpolationModel(model, kRvecs, kpath)
 end

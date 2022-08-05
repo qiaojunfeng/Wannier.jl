@@ -23,12 +23,15 @@ function Base.getproperty(x::InterpolationModel, sym::Symbol)
 end
 
 function Base.show(io::IO, model::InterpolationModel)
+    @info "model"
     show(io, model.model)
     println(io, "\n")
 
+    @info "k & R vectors"
     show(io, model.kRvectors)
     println(io, "\n")
 
+    @info "kpath"
     show(io, "text/plain", model.kpath)
     return nothing
 end

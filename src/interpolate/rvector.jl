@@ -44,8 +44,6 @@ function Base.show(io::IO, Rvectors::RVectors)
     for i in 1:3
         @printf(io, "  a%d: %8.5f %8.5f %8.5f\n", i, Rvectors.lattice[:, i]...)
     end
-    println(io)
-
     @printf(io, "grid    = %d %d %d\n", Rvectors.grid...)
     @printf(io, "n_rvecs = %d", Rvectors.n_rvecs)
 end
@@ -128,6 +126,48 @@ struct RVectorsMDRS{U<:Real}
 
     # degeneracy of each T vector, n_wann * n_wann * n_rvecs
     Nᵀ::Array{Int,3}
+
+    # R̃ vectors (expanded set for R+T), 3 * n_r̃vecs
+    R̃vectors::RVectors{U}
+
+    # mapping of R̃vectors to R and T vectors,
+    # length = n_r̃vecs, each element is a Vector whose element are [ir, it],
+    # where ir and it are the indexes of R and T vectors.
+    R̃_RT::Vector{Vector{SVector{2,Int}}}
+end
+
+function RVectorsMDRS(Rvectors::RVectors, T::Array{Matrix{Int},3}, Nᵀ::Array{Int,3})
+    # expanded R vectors
+    R̃ = Vector{Vec3{Int}}()
+    # mapping
+    R̃_RT = Vector{Vector{SVector{2,Int}}}()
+    # generate expanded R̃ vectors, which contains all the R+T
+    for ir in 1:(Rvectors.n_rvecs)
+        for n in axes(T, 2)
+            for m in axes(T, 1)
+                for it in 1:Nᵀ[m, n, ir]
+                    RT = Rvectors.R[:, ir] + T[m, n, ir][:, it]
+                    i = findfirst(x -> x == RT, R̃)
+                    if isnothing(i)
+                        push!(R̃, RT)
+                        push!(R̃_RT, [[ir, it]])
+                    else
+                        push!(R̃_RT[i], [ir, it])
+                    end
+                end
+            end
+        end
+    end
+    # I will multiply R degeneracy when doing fourier k -> R̃, contrary to WS interpolation
+    # where R degeneracy is multiplied during inv fourier R -> k. Si here Ñ is 1.
+    Ñ = zeros(Int, length(R̃))
+    # to matrix
+    R̃mat = zeros(Int, 3, length(R̃))
+    for ir̃ in axes(R̃mat, 2)
+        R̃mat[:, ir̃] = R̃[ir̃]
+    end
+    R̃vectors = RVectors(Rvectors.lattice, Rvectors.grid, R̃mat, Ñ)
+    return RVectorsMDRS(Rvectors, T, Nᵀ, R̃vectors, R̃_RT)
 end
 
 function Base.getproperty(x::RVectorsMDRS, sym::Symbol)
@@ -135,6 +175,8 @@ function Base.getproperty(x::RVectorsMDRS, sym::Symbol)
         return getfield(x.Rvectors, sym)
     elseif sym == :n_rvecs
         return getproperty(x.Rvectors, sym)
+    elseif sym == :n_r̃vecs
+        return x.R̃vectors.n_rvecs
     else
         # fallback to getfield
         getfield(x, sym)
@@ -146,11 +188,8 @@ function Base.show(io::IO, Rvectors::RVectorsMDRS)
     for i in 1:3
         @printf(io, "  a%d: %8.5f %8.5f %8.5f\n", i, Rvectors.lattice[:, i]...)
     end
-    println(io)
-
     @printf(io, "grid    = %d %d %d\n", Rvectors.grid...)
-    @printf(io, "n_rvecs = %d", Rvectors.n_rvecs)
-    println(io, "\n")
+    @printf(io, "n_rvecs = %d\n", Rvectors.n_rvecs)
     return print(io, "using MDRS interpolation")
 end
 
@@ -230,5 +269,5 @@ function get_Rvectors_mdrs(
         end
     end
 
-    return RVectorsMDRS{T}(Rvec, T_vecs, T_degen)
+    return RVectorsMDRS(Rvec, T_vecs, T_degen)
 end

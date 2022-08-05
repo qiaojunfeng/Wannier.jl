@@ -28,12 +28,21 @@ struct KRVectors{T<:Real,RV<:Union{RVectors{T},RVectorsMDRS{T}}}
     n_kpts::Int
 end
 
+function Base.getproperty(x::KRVectors{T,RV}, sym::Symbol) where {T<:Real,RV<:RVectors{T}}
+    if sym == :n_rvecs
+        return getproperty(x.Rvectors, sym)
+    else
+        # fallback to getfield
+        getfield(x, sym)
+    end
+end
+
 function Base.getproperty(
     x::KRVectors{T,RV}, sym::Symbol
-) where {T<:Real,RV<:Union{RVectors{T},RVectorsMDRS{T}}}
-    if sym ∈ fieldnames(RV)
-        return getfield(x.Rvectors, sym)
-    elseif sym == :n_rvecs
+) where {T<:Real,RV<:RVectorsMDRS{T}}
+    if sym == :n_rvecs
+        return getproperty(x.Rvectors, sym)
+    elseif sym == :n_r̃vecs
         return getproperty(x.Rvectors, sym)
     else
         # fallback to getfield
@@ -65,13 +74,13 @@ function KRVectors(
 end
 
 function Base.show(io::IO, x::KRVectors)
-    @printf(io, "lattice: Å\n")
+    @printf(io, "recip_lattice: Å⁻¹\n")
     for i in 1:3
-        @printf(io, "  a%d: %8.5f %8.5f %8.5f\n", i, x.lattice[:, i]...)
+        @printf(io, "  a%d: %8.5f %8.5f %8.5f\n", i, x.recip_lattice[:, i]...)
     end
-    println(io)
     @printf(io, "kgrid  : %d %d %d\n", x.kgrid...)
     @printf(io, "n_kpts : %d\n", x.n_kpts)
+    println(io)
 
     return show(io, x.Rvectors)
 end

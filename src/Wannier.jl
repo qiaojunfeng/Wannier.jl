@@ -65,6 +65,7 @@ include("interpolate/krvector.jl")
 include("interpolate/kpath.jl")
 include("interpolate/interp_model.jl")
 include("interpolate/fourier.jl")
+include("interpolate/hamiltonian.jl")
 
 # function __init__()
 #     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" begin
