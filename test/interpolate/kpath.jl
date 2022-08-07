@@ -1,7 +1,9 @@
 @testset "interpolate w90 kpath" begin
     win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
     recip_lattice = Wannier.get_recip_lattice(win.unit_cell)
-    kpi, E = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/silicon"), recip_lattice)
+    kpi, E = read_w90_band(
+        joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"), recip_lattice
+    )
 
     # num points of 1st segment
     n_points = 100
@@ -34,7 +36,7 @@ end
 @testset "get x kpath" begin
     win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
     recip_lattice = Wannier.get_recip_lattice(win.unit_cell)
-    band = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/silicon"))
+    band = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
     kpi = Wannier.get_kpath_interpolant(
         band.kpoints, band.symm_idx, band.symm_label, recip_lattice
     )

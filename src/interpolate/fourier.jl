@@ -1,8 +1,13 @@
 using LinearAlgebra
 
-"""
+@doc raw"""
 Fourier transform operator from k space to R space.
 The so-called Wiger-Seitz (WS) interpolation.
+
+```math
+X_{mn}(\bf{R}) =
+\frac{1}{N_{\bf{k}}} \sum_{\bf k} e^{-i{\bf k}{\mathbf{R}}} X_{mn}(\bf k)
+```
 
 O: operator matrix, n_wann * n_wann * n_kpts
 """
@@ -30,8 +35,13 @@ function fourier(
     return Oᴿ
 end
 
-"""
+@doc raw"""
 Inverse Fourier transform operator from R space to k space.
+
+```math
+X_{mn}(\bf{k}) =
+\sum_{\bf R} \frac{1}{N_{\bf R}} e^{i{\bf k}{\mathbf{R}}} X_{mn}(\bf R)
+```
 
 O_R: real space operator, i.e. in the frequency domain
 kpoints: kpoints to be interpolated, 3 * n_kpts, can be nonuniform
@@ -59,9 +69,14 @@ function invfourier(
     return Oᵏ
 end
 
-"""
+@doc raw"""
 Fourier MDRS using plain loops.
 Slower, but reproduce W90 behavior, and generate the same seedname_tb.dat file.
+
+```math
+X_{mn}(\bf R) =
+\frac{1}{N_{\bf k}} \sum_{{\bf k}}e^{-i{\bf k}{\bf R}} X_{mn}(\bf k)
+```
 """
 function _fourier_mdrs_v1(
     kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3}
@@ -81,9 +96,15 @@ function _fourier_mdrs_v1(
     return Oᴿ
 end
 
-"""
+@doc raw"""
 Faster version of Fourier MDRS, remove some for loops.
 But need to expand R vectors to R+T, so different from seeedname_tb.dat.
+
+```math
+\widetilde{X}_{mn}({\tilde{\bf R}}) =
+\sum_{{\bf R}} \frac{1}{N_{\bf R} {\cal N}_{mn{\bf R}}} X_{mn}({\bf R})
+\sum_{j=1}^{{\cal N}_{mn{\bf R}}}   \delta_{{\tilde{\bf R}},{\bf R}+\mathbf{T}_{mn{\bf R}}^{(j)}}
+```
 """
 function _fourier_mdrs_v2(
     kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3}
@@ -96,13 +117,12 @@ function _fourier_mdrs_v2(
     Oᴿ̃ = zeros(Complex{T}, n_wann, n_wann, n_r̃vecs)
 
     for ir̃ in 1:n_r̃vecs
-        for (ir, it) in kRvectors.Rvectors.R̃_RT[ir̃]
-            fac = kRvectors.Rvectors.Nᵀ[:, :, ir]
+        for (ir, m, n, it) in kRvectors.Rvectors.R̃_RT[ir̃]
+            fac = kRvectors.Rvectors.Nᵀ[m, n, ir]
             # I divide here the degeneracy or R vector,
-            # so no need to divide again in inv fourier
-            fac .*= kRvectors.Rvectors.N[ir]
-            # println(kRvectors.Rvectors.N[ir])
-            Oᴿ̃[:, :, ir̃] += Oᴿ[:, :, ir] ./ fac
+            # so no need to divide again in invfourier
+            fac *= kRvectors.Rvectors.N[ir]
+            Oᴿ̃[m, n, ir̃] += Oᴿ[m, n, ir] / fac
         end
     end
     return Oᴿ̃
@@ -119,6 +139,14 @@ function fourier(
     end
 end
 
+@doc raw"""
+
+```math
+X_{mn}({\bf k}) =
+\sum_{\bf R} \frac{1}{{\cal N}_{mn{\bf R}}} X_{mn}({\bf R})
+\sum_{j=1}^{{\cal N}_{mn{\bf R}}} e^{i{\bf k}\cdot\left({\bf R}+\mathbf{T}_{mn{\bf R}}^{(j)}\right)}
+```
+"""
 function _invfourier_mdrs_v1(
     kRvectors::KRVectors{FT,RV}, Oᴿ::Array{Complex{FT},3}, kpoints::AbstractMatrix{FT}
 ) where {FT<:Real,RV<:RVectorsMDRS{FT}}
@@ -150,6 +178,12 @@ function _invfourier_mdrs_v1(
     return Oᵏ
 end
 
+@doc raw"""
+```math
+X_{mn}({\bf k}) =
+\sum_{\tilde{\bf R}}e^{i{\bf k}{\tilde{\bf R}}} \widetilde{X}_{mn}({\tilde{\bf R}})
+```
+"""
 function _invfourier_mdrs_v2(
     kRvectors::KRVectors{T,RV}, Oᴿ̃::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
 ) where {T<:Real,RV<:RVectorsMDRS{T}}

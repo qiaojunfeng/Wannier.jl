@@ -101,7 +101,7 @@ Need to read chk file.
 
 Rvectors: which kind of interpolation? Wigner-Seitz, MDRS, or detect from win file.
 """
-function read_w90_post(seedname::String; mdrs::Union{Symbol,Bool}=nothing)
+function read_w90_post(seedname::String; mdrs::Union{Nothing,Bool}=nothing)
     # read for kpoint_path, use_ws_distance
     win = read_win("$seedname.win")
     if isnothing(mdrs)

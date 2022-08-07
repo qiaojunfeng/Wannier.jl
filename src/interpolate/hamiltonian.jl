@@ -55,13 +55,20 @@ end
 """
 Interpolate band structure along kpath.
 """
-function interpolate(model::InterpolationModel)
-    kpath = interpolate_w90(model.kpath, 100)
+function interpolate(model::InterpolationModel, kpi::KPathInterpolant)
     # to Matrix
-    kp = zeros(Float64, 3, length(kpath))
-    for i in axes(kp, 2)
-        kp[:, i] = kpath[i]
+    kpoints = zeros(Float64, 3, length(kpi))
+    for i in axes(kpoints, 2)
+        kpoints[:, i] = kpi[i]
     end
 
-    return interpolate(model, kp)
+    return interpolate(model, kpoints)
+end
+
+"""
+Interpolate band structure along kpath.
+"""
+function interpolate(model::InterpolationModel)
+    kpi = interpolate_w90(model.kpath, 100)
+    return interpolate(model, kpi)
 end

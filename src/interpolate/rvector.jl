@@ -120,6 +120,8 @@ struct RVectorsMDRS{U<:Real}
     # R vectors of the Wigner-Seitz interplation
     Rvectors::RVectors{U}
 
+    # For MDRS v1
+
     # translation vectors, fractional coordinates w.r.t lattice
     # internal matrix: 3 * n_degen, external array: n_wann * n_wann * n_rvecs
     T::Array{Matrix{Int},3}
@@ -127,20 +129,23 @@ struct RVectorsMDRS{U<:Real}
     # degeneracy of each T vector, n_wann * n_wann * n_rvecs
     Nᵀ::Array{Int,3}
 
+    # For MDRS v2
+
     # R̃ vectors (expanded set for R+T), 3 * n_r̃vecs
     R̃vectors::RVectors{U}
 
     # mapping of R̃vectors to R and T vectors,
-    # length = n_r̃vecs, each element is a Vector whose element are [ir, it],
-    # where ir and it are the indexes of R and T vectors.
-    R̃_RT::Vector{Vector{SVector{2,Int}}}
+    # length = n_r̃vecs, each element is a Vector whose element are [ir, m, n, it],
+    # where ir is the index of R vector, (m, n, it) specifies the T vector for
+    # WFs |0m> and |Rn>
+    R̃_RT::Vector{Vector{SVector{4,Int}}}
 end
 
 function RVectorsMDRS(Rvectors::RVectors, T::Array{Matrix{Int},3}, Nᵀ::Array{Int,3})
     # expanded R vectors
     R̃ = Vector{Vec3{Int}}()
     # mapping
-    R̃_RT = Vector{Vector{SVector{2,Int}}}()
+    R̃_RT = Vector{Vector{SVector{4,Int}}}()
     # generate expanded R̃ vectors, which contains all the R+T
     for ir in 1:(Rvectors.n_rvecs)
         for n in axes(T, 2)
@@ -150,9 +155,9 @@ function RVectorsMDRS(Rvectors::RVectors, T::Array{Matrix{Int},3}, Nᵀ::Array{I
                     i = findfirst(x -> x == RT, R̃)
                     if isnothing(i)
                         push!(R̃, RT)
-                        push!(R̃_RT, [[ir, it]])
+                        push!(R̃_RT, [[ir, m, n, it]])
                     else
-                        push!(R̃_RT[i], [ir, it])
+                        push!(R̃_RT[i], [ir, m, n, it])
                     end
                 end
             end

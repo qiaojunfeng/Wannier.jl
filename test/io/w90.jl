@@ -141,7 +141,7 @@ end
 end
 
 @testset "read/write w90 band dat" begin
-    band = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/silicon"))
+    band = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
 
     outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "silicon")
@@ -162,7 +162,9 @@ end
 @testset "read/write w90 band dat kpi" begin
     win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
     recip_lattice = Wannier.get_recip_lattice(win.unit_cell)
-    kpi, E = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/silicon"), recip_lattice)
+    kpi, E = read_w90_band(
+        joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"), recip_lattice
+    )
 
     outdir = mktempdir(; cleanup=false)#true)
     outseedname = joinpath(outdir, "silicon")
@@ -284,7 +286,7 @@ end
 @testset "read_w90_post" begin
     model = read_w90_post(joinpath(FIXTURE_PATH, "valence/band/silicon"))
 
-    @test typeof(model) == Wannier.InterpolationModel
+    @test typeof(model) <: Wannier.InterpolationModel
     @test model.model.n_wann == 4
     @test model.model.n_kpts == 64
 end
