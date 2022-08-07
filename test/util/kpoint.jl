@@ -4,7 +4,7 @@
     kpoints = win.kpoints
     kgrid = win.mp_grid
 
-    k_xyz, xyz_k = get_kpoint_mappings(kpoints, kgrid)
+    k_xyz, xyz_k = Wannier.get_kpoint_mappings(kpoints, kgrid)
 
     n_kx, n_ky, n_kz = kgrid
     n_kpts = prod(kgrid)

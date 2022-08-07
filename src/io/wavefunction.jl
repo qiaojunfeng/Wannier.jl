@@ -6,7 +6,7 @@ Read unk files, and generate realspace Wannier functions.
 A: n_bands x n_wann x n_kpts, rotation matrix
 kpoints: 3 x n_kpts, fractional coordinates
 """
-function get_realspace_wf(
+function read_realspace_wf(
     A::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T},
     n_supercells::AbstractVector{Int},
@@ -110,13 +110,13 @@ function get_realspace_wf(
     return X, Y, Z, W
 end
 
-function get_realspace_wf(
+function read_realspace_wf(
     A::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T},
     n_supercells::Int=2,
     unkdir::String=".",
 ) where {T<:Real}
-    return get_realspace_wf(A, kpoints, [n_supercells, n_supercells, n_supercells], unkdir)
+    return read_realspace_wf(A, kpoints, [n_supercells, n_supercells, n_supercells], unkdir)
 end
 
 """
@@ -137,7 +137,7 @@ function write_realspace_wf_cube(
     unkdir::String=".",
     part::Function=real,
 )
-    X, Y, Z, W = get_realspace_wf(A, kpoints, n_supercells, unkdir)
+    X, Y, Z, W = read_realspace_wf(A, kpoints, n_supercells, unkdir)
     n_wann = size(W, 4)
 
     for i in 1:n_wann
