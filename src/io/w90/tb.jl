@@ -165,12 +165,12 @@ function read_w90_tb(seedname::String)
         @error "R vecs in tb.dat and wsvec.dat are not identical"
     end
     # grid is still unknown, degen is known
-    Rvecs1 = RVectors(lattice, Rvecs.grid, Rvecs.R, R_degen)
+    Rvecs_ws = RVectors(lattice, Rvecs.grid, Rvecs.R, R_degen)
 
     if typeof(Rvecs) <: RVectorsMDRS
-        Rvecs2 = RVectorsMDRS(Rvecs1, Rvecs.T, Rvecs.Nᵀ)
-        return Rvecs2, H, positions
+        Rvecs_mdrs = RVectorsMDRS(Rvecs_ws, Rvecs.T, Rvecs.Nᵀ)
+        return Rvecs_mdrs, H, positions
     end
 
-    return Rvecs1, H, positions
+    return Rvecs_ws, H, positions
 end

@@ -280,3 +280,11 @@ end
     @test H[1, 1, 1] ≈ H111
     @test positions[1, 1, 1, end] ≈ P111end
 end
+
+@testset "read_w90_post" begin
+    model = read_w90_post(joinpath(FIXTURE_PATH, "valence/band/silicon"))
+
+    @test typeof(model) == Wannier.InterpolationModel
+    @test model.model.n_wann == 4
+    @test model.model.n_kpts == 64
+end

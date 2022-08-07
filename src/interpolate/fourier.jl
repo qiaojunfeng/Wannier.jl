@@ -50,9 +50,9 @@ function invfourier(
     for ik in 1:n_kpts
         k = kpoints[:, ik]
         for ir in 1:n_rvecs
-            R = kRvectors.R[:, ir]
+            R = kRvectors.Rvectors.R[:, ir]
             fac = exp(im * 2π * dot(k, R))
-            fac /= kRvectors.N[ir]
+            fac /= kRvectors.Rvectors.N[ir]
             Oᵏ[:, :, ik] += fac * Oᴿ[:, :, ir]
         end
     end
@@ -101,7 +101,7 @@ function _fourier_mdrs_v2(
             # I divide here the degeneracy or R vector,
             # so no need to divide again in inv fourier
             fac .*= kRvectors.Rvectors.N[ir]
-            println(kRvectors.Rvectors.N[ir])
+            # println(kRvectors.Rvectors.N[ir])
             Oᴿ̃[:, :, ir̃] += Oᴿ[:, :, ir] ./ fac
         end
     end
@@ -130,18 +130,17 @@ function _invfourier_mdrs_v1(
 
     Oᵏ = zeros(Complex{FT}, n_wann, n_wann, n_kpts)
 
-    for ir in 1:n_rvecs
-        R = kRvectors.Rvectors.R[:, ir]
-        for n in 1:n_wann
-            for m in 1:n_wann
-                for it in 1:kRvectors.Rvectors.Nᵀ[m, n, ir]
-                    T = kRvectors.Rvectors.T[m, n, ir][:, it]
-                    RT = R + T
-                    N = kRvectors.Rvectors.Nᵀ[m, n, ir]
-                    for ik in 1:n_kpts
-                        k = kRvectors.kpoints[:, ik]
-                        fac = exp(im * 2π * dot(k, RT))
-                        fac /= N
+    for ik in 1:n_kpts
+        k = kRvectors.kpoints[:, ik]
+        for ir in 1:n_rvecs
+            R = kRvectors.Rvectors.R[:, ir]
+            N = kRvectors.Rvectors.N[ir]
+            for n in 1:n_wann
+                for m in 1:n_wann
+                    Nᵀ = kRvectors.Rvectors.Nᵀ[m, n, ir]
+                    for T in eachcol(kRvectors.Rvectors.T[m, n, ir])
+                        fac = exp(im * 2π * dot(k, (R + T)))
+                        fac /= N * Nᵀ
                         Oᵏ[m, n, ik] += fac * Oᴿ[m, n, ir]
                     end
                 end

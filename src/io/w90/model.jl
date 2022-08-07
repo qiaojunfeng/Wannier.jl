@@ -101,28 +101,28 @@ Need to read chk file.
 
 Rvectors: which kind of interpolation? Wigner-Seitz, MDRS, or detect from win file.
 """
-function read_w90_post(seedname::String; Rvectors::Union{Symbol,Nothing}=nothing)
+function read_w90_post(seedname::String; mdrs::Union{Symbol,Bool}=nothing)
     # read for kpoint_path, use_ws_distance
     win = read_win("$seedname.win")
-    if isnothing(Rvectors)
+    if isnothing(mdrs)
         if !ismissing(win.use_ws_distance) && win.use_ws_distance
-            Rvectors = :mdrs
+            mdrs = true
         else
-            Rvectors = :ws
+            mdrs = false
         end
-    else
-        Rvectors ∈ [:ws, :mdrs] || error("Rvectors must be :ws or :mdrs")
     end
 
     model = read_w90(seedname; amn=false)
     chk = read_chk("$seedname.chk.fmt")
     model.A .= get_A(chk)
     centers = chk.r
+    # from cartesian to fractional
+    centers = inv(model.lattice) * centers
 
-    if Rvectors == :ws
-        Rvecs = get_Rvectors_ws(model.lattice, model.kgrid)
-    else
+    if mdrs
         Rvecs = get_Rvectors_mdrs(model.lattice, model.kgrid, centers)
+    else
+        Rvecs = get_Rvectors_ws(model.lattice, model.kgrid)
     end
     kRvecs = KRVectors(model.lattice, model.kgrid, model.kpoints, Rvecs)
 
