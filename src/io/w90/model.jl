@@ -97,11 +97,10 @@ end
 """
 Return an `InterpolationModel` for Wanier interpolation.
 
-Need to read chk file.
-
-Rvectors: which kind of interpolation? Wigner-Seitz, MDRS, or detect from win file.
+chk: read chk file to get the unitary matrices, else read AMN file for unitary matrices.
+mdrs: use MDRS interpolation, else Wigner-Seitz interpolation. If nothing, detect from win file.
 """
-function read_w90_post(seedname::String; mdrs::Union{Nothing,Bool}=nothing)
+function read_w90_post(seedname::String; chk::Bool=true, mdrs::Union{Nothing,Bool}=nothing)
     # read for kpoint_path, use_ws_distance
     win = read_win("$seedname.win")
     if isnothing(mdrs)
@@ -112,10 +111,15 @@ function read_w90_post(seedname::String; mdrs::Union{Nothing,Bool}=nothing)
         end
     end
 
-    model = read_w90(seedname; amn=false)
-    chk = read_chk("$seedname.chk.fmt")
-    model.A .= get_A(chk)
-    centers = chk.r
+    if chk
+        model = read_w90(seedname; amn=false)
+        chkfmt = read_chk("$seedname.chk.fmt")
+        model.A .= get_A(chkfmt)
+        centers = chkfmt.r
+    else
+        model = read_w90(seedname)
+        centers = center(model)
+    end
     # from cartesian to fractional
     centers = inv(model.lattice) * centers
 

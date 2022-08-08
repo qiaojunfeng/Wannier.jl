@@ -26,8 +26,8 @@
     * similar to[^WLPMM14], add an Lagrange multiplier term to spread functional, but optimize on matrix manifolds, and applying to both max localization and disentanglement (whereas in [^WLPMM14] the center is constrained during max localization)
 * interpolation
   * band structure along a kpath or on a grid
-    * Wigner-Seitz interpolation (TODO)
-    * Minimal-distance replica selection method (TODO)
+    * Wigner-Seitz interpolation
+    * Minimal-distance replica selection method
   * realspace WFs
 
 ## Installation

@@ -1,5 +1,6 @@
 using LinearAlgebra
 using Brillouin
+using Spglib
 
 """
 Get kpoint coordinates from a KPath, same as W90.
@@ -91,4 +92,32 @@ function get_x(kpi::KPathInterpolant)
     end
 
     return cumsum(x)
+end
+
+@doc """
+Get KPath for arbitrary cell (can be non-standard)
+
+lattice: each column is a lattice vector, 3 * 3
+atom_positions: fractional coordinates, 3 * n_atoms
+atom_numbers: atomic numbers, n_atoms
+"""
+function get_kpath(
+    lattice::AbstractMatrix{T},
+    atom_positions::AbstractMatrix{T},
+    atom_numbers::AbstractVector{R},
+) where {T<:Real,R<:Integer}
+    vecs = [v for v in eachcol(lattice)]
+    pos = [v for v in eachcol(atom_positions)]
+    cell = Spglib.Cell(vecs, pos, atom_numbers)
+    kpath = irrfbz_path(cell)
+    return kpath
+end
+
+function get_kpath(
+    lattice::AbstractMatrix{T},
+    atom_positions::AbstractMatrix{T},
+    atom_labels::AbstractVector{R},
+) where {T<:Real,R<:AbstractString}
+    atom_numbers = get_atom_number(atom_labels)
+    return get_kpath(lattice, atom_positions, atom_numbers)
 end

@@ -35,3 +35,19 @@ function Base.show(io::IO, model::InterpolationModel)
     show(io, "text/plain", model.kpath)
     return nothing
 end
+
+function InterpolationModel(model::Model; mdrs::Bool=true)
+    if mdrs
+        centers = center(model)
+        # from cartesian to fractional
+        centers = inv(model.lattice) * centers
+        Rvecs = get_Rvectors_mdrs(model.lattice, model.kgrid, centers)
+    else
+        Rvecs = get_Rvectors_ws(model.lattice, model.kgrid)
+    end
+    kRvecs = KRVectors(model.lattice, model.kgrid, model.kpoints, Rvecs)
+
+    kpath = get_kpath(model.lattice, model.atom_positions, model.atom_labels)
+
+    return InterpolationModel(model, kRvecs, kpath)
+end
