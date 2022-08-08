@@ -1,5 +1,17 @@
 using Printf: @sprintf
 
+@doc """
+Get the extension name of UNK files, e.g. `NC` from `UNK00001.NC`.
+e.g. `1` for no-spin calcluation, `NC` for non-collinear calculation.
+"""
+function _get_unk_ext(unkdir::AbstractString)
+    files = readdir(unkdir)
+    i = findfirst(x -> startswith(x, "UNK"), files)
+    isnothing(i) && error("No UNK files found in $unkdir")
+    suffix = split(files[i], ".")[2]  # "1" or "NC"
+    return suffix
+end
+
 """
 Read unk files, and generate realspace Wannier functions.
 
@@ -27,7 +39,8 @@ function read_realspace_wf(
     end
     n_sx, n_sy, n_sz = n_supercells
 
-    unkname(ik) = joinpath(unkdir, "UNK" * @sprintf("%05d", ik) * ".1")
+    ext = _get_unk_ext(unkdir)
+    unkname(ik) = joinpath(unkdir, @sprintf("UNK%05d.%s", ik, ext))
 
     # read 1st kpoint to allocate matrices
     ik = 1
