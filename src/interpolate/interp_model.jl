@@ -7,6 +7,9 @@ struct InterpolationModel{T<:Real}
 
     # kpoint path for band structure
     kpath::KPath
+
+    # spin matrix, n_bands * n_bands * 3 * n_kpts
+    S::Array{Complex{T},4}
 end
 
 function Base.getproperty(x::InterpolationModel, sym::Symbol)
@@ -34,6 +37,16 @@ function Base.show(io::IO, model::InterpolationModel)
     @info "kpath"
     show(io, "text/plain", model.kpath)
     return nothing
+end
+
+function InterpolationModel(
+    model::Model{T}, kRvectors::KRVectors{T}, kpath::KPath
+) where {T<:Real}
+    n_bands = model.n_bands
+    n_kpts = model.n_kpts
+    return InterpolationModel(
+        model, kRvectors, kpath, Array{Complex{T},4}(undef, n_bands, n_bands, 3, n_kpts)
+    )
 end
 
 function InterpolationModel(model::Model; mdrs::Bool=true)
