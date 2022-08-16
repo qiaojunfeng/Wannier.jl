@@ -92,9 +92,9 @@ atom_positions: 3 x n_atoms, fractional coordinates
 atom_numbers: n_atoms, atomic numbers
 lattice: 3 x 3, Å, each column is a lattice vector
 n_voxels: 3, number of voxels along three lattice vectors
-X: fractional coordinates of W along x
-Y: fractional coordinates of W along y
-Z: fractional coordinates of W along z
+X: fractional coordinates of W along a1
+Y: fractional coordinates of W along a2
+Z: fractional coordinates of W along a3
 W: nx x ny x nz, volumetric data
 """
 function write_cube(
@@ -137,11 +137,14 @@ function write_cube(
         @printf(io, "%d %12.6f %12.6f %12.6f\n", n_v, ax...)
     end
 
+    # to cartesian and wrap to home cell
+    atom_positions_cart = lattice_bohr * atom_positions
+    # atom_positions_cart = wrap_centers(atom_positions_cart, lattice_bohr)
+
     for i in 1:n_atoms
         n = atom_numbers[i]
         charge = 1.0
-        # to Bohr
-        pos = lattice_bohr * atom_positions[:, i]
+        pos = atom_positions_cart[:, i]
         @printf(io, "%d %12.6f %12.6f %12.6f %12.6f\n", n, charge, pos...)
     end
 

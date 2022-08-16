@@ -48,6 +48,9 @@ end
 function compute_imre_ratio(W::AbstractArray)
     # only calculate real >= 0.01 elements, same as W90
     V = W[real(W) .>= 0.01]
+    if isempty(V)
+        return 0
+    end
     r = maximum(abs.(imag(V) ./ real(V)))
     return r
 end

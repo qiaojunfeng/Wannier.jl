@@ -35,5 +35,8 @@ export truncate_w90
 include("cube.jl")
 export read_cube, write_cube
 
+include("xsf.jl")
+export write_xsf
+
 include("wavefunction.jl")
-export read_realspace_wf, write_realspace_wf_cube
+export read_realspace_wf, write_realspace_wf

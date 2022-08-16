@@ -17,12 +17,15 @@ Read unk files, and generate realspace Wannier functions.
 
 A: n_bands x n_wann x n_kpts, rotation matrix
 kpoints: 3 x n_kpts, fractional coordinates
+R: fractional coordinates w.r.t lattice (actually integers), the cell for WF |nR>,
+    default generate WF at home unit cell |n0>
 """
 function read_realspace_wf(
     A::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T},
     n_supercells::AbstractVector{Int},
-    unkdir::String=".",
+    unkdir::String=".";
+    R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
     n_bands, n_wann, n_kpts = size(A)
     length(n_supercells) != 3 && error("n_supercells must be 3-vector")
@@ -56,56 +59,37 @@ function read_realspace_wf(
     X = zeros(T, n_gx * n_sx)
     Y = zeros(T, n_gy * n_sy)
     Z = zeros(T, n_gz * n_sz)
+    X .= (n_gx * supercells[1][1]):(n_gx * (supercells[1][end] + 1) - 1)
+    Y .= (n_gy * supercells[2][1]):(n_gy * (supercells[2][end] + 1) - 1)
+    Z .= (n_gz * supercells[3][1]):(n_gz * (supercells[3][end] + 1) - 1)
+    X ./= n_gx
+    Y ./= n_gy
+    Z ./= n_gz
 
-    # preallocate a reshaped matrix
-    n_g = n_gx * n_gy * n_gz
-    ΨAₖ = zeros(eltype(A), n_g, n_wann)
-
-    """Modify W, X, Y, Z"""
+    """Modify W"""
     function add_k!(ik, Ψₖ)
         k = kpoints[:, ik]
-        # unk is the periodic part of Bloch wavefunction,
-        # need a factor exp(ikr)
-        for z in 1:n_gz
-            for y in 1:n_gy
-                for x in 1:n_gx
-                    # r grid in fractional coordinates
-                    r = [(x - 1) / n_gx, (y - 1) / n_gy, (z - 1) / n_gz]
-                    Ψₖ[x, y, z, :] *= exp(2π * im * k' * r)
-                end
-            end
-        end
         # rotate Ψ
         # * does not support high dimensional matrix multiplication,
         # I need to reshape it to 2D matrix
-        ΨAₖ .= reshape(Ψₖ, n_g, n_bands) * A[:, :, ik]
-
-        for sx in supercells[1]
-            for sy in supercells[2]
-                for sz in supercells[3]
-                    # fractional coordinates
-                    R = [sx, sy, sz]
-                    f = exp(-2π * im * k' * R)
-                    # starting index in W
-                    ix = n_gx * (sx - supercells[1][1]) + 1
-                    iy = n_gy * (sy - supercells[2][1]) + 1
-                    iz = n_gz * (sz - supercells[3][1]) + 1
-                    # ending index in W
-                    jx = ix + n_gx - 1
-                    jy = iy + n_gy - 1
-                    jz = iz + n_gz - 1
-                    #
-                    X[ix:jx] = (n_gx * sx):(n_gx * (sx + 1) - 1)
-                    Y[iy:jy] = (n_gy * sy):(n_gy * (sy + 1) - 1)
-                    Z[iz:jz] = (n_gz * sz):(n_gz * (sz + 1) - 1)
-                    #
-                    W[ix:jx, iy:jy, iz:jz, :] += f * reshape(ΨAₖ, n_gx, n_gy, n_gz, n_wann)
+        ΨAₖ = reshape(reshape(Ψₖ, :, n_bands) * A[:, :, ik], n_gx, n_gy, n_gz, n_wann)
+        for ix in axes(X, 1)
+            for iy in axes(Y, 1)
+                for iz in axes(Z, 1)
+                    # r grid in fractional coordinates
+                    r = [X[ix], Y[iy], Z[iz]]
+                    # UNK file (and ΨAₖ) is the periodic part of Bloch wavefunction,
+                    # need a factor exp(ikr)
+                    f = exp(2π * im * k' * (r - R))
+                    # ΨAₖ is only defined in the home unit cell, find corresponding indexes
+                    # e.g. 1 -> 1, n_gx -> n_gx, n_gx + 1 -> 1
+                    iix = (ix - 1) % n_gx + 1
+                    iiy = (iy - 1) % n_gy + 1
+                    iiz = (iz - 1) % n_gz + 1
+                    W[ix, iy, iz, :] += f * ΨAₖ[iix, iiy, iiz, :]
                 end
             end
         end
-        X ./= n_gx
-        Y ./= n_gy
-        Z ./= n_gz
         return nothing
     end
 
@@ -120,6 +104,7 @@ function read_realspace_wf(
 
     W ./= n_kpts
 
+    # X, Y, Z are in fractional coordinates
     return X, Y, Z, W
 end
 
@@ -139,7 +124,7 @@ seedname: the name prefix for cube files, e.g., `seedname_00001.cube`
 A: gauge rotation matrix
 part: which part to plot? pass a Function, e.g. real, imag, abs2
 """
-function write_realspace_wf_cube(
+function write_realspace_wf(
     seedname::String,
     A::AbstractArray,
     kpoints::AbstractMatrix,
@@ -149,7 +134,10 @@ function write_realspace_wf_cube(
     n_supercells::Int=2,
     unkdir::String=".",
     part::Function=real,
+    format::Symbol=:xsf,
 )
+    format ∈ [:xsf, :cube] || error("format must be :xsf or :cube")
+
     X, Y, Z, W = read_realspace_wf(A, kpoints, n_supercells, unkdir)
     n_wann = size(W, 4)
 
@@ -160,26 +148,34 @@ function write_realspace_wf_cube(
     end
 
     # seems W90 always write the real part, so I use real as default
-    W2 = part(W)
+    W2 = part.(W)
 
     atom_numbers = get_atom_number(atom_labels)
 
+    if format == :xsf
+        ext = "xsf"
+        func = write_xsf
+    elseif format == :cube
+        ext = "cube"
+        func = write_cube
+    end
     for i in 1:n_wann
-        filename = seedname * "_" * @sprintf("%05d", i) * ".cube"
-        write_cube(filename, atom_positions, atom_numbers, lattice, X, Y, Z, W2[:, :, :, i])
+        filename = @sprintf("%s_%05d.%s", seedname, i, ext)
+        func(filename, atom_positions, atom_numbers, lattice, X, Y, Z, W2[:, :, :, i])
     end
 
     return nothing
 end
 
-function write_realspace_wf_cube(
+function write_realspace_wf(
     seedname::String,
     model::Model;
     n_supercells::Int=2,
     unkdir::String=".",
     part::Function=real,
+    format::Symbol=:xsf,
 )
-    return write_realspace_wf_cube(
+    return write_realspace_wf(
         seedname,
         model.A,
         model.kpoints,
@@ -189,5 +185,6 @@ function write_realspace_wf_cube(
         n_supercells,
         unkdir,
         part,
+        format,
     )
 end
