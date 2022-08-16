@@ -188,3 +188,39 @@ function write_realspace_wf(
         format,
     )
 end
+
+@doc """
+Compute WF center in realspace.
+
+X, Y, Z should in cartesian coordinates.
+"""
+function center(
+    X::AbstractVector{T},
+    Y::AbstractVector{T},
+    Z::AbstractVector{T},
+    W::AbstractArray{Complex{T},3},
+) where {T<:Real}
+    nx, ny, nz = size(W)
+    x = sum(conj(W) .* reshape(X, :, 1, 1) .* W) / nx / ny / nz
+    y = sum(conj(W) .* reshape(Y, 1, :, 1) .* W) / nx / ny / nz
+    z = sum(conj(W) .* reshape(Z, 1, 1, :) .* W) / nx / ny / nz
+    r = [x, y, z]
+    if any(imag(r) .> 1e-10)
+        error("WF center is not real $r")
+    end
+    return real(r)
+end
+
+function center(
+    X::AbstractVector{T},
+    Y::AbstractVector{T},
+    Z::AbstractVector{T},
+    W::AbstractArray{Complex{T},4},
+) where {T<:Real}
+    n_wann = size(W, 4)
+    r = Matrix{T}(undef, 3, n_wann)
+    for i in 1:n_wann
+        r[:, i] = center(X, Y, Z, W[:, :, :, i])
+    end
+    return r
+end
