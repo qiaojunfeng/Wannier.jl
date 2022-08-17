@@ -35,7 +35,7 @@ function read_realspace_wf(
         n_s = n_supercells[i]
         d, r = divrem(n_s, 2)
         if r == 0
-            push!(supercells, (-d + 1):d)
+            push!(supercells, (-d):(d - 1))
         else
             push!(supercells, (-d):d)
         end
@@ -83,10 +83,10 @@ function read_realspace_wf(
                     f = exp(2π * im * k' * (r - R))
                     # ΨAₖ is only defined in the home unit cell, find corresponding indexes
                     # e.g. 1 -> 1, n_gx -> n_gx, n_gx + 1 -> 1
-                    iix = (ix - 1) % n_gx + 1
-                    iiy = (iy - 1) % n_gy + 1
-                    iiz = (iz - 1) % n_gz + 1
-                    W[ix, iy, iz, :] += f * ΨAₖ[iix, iiy, iiz, :]
+                    jx = (ix - 1) % n_gx + 1
+                    jy = (iy - 1) % n_gy + 1
+                    jz = (iz - 1) % n_gz + 1
+                    W[ix, iy, iz, :] += f * ΨAₖ[jx, jy, jz, :]
                 end
             end
         end
@@ -142,7 +142,8 @@ function write_realspace_wf(
     n_wann = size(W, 4)
 
     for i in 1:n_wann
-        fix_global_phase!(W[:, :, :, i])
+        f = fix_global_phase(W[:, :, :, i])
+        W[:, :, :, i] .*= f
         r = compute_imre_ratio(W[:, :, :, i])
         @printf("Im/Re ratio of WF %4d = %10.4f\n", i, r)
     end

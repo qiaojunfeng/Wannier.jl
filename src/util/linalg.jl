@@ -33,15 +33,16 @@ function orthonorm_cholesky(A)
 end
 
 """
-Fix global phase of wavefunction
-usually size(W) = n_gx * n_gy * n_gz
+Return a factor to fix the global phase of wavefunction,
+such that the point having max norm is real.
+
+W: usually size(W) = n_gx * n_gy * n_gz
 """
-function fix_global_phase!(W::AbstractArray)
+function fix_global_phase(W::AbstractArray)
     m, idx = findmax(abs, W)
     @assert m > 1e-2
     f = conj(W[idx]) / m
-    W .*= f
-    return nothing
+    return f
 end
 
 """Im/Re ratio"""
