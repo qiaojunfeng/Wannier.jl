@@ -81,11 +81,11 @@ function write_xsf(
     @printf(io, "%12.7f %12.7f %12.7f\n", ax2...)
     @printf(io, "%12.7f %12.7f %12.7f\n", ax3...)
 
-    # row major
+    # column-major
     ncol = 0
-    for i in 1:ngx
+    for k in 1:ngz
         for j in 1:ngy
-            for k in 1:ngz
+            for i in 1:ngx
                 @printf(io, " %13.5e", W[i, j, k])
                 ncol += 1
                 if ncol == 6
