@@ -70,5 +70,5 @@ Interpolate band structure along kpath.
 """
 function interpolate(model::InterpolationModel)
     kpi = interpolate_w90(model.kpath, 100)
-    return interpolate(model, kpi)
+    return kpi, interpolate(model, kpi)
 end
