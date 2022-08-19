@@ -56,10 +56,11 @@ end
 Interpolate band structure along kpath.
 """
 function interpolate(model::InterpolationModel, kpi::KPathInterpolant)
+    kpiᶠ = latticize(kpi)
     # to Matrix
     kpoints = zeros(Float64, 3, length(kpi))
     for i in axes(kpoints, 2)
-        kpoints[:, i] = kpi[i]
+        kpoints[:, i] = kpiᶠ[i]
     end
 
     return interpolate(model, kpoints)

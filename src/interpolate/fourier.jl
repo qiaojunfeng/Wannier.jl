@@ -44,7 +44,7 @@ X_{mn}(\bf{k}) =
 ```
 
 O_R: real space operator, i.e. in the frequency domain
-kpoints: kpoints to be interpolated, 3 * n_kpts, can be nonuniform
+kpoints: kpoints to be interpolated, 3 * n_kpts, can be nonuniform, fractional coordinates.
 """
 function invfourier(
     kRvectors::KRVectors{T,RV}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
