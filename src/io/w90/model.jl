@@ -99,7 +99,8 @@ Return an `InterpolationModel` for Wanier interpolation.
 
 chk: read chk file to get the unitary matrices, else read AMN file for unitary matrices.
 amn: if not reading chk, and `amn` is given, read this amn file for unitary matrices.
-mdrs: use MDRS interpolation, else Wigner-Seitz interpolation. If nothing, detect from win file.
+mdrs: use MDRS interpolation, else Wigner-Seitz interpolation. If `nothing`, detect from win file;
+and if no `use_ws_distance` in win file, default to true.
 """
 function read_w90_post(
     seedname::String;
@@ -110,10 +111,10 @@ function read_w90_post(
     # read for kpoint_path, use_ws_distance
     win = read_win("$seedname.win")
     if isnothing(mdrs)
-        if !ismissing(win.use_ws_distance) && win.use_ws_distance
-            mdrs = true
+        if !ismissing(win.use_ws_distance)
+            mdrs = win.use_ws_distance
         else
-            mdrs = false
+            mdrs = true
         end
     end
 
