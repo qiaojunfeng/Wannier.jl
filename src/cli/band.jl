@@ -18,6 +18,17 @@ Interpolate band structure.
         model = read_w90_post(seedname; chk=false, amn=amn)
     end
 
+    type_Rvectors = typeof(model.kRvectors.Rvectors)
+    if type_Rvectors <: RVectorsMDRS
+        interp_type = "MDRS"
+    elseif type_Rvectors <: RVectors
+        interp_type = "WS"
+    else
+        interp_type = "???"
+    end
+    @info "Using $interp_type interpolation"
+    println()
+
     kpi, E = interpolate(model)
 
     write_w90_band(out, kpi, E)
