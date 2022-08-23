@@ -1,4 +1,59 @@
 using Printf: @sprintf
+using LazyGrids: ndgrid
+
+struct RGrid{T<:Real,XT<:AbstractArray3,YT<:AbstractArray3,ZT<:AbstractArray3}
+    # spanning vectors, 3 * 3, each column is a spanning vector
+    basis::Mat3{T}
+
+    # usually these are LazyGrids
+    # x fractional coordinate, nx * ny * nz
+    X::XT
+    # y fractional coordinate, nx * ny * nz
+    Y::YT
+    # z fractional coordinate, nx * ny * nz
+    Z::ZT
+end
+
+function RGrid(basis::AbstractMatrix, X, Y, Z)
+    size(X) == size(Y) == size(Z) || error("X, Y, Z must have the same size")
+    return RGrid(Mat3(basis), X, Y, Z)
+end
+
+@doc """
+Get origin of the RGrid.
+"""
+function origin(rgrid::RGrid)
+    O = [rgrid.X[1, 1, 1], rgrid.Y[1, 1, 1], rgrid.Z[1, 1, 1]]
+    origin = rgrid.lattice * O
+    return origin
+end
+
+@doc """
+Get the span vectors of the RGrid.
+
+Assumptions:
+1. the grid is uniformly spaced
+2. the last point along each direction is NOT the periodic point of the 1st point
+"""
+function span_vectors(rgrid::RGrid)
+    O = [rgrid.X[1, 1, 1], rgrid.Y[1, 1, 1], rgrid.Z[1, 1, 1]]
+    v1 = [rgrid.X[end, 1, 1], rgrid.Y[end, 1, 1], rgrid.Z[end, 1, 1]] - O
+    v2 = [rgrid.X[1, end, 1], rgrid.Y[1, end, 1], rgrid.Z[1, end, 1]] - O
+    v3 = [rgrid.X[1, 1, end], rgrid.Y[1, 1, end], rgrid.Z[1, 1, end]] - O
+    # the last point is NOT the periodic repetation of the 1st point,
+    # so the spanning vector includes another displacement
+    nx, ny, nz = size(rgrid.X)
+    v1 .*= (nx + 1) / nx
+    v2 .*= (ny + 1) / ny
+    v3 .*= (nz + 1) / nz
+    # to cartesian
+    v1 = rgrid.basis * v1
+    v2 = rgrid.basis * v2
+    v3 = rgrid.basis * v3
+    # each column is a vector
+    spanvec = hcat(v1, v2, v3)
+    return spanvec
+end
 
 @doc """
 Get the extension name of UNK files, e.g. `NC` from `UNK00001.NC`.
@@ -55,7 +110,7 @@ function read_realspace_wf(
     # WF in realspace
     W = zeros(eltype(A), n_gx * n_sx, n_gy * n_sy, n_gz * n_sz, n_wann)
 
-    # generate X, Y, Z fractional coordinates
+    # generate X, Y, Z fractional coordinates relative to lattice
     X = zeros(T, n_gx * n_sx)
     Y = zeros(T, n_gy * n_sy)
     Z = zeros(T, n_gz * n_sz)
@@ -65,6 +120,8 @@ function read_realspace_wf(
     X ./= n_gx
     Y ./= n_gy
     Z ./= n_gz
+    # fractional w.r.t. lattice (here unknown)
+    Xg, Yg, Zg = ndgrid(X, Y, Z)
 
     """Modify W"""
     function add_k!(ik, Ψₖ)
@@ -81,6 +138,8 @@ function read_realspace_wf(
                     # UNK file (and ΨAₖ) is the periodic part of Bloch wavefunction,
                     # need a factor exp(ikr)
                     f = exp(2π * im * k' * (r - R))
+                    # make sure Ψ is normalized to 1 in unit cell
+                    f /= (n_gx * n_gy * n_gz)^(1 / 2)
                     # ΨAₖ is only defined in the home unit cell, find corresponding indexes
                     # e.g. 1 -> 1, n_gx -> n_gx, n_gx + 1 -> 1
                     jx = (ix - 1) % n_gx + 1
@@ -104,17 +163,43 @@ function read_realspace_wf(
 
     W ./= n_kpts
 
-    # X, Y, Z are in fractional coordinates
-    return X, Y, Z, W
+    return Xg, Yg, Zg, W
 end
 
 function read_realspace_wf(
     A::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T},
     n_supercells::Int=2,
-    unkdir::String=".",
+    unkdir::String=".";
+    R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
-    return read_realspace_wf(A, kpoints, [n_supercells, n_supercells, n_supercells], unkdir)
+    return read_realspace_wf(
+        A, kpoints, [n_supercells, n_supercells, n_supercells], unkdir; R=R
+    )
+end
+
+function read_realspace_wf(
+    lattice::AbstractMatrix{T},
+    A::AbstractArray{Complex{T},3},
+    kpoints::AbstractMatrix{T},
+    n_supercells::Int=2,
+    unkdir::String=".";
+    R::AbstractVector{Int}=[0, 0, 0],
+) where {T<:Real}
+    X, Y, Z, W = read_realspace_wf(A, kpoints, n_supercells, unkdir; R=R)
+    rgrid = RGrid(lattice, X, Y, Z)
+    return rgrid, W
+end
+
+function read_realspace_wf(
+    model::Model{T},
+    n_supercells::Int=2,
+    unkdir::String=".";
+    R::AbstractVector{Int}=[0, 0, 0],
+) where {T<:Real}
+    return read_realspace_wf(
+        model.lattice, model.A, model.kpoints, n_supercells, unkdir; R=R
+    )
 end
 
 """
@@ -122,6 +207,7 @@ Write realspace Wannier functions to cube files.
 
 seedname: the name prefix for cube files, e.g., `seedname_00001.cube`
 A: gauge rotation matrix
+atom_positions: fractional coordinates w.r.t. lattice
 part: which part to plot? pass a Function, e.g. real, imag, abs2
 """
 function write_realspace_wf(
@@ -138,7 +224,7 @@ function write_realspace_wf(
 )
     format ∈ [:xsf, :cube] || error("format must be :xsf or :cube")
 
-    X, Y, Z, W = read_realspace_wf(A, kpoints, n_supercells, unkdir)
+    rgrid, W = read_realspace_wf(lattice, A, kpoints, n_supercells, unkdir)
     n_wann = size(W, 4)
 
     for i in 1:n_wann
@@ -152,17 +238,30 @@ function write_realspace_wf(
     W2 = part.(W)
 
     atom_numbers = get_atom_number(atom_labels)
+    origin = origin(rgrid)
+    spanvec = span_vectors(rgrid)
 
     if format == :xsf
-        ext = "xsf"
-        func = write_xsf
+        for i in 1:n_wann
+            filename = @sprintf("%s_%05d.%s", seedname, i, "xsf")
+            write_xsf(
+                filename,
+                lattice,
+                atom_positions,
+                atom_numbers,
+                origin,
+                spanvec,
+                W2[:, :, :, i],
+            )
+        end
     elseif format == :cube
-        ext = "cube"
-        func = write_cube
-    end
-    for i in 1:n_wann
-        filename = @sprintf("%s_%05d.%s", seedname, i, ext)
-        func(filename, atom_positions, atom_numbers, lattice, X, Y, Z, W2[:, :, :, i])
+        positions_cart = lattice * atom_positions
+        for i in 1:n_wann
+            filename = @sprintf("%s_%05d.%s", seedname, i, "cube")
+            write_cube(
+                filename, positions_cart, atom_numbers, origin, spanvec, W2[:, :, :, i]
+            )
+        end
     end
 
     return nothing
@@ -190,38 +289,66 @@ function write_realspace_wf(
     )
 end
 
-@doc """
-Compute WF center in realspace.
+@doc """Return X, Y, Z in cartesian coordinates"""
+function cartesianize_xyz(rgrid::RGrid)
+    XYZᶜ =
+        rgrid.basis * vcat(reshape(rgrid.X, :)', reshape(rgrid.Y, :)', reshape(rgrid.Z, :)')
+    Xᶜ = reshape(XYZᶜ[1, :], size(rgrid.X)...)
+    Yᶜ = reshape(XYZᶜ[2, :], size(rgrid.X)...)
+    Zᶜ = reshape(XYZᶜ[3, :], size(rgrid.X)...)
+    return Xᶜ, Yᶜ, Zᶜ
+end
 
-X, Y, Z should in cartesian coordinates.
+@doc """
+Compute WF moment (mean, variance, ...) in realspace.
+
+Note WFs are defined in a supercell that is n_kpts times unit cell,
+however, usuall we only calculate realspace WFs in a smaller supercell
+that is 2^3 or 3^3 times unit cell (as defined by the `n_supercells` of
+`read_realspace_wf`). Some times this is not sufficient if the WFs are
+truncated by the boundries of the smaller supercell, thus the center
+calculated by this function is inexact. In principle, we should calculate
+centers in the n_kpts supercell, however, this is memory-consuming.
+
+rgrid: realspace grid on which W is defined
+W: Wannier functions
+n: order of moment, e.g., 1 for WF center, 2 for variance, etc.
 """
-function center(
-    X::AbstractVector{T},
-    Y::AbstractVector{T},
-    Z::AbstractVector{T},
-    W::AbstractArray{Complex{T},3},
-) where {T<:Real}
-    nx, ny, nz = size(W)
-    x = sum(conj(W) .* reshape(X, :, 1, 1) .* W) / nx / ny / nz
-    y = sum(conj(W) .* reshape(Y, 1, :, 1) .* W) / nx / ny / nz
-    z = sum(conj(W) .* reshape(Z, 1, 1, :) .* W) / nx / ny / nz
+function moment(rgrid::RGrid, W::AbstractArray{T,3}, n::U) where {T<:Complex,U<:Integer}
+    Xᶜ, Yᶜ, Zᶜ = cartesianize_xyz(rgrid)
+    x = sum(conj(W) .* Xᶜ .^ n .* W)
+    y = sum(conj(W) .* Yᶜ .^ n .* W)
+    z = sum(conj(W) .* Zᶜ .^ n .* W)
     r = [x, y, z]
-    if any(imag(r) .> 1e-10)
-        error("WF center is not real $r")
-    end
     return real(r)
 end
 
-function center(
-    X::AbstractVector{T},
-    Y::AbstractVector{T},
-    Z::AbstractVector{T},
-    W::AbstractArray{Complex{T},4},
-) where {T<:Real}
+function moment(rgrid::RGrid, W::AbstractArray{T,4}, n::U) where {T<:Complex,U<:Integer}
     n_wann = size(W, 4)
-    r = Matrix{T}(undef, 3, n_wann)
+    r = Matrix{real(T)}(undef, 3, n_wann)
     for i in 1:n_wann
-        r[:, i] = center(X, Y, Z, W[:, :, :, i])
+        r[:, i] = moment(rgrid, W[:, :, :, i], n)
+    end
+    return r
+end
+
+center(rgrid::RGrid, W::AbstractArray) = moment(rgrid, W, 1)
+omega(rgrid::RGrid, W::AbstractArray) = moment(rgrid, W, 2) - center(rgrid, W) .^ 2
+
+@doc """Position operator matrices computed with realspace WFs"""
+function position(rgrid::RGrid, W::AbstractArray{T,4}) where {T<:Complex}
+    Xᶜ, Yᶜ, Zᶜ = cartesianize_xyz(rgrid)
+    n_wann = size(W, 4)
+    # last index is x,y,z
+    r = zeros(T, n_wann, n_wann, 3)
+    for i in 1:n_wann
+        for j in 1:n_wann
+            Wᵢ = W[:, :, :, i]
+            Wⱼ = W[:, :, :, j]
+            r[i, j, 1] = sum(conj(Wᵢ) .* Xᶜ .* Wⱼ)
+            r[i, j, 2] = sum(conj(Wᵢ) .* Yᶜ .* Wⱼ)
+            r[i, j, 3] = sum(conj(Wᵢ) .* Zᶜ .* Wⱼ)
+        end
     end
     return r
 end

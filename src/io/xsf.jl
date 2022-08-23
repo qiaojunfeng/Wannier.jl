@@ -15,9 +15,9 @@ function read_xsf(filename::AbstractString)
     primvec = nothing
     convvec = nothing
     atoms = nothing
-    positions = nothing
+    atom_positions = nothing
     origin = nothing
-    spanvec = nothing
+    span_vectors = nothing
     W = nothing
 
     while !eof(io)
@@ -47,12 +47,12 @@ function read_xsf(filename::AbstractString)
             n_atom = parse(Int, split(line)[1])
             atoms = Vector{String}(undef, n_atom)
             # each column is a position vector
-            positions = zeros(Float64, 3, n_atom)
+            atom_positions = zeros(Float64, 3, n_atom)
             for i in 1:n_atom
                 line = strip(readline(io))
                 # might be element label, or atomic number
                 atoms[i] = split(line)[1]
-                positions[:, i] = parse.(Float64, split(line)[2:4])
+                atom_positions[:, i] = parse.(Float64, split(line)[2:4])
             end
         elseif occursin("BEGIN_BLOCK_DATAGRID_3D", line)
             comment = strip(readline(io))
@@ -63,10 +63,10 @@ function read_xsf(filename::AbstractString)
             ngx, ngy, ngz = parse.(Int, split(strip(readline(io))))
             origin = parse.(Float64, split(strip(readline(io))))
             # spanning vectors
-            spanvec = zeros(Float64, 3, 3)
+            span_vectors = zeros(Float64, 3, 3)
             for i in 1:3
                 line = strip(readline(io))
-                spanvec[:, i] = parse.(Float64, split(line))
+                span_vectors[:, i] = parse.(Float64, split(line))
             end
             # column-major
             W = zeros(Float64, ngx, ngy, ngz)
@@ -82,13 +82,25 @@ function read_xsf(filename::AbstractString)
         end
     end
 
+    if !isnothing(W)
+        n_x, n_y, n_z = size(W)
+        X = (0:(n_x - 1)) ./ n_x
+        Y = (0:(n_y - 1)) ./ n_y
+        Z = (0:(n_z - 1)) ./ n_z
+        # fractional w.r.t. span_vectors
+        Xg, Yg, Zg = ndgrid(X, Y, Z)
+    end
+
     return (
         primvec=primvec,
         convvec=convvec,
         atoms=atoms,
-        positions=positions,
+        atom_positions=atom_positions,
         origin=origin,
-        spanvec=spanvec,
+        span_vectors=span_vectors,
+        X=Xg,
+        Y=Yg,
+        Z=Zg,
         W=W,
     )
 end
@@ -96,33 +108,26 @@ end
 """
 Write xsf file.
 
+lattice: 3 x 3, Å, each column is a lattice vector
 atom_positions: 3 x n_atoms, fractional coordinates
 atom_numbers: n_atoms, atomic numbers
-lattice: 3 x 3, Å, each column is a lattice vector
-n_voxels: 3, number of voxels along three lattice vectors
-X: fractional coordinates of W along a1
-Y: fractional coordinates of W along a2
-Z: fractional coordinates of W along a3
+origin: 3, Å, origin of the grid
+span_vectors: 3 x 3, Å, each column is a spanning vector
 W: nx x ny x nz, volumetric data
 """
 function write_xsf(
     filename::AbstractString,
+    lattice::AbstractMatrix{T},
     atom_positions::AbstractMatrix{T},
     atom_numbers::AbstractVector{Int},
-    lattice::AbstractMatrix{T},
-    X::AbstractVector{T},
-    Y::AbstractVector{T},
-    Z::AbstractVector{T},
+    origin::AbstractVector{T},
+    span_vectors::AbstractMatrix{T},
     W::AbstractArray{T,3},
 ) where {T<:Real}
     n_atoms = length(atom_numbers)
-    size(atom_positions, 2) != n_atoms && error("incompatible n_atoms")
-    size(lattice) != (3, 3) && error("incompatible lattice")
-
-    n_x, n_y, n_z = size(W)
-    length(X) != n_x && error("incompatible n_gx")
-    length(Y) != n_y && error("incompatible n_gy")
-    length(Z) != n_z && error("incompatible n_gz")
+    size(atom_positions, 2) == n_atoms || error("incompatible n_atoms")
+    size(lattice) == (3, 3) || error("incompatible lattice")
+    size(span_vectors) == (3, 3) || error("incompatible span_vectors")
 
     @info "Writing xsf file: " filename
     io = open(filename, "w")
@@ -151,23 +156,18 @@ function write_xsf(
     @printf(io, "3D_field\n")
     @printf(io, "BEGIN_DATAGRID_3D_UNKNOWN\n")
 
-    ngx, ngy, ngz = size(W)
-    @printf(io, "%d %d %d\n", ngx, ngy, ngz)
-    # origin
-    origin = lattice * [X[1], Y[1], Z[1]]
+    n_x, n_y, n_z = size(W)
+    @printf(io, "%d %d %d\n", n_x, n_y, n_z)
     @printf(io, "%12.7f %12.7f %12.7f\n", origin...)
-    ax1 = lattice * [X[end] - X[1], 0, 0]
-    ax2 = lattice * [0, Y[end] - Y[1], 0]
-    ax3 = lattice * [0, 0, Z[end] - Z[1]]
-    @printf(io, "%12.7f %12.7f %12.7f\n", ax1...)
-    @printf(io, "%12.7f %12.7f %12.7f\n", ax2...)
-    @printf(io, "%12.7f %12.7f %12.7f\n", ax3...)
+    @printf(io, "%12.7f %12.7f %12.7f\n", span_vectors[:, 1]...)
+    @printf(io, "%12.7f %12.7f %12.7f\n", span_vectors[:, 2]...)
+    @printf(io, "%12.7f %12.7f %12.7f\n", span_vectors[:, 3]...)
 
     # column-major
     ncol = 0
-    for k in 1:ngz
-        for j in 1:ngy
-            for i in 1:ngx
+    for k in 1:n_z
+        for j in 1:n_y
+            for i in 1:n_x
                 @printf(io, " %13.5e", W[i, j, k])
                 ncol += 1
                 if ncol == 6
