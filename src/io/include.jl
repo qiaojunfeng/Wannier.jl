@@ -38,5 +38,5 @@ export read_cube, write_cube
 include("xsf.jl")
 export read_xsf, write_xsf
 
-include("wavefunction.jl")
+include("realspace.jl")
 export read_realspace_wf, write_realspace_wf
