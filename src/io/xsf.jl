@@ -18,6 +18,7 @@ function read_xsf(filename::AbstractString)
     atom_positions = nothing
     origin = nothing
     span_vectors = nothing
+    rgrid = nothing
     W = nothing
 
     while !eof(io)
@@ -84,11 +85,13 @@ function read_xsf(filename::AbstractString)
 
     if !isnothing(W)
         n_x, n_y, n_z = size(W)
-        X = (0:(n_x - 1)) ./ n_x
-        Y = (0:(n_y - 1)) ./ n_y
-        Z = (0:(n_z - 1)) ./ n_z
         # fractional w.r.t. span_vectors
+        O = inv(span_vectors) * origin
+        X = range(0, 1, n_x) .- O[1]
+        Y = range(0, 1, n_y) .- O[2]
+        Z = range(0, 1, n_z) .- O[3]
         Xg, Yg, Zg = ndgrid(X, Y, Z)
+        rgrid = RGrid(span_vectors, Xg, Yg, Zg)
     end
 
     return (
@@ -96,11 +99,7 @@ function read_xsf(filename::AbstractString)
         convvec=convvec,
         atoms=atoms,
         atom_positions=atom_positions,
-        origin=origin,
-        span_vectors=span_vectors,
-        X=Xg,
-        Y=Yg,
-        Z=Zg,
+        rgrid=rgrid,
         W=W,
     )
 end
@@ -183,4 +182,17 @@ function write_xsf(
 
     close(io)
     return nothing
+end
+
+function write_xsf(
+    filename::AbstractString,
+    lattice::AbstractMatrix{T},
+    atom_positions::AbstractMatrix{T},
+    atom_numbers::AbstractVector{Int},
+    rgrid::RGrid,
+    W::AbstractArray{T,3},
+) where {T<:Real}
+    O = origin(rgrid)
+    spanvec = span_vectors(rgrid)
+    return write_xsf(filename, lattice, atom_positions, atom_numbers, O, spanvec, W)
 end

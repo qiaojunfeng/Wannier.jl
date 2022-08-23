@@ -8,7 +8,7 @@ using LazyGrids: ndgrid
 """
 Read cube file.
 
-All outputs in cartesian coordinates, bohr unit.
+All outputs in cartesian coordinates, Å unit.
 """
 function read_cube(filename::AbstractString)
     @info "Reading cube file: " filename
@@ -22,6 +22,8 @@ function read_cube(filename::AbstractString)
     line = split(strip(readline(io)))
     n_atoms = parse(Int, line[1])
     origin = parse.(Float64, line[2:4])
+    # to Å unit
+    origin .*= Bohr
 
     # number of voxels per spanning vector
     n_voxels = zeros(Int, 3)
@@ -33,6 +35,8 @@ function read_cube(filename::AbstractString)
         # bohr unit
         span_vectors[:, i] = parse.(Float64, line[2:4])
     end
+    # to Å unit
+    span_vectors .*= Bohr
 
     atom_positions = zeros(Float64, 3, n_atoms)
     atom_numbers = zeros(Int, n_atoms)
@@ -43,13 +47,22 @@ function read_cube(filename::AbstractString)
         # cartesian coordinates, Bohr unit
         atom_positions[:, i] = parse.(Float64, line[3:5])
     end
+    # to Å unit
+    atom_positions .*= Bohr
 
     n_x, n_y, n_z = n_voxels
-    X = 0:(n_x - 1)
-    Y = 0:(n_y - 1)
-    Z = 0:(n_z - 1)
     # fractional w.r.t. span_vectors
+    X = range(0, 1, n_x)
+    Y = range(0, 1, n_y)
+    Z = range(0, 1, n_z)
     Xg, Yg, Zg = ndgrid(X, Y, Z)
+    # fractional w.r.t. span_vectors
+    O = inv(span_vectors) * origin
+    X = range(0, 1, n_x) .- O[1]
+    Y = range(0, 1, n_y) .- O[2]
+    Z = range(0, 1, n_z) .- O[3]
+    Xg, Yg, Zg = ndgrid(X, Y, Z)
+    rgrid = RGrid(span_vectors, Xg, Yg, Zg)
 
     W = zeros(Float64, n_x, n_y, n_z)
     # 6 columns per line
@@ -77,16 +90,7 @@ function read_cube(filename::AbstractString)
     end
 
     close(io)
-    return (
-        atom_positions=atom_positions,
-        atom_numbers=atom_numbers,
-        origin=origin,
-        span_vectors=span_vectors,
-        X=Xg,
-        Y=Yg,
-        Z=Zg,
-        W=W,
-    )
+    return (atom_positions=atom_positions, atom_numbers=atom_numbers, rgrid=rgrid, W=W)
 end
 
 """
@@ -152,4 +156,16 @@ function write_cube(
 
     close(io)
     return nothing
+end
+
+function write_cube(
+    filename::AbstractString,
+    atom_positions::AbstractMatrix{T},
+    atom_numbers::AbstractVector{Int},
+    rgrid::RGrid,
+    W::AbstractArray{T,3},
+) where {T<:Real}
+    O = origin(rgrid)
+    spanvec = span_vectors(rgrid)
+    return write_cube(filename, atom_positions, atom_numbers, O, spanvec, W)
 end

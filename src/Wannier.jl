@@ -2,8 +2,7 @@ module Wannier
 
 using Requires
 
-include("common/const.jl")
-include("common/type.jl")
+include("common/include.jl")
 include("util/include.jl")
 
 include("bvector.jl")
@@ -18,6 +17,7 @@ export omega, omega_grad, center
 include("io/include.jl")
 include("wannierize/include.jl")
 include("interpolate/include.jl")
+include("realspace/include.jl")
 
 include("cli/main.jl")
 
