@@ -163,6 +163,8 @@ seedname: the name prefix for cube files, e.g., `seedname_00001.cube`
 A: gauge rotation matrix
 atom_positions: fractional coordinates w.r.t. lattice
 part: which part to plot? pass a Function, e.g. real, imag, abs2
+wf_center: useful for cube format, add additional atoms around WF centers
+    fractional w.r.t. lattice
 """
 function write_realspace_wf(
     seedname::String,
@@ -175,11 +177,16 @@ function write_realspace_wf(
     unkdir::String=".",
     part::Function=real,
     format::Symbol=:xsf,
+    wf_center::Union{Nothing,AbstractMatrix}=nothing,
 )
     format ∈ [:xsf, :cube] || error("format must be :xsf or :cube")
 
     rgrid, W = read_realspace_wf(lattice, A, kpoints, n_supercells, unkdir)
     n_wann = size(W, 4)
+    if format == :cube && wf_center === nothing
+        # if not given, compute in realspace, lower accuracy. in fractional coordinates
+        wf_center = inv(lattice) * center(rgrid, W)
+    end
 
     # In principle, since we normalize Bloch wavefunction inside one unit cell,
     # thus the WF is normalized inside the n_kpts times unit cell.
@@ -209,10 +216,17 @@ function write_realspace_wf(
             )
         end
     elseif format == :cube
-        positions_cart = lattice * atom_positions
         for i in 1:n_wann
             filename = @sprintf("%s_%05d.%s", seedname, i, "cube")
-            write_cube(filename, positions_cart, atom_numbers, rgrid, W2[:, :, :, i])
+            write_cube(
+                filename,
+                lattice,
+                atom_positions,
+                atom_numbers,
+                wf_center[:, i],
+                rgrid,
+                W2[:, :, :, i],
+            )
         end
     end
 
@@ -227,6 +241,11 @@ function write_realspace_wf(
     part::Function=real,
     format::Symbol=:xsf,
 )
+    wf_center = nothing
+    if format == :cube
+        # compute in recip space, more accurate than realspace
+        wf_center = inv(model.lattice) * center(model)
+    end
     return write_realspace_wf(
         seedname,
         model.A,
@@ -238,5 +257,6 @@ function write_realspace_wf(
         unkdir,
         part,
         format,
+        wf_center,
     )
 end

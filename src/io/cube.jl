@@ -96,7 +96,7 @@ end
 """
 Write cube file.
 
-atom_positions: 3 x n_atoms, Å, fractional coordinates
+atom_positions: 3 x n_atoms, Å, cartesian coordinates
 atom_numbers: n_atoms, atomic numbers
 origin: 3, Å, origin of the grid
 span_vectors: 3 x 3, Å, each column is a spanning vector
@@ -130,7 +130,7 @@ function write_cube(
     for i in 1:3
         # number of voxels
         n_v = n_xyz[i]
-        ax = span_vectors[:, i] ./ Bohr
+        ax = span_vectors[:, i] ./ (n_v * Bohr)
         @printf(io, "%d %12.6f %12.6f %12.6f\n", n_v, ax...)
     end
 
@@ -158,14 +158,53 @@ function write_cube(
     return nothing
 end
 
+@doc """
+Write cube file for WF.
+
+lattice: each column is a lattice vector, Å
+atom_positions: 3 x n_atoms, fractional coordinates
+wf_centers: 3, fractional coordinates w.r.t. lattice
+radius: Å
+"""
 function write_cube(
     filename::AbstractString,
+    lattice::AbstractMatrix{T},
     atom_positions::AbstractMatrix{T},
     atom_numbers::AbstractVector{Int},
+    wf_centers::AbstractVector{T},
     rgrid::RGrid,
-    W::AbstractArray{T,3},
+    W::AbstractArray{T,3};
+    radius::T=4.0,
 ) where {T<:Real}
     O = origin(rgrid)
     spanvec = span_vectors(rgrid)
-    return write_cube(filename, atom_positions, atom_numbers, O, spanvec, W)
+    # move atom closer to WF center
+    n_atoms = size(atom_positions, 2)
+    atom_c = sum(atom_positions; dims=2) / n_atoms
+    # translations for atoms, and to cartesian
+    t = round.(wf_centers .- atom_c)
+    positions = lattice * (atom_positions .+ t)
+    # if atoms from neighbouring cells are close to wfc, include them
+    wfc = lattice * wf_centers  # cartesian
+    all_pos = [Vector(c) for c in eachcol(positions)]
+    all_atoms = [c for c in atom_numbers]
+    for i in -3:3
+        for j in -3:3
+            for k in -3:3
+                pos = positions .+ lattice * [i, j, k]
+                for n in 1:n_atoms
+                    if norm(pos[:, n] .- wfc) <= radius
+                        push!(all_atoms, atom_numbers[n])
+                        push!(all_pos, pos[:, n])
+                    end
+                end
+            end
+        end
+    end
+    all_pos = reduce(hcat, all_pos)
+    # fake atom for WF center
+    # all_atoms = push!(all_atoms, 100)
+    # all_pos = hcat(all_pos, wfc)
+
+    return write_cube(filename, all_pos, all_atoms, O, spanvec, W)
 end
