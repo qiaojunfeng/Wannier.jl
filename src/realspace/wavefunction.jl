@@ -59,10 +59,18 @@ function read_realspace_wf(
     W = zeros(eltype(A), n_gx * n_sx, n_gy * n_sy, n_gz * n_sz, n_wann)
 
     # generate X, Y, Z fractional coordinates relative to lattice (here unknown)
-    X = range(supercells[1][1], supercells[1][end] + 1 - 1 / n_gx, n_gx * n_sx)
-    Y = range(supercells[2][1], supercells[2][end] + 1 - 1 / n_gy, n_gy * n_sy)
-    Z = range(supercells[3][1], supercells[3][end] + 1 - 1 / n_gz, n_gz * n_sz)
-    Xg, Yg, Zg = ndgrid(X, Y, Z)
+    # actually X./n_gx, Y./n_gy, Z./n_gz are the fractional coordinates w.r.t lattice
+    X = (supercells[1][1] * n_gx):((supercells[1][end] + 1) * n_gx - 1)
+    Y = (supercells[2][1] * n_gy):((supercells[2][end] + 1) * n_gy - 1)
+    Z = (supercells[3][1] * n_gz):((supercells[3][end] + 1) * n_gz - 1)
+    # we start from origin, however W90 starts from the left of origin
+    # uncomment these lines to exactly reproduce W90 output
+    # seems subtracting 1 leads to much worse performance
+    #  11.015472 seconds (136.09 M allocations: 5.570 GiB, 10.77% gc time)
+    #   3.513259 seconds (25.60 M allocations: 2.728 GiB, 24.68% gc time)
+    # X = X .- 1
+    # Y = Y .- 1
+    # Z = Z .- 1
 
     """Modify W"""
     function add_k!(ik, Ψₖ)
@@ -71,21 +79,25 @@ function read_realspace_wf(
         # * does not support high dimensional matrix multiplication,
         # I need to reshape it to 2D matrix
         ΨAₖ = reshape(reshape(Ψₖ, :, n_bands) * A[:, :, ik], n_gx, n_gy, n_gz, n_wann)
-        for ix in axes(X, 1)
-            for iy in axes(Y, 1)
-                for iz in axes(Z, 1)
+        # make sure Ψ is normalized to 1 in unit cell
+        # the QE output UNK needs this factor to be normalized
+        # Note in QE, the r->G FFT has a factor 1/N,
+        # while the G->r IFFT has factor 1,
+        # but FFT/IFFT is unitary only if they have factor sqrt(1/N)
+        f0 = 1 / sqrt(n_gx * n_gy * n_gz)
+        for (iz, z) in enumerate(Z)
+            # ΨAₖ is only defined in the home unit cell, find corresponding indexes
+            # e.g. x=0 -> W[1,1,1], x=1 -> W[2,1,1], x=n_gx -> W[1,1,1], x=-1 -> W[end,1,1]
+            jz = mod(z, n_gz) + 1
+            for (iy, y) in enumerate(Y)
+                jy = mod(y, n_gy) + 1
+                for (ix, x) in enumerate(X)
+                    jx = mod(x, n_gx) + 1
                     # r grid in fractional coordinates
-                    r = [X[ix], Y[iy], Z[iz]]
+                    r = [x / n_gx, y / n_gy, z / n_gz]
                     # UNK file (and ΨAₖ) is the periodic part of Bloch wavefunction,
                     # need a factor exp(ikr)
-                    f = exp(2π * im * k' * (r - R))
-                    # make sure Ψ is normalized to 1 in unit cell
-                    f /= (n_gx * n_gy * n_gz)^(1 / 2)
-                    # ΨAₖ is only defined in the home unit cell, find corresponding indexes
-                    # e.g. 1 -> 1, n_gx -> n_gx, n_gx + 1 -> 1
-                    jx = (ix - 1) % n_gx + 1
-                    jy = (iy - 1) % n_gy + 1
-                    jz = (iz - 1) % n_gz + 1
+                    f = f0 * exp(2π * im * k' * (r - R))
                     W[ix, iy, iz, :] += f * ΨAₖ[jx, jy, jz, :]
                 end
             end
@@ -103,7 +115,8 @@ function read_realspace_wf(
     end
 
     W ./= n_kpts
-
+    # to fractional coordinates
+    Xg, Yg, Zg = ndgrid(X ./ n_gx, Y ./ n_gy, Z ./ n_gz)
     return Xg, Yg, Zg, W
 end
 
@@ -171,15 +184,16 @@ function write_realspace_wf(
     # In principle, since we normalize Bloch wavefunction inside one unit cell,
     # thus the WF is normalized inside the n_kpts times unit cell.
     # However, W90 does not check the normalization of UNK files, it just plainly
-    # mulitply the unitary matrices, so we multiply a factor to reproduce the
+    # mulitply the unitary matrices. But in read_readspace_wf, we normalized
+    # the unk files, so here we need to multiply a factor to reproduce the
     # W90 output XSF or cube files.
-    W .*= (length(W) / n_wann / n_supercells^3)^(1 / 2)
+    W .*= sqrt(length(W) / n_wann / n_supercells^3)
 
     for i in 1:n_wann
         f = fix_global_phase(W[:, :, :, i])
         W[:, :, :, i] .*= f
         r = compute_imre_ratio(W[:, :, :, i])
-        @printf("Im/Re ratio of WF %4d = %10.4f\n", i, r)
+        @printf("Max Im/Re ratio of WF %4d = %10.4f\n", i, r)
     end
 
     # seems W90 always write the real part, so I use real as default

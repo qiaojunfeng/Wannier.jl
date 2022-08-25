@@ -39,18 +39,22 @@ such that the point having max norm is real.
 W: usually size(W) = n_gx * n_gy * n_gz
 """
 function fix_global_phase(W::AbstractArray)
-    m, idx = findmax(abs, W)
-    @assert m > 1e-2
-    f = conj(W[idx]) / m
+    f = 1.0 + 0.0im
+    # I use abs2 and findmax (returns the 1st maximum)
+    # to exactly reproduce W90 behavior
+    m, idx = findmax(abs2, W)
+    if m > 0
+        f = conj(W[idx]) / sqrt(m)
+    end
     return f
 end
 
 """Im/Re ratio"""
 function compute_imre_ratio(W::AbstractArray)
     # only calculate real >= 0.01 elements, same as W90
-    V = W[real(W) .>= 0.01]
+    V = W[abs.(real(W)) .>= 0.01]
     if isempty(V)
-        return 0
+        return 0.0
     end
     r = maximum(abs.(imag(V) ./ real(V)))
     return r
