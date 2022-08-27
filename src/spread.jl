@@ -1,5 +1,7 @@
 using LinearAlgebra
 
+export omega, omega_grad, center
+
 abstract type AbstractSpread end
 
 @doc raw"""

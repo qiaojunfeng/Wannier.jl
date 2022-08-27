@@ -2,6 +2,8 @@ using Printf: @printf
 using LinearAlgebra
 import NearestNeighbors as NN
 
+export get_bvectors
+
 """
     BVectorShells
 

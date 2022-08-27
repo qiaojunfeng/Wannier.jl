@@ -1,5 +1,7 @@
 using Printf: @printf
 
+export rotate_gauge
+
 struct Model{T<:Real}
     # unit cell, 3 * 3, Å unit, each column is a lattice vector
     lattice::Mat3{T}
