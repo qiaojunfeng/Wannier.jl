@@ -1,13 +1,24 @@
+export truncate_w90
 
 """
-Generate valence only MMN, EIG files from a val+cond NSCF calculation.
+    truncate_mmn_eig(seedname, keep_bands::Vector{Int}, outdir="truncate")
 
-Args:
-    seedname: _description_
-    outdir: the folder for writing MMN, EIG files.
+Truncate number of bands of `mmn` and `eig` files.
+
+# Arguments
+- `keep_bands`: a vector of band indices to keep, starting from 1.
+- `outdir`: the folder for writing `mmn` and `eig` files.
+
+!!! tip
+
+    This is useful for generating valence only `mmn`, `eig` files from a
+    valence+conduction NSCF calculation, so that no need to recompute NSCF with
+    lower number of bands again.
 """
 function truncate_mmn_eig(
-    seedname::String, keep_bands::AbstractVector{Int}, outdir::String="truncate"
+    seedname::AbstractString,
+    keep_bands::AbstractVector{Int},
+    outdir::AbstractString="truncate",
 )
     !isdir(outdir) && mkdir(outdir)
 
@@ -27,15 +38,17 @@ function truncate_mmn_eig(
 end
 
 """
-Truncate UNK files for specified bands.
+    truncate_unk(dir, keep_bands::Vector{Int}, outdir="truncate")
 
-Args:
-dir: folder of UNK files.
-keep_bands: the band indexes to keep. Start from 1.
-outdir: Defaults to 'truncated'.
+Truncate `UNK` files for specified bands.
+
+# Arguments
+- `dir`: folder of `UNK` files.
+- `keep_bands`: the band indexes to keep. Start from 1.
+- `outdir`: folder to write output `UNK` files.
 """
 function truncate_unk(
-    dir::String, keep_bands::AbstractVector{Int}, outdir::String="truncate"
+    dir::AbstractString, keep_bands::AbstractVector{Int}, outdir::AbstractString="truncate"
 )
     !isdir(outdir) && mkdir(outdir)
 
@@ -62,13 +75,15 @@ function truncate_unk(
 end
 
 """
-Truncate AMN/MMN/EIG/UNK(optional) files.
+    truncate_w90(seedname, keep_bands::Vector{Int}, outdir="truncate", unk=false)
 
-Args:
-    seedname: seedname for input AMN/MMN/EIG files.
-    keep_bands: Band indexes to be kept, start from 1.
-    unk: Whether truncate UNK files. Defaults to false.
-    outdir: output folder
+Truncate `amn`, `mmn`, `eig`, and optionally `UNK` files.
+
+# Arguments
+- seedname: seedname for input `amn`/`mmn`/`eig` files.
+- keep_bands: Band indexes to be kept, start from 1.
+- unk: If true also truncate `UNK` files.
+- outdir: folder for output files.
 """
 function truncate_w90(
     seedname::AbstractString,

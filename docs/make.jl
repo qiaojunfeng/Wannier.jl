@@ -9,6 +9,6 @@ makedocs(;
         "Home" => "index.md",
         "Tutorial" => "tutorial.md",
         "Theory" => ["Normalization" => "theory/normalization.md"],
-        "API" => "api.md",
+        "API" => ["Input/Output" => "api/io.md", "Real space" => "api/realspace.md"],
     ],
 )

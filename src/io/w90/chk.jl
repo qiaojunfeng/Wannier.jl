@@ -1,6 +1,10 @@
 using Printf: @printf
 
-"""Struct for storing matrices in seedname.chk file."""
+export read_chk, write_chk, get_model, get_A
+
+"""
+Struct for storing matrices in `seedname.chk` file.
+"""
 struct Chk{T<:Real}
     header::String
 
@@ -140,10 +144,18 @@ function Chk(
     )
 end
 
-@doc raw"""
-Read formatted (not Fortran binary) CHK file.
 """
-function read_chk(filename::String)
+    read_chk(filename::AbstractString)
+
+Read formatted `chk` file.
+
+!!! note
+
+    The `Wannier90` output `chk` is in Fortran binary format, you need to
+    first run `w90chk2chk.x -export seedname` to convert to text format
+    to use this function.
+"""
+function read_chk(filename::AbstractString)
     if isbinary_file(filename)
         error("$filename is a binary file? Consider using `w90chk2chk.x`?")
     end
@@ -291,10 +303,19 @@ function read_chk(filename::String)
     )
 end
 
-@doc raw"""
-Write formatted (not Fortran binary) CHK file.
 """
-function write_chk(filename::String, chk::Chk)
+    write_chk(filename::AbstractString, chk::Chk)
+    write_chk(filename, model::Model; exclude_bands::Vector{Int}=nothing)
+
+Write formatted `chk` file.
+
+!!! note
+
+    The `Wannier90` input/output `chk` is in Fortran binary format, you need to
+    first run `w90chk2chk.x -import seedname` to convert the output text format
+    `seedname.chk.fmt` to binary format `seedname.chk` so that `Wannier90` can read it.
+"""
+function write_chk(filename::AbstractString, chk::Chk)
     @info "Writing chk file:" filename
     io = open(filename, "w")
 
@@ -413,9 +434,6 @@ function write_chk(filename::String, chk::Chk)
     return nothing
 end
 
-@doc raw"""
-Write formatted (not Fortran binary) CHK file.
-"""
 function write_chk(
     filename::String,
     model::Model;
@@ -458,7 +476,9 @@ function write_chk(
 end
 
 """
-Construct a model from CHK file
+    get_model(chk::Chk)
+
+Construct a model from `chk` file.
 """
 function get_model(chk::Chk)
     atom_positions = zeros(Float64, 3, 0)
@@ -499,7 +519,9 @@ function get_model(chk::Chk)
 end
 
 """
-Extract AMN matrices from chk.
+    get_A(chk::Chk)
+
+Extract `A` matrices from `Chk`.
 """
 function get_A(chk::Chk)
     n_kpts = chk.n_kpts

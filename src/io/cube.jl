@@ -5,10 +5,16 @@ using LazyGrids: ndgrid
 # Cube format
 # Specification from http://paulbourke.net/dataformats/cube/
 
-"""
-Read cube file.
+export read_cube, write_cube
 
-All outputs in cartesian coordinates, Å unit.
+"""
+    read_cube(filename::AbstractString)
+
+Read `cube` file.
+
+!!! note
+
+    By default, `cube` use Bohr unit, here all returns are in Cartesian coordinates, Å unit.
 """
 function read_cube(filename::AbstractString)
     @info "Reading cube file: " filename
@@ -94,13 +100,18 @@ function read_cube(filename::AbstractString)
 end
 
 """
-Write cube file.
+    write_cube(filename, filename, atom_positions, atom_numbers, origin, span_vectors, W)
 
-atom_positions: 3 x n_atoms, Å, cartesian coordinates
-atom_numbers: n_atoms, atomic numbers
-origin: 3, Å, origin of the grid
-span_vectors: 3 x 3, Å, each column is a spanning vector
-W: nx x ny x nz, volumetric data
+Write `cube` file.
+
+# Arguments
+- `atom_positions`: `3 * n_atoms`, Å, cartesian coordinates
+- `atom_numbers`: `n_atoms`, atomic numbers
+- `origin`: `3`, Å, origin of the grid
+- `span_vectors`: `3 * 3`, Å, each column is a spanning vector
+- `W`: `nx * ny * nz`, volumetric data
+
+See also [`write_cube(filename, lattice, atom_positions, atom_numbers, wf_center, rgrid, W; radius=4.0)`](@ref write_cube(filename, lattice, atom_positions, atom_numbers, wf_center, rgrid, W; radius=4.0))
 """
 function write_cube(
     filename::AbstractString,
@@ -158,13 +169,25 @@ function write_cube(
     return nothing
 end
 
-@doc """
-Write cube file for WF.
+"""
+    write_cube(filename, lattice, atom_positions, atom_numbers, wf_center, rgrid, W; radius=4.0)
 
-lattice: each column is a lattice vector, Å
-atom_positions: 3 x n_atoms, fractional coordinates
-wf_centers: 3, fractional coordinates w.r.t. lattice
-radius: Å
+Write `cube` file for WF.
+
+# Arguments
+- `lattice`: each column is a lattice vector, Å
+- `atom_positions`: `3 * n_atoms`, fractional coordinates
+- `atom_numbers`: `n_atoms`, atomic numbers
+- `wf_centers`: `3`, fractional coordinates w.r.t. lattice
+- `rgrid`: `RGrid`
+- `W`: `nx * ny * nz`, volumetric data
+
+# Keyword arguments
+- `radius`: Å. Periodic replica of atoms are written only for the region
+    within `radius` Å from `wf_center`.
+
+See also [`write_cube(filename, filename, atom_positions, atom_numbers, origin, span_vectors, W)`]
+(@ref write_cube(filename, filename, atom_positions, atom_numbers, origin, span_vectors, W))
 """
 function write_cube(
     filename::AbstractString,

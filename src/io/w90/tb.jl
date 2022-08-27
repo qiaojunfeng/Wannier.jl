@@ -1,8 +1,11 @@
+export read_w90_tb
 
 """
-read seedname_tb.dat
+    read_w90_tbdat(filename::AbstractString)
+
+Read `seedname_tb.dat`.
 """
-function read_w90_tbdat(filename::String)
+function read_w90_tbdat(filename::AbstractString)
     @info "Reading $filename"
 
     io = open(filename)
@@ -47,7 +50,7 @@ function read_w90_tbdat(filename::String)
     end
 
     # WF position operator
-    position = Array{ComplexF64}(undef, 3, n_wann, n_wann, n_rvecs)
+    position_op = Array{ComplexF64}(undef, 3, n_wann, n_wann, n_rvecs)
     for ir in 1:n_rvecs
         readline(io)  # empty line
         @assert R[:, ir] == parse.(Int, split(strip(readline(io))))
@@ -57,21 +60,23 @@ function read_w90_tbdat(filename::String)
                 @assert m == parse(Int, line[1])
                 @assert n == parse(Int, line[2])
                 f = parse.(Float64, line[3:8])
-                position[1, m, n, ir] = f[1] + im * f[2]
-                position[2, m, n, ir] = f[3] + im * f[4]
-                position[3, m, n, ir] = f[5] + im * f[6]
+                position_op[1, m, n, ir] = f[1] + im * f[2]
+                position_op[2, m, n, ir] = f[3] + im * f[4]
+                position_op[3, m, n, ir] = f[5] + im * f[6]
             end
         end
     end
     close(io)
 
-    return (lattice=lattice, R_vecs=R, R_degen=N, hamiltonian=H, position=position)
+    return (lattice=lattice, R_vecs=R, R_degen=N, hamiltonian=H, position_op=position_op)
 end
 
 """
-read seedname_wsvec.dat
+    read_w90_wsvec(filename::AbstractString)
+
+Read `seedname_wsvec.dat`.
 """
-function read_w90_wsvec(filename::String)
+function read_w90_wsvec(filename::AbstractString)
     @info "Reading $filename"
 
     io = open(filename)
@@ -150,10 +155,13 @@ function read_w90_wsvec(filename::String)
 end
 
 """
-read seedname_tb.dat and seedname_wsvec.dat
-return R vectors, Hamiltonian, position operator
+    read_w90_tb(seedname::AbstractString)
+
+Read `seedname_tb.dat` and `seedname_wsvec.dat`.
+
+Returns R vectors, Hamiltonian, and position operator.
 """
-function read_w90_tb(seedname::String)
+function read_w90_tb(seedname::AbstractString)
     Rvecs = read_w90_wsvec(seedname * "_wsvec.dat")
     tbdat = read_w90_tbdat(seedname * "_tb.dat")
     lattice = tbdat.lattice

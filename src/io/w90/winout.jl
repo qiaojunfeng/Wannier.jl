@@ -2,7 +2,18 @@ using Printf: @printf
 using Bravais: reciprocalbasis
 using Brillouin: KPath, LATTICE
 
-function read_win(filename::String)
+export read_win, read_wout
+
+"""
+    read_win(filename::AbstractString)
+
+Read the input file of `Wannier90`.
+
+!!! note
+
+    For now only a subset of parameters are parsed.
+"""
+function read_win(filename::AbstractString)
     @info "Reading win file: $filename"
     io = open(filename)
 
@@ -237,13 +248,15 @@ function read_win(filename::String)
 end
 
 """
-Parse wout file.
+    read_wout(filename::AbstractString)
 
-Return lattice in angstrom (each column is a lattice vector),
+Parse `wout` file.
+
+Return lattice in Å (each column is a lattice vector),
 atom positions in fractional coordinates (each column is a coordinate),
-WF centers in angstrom, and WF spreads in angstrom^2.
+WF centers in Å, and WF spreads in Å^2.
 """
-function read_wout(filename::String)
+function read_wout(filename::AbstractString)
     io = open(filename)
 
     start_cell = "Lattice Vectors ("

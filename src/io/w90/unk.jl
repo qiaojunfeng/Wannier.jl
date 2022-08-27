@@ -1,9 +1,13 @@
 using Printf: @printf, @sprintf
 
-@doc raw"""
-Read UNK file for Bloch wavefunctions.
+export read_unk, write_unk
+
 """
-function read_unk(filename::String)
+    read_unk(filename::AbstractString)
+
+Read `UNK` file for the periodic part of Bloch wavefunctions.
+"""
+function read_unk(filename::AbstractString)
     @info "Reading unk file:" filename
 
     io = open(filename)
@@ -38,11 +42,16 @@ function read_unk(filename::String)
     return ik, Ψ
 end
 
-@doc raw"""
-Write UNK file for Bloch wavefunctions.
-    ik: at which kpoint? start from 1
 """
-function write_unk(filename::String, ik::Int, Ψ::Array{T,4}) where {T<:Complex}
+    write_unk(filename::AbstractString, ik::Integer, Ψ::Array{T,4})
+
+Write `UNK` file for the periodic part of Bloch wavefunctions.
+
+# Arguments
+- ik: at which kpoint? start from 1
+- Ψ: Bloch wavefunctions, `size(Ψ) = (n_gx, n_gy, n_gz, n_bands)`
+"""
+function write_unk(filename::AbstractString, ik::Integer, Ψ::Array{T,4}) where {T<:Complex}
     @info "Writing unk file:" filename
 
     n_gx, n_gy, n_gz, n_bands = size(Ψ)

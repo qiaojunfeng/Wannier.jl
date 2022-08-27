@@ -1,6 +1,15 @@
 using Printf: @printf
 
-function read_eig(filename::String)
+export read_eig, write_eig
+
+"""
+    read_eig(filename::AbstractString)
+
+Read the `eig` file.
+
+Returns a `n_bands * n_kpts` array.
+"""
+function read_eig(filename::AbstractString)
     @info "Reading $filename"
 
     lines = open(filename) do io
@@ -41,9 +50,11 @@ function read_eig(filename::String)
 end
 
 """
-Write eig file
+    write_eig(filename::AbstractString, E::AbstractArray)
+
+Write `eig` file.
 """
-function write_eig(filename::String, E::Matrix{T}) where {T<:Real}
+function write_eig(filename::AbstractString, E::AbstractMatrix{T}) where {T<:Real}
     n_bands, n_kpts = size(E)
 
     open(filename, "w") do io

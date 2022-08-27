@@ -1,13 +1,20 @@
+export read_w90, read_w90_post, write_w90
 
-@doc raw"""
-read win, and optionally amn, mmn, eig
+"""
+    read_w90(seedname::AbstractString; amn=true, orthonorm_amn=true, mmn=true, eig=true)
 
-orthonorm_amn: Lowdin orthonormalization of AMN matrices.
-    Should be true for most cases, since usually the input AMN matrices are
+Read `win`, and optionally `amn`, `mmn`, `eig`.
+
+# Keyword arguments
+- amn: if `true`, read `amn` file
+- orthonorm_amn: Lowdin orthonormalization after reading `amn` matrices.
+    Should be `true` for most cases, since usually the input `amn` matrices are
     projections onto atomic orbitals, and are not unitary or semi-unitary.
+- mmn: if `true`, read `mmn` file
+- eig: if `true`, read `eig` file
 """
 function read_w90(
-    seedname::String;
+    seedname::AbstractString;
     amn::Bool=true,
     orthonorm_amn::Bool=true,
     mmn::Bool=true,
@@ -95,17 +102,23 @@ function read_w90(
 end
 
 """
-Return an `InterpolationModel` for Wanier interpolation.
+    read_w90_post(seedname::AbstractString; chk=true, amn=nothing, mdrs=nothing)
 
-chk: read chk file to get the unitary matrices, else read AMN file for unitary matrices.
-amn: if not reading chk, and `amn` is given, read this amn file for unitary matrices.
-mdrs: use MDRS interpolation, else Wigner-Seitz interpolation. If `nothing`, detect from win file;
-and if no `use_ws_distance` in win file, default to true.
+Return an `InterpolationModel` for Wannier interpolation.
+
+# Keyword arguments
+- chk: if `true`, read `chk` file to get the unitary matrices,
+    otherwise read `amn` file for unitary matrices.
+- amn: filename for `amn`, read this `amn` file for unitary matrices.
+    Only used if not reading `chk` and `amn` is given.
+- mdrs: use MDRS interpolation, else Wigner-Seitz interpolation.
+    If is `nothing`, detect from `win` file;
+    and if no `use_ws_distance` in `win` file, default to `true`.
 """
 function read_w90_post(
-    seedname::String;
+    seedname::AbstractString;
     chk::Bool=true,
-    amn::Union{Nothing,String}=nothing,
+    amn::Union{Nothing,AbstractString}=nothing,
     mdrs::Union{Nothing,Bool}=nothing,
 )
     # read for kpoint_path, use_ws_distance
@@ -156,7 +169,12 @@ function read_w90_post(
     return InterpolationModel(model, kRvecs, kpath)
 end
 
-function write_w90(seedname::String, model::Model)
+"""
+    write_w90(seedname::AbstractString, model::Model)
+
+Write `Model` into `eig`, `mmn`, `amn` files.
+"""
+function write_w90(seedname::AbstractString, model::Model)
     # Note I need to use basename! If seedname is absolute path the joinpath
     # will just return seedname.
     outname(suffix::String) = "$seedname.$suffix"

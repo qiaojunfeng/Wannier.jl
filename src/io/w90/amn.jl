@@ -1,7 +1,18 @@
 using Printf: @printf, @sprintf
 using Dates: now
 
-function read_amn(filename::String)
+export read_amn, read_orthonorm_amn, write_amn
+
+"""
+    read_amn(filename::AbstractString)
+
+Read the `amn` file.
+
+Return a `n_bands * n_wann * n_kpts` array.
+
+See also [`read_orthonorm_amn`](@ref read_orthonorm_amn).
+"""
+function read_amn(filename::AbstractString)
     @info "Reading $filename"
 
     io = open("$filename")
@@ -35,20 +46,32 @@ function read_amn(filename::String)
 end
 
 """
-Wrapper function to read AMN and Lowdin orthonormalize it.
+    read_orthonorm_amn(filename::AbstractString)
 
-Usually A matrix needs to be unitary or semi-unitary.
+Read and orthonormalize the `amn` file.
+
+Wrapper function to read `amn` and Lowdin orthonormalize it.
+The `A` matrix needs to be unitary or semi-unitary,
+so in most cases this function should be used instead of [`read_amn`](@ref read_amn).
+
+See also [`read_amn`](@ref read_amn).
 """
-function read_orthonorm_amn(filename::String)
+function read_orthonorm_amn(filename::AbstractString)
     A = read_amn(filename)
     A .= orthonorm_lowdin(A)
     return A
 end
 
 """
-Output amn file
+    write_amn(filename::AbstractString, A::Array{ComplexF64,3})
+    write_amn(filename::AbstractString, A::Array{ComplexF64,3}, header::AbstractString)
+
+Output `amn` file.
+
+# Arguments
+- header: optional, default is "Created by Wannier.jl CURRENT_DATE"
 """
-function write_amn(filename::String, A::Array{ComplexF64,3}, header::String)
+function write_amn(filename::AbstractString, A::Array{ComplexF64,3}, header::AbstractString)
     n_bands, n_wann, n_kpts = size(A)
 
     io = open(filename, "w")
@@ -75,9 +98,6 @@ function write_amn(filename::String, A::Array{ComplexF64,3}, header::String)
     return nothing
 end
 
-"""
-Output amn file
-"""
 function write_amn(filename::String, A::Array{ComplexF64,3})
     header = @sprintf "Created by Wannier.jl %s" string(now())
     return write_amn(filename, A, header)

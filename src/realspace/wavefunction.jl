@@ -3,9 +3,14 @@ using LazyGrids: ndgrid
 
 export read_realspace_wf, write_realspace_wf
 
-@doc """
-Get the extension name of UNK files, e.g. `NC` from `UNK00001.NC`.
-e.g. `1` for no-spin calcluation, `NC` for non-collinear calculation.
+"""
+    _get_unk_ext(unkdir::AbstractString)
+
+Get the extension name of `UNK` files.
+
+For example:
+- `1` of `UNK00001.1`, for no-spin calcluation
+- `NC` of `UNK00001.NC`, for non-collinear calculation
 """
 function _get_unk_ext(unkdir::AbstractString)
     files = readdir(unkdir)
@@ -16,12 +21,24 @@ function _get_unk_ext(unkdir::AbstractString)
 end
 
 """
-Read unk files, and generate realspace Wannier functions.
+    read_realspace_wf(A, kpoints, n_supercells, unkdir="."; R=[0, 0, 0])
 
-A: n_bands x n_wann x n_kpts, rotation matrix
-kpoints: 3 x n_kpts, fractional coordinates
-R: fractional coordinates w.r.t lattice (actually integers), the cell for WF |nR>,
-    default generate WF at home unit cell |n0>
+Read `UNK` files, rotate gauge, and generate real space WFs.
+
+# Arguments
+- `A`: `n_bands * n_wann * n_kpts`, gauge rotation matrix
+- `kpoints`: `3 * n_kpts`, each column is a vector for fractional coordinates
+- `n_supercells`: an integer or a vector of 3 integers for 3 directions along lattice vectors,
+    defines the number of super cells where the real space WF lives
+- `unkdir`: folder containing `UNK` files
+
+# Keyword arguments
+- `R`: fractional coordinates w.r.t lattice (actually integers), the cell for WF
+    ``|n \\bm{R} \\rangle``, default is generating WF at home unit cell ``|n \\bm{0} \\rangle``
+
+!!! tip
+
+    See also the section [Normalization convention of WFs](@ref) for further explanation.
 """
 function read_realspace_wf(
     A::AbstractArray{Complex{T},3},
@@ -124,7 +141,7 @@ function read_realspace_wf(
     A::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T},
     n_supercells::Int=2,
-    unkdir::String=".";
+    unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
     return read_realspace_wf(
@@ -132,12 +149,23 @@ function read_realspace_wf(
     )
 end
 
+"""
+    read_realspace_wf(lattice, A, kpoints, n_supercells=2, unkdir="."; R=[0, 0, 0])
+
+Read `UNK` files, rotate gauge, and generate real space WFs.
+
+This is a more user-friendly version, which returns a tuple of `(RGrid, W)`,
+where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data for WFs.
+
+# Arguments
+- `lattice`: each column is a lattice vector
+"""
 function read_realspace_wf(
     lattice::AbstractMatrix{T},
     A::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T},
     n_supercells::Int=2,
-    unkdir::String=".";
+    unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
     X, Y, Z, W = read_realspace_wf(A, kpoints, n_supercells, unkdir; R=R)
@@ -145,10 +173,22 @@ function read_realspace_wf(
     return rgrid, W
 end
 
+"""
+    read_realspace_wf(model, n_supercells=2, unkdir="."; R=[0, 0, 0])
+
+Read `UNK` files, rotate gauge, and generate real space WFs.
+
+This is a most user-friendly version, use `lattice`, `A` and `kpoints` from `model`
+and returns a tuple of `(RGrid, W)`,
+where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data for WFs.
+
+# Arguments
+- `model`: a `Model`
+"""
 function read_realspace_wf(
     model::Model{T},
     n_supercells::Int=2,
-    unkdir::String=".";
+    unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
     return read_realspace_wf(
@@ -157,24 +197,45 @@ function read_realspace_wf(
 end
 
 """
-Write realspace Wannier functions to cube files.
+    write_realspace_wf(seedname, A, kpoints, lattice, atom_positions, atom_labels;
+        n_supercells=2, unkdir=".", part=real, format=:xsf, wf_center=nothing)
 
-seedname: the name prefix for cube files, e.g., `seedname_00001.cube`
-A: gauge rotation matrix
-atom_positions: fractional coordinates w.r.t. lattice
-part: which part to plot? pass a Function, e.g. real, imag, abs2
-wf_center: useful for cube format, add additional atoms around WF centers
-    fractional w.r.t. lattice
+Write real space WFs to `xsf` or `cube` files.
+
+# Arguments
+- `seedname`: the name prefix for `cube` files, e.g., `seedname_00001.cube`
+- `A`: gauge rotation matrix
+- `kpoints`: each column is a kpoint, fractional coordinates
+- `lattice`: each column is a lattice vector
+- `atom_positions`: each column is an atom position, fractional coordinates w.r.t. lattice
+- `atom_labels`: each element is an atom label
+
+# Keyword arguments
+- `n_supercells`: number of supercells in each direction,
+    equivalent to `wannier_plot_supercell` of `Wannier90`
+- `unkdir`: directory of `UNK` files
+- `part`: which part to plot? pass a `Function`, e.g. `real`, `imag`, `abs2`
+- `format`: `:xsf` or `:cube`
+- `wf_center`: WF centers in fractional coordinates w.r.t. lattice.
+    Only used for `cube` format, add additional atoms around WF centers.
+
+!!! note
+
+    `Wannier90` only plot the real part of WFs, so `part=real` is the default.
+
+!!! tip
+
+    See also the section [Normalization convention of WFs](@ref) for further explanation.
 """
 function write_realspace_wf(
-    seedname::String,
+    seedname::AbstractString,
     A::AbstractArray,
     kpoints::AbstractMatrix,
     lattice::AbstractMatrix,
     atom_positions::AbstractMatrix,
     atom_labels::AbstractVector{String};
     n_supercells::Int=2,
-    unkdir::String=".",
+    unkdir::AbstractString=".",
     part::Function=real,
     format::Symbol=:xsf,
     wf_center::Union{Nothing,AbstractMatrix}=nothing,
@@ -233,6 +294,13 @@ function write_realspace_wf(
     return nothing
 end
 
+"""
+    write_realspace_wf(seedname, model; n_supercells=2, unkdir=".", part=real, format=:xsf)
+
+Write real space WFs to `xsf` or `cube` files.
+
+This is a user-friendly version that use `model` to fill the arguments of `write_realspace_wf`.
+"""
 function write_realspace_wf(
     seedname::String,
     model::Model;

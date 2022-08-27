@@ -317,7 +317,7 @@ end
 """
 WF postion operator matrix
 """
-@views function position(
+@views function position_op(
     bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
 ) where {FT<:Real}
     n_bands, n_wann, n_kpts = size(A)
@@ -362,9 +362,9 @@ WF postion operator matrix
     return R
 end
 
-position(model::Model) = position(model.bvectors, model.M, model.A)
-function position(model::Model, A::AbstractArray{T,3}) where {T<:Number}
-    return position(model.bvectors, model.M, A)
+position_op(model::Model) = position_op(model.bvectors, model.M, model.A)
+function position_op(model::Model, A::AbstractArray{T,3}) where {T<:Number}
+    return position_op(model.bvectors, model.M, A)
 end
 
 """

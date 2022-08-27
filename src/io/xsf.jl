@@ -4,10 +4,18 @@ using Dates: now
 # XSF format
 # Specification from http://www.xcrysden.org/doc/XSF.html
 
-"""
-Read xsf file.
+export read_xsf, write_xsf
 
-All outputs in cartesian coordinates, bohr unit.
+"""
+    read_xsf(filename::AbstractString)
+
+Read `xsf` file.
+
+All outputs in cartesian coordinates, Å unit.
+
+!!! note
+
+    Only support reading 1 datagrid in `BLOCK_DATAGRID_3D`.
 """
 function read_xsf(filename::AbstractString)
     io = open(filename)
@@ -105,14 +113,20 @@ function read_xsf(filename::AbstractString)
 end
 
 """
-Write xsf file.
+    write_xsf(filename, lattice, atom_positions, atom_numbers, origin, span_vectors, W)
 
-lattice: 3 x 3, Å, each column is a lattice vector
-atom_positions: 3 x n_atoms, fractional coordinates
-atom_numbers: n_atoms, atomic numbers
-origin: 3, Å, origin of the grid
-span_vectors: 3 x 3, Å, each column is a spanning vector
-W: nx x ny x nz, volumetric data
+Write `xsf` file.
+
+# Arguments
+- `lattice`: `3 * 3`, Å, each column is a lattice vector
+- `atom_positions`: `3 * n_atoms`, fractional coordinates
+- `atom_numbers`: `n_atoms`, atomic numbers
+- `origin`: `3`, Å, origin of the grid
+- `span_vectors`: `3 * 3`, Å, each column is a spanning vector
+- `W`: `nx * ny * nz`, volumetric data
+
+See also [`write_xsf(filename, lattice, atom_positions, atom_numbers, rgrid, W)`]
+(@ref write_xsf(filename, lattice, atom_positions, atom_numbers, rgrid, W))
 """
 function write_xsf(
     filename::AbstractString,
@@ -184,6 +198,24 @@ function write_xsf(
     return nothing
 end
 
+"""
+    write_xsf(filename, lattice, atom_positions, atom_numbers, rgrid, W)
+
+Write `xsf` file.
+
+# Arguments
+- `lattice`: `3 * 3`, Å, each column is a lattice vector
+- `atom_positions`: `3 * n_atoms`, fractional coordinates
+- `atom_numbers`: `n_atoms`, atomic numbers
+- `rgrid`: `RGrid`
+- `W`: `nx * ny * nz`, volumetric data
+
+This is a more user-friendly version. The `rgrid` contains the information of the
+grid origin and spanning vectors.
+
+See also [`write_xsf(filename, lattice, atom_positions, atom_numbers, origin, span_vectors, W)`]
+(@ref write_xsf(filename, lattice, atom_positions, atom_numbers, origin, span_vectors, W))
+"""
 function write_xsf(
     filename::AbstractString,
     lattice::AbstractMatrix{T},

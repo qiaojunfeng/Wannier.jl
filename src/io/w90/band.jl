@@ -3,6 +3,8 @@ import DelimitedFiles as Dlm
 using Brillouin
 using Bravais: ReciprocalBasis
 
+export read_w90_band, write_w90_band, get_kpoints
+
 function _read_w90_band_kpt(filename::AbstractString)
     # in fractional coordinates
     kpoints = Dlm.readdlm(filename, Float64; skipstart=1)
@@ -51,7 +53,12 @@ function _read_w90_band_labelinfo(filename::AbstractString)
 end
 
 """
-read si_band.dat  si_band.kpt  si_band.labelinfo.dat
+    read_w90_band(seedname::AbstractString)
+
+Read `SEEDNAME_band.dat`, `SEEDNAME_band.kpt`, `SEEDNAME_band.labelinfo.dat`.
+
+See also [`read_w90_band(seedname::AbstractString, recip_lattice::AbstractMatrix)`]
+(@ref read_w90_band(seedname::AbstractString, recip_lattice::AbstractMatrix)).
 """
 function read_w90_band(seedname::AbstractString)
     kpoints, _ = _read_w90_band_kpt("$(seedname)_band.kpt")
@@ -61,9 +68,12 @@ function read_w90_band(seedname::AbstractString)
 end
 
 """
-Generate a KPathInterpolant from kpoints in seedname_band.dat/kpt/labelinfo.
+    _get_kpath_interpolant(kpoints, symm_idx, symm_label, recip_lattice)
 
-kpoints: fractional coordinate
+Generate a `KPathInterpolant` from `kpoints` in `seedname_band.dat/kpt/labelinfo`.
+
+# Arguments
+- kpoints: fractional coordinate, each column is a kpoint.
 """
 function _get_kpath_interpolant(
     kpoints::AbstractMatrix,
@@ -108,6 +118,17 @@ function _get_kpath_interpolant(
     return kpi
 end
 
+"""
+    read_w90_band(seedname::AbstractString, recip_lattice::AbstractMatrix)
+
+# Arguments
+- `recip_lattice`: each column is a reciprocal lattice vector in Cartesian coordinates.
+    If given, return a tuple of `(KPathInterpolant, E)`.
+    This is a more user-friendly version of
+    [`read_w90_band(seedname::AbstractString)`](@ref read_w90_band(seedname::AbstractString)).
+
+See also [`read_w90_band(seedname::AbstractString)`](@ref read_w90_band(seedname::AbstractString)).
+"""
 function read_w90_band(seedname::AbstractString, recip_lattice::AbstractMatrix)
     band = read_w90_band(seedname)
     kpi = _get_kpath_interpolant(
@@ -182,7 +203,11 @@ function _write_w90_band_labelinfo(
 end
 
 """
-write si_band.dat  si_band.kpt  si_band.labelinfo.dat
+    write_w90_band(seedname, kpoints, E, x, symm_idx, symm_label)
+
+Write `SEEDNAME_band.dat, SEEDNAME_band.kpt, SEEDNAME_band.labelinfo.dat`.
+
+See also [`write_w90_band(seedname, kpi, E)`](@ref write_w90_band(seedname, kpi, E)).
 """
 function write_w90_band(
     seedname::AbstractString,
@@ -207,6 +232,11 @@ function write_w90_band(
     return nothing
 end
 
+"""
+    get_kpoints(kpi::KPathInterpolant)
+
+Return the kpoints of `kpi` in fractional coordinates.
+"""
 function get_kpoints(kpi::KPathInterpolant)
     kpi_frac = latticize(kpi)
 
@@ -244,6 +274,16 @@ function _get_symm_idx_label(kpi::KPathInterpolant)
     return symm_idx, symm_label
 end
 
+"""
+    write_w90_band(seedname::AbstractString, kpi::KPathInterpolant, E::AbstractMatrix)
+
+Write `SEEDNAME_band.dat, SEEDNAME_band.kpt, SEEDNAME_band.labelinfo.dat`.
+
+This is a more user-friendly version.
+
+See also [`write_w90_band(seedname, kpoints, E, x, symm_idx, symm_label)`]
+(@ref write_w90_band(seedname, kpoints, E, x, symm_idx, symm_label)).
+"""
 function write_w90_band(seedname::AbstractString, kpi::KPathInterpolant, E::AbstractMatrix)
     kpoints = get_kpoints(kpi::KPathInterpolant)
     x = get_x(kpi)

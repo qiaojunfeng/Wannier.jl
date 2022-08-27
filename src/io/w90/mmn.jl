@@ -1,7 +1,16 @@
 using Printf: @printf, @sprintf
 using Dates: now
 
-function read_mmn(filename::String)
+export read_mmn, write_mmn
+
+"""
+    read_mmn(filename::AbstractString)
+
+Read `mmn` file.
+
+Returns a `n_bands * n_bands * n_bvecs * n_kpts` array.
+"""
+function read_mmn(filename::AbstractString)
     @info "Reading mmn file: $filename"
     io = open(filename)
 
@@ -49,14 +58,17 @@ function read_mmn(filename::String)
 end
 
 """
-Output mmn file
+    write_mmn(filename, M::Array{ComplexF64,4}, kpb_k, kpb_b)
+    write_mmn(filename, M::Array{ComplexF64,4}, kpb_k, kpb_b, header)
+
+Write `mmn` file.
 """
 function write_mmn(
-    filename::String,
+    filename::AbstractString,
     M::Array{ComplexF64,4},
     kpb_k::Matrix{Int},
     kpb_b::Array{Int,3},
-    header::String,
+    header::AbstractString,
 )
     n_bands, _, n_bvecs, n_kpts = size(M)
     n_bands != size(M, 2) && error("M must be n_bands x n_bands x n_bvecs x n_kpts")
@@ -90,11 +102,11 @@ function write_mmn(
     return nothing
 end
 
-"""
-Output mmn file
-"""
 function write_mmn(
-    filename::String, M::Array{ComplexF64,4}, kpb_k::Matrix{Int}, kpb_b::Array{Int,3}
+    filename::AbstractString,
+    M::Array{ComplexF64,4},
+    kpb_k::Matrix{Int},
+    kpb_b::Array{Int,3},
 )
     header = @sprintf "Created by Wannier.jl %s" string(now())
     return write_mmn(filename, M, kpb_k, kpb_b, header)

@@ -1,3 +1,5 @@
+export moment, center, omega, position_op
+
 """
     moment(rgrid::RGrid, W::AbstractArray, n)
 
@@ -7,6 +9,8 @@ Compute WF moment to arbitrary order in real space.
 - `rgrid`: real space grid on which `W` is defined
 - `W`: WFs, `nx * ny * nz * n_wann`, or `nx * ny * nz` for single WF
 - `n`: order of moment, e.g., 1 for WF center, 2 for variance, etc.
+
+Returned value in Cartesian coordinates.
 
 !!! note
 
@@ -42,6 +46,8 @@ end
 
 Compute WF center in real space.
 
+Returned value in Cartesian coordinates.
+
 See also [`moment`](@ref moment).
 """
 center(rgrid::RGrid, W::AbstractArray) = moment(rgrid, W, 1)
@@ -51,18 +57,22 @@ center(rgrid::RGrid, W::AbstractArray) = moment(rgrid, W, 1)
 
 Compute WF spread in real space.
 
+Returned value in Å^2 unit.
+
 See also [`moment`](@ref moment).
 """
 omega(rgrid::RGrid, W::AbstractArray) = moment(rgrid, W, 2) - center(rgrid, W) .^ 2
 
 """
-    position(rgrid::RGrid, W::AbstractArray{T,4})
+    position_op(rgrid::RGrid, W::AbstractArray{T,4})
 
-Compute position operator matrices in realspace.
+Compute position operator matrices in real space.
+
+Returned value in Cartesian coordinates.
 
 See also [`center`](@ref center).
 """
-function position(rgrid::RGrid, W::AbstractArray{T,4}) where {T<:Complex}
+function position_op(rgrid::RGrid, W::AbstractArray{T,4}) where {T<:Complex}
     Xᶜ, Yᶜ, Zᶜ = cartesianize_xyz(rgrid)
     n_wann = size(W, 4)
     # last index is x,y,z

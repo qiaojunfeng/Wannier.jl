@@ -1,7 +1,14 @@
 using Printf: @printf, @sprintf
 using Dates: now
 
-function read_nnkp(filename::String)
+export read_nnkp, write_nnkp
+
+"""
+    read_nnkp(filename::AbstractString)
+
+Read the `nnkp` file.
+"""
+function read_nnkp(filename::AbstractString)
     @info "Reading nnkp file: $filename"
 
     io = open(filename)
@@ -92,11 +99,15 @@ function read_nnkp(filename::String)
 end
 
 """
-Write nnkp for pw2wannier90.
+    write_nnkp(filename::AbstractString, bvectors::BVectors, n_wann::Integer)
 
-Use auto_projections, no exclude_bands
+Write nnkp that can be used by `pw2wannier90`.
+
+!!! note
+
+    Only a preliminary version, use `auto_projections`, no `exclude_bands`.
 """
-function write_nnkp(filename::String, bvectors::BVectors, n_wann::Int)
+function write_nnkp(filename::AbstractString, bvectors::BVectors, n_wann::Integer)
     @info "Writing nnkp file: $filename"
 
     io = open(filename, "w")
