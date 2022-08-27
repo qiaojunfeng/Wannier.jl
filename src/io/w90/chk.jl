@@ -156,7 +156,7 @@ Read formatted `chk` file.
     to use this function.
 """
 function read_chk(filename::AbstractString)
-    if isbinary_file(filename)
+    if isbinary(filename)
         error("$filename is a binary file? Consider using `w90chk2chk.x`?")
     end
 

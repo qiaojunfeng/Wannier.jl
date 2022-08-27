@@ -1,6 +1,17 @@
 
 """
-kpoints: in fractional coordinates, 3 * n_kpts
+    get_kpoint_mappings(kpoints, kgrid)
+
+Get the mappings between kpoint indexes and kpoint coordiantes.
+
+Return a tuple of `(k_xyz, xyz_k)`:
+- `k_xyz[ik]` maps kpoint `kpoints[:, ik]` to kpoint coordinates `[ikx, iky, ikz]`
+- `xyz_k[ikx, iky, ikz]` maps kpoint coordinates `[ikx, iky, ikz]` to kpoint index `ik`
+- the kpoint fractional coordinates is `[(ikx - 1)/nkx, (iky - 1)/nky, (ikz - 1)/nkz]`
+
+# Arguments
+- `kpoints`: `3 * n_kpts`, in fractional coordinates
+- `kgrid`: `3`, number of kpoints along each reciprocal lattice vector
 """
 function get_kpoint_mappings(kpoints::Matrix{T}, kgrid::AbstractVector{Int}) where {T<:Real}
     n_kpts = prod(kgrid)
@@ -27,12 +38,16 @@ function get_kpoint_mappings(kpoints::Matrix{T}, kgrid::AbstractVector{Int}) whe
     return k_xyz, xyz_k
 end
 
-@doc raw"""
-Make a supercell of kpoints by translating it along 3 directions.
-Input and returned kpoints are in fractional coordinates.
+"""
+    make_supercell(kpoints, replica)
 
-repeat: number of repetitions along ±x, ±y, ±z directions, on output
-there are (2*repeat + 1)^3 cells.
+Make a supercell of kpoints by translating it along 3 directions.
+
+On output there are `(2*replica + 1)^3` cells, in fractional coordinates.
+
+# Arguments
+- `kpoints`: `3 * n_kpts`, in fractional coordinates
+- `replica`: `3`, number of repetitions along ±x, ±y, ±z directions
 """
 function make_supercell(
     kpoints::Matrix{T}, replica::AbstractVector{R}
@@ -62,18 +77,34 @@ function make_supercell(
     return supercell, translations
 end
 
+"""
+    make_supercell(kpoints, replica=5)
+
+Make a supercell of kpoints by translating it along 3 directions.
+
+# Arguments
+- `replica`: integer, number of repetitions along ±x, ±y, ±z directions
+"""
 function make_supercell(kpoints::Matrix{T}, replica::R=5) where {T<:Number,R<:Integer}
     return make_supercell(
         kpoints, [(-replica):replica, (-replica):replica, (-replica):replica]
     )
 end
 
-@doc raw"""
-Generate list of kpoint coordinates from kpoint grid.
-Work just like `kmesh.pl` of W90.
+"""
+    get_kpoints(kgrid; fractional=true)
 
-kgrid: contains a N1 * N2 * N3 mesh
-fractional: return an explicit list of kpoints in fractional coordinates, else integers
+Generate list of kpoint coordinates from kpoint grid.
+
+# Arguments
+- `kgrid`: vector of 3 integers specifying a `nkx * nky * nkz` mesh
+
+# Keyword Arguments
+- `fractional`: return an explicit list of kpoints in fractional coordinates, else integers
+
+!!! note
+
+    Work just like `kmesh.pl` of `Wannier90`.
 """
 function get_kpoints(kgrid::AbstractVector{Int}; fractional::Bool=true)
     n_pts = prod(kgrid)
@@ -105,16 +136,27 @@ function get_kpoints(kgrid::AbstractVector{Int}; fractional::Bool=true)
 end
 
 """
+    sort_kpoints(kpoints)
+
 Sort kpoints such that z increases the fastest, then y, then x.
+
+# Arguments
+- `kpoints`: `3 * n_kpts`
 """
 function sort_kpoints(kpoints::AbstractMatrix{T}) where {T<:Real}
     return sortslices(kpoints; dims=2)
 end
 
-@doc raw"""
+"""
+    get_kgrid(kpoints)
+
 Guess kgrid from list of kpoint coordinates.
 
-kpoints: contains a N1 * N2 * N3 kpoints, in fractional coordinates
+Input `kpoints` has size `3 * n_kpts`, where `n_kpts = nkx * nky *  nkz`,
+output `[nkx, nky, nkz]`.
+
+# Arguments
+- `kpoints`: `3 * n_kpts`, fractional coordiantes
 """
 function get_kgrid(kpoints::AbstractMatrix{T}) where {T<:Real}
     kgrid = zeros(Int, 3)

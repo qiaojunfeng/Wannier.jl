@@ -1,6 +1,10 @@
 
-"""Check if string is binary."""
-function isbinary(chars::Vector{UInt8})::Bool
+"""
+    isbinary(chars::Vector{UInt8})
+
+Check if a sequence of chars is binary.
+"""
+function isbinary(chars::AbstractVector{UInt8})::Bool
     # normal ASCII chars
     text_chars = Vector{UInt8}([7, 8, 9, 10, 12, 13, 27])
     append!(text_chars, 0x20:0x99)
@@ -14,8 +18,12 @@ function isbinary(chars::Vector{UInt8})::Bool
     return length(chars) > 0
 end
 
-"""Check if file is in binary format"""
-function isbinary_file(filename::String)
+"""
+    isbinary(filename::AbstractString)
+
+Check if the file is in binary format.
+"""
+function isbinary(filename::AbstractString)
     raw_data = zeros(UInt8, 1024)
 
     io = open(filename)
@@ -26,16 +34,20 @@ function isbinary_file(filename::String)
 end
 
 """
-Parse a string as Float64.
+    parse_float(s::AbstractString)
 
-Fortran some times use e.g. 1.0D-10 for 1e-10.
+Parse a string as `Float64`.
+
+The is capable of parsing Fortran outputs, e.g. `1.0D-10`, to the ordinary `1e-10`.
 """
 parse_float(s::AbstractString) = parse(Float64, replace(lowercase(strip(s)), "d" => "e"))
 
 """
-Parse a string as bool.
+    parse_bool(s::AbstractString)
 
-Fortran use: `.true.`, `.false.`, `true`, `T`.
+Parse a string as `bool`.
+
+This is capable of parsing Fortran outputs, e.g., `.true.`, `.false.`, `true`, `T`.
 """
 function parse_bool(s::AbstractString)
     s = replace(lowercase(strip(s)), "." => "")[1]  # only 1st char

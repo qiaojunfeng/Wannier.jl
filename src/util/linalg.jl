@@ -1,14 +1,37 @@
 using LinearAlgebra
 
+export get_recip_lattice, get_lattice
+export orthonorm_lowdin, eyes_A, rotate_M
+export isunitary
+
+"""
+    imaglog(z)
+
+Return the imaginary part of the logarithm of `z`.
+"""
 imaglog(z::T) where {T<:Complex} = atan(imag(z), real(z))
 
+"""
+    get_recip_lattice(lattice::Mat3)
+
+Return reciprocal lattice.
+"""
 get_recip_lattice(lattice::Mat3) = 2π * inv(lattice)'
+
+"""
+    get_lattice(recip_lattice::Mat3)
+
+Return lattice.
+"""
 get_lattice(recip_lattice::Mat3) = inv(recip_lattice / (2π))'
 
 """
-Normalize a matrix A to be (semi-)unitary.
-If X is a matrix with orthogonal columns and A a non-singular matrix,
-then Lowdin-orthogonalizing X*A is equivalent to computing X*normalize_matrix(A)
+    orthonorm_lowdin(A::Matrix{T})
+
+Lowdin orthonormalize a matrix `A` to be (semi-)unitary.
+
+If `X` is a matrix with orthogonal columns and `A` a non-singular matrix,
+then Lowdin-orthogonalizing `X*A` is equivalent to computing `X*orthonorm_lowdin(A)`.
 """
 function orthonorm_lowdin(A::Matrix{T}) where {T<:Union{Complex,Real}}
     U, S, V = svd(A)
@@ -16,6 +39,11 @@ function orthonorm_lowdin(A::Matrix{T}) where {T<:Union{Complex,Real}}
     return U * V'
 end
 
+"""
+    orthonorm_lowdin(A::Array{T,3})
+
+Lowdin orthonormalize a series of matrices `A`.
+"""
 function orthonorm_lowdin(A::Array{T,3}) where {T<:Union{Complex,Real}}
     n_kpts = size(A, 3)
 
@@ -33,10 +61,17 @@ function orthonorm_cholesky(A)
 end
 
 """
+    fix_global_phase(W::AbstractArray)
+
 Return a factor to fix the global phase of wavefunction,
 such that the point having max norm is real.
 
-W: usually size(W) = n_gx * n_gy * n_gz
+# Arguments
+- `W`: usually `size(W) = nx * ny * nz`
+
+!!! note
+
+    This follows the same logic as `Wannier90` when computing the ratio for real space WFs.
 """
 function fix_global_phase(W::AbstractArray)
     f = 1.0 + 0.0im
@@ -49,7 +84,15 @@ function fix_global_phase(W::AbstractArray)
     return f
 end
 
-"""Im/Re ratio"""
+"""
+    compute_imre_ratio(W::AbstractArray)
+
+Compute Im/Re ratio of the wavefunction.
+
+!!! note
+
+    This follows the same logic as `Wannier90` when computing the ratio for real space WFs.
+"""
 function compute_imre_ratio(W::AbstractArray)
     # only calculate real >= 0.01 elements, same as W90
     V = W[abs.(real(W)) .>= 0.01]
@@ -75,7 +118,13 @@ function powm(A::AbstractMatrix{T}, p::F) where {T<:Union{Complex,Real},F<:Real}
     return V * Diagonal(d .^ p) * V'
 end
 
-"""Rotate the gauge of an operator"""
+"""
+    rotate_gauge(O::Array{T,3}, A::Array{T,3})
+
+Rotate the gauge of the operator `O`.
+
+I.e., ``A^{\\dagger} O A``.
+"""
 function rotate_gauge(O::Array{T,3}, A::Array{T,3}) where {T<:Number}
     n_bands, n_wann, n_kpts = size(A)
     size(O) != (n_bands, n_bands, n_kpts) &&
@@ -90,6 +139,11 @@ function rotate_gauge(O::Array{T,3}, A::Array{T,3}) where {T<:Number}
     return O1
 end
 
+"""
+    eyes_A(T::Type, n_wann::Int, n_kpts::Int)
+
+Return a series of indentity matrices of type `T` and size `n_wann * n_wann * n_kpts`.
+"""
 function eyes_A(T::Type, n_wann::Int, n_kpts::Int)
     A = zeros(T, n_wann, n_wann, n_kpts)
     Iₖ = diagm(0 => ones(n_wann))
@@ -101,6 +155,11 @@ function eyes_A(T::Type, n_wann::Int, n_kpts::Int)
     return A
 end
 
+"""
+    eyes_A(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
+
+Return a series of indentity matrices of type `T` and size `n_bands * n_wann * n_kpts`.
+"""
 function eyes_A(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
     A = zeros(T, n_bands, n_wann, n_kpts)
     n = min(n_bands, n_wann)
@@ -113,6 +172,13 @@ function eyes_A(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
     return A
 end
 
+"""
+    rotate_A(A::Array{T,3}, U::Array{T,3})
+
+Rotate the gauge matrices `A` by `U`.
+
+I.e., for each kpoint ``\\bm{k}``, ``A_{\\bm{k}} U_{\\bm{k}}``.
+"""
 function rotate_A(A::Array{T,3}, U::Array{T,3}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(A)
     size(U)[[1, 3]] != (n_wann, n_kpts) && error("U must be a n_wann x ? x n_kpts matrix")
@@ -128,7 +194,12 @@ function rotate_A(A::Array{T,3}, U::Array{T,3}) where {T<:Complex}
 end
 
 """
-Rotate MMN matrices according to gauge U.
+    rotate_M(M::Array{T,4}, kpb_k::Matrix{Int}, U::Array{T,3})
+
+Rotate `mmn` matrices according to gauge `U`.
+
+i.e., for each kpoint ``\\bm{k}``,
+``U_{\\bm{k}+\\bm{b}}^{\\dagger} M_{\\bm{k},\\bm{b}} U_{\\bm{k}}``.
 """
 @views function rotate_M(
     M::Array{T,4}, kpb_k::Matrix{Int}, U::Array{T,3}
@@ -157,8 +228,11 @@ Rotate MMN matrices according to gauge U.
 end
 
 """
-Is matrix unitary or semi-unitary for all the kpoints?
-i.e. does it have orthogonal columns?
+    isunitary(A::AbstractArray{T,3}; atol=1e-10)
+
+Check if matrix is unitary or semi-unitary for all the kpoints?
+
+I.e. does it have orthogonal columns?
 """
 function isunitary(A::AbstractArray{T,3}; atol::Real=1e-10) where {T<:Number}
     n_bands, n_wann, n_kpts = size(A)
@@ -173,6 +247,11 @@ function isunitary(A::AbstractArray{T,3}; atol::Real=1e-10) where {T<:Number}
     return true
 end
 
+"""
+    get_projectability(A::AbstractArray{T,3})
+
+Return projectability of each kpoint.
+"""
 function get_projectability(A::AbstractArray{T,3}) where {T<:Number}
     n_bands, n_wann, n_kpts = size(A)
     P = zeros(T, n_bands, n_kpts)
@@ -183,7 +262,16 @@ function get_projectability(A::AbstractArray{T,3}) where {T<:Number}
     return P
 end
 
-"""Find vector in the columns of a matrix"""
+"""
+    findvector(predicate::Function, v::AbstractVector, M::AbstractMatrix)
+
+Find index of vector in the columns of a matrix.
+
+# Arguments
+- `predicate`: comparison function
+- `v`: the vector to be found
+- `M`: the matrix to be searched, its column will be compared to `v` by `predicate` function
+"""
 function findvector(predicate::Function, v::AbstractVector, M::AbstractMatrix)
     for (i, col) in enumerate(eachcol(M))
         predicate(v, col) && return i

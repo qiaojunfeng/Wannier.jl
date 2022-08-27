@@ -1,13 +1,17 @@
 import NearestNeighbors as NN
 
-@doc raw"""
-Find nearest-atom (including its periodic images) to a point
-(usually it is the center of a Wannier function).
+"""
+    find_nearests(point, search_neighbors, lattice ,atom_positions)
 
-point: 3, fractional coordinates relative to lattice.
-search_neighbors: number of nearest-neighbors to be returned
-lattice: 3 * 3, each column is a lattice vector
-atom_positions: 3 * num_atoms, each column is fractional coordinate ∈ [0, 1)
+Find nearest-atom (including its periodic images) to a `point`.
+
+Usually `point` is the WF center, so the function returns nearest atom to WF center.
+
+# Arguments
+- `point`: vector of `3` floats, fractional coordinates w.r.t. lattice
+- `search_neighbors`: number of nearest-neighbors to be returned
+- `lattice`: `3 * 3`, each column is a lattice vector
+- `atom_positions`: `3 * n_atoms`, each column is fractional coordinate ∈ `[0, 1)`
 """
 function find_nearests(
     point::AbstractVector{T},
@@ -43,14 +47,17 @@ function find_nearests(
 end
 
 """
-Find nearest atom of WFs.
+    find_nearest_atom(centers, lattice, atom_positions)
 
-centers: 3 * n_wann, in fractional coordinates
-lattice: 3 * 3, each column is a lattice vector
-atom_positions: 3 * n_atoms, each column is fractional coordinate ∈ [0, 1)
+Find nearest atom for each WF center.
 
-Example usage:
-```
+# Arguments
+- `centers`: `3 * n_wann`, in fractional coordinates
+- `lattice`: `3 * 3`, each column is a lattice vector
+- `atom_positions`: `3 * n_atoms`, each column is fractional coordinate ∈ `[0, 1)`
+
+# Example
+```julia
 wout = read_wout("silicon.wout")
 points = inv(wout.lattice) * wout.centers  # to fractional
 find_nearest_atom(points, wout.lattice, wout.atom_positions)
@@ -76,10 +83,13 @@ function find_nearest_atom(
 end
 
 """
-Wrap around centers back to unit cell at origin
+    wrap_centers(centers, lattice)
 
-centers:: 3 * n_wann, in Cartesian! coordiantes
-lattice:: 3 * 3, each column is a lattice vector
+Wrap around centers back to unit cell at origin.
+
+# Arguments
+- `centers`:: `3 * n_wann`, in Cartesian coordiantes
+- `lattice`:: `3 * 3`, each column is a lattice vector
 """
 function wrap_centers(
     centers::AbstractMatrix{T}, lattice::AbstractMatrix{T}
