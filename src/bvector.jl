@@ -2,8 +2,20 @@ using Printf: @printf
 using LinearAlgebra
 import NearestNeighbors as NN
 
-@doc raw"""
+"""
+    BVectorShells
+
 Shells of bvectors.
+
+The bvectors are sorted by norm such that equal-norm bvectors are grouped into one shell.
+
+# Fields
+- `recip_lattice`: `3 * 3`, each column is a reciprocal lattice vector
+- `kpoints`: `3 * n_kpts`, in fractional coordinates
+- `bvectors`: vectors of `3 * n_bvecs_per_shell`, in cartesian coordinates
+- `weights`: vector of float, weights of each shell
+- `multiplicities`: number of bvectors in each shell
+- `n_bvecs`: total number of bvectors
 """
 struct BVectorShells{T<:Real}
     # reciprocal lattice, 3 * 3, Å⁻¹ unit, each column is a lattice vector
@@ -26,6 +38,21 @@ struct BVectorShells{T<:Real}
     n_shells::Int
 end
 
+"""
+    BVectorShells(recip_lattice, kpoints, bvectors, weights)
+
+Constructor of `BVectorShells`.
+
+Only essential arguments are required, remaing fields of `BVectorShells`
+are initialized accordingly.
+This should be used instead of directly constructing `BVectorShells`.
+
+# Arguments
+- `recip_lattice`: `3 * 3`, each column is a reciprocal lattice vector
+- `kpoints`: `3 * n_kpts`, in fractional coordinates
+- `bvectors`: vectors of `3 * n_bvecs_per_shell`, in cartesian coordinates
+- `weights`: vector of float, weights of each shell
+"""
 function BVectorShells(
     recip_lattice::Mat3{T},
     kpoints::Matrix{T},
@@ -51,8 +78,30 @@ function Base.show(io::IO, shells::BVectorShells)
     end
 end
 
-@doc raw"""
-The bvectors for each kpoint, sorted in the same order as the W90 nnkp file.
+"""
+    BVectors
+
+The bvectors for each kpoint.
+
+# Fields
+- `recip_lattice`: `3 * 3`, each column is a reciprocal lattice vector
+- `kpoints`: `3 * n_kpts`, in fractional coordinates
+- `bvectors`: `3 * n_bvecs`, in cartesian coordinates
+- `weights`: `n_bvecs`, weights of each bvector
+- `kpb_k`: k+b vectors at kpoint `k`, `k` -> `k + b`
+    (index of periodically equivalent kpoint inside `recip_lattice`)
+- `kpb_b`: `3 * n_bvecs * n_kpts`,
+    displacements between k + b and its periodic image inside `recip_lattice`,
+    such that k+b = `kpoints[:, kpb_k[ib, ik]] + kpb_b[:, ib, ik]` (in fractional)
+- `n_kpts`: number of kpoints
+- `n_bvecs`: total number of bvectors
+
+!!! note
+
+    In principle, we don't need to sort the bvectors for each kpoint, so that
+    the bvectors have the same order as each kpoint.
+    However, since `Wannier90` sort the bvectors, and the `mmn` file is written
+    in that order, so we also sort in the same order as `Wannier90`.
 """
 struct BVectors{T<:Real}
     # reciprocal lattice, 3 * 3, Å⁻¹ unit
@@ -68,10 +117,11 @@ struct BVectors{T<:Real}
     # weight of each bvec, n_bvecs
     weights::Vector{T}
 
-    # k+b vectors, k -> k + b (index of equivalent kpt in the recip_cell), n_bvecs * n_kpts
+    # k+b vectors at kpoint k, n_bvecs * n_kpts
+    # k -> k + b (index of periodically equivalent kpoint inside recip_lattice)
     kpb_k::Matrix{Int}
 
-    # displacements between k + b and k + b wrapped around into the recip_cell,
+    # displacements between k + b and k + b wrapped around into the recip_lattice,
     # fractional coordinates, actually always integers since they are
     # the number of times to shift along each recip lattice.
     # 3 * n_bvecs * n_kpts, where 3 is [b_x, b_y, b_z]
@@ -100,15 +150,20 @@ function Base.show(io::IO, bvectors::BVectors)
     end
 end
 
-@doc raw"""
+"""
+    search_shells(kpoints, recip_lattice; atol=1e-6, max_shells=36)
+
 Search bvector shells satisfing B1 condition.
 
-kpoints: fractional coordinates
-recip_lattice: each column is a reciprocal lattice vector
-atol: tolerance to select a shell (points having equal distances),
-    equivalent to W90 `kmesh_tol`.
-max_shells: max number of nearest-neighbor shells,
-    equivalent to W90 `search_shells`.
+# Arguments
+- `kpoints`: fractional coordinates
+- `recip_lattice`: each column is a reciprocal lattice vector
+
+# Keyword Arguments
+- `atol`: tolerance to select a shell (points having equal distances),
+    equivalent to `Wannier90` input parameter `kmesh_tol`.
+- `max_shells`: max number of nearest-neighbor shells,
+    equivalent to `Wannier90` input parameter `search_shells`.
 """
 function search_shells(
     kpoints::Matrix{T}, recip_lattice::Mat3{T}; atol::T=1e-6, max_shells::Int=36
@@ -173,8 +228,17 @@ function search_shells(
     return BVectorShells(recip_lattice, kpoints, bvectors, weights)
 end
 
-@doc raw"""
-Check if the columns of matrix A and columns of matrix B are parallel.
+"""
+    are_parallel(A, B; atol=1e-6)
+
+Check if the columns of matrix `A` and columns of matrix `B` are parallel.
+
+# Arguments
+- `A`: matrix
+- `B`: matrix
+
+# Keyword Arguments
+- `atol`: tolerance to check parallelism
 """
 function are_parallel(A::Matrix{T}, B::Matrix{T}; atol::T=1e-6) where {T<:Real}
     n_dim = size(A, 1)
@@ -198,8 +262,13 @@ function are_parallel(A::Matrix{T}, B::Matrix{T}; atol::T=1e-6) where {T<:Real}
     return checkerboard
 end
 
-@doc raw"""
-Remove shells having parallel bvectors
+"""
+    delete_parallel(bvectors::Vector{Matrix{T}})
+
+Remove shells having parallel bvectors.
+
+# Arguments
+- `bvectors`: vector of bvectors in each shell
 """
 function delete_parallel(bvectors::Vector{Matrix{T}}) where {T<:Real}
     n_shells = length(bvectors)
@@ -226,17 +295,34 @@ function delete_parallel(bvectors::Vector{Matrix{T}}) where {T<:Real}
     return new_bvectors
 end
 
+"""
+    delete_parallel(shells::BVectorShells)
+
+Remove shells having parallel bvectors.
+
+# Arguments
+- `shells`: `BVectorShells` containing bvectors in each shell
+"""
 function delete_parallel(shells::BVectorShells)
     bvectors = delete_parallel(shells.bvectors)
     return BVectorShells(shells.recip_lattice, shells.kpoints, bvectors, shells.weights)
 end
 
-@doc raw"""
+"""
+    compute_weights(bvectors::Vector{Matrix{T}}; atol=1e-6)
+
 Try to guess bvector weights from MV1997 Eq. (B1).
 
-input bvectors are overcomplete vectors found during shell search.
-atol: tolerance to satisfy B1 condition, equivalent to W90 `kmesh_tol`
-return: bvectors and weights satisfing B1 condition.
+The input bvectors are overcomplete vectors found during shell search, i.e. from `search_shells`.
+This function tries to find the minimum number of bvector shells that
+satisfy the B1 condition, and return the new `BVectorShells` and weights.
+
+# Arguments
+- `bvectors`: vector of bvectors in each shell
+
+# Keyword Arguments
+- `atol`: tolerance to satisfy B1 condition,
+    equivalent to `Wannier90` input parameter `kmesh_tol`
 """
 function compute_weights(bvectors::Vector{Matrix{T}}; atol::T=1e-6) where {T<:Real}
     n_shells = length(bvectors)
@@ -294,15 +380,33 @@ function compute_weights(bvectors::Vector{Matrix{T}}; atol::T=1e-6) where {T<:Re
     return new_bvectors, weights
 end
 
+"""
+    compute_weights(shells::BVectorShells; atol=1e-6)
+
+Try to guess bvector weights from MV1997 Eq. (B1).
+
+# Arguments
+- `shells`: `BVectorShells` containing bvectors in each shell
+
+# Keyword Arguments
+- `atol`: tolerance to satisfy B1 condition,
+    equivalent to `Wannier90` input parameter `kmesh_tol`
+"""
 function compute_weights(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
     bvectors, weights = compute_weights(shells.bvectors; atol=atol)
     return BVectorShells(shells.recip_lattice, shells.kpoints, bvectors, weights)
 end
 
-@doc raw"""
-Check completeness (B1 condition) of bvectors.
+"""
+    check_b1(shells::BVectorShells; atol=1e-6)
 
-atol: tolerance, equivalent to W90 `kmesh_tol`
+Check completeness (B1 condition) of `BVectorShells`.
+
+# Arguments
+- `shells`: `BVectorShells` containing bvectors in each shell
+
+# Keyword Arguments
+- `atol`: tolerance, equivalent to `Wannier90` input parameter `kmesh_tol`
 """
 function check_b1(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
     M = zeros(T, 3, 3)
@@ -328,11 +432,14 @@ function check_b1(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
     return nothing
 end
 
-@doc raw"""
-flatten shell vectors into a matrix
-return:
-bvecs: 3 * num_bvecs
-bvecs_weight: num_bvecs
+"""
+    flatten_shells(shells::BVectorShells)
+
+Flatten shell vectors into a matrix.
+
+Return a tuple of `(bvecs, bvecs_weight)`, where
+- `bvecs`: `3 * n_bvecs`
+- `bvecs_weight`: `n_bvecs`
 """
 function flatten_shells(shells::BVectorShells{T}) where {T<:Real}
     n_bvecs = sum(size(shells.bvectors[i], 2) for i in 1:(shells.n_shells))
@@ -352,11 +459,23 @@ function flatten_shells(shells::BVectorShells{T}) where {T<:Real}
 end
 
 """
-Sort supercell to fix the order of bvectors.
-To reproduce W90 bvec order.
+    sort_supercell(translations, recip_lattice; atol=1e-8)
 
-translations: 3 x n_supercell matrix of fractional coordinates
-output translations: fractional coordinates
+Sort supercell to fix the order of bvectors.
+
+Both input and output `translations` are in fractional coordinates.
+
+# Arguments
+- `translations`: `3 * n_supercell` matrix, in fractional coordinates
+- `recip_lattice`: each column is a reciprocal lattice vector
+
+# Keyword Arguments
+- `atol`: tolerance to compare bvectors,
+    this is the same as what is hardcoded in `Wannier90`
+
+!!! note
+
+    This is used to reproduce `Wannier90` bvector order.
 """
 function sort_supercell(
     translations::AbstractMatrix, recip_lattice::AbstractMatrix; atol::Real=1e-8
@@ -468,14 +587,21 @@ function _sort_kb(
     return perm
 end
 
-@doc raw"""
-Sort bvectors in shells for each kpoints, to be consistent with wannier90
+"""
+    sort_bvectors(shells::BVectorShells; atol=1e-6)
 
-Wannier90 use different order of bvectors for each kpoint,
-in principle, this is not needed. However, the Mmn file is
-written in such order, so I need to sort bvectors and calculate
-weights, since nnkp file has no section of weights.
-atol: equivalent to W90 `kmesh_tol`
+Sort bvectors in shells at each kpoints, to be consistent with `Wannier90`.
+
+`Wannier90` use different order of bvectors at each kpoint,
+in principle, this is not needed. However, the `mmn` file is
+written in such order, so we need to sort bvectors and calculate
+weights, since `nnkp` file has no section of weights.
+
+# Arguments
+- `shells`: `BVectorShells`
+
+# Keyword Arguments
+- `atol`: equivalent to `Wannier90` input parameter `kmesh_tol`
 """
 function sort_bvectors(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
     kpoints = shells.kpoints
@@ -520,8 +646,17 @@ function sort_bvectors(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
     return BVectors(recip_lattice, kpoints, bvecs, bvecs_weight, kpb_k, kpb_b)
 end
 
-@doc raw"""
-Generate bvectors for all the kpoints.
+"""
+    get_bvectors(kpoints, recip_lattice; kmesh_tol=1e-6)
+
+Generate and sort bvectors for all the kpoints.
+
+# Arguments
+- `kpoints`: `3 * n_kpts`, kpoints in fractional coordinates
+- `recip_lattice`: `3 * 3`, columns are reciprocal lattice vectors
+
+# Keyword Arguments
+- `kmesh_tol`: equivalent to `Wannier90` input parameter `kmesh_tol`
 """
 function get_bvectors(
     kpoints::Matrix{T}, recip_lattice::Mat3{T}; kmesh_tol::T=1e-6
@@ -540,12 +675,20 @@ function get_bvectors(
     return bvectors
 end
 
-@doc raw"""
-Given bvector (b) connecting kpoints k1 and k2, return the index of the bvector ib.
+"""
+    index_bvector(kpb_k, kpb_b, k1, k2, b)
 
-size(kpb_k) = (n_bvecs, n_kpts)
-size(kpb_b) = (3, n_bvecs, n_kpts)
-size(b) = (3,)
+Given bvector `b` connecting kpoints `k1` and `k2`, return the index of the bvector `ib`.
+
+This is a reverse search of bvector index if you only know the two kpoints `k1` and `k2`, and
+the connecting displacement vector `b`.
+
+# Arguments
+- `kpb_k`: `n_bvecs * n_kpts`, k+b kpoints at `k1`
+- `kpb_b`: `3 * n_bvecs * n_kpts`, displacement vector for k+b bvectors at `k1`
+- `k1`: integer, index of kpoint `k1`
+- `k2`: integer, index of kpoint `k2`
+- `b`: vector of 3 integer, displacement vector from `k1` to `k2`
 """
 function index_bvector(
     kpb_k::Matrix{Int}, kpb_b::Array{Int,3}, k1::Int, k2::Int, b::AbstractVector{Int}
