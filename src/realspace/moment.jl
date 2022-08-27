@@ -1,17 +1,23 @@
-@doc """
-Compute WF moment (mean, variance, ...) in realspace.
+"""
+    moment(rgrid::RGrid, W::AbstractArray, n)
 
-Note WFs are defined in a supercell that is n_kpts times unit cell,
-however, usuall we only calculate realspace WFs in a smaller supercell
-that is 2^3 or 3^3 times unit cell (as defined by the `n_supercells` of
-`read_realspace_wf`). Some times this is not sufficient if the WFs are
-truncated by the boundries of the smaller supercell, thus the center
-calculated by this function is inexact. In principle, we should calculate
-centers in the n_kpts supercell, however, this is memory-consuming.
+Compute WF moment to arbitrary order in real space.
 
-rgrid: realspace grid on which W is defined
-W: Wannier functions
-n: order of moment, e.g., 1 for WF center, 2 for variance, etc.
+# Arguments
+- `rgrid`: real space grid on which `W` is defined
+- `W`: WFs, `nx * ny * nz * n_wann`, or `nx * ny * nz` for single WF
+- `n`: order of moment, e.g., 1 for WF center, 2 for variance, etc.
+
+!!! note
+
+    The WFs are defined in a supercell that is `n_kpts` times unit cell,
+    however, usually we only calculate realspace WFs in a smaller supercell
+    that is 2^3 or 3^3 times unit cell (as defined by the `n_supercells` argument
+    of [`read_realspace_wf`](@ref read_realspace_wf)).
+    Some times this is not sufficient if the WFs are
+    truncated by the boundries of the smaller supercell, thus the center
+    calculated by this function is inexact. In principle, we should calculate
+    centers in the `n_kpts` supercell, however, this is memory-consuming.
 """
 function moment(rgrid::RGrid, W::AbstractArray{T,3}, n::U) where {T<:Complex,U<:Integer}
     Xᶜ, Yᶜ, Zᶜ = cartesianize_xyz(rgrid)
@@ -31,10 +37,31 @@ function moment(rgrid::RGrid, W::AbstractArray{T,4}, n::U) where {T<:Complex,U<:
     return r
 end
 
+"""
+    center(rgrid::RGrid, W::AbstractArray)
+
+Compute WF center in real space.
+
+See also [`moment`](@ref moment).
+"""
 center(rgrid::RGrid, W::AbstractArray) = moment(rgrid, W, 1)
+
+"""
+    omega(rgrid::RGrid, W::AbstractArray)
+
+Compute WF spread in real space.
+
+See also [`moment`](@ref moment).
+"""
 omega(rgrid::RGrid, W::AbstractArray) = moment(rgrid, W, 2) - center(rgrid, W) .^ 2
 
-@doc """Position operator matrices computed with realspace WFs"""
+"""
+    position(rgrid::RGrid, W::AbstractArray{T,4})
+
+Compute position operator matrices in realspace.
+
+See also [`center`](@ref center).
+"""
 function position(rgrid::RGrid, W::AbstractArray{T,4}) where {T<:Complex}
     Xᶜ, Yᶜ, Zᶜ = cartesianize_xyz(rgrid)
     n_wann = size(W, 4)
