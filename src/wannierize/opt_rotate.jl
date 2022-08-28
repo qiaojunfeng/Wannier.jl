@@ -2,6 +2,13 @@ using LinearAlgebra
 using Optim: Optim
 import NLSolversBase: OnceDifferentiable
 
+export opt_rotate, rotate_A
+
+"""
+    get_fg!_rotate(model::Model)
+
+Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
+"""
 function get_fg!_rotate(model::Model)
     function f(W)
         A = rotate_A(model.A, W)
@@ -71,7 +78,18 @@ function get_fg!_rotate(model::Model)
 end
 
 """
-Maximally localize spread functional w.r.t. single unitary matrix W.
+    opt_rotate(model; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=20)
+
+Maximally localize spread functional w.r.t. single unitary matrix `W`.
+
+# Arguments
+- `model`: model
+
+# Keyword arguments
+- `f_tol`: tolerance for spread convergence
+- `g_tol`: tolerance for gradient convergence
+- `max_iter`: maximum number of iterations
+- `history_size`: history size of LBFGS
 """
 function opt_rotate(
     model::Model{T}; f_tol::T=1e-7, g_tol::T=1e-5, max_iter::Int=200, history_size::Int=20
@@ -127,6 +145,16 @@ function opt_rotate(
     return Wmin
 end
 
+"""
+    rotate_A(A::Array{T,3}, W::Matrix{T}) where {T<:Complex}
+
+Rotate the `A` matrices at each kpoint by the same `W` matrix.
+
+``\\forall \\bm{k}``, ``A_{\\bm{k}} W``
+
+Useful once we have the optimal rotation matrix `W`, then update the initial
+`A` matrices by rotating them by `W`.
+"""
 function rotate_A(A::Array{T,3}, W::Matrix{T}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(A)
     size(W) != (n_wann, n_wann) && error("W must be a n_wann x n_wann matrix")

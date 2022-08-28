@@ -1,12 +1,33 @@
 using LinearAlgebra
 
+export split_wannierize, split_unk, split_model
+
 """
+    split_eig(E, U, n_val)
+
 Split eigenvalues into two groups.
 
-E: eigenvalues
-U: (semi-)Unitary matrices gauge transformation from Wannierization
+The separation is done by
+1. construct Wannier gauge Hamiltonian,
+    ``H_{\\bm{k}} = U_{\\bm{k}}^\\dagger [\\epsilon_{n \\bm{k}}] U_{\\bm{k}}``
+2. diagonalize the Hamiltonian, the eigenvalues are sorted in ascending order,
+    so that the first `n_val` eigenvalues are the occupied states,
+    and the rest are the unoccupied states.
 
-E.g., groups for valence bands and conduction bands.
+# Arguments
+- `E`: eigenvalues
+- `U`: (semi-)Unitary matrices gauge transformation
+
+!!! tip
+
+    Usually, the `U` are the maximally localized gauge matrices from a
+    valence+conduction band Wannierization, this function split the
+    gauge matrices `U` into two groups by diagonalizing the Hamiltonian,
+    so we have two set of eigenvalues and gauge matrices for valence
+    and conduction bands, respectively. However, the diagonalization
+    introduce random gauges, so the returned two gauge matrices for
+    valence and conduction are bad, we new to run a parallel transport
+    to smoothen the gauges.
 """
 function split_eig(E::Matrix{T}, U::Array{Complex{T},3}, n_val::Int) where {T<:Real}
     n_bands, n_wann, n_kpts = size(U)
@@ -49,20 +70,26 @@ function split_eig(E::Matrix{T}, U::Array{Complex{T},3}, n_val::Int) where {T<:R
 end
 
 """
-Rotate UNK files.
+    split_unk(dir, Uv, Uc, outdir_val="val", outdir_cond="cond")
 
-These are large matrices, write to disk.
+Rotate `UNK` files.
 
-dir: directory where UNK files are stored.
-Uv: the Wannier (semi-)unitary matrix for rotating valence bands.
-Uc: the Wannier (semi-)unitary matrix for rotating conduction bands.
+These are large matrices, so we read/write to disk for each kpoint sequentially,
+inside the function.
+
+# Arguments
+- `dir`: directory where `UNK` files are stored
+- `Uv`: the Wannier (semi-)unitary matrix for rotating valence bands
+- `Uc`: the Wannier (semi-)unitary matrix for rotating conduction bands
+- `outdir_val`: output directory for valence bands
+- `outdir_cond`: output directory for conduction bands
 """
 function split_unk(
-    dir::String,
+    dir::AbstractString,
     Uv::Array{T,3},
     Uc::Array{T,3},
-    outdir_val::String="val",
-    outdir_cond::String="cond",
+    outdir_val::AbstractString="val",
+    outdir_cond::AbstractString="cond",
 ) where {T<:Complex}
     n_kpts = size(Uv, 3)
     n_kpts != size(Uc, 3) && error("incompatible n_kpts")
@@ -114,13 +141,18 @@ function split_unk(
 end
 
 """
-Write splitted AMN/MMN/EIG/UNK(optional) files into valence and conduction groups.
+    split_model(model, n_val)
 
-Args:
-    seedname: _description_
-    n_val: number of valence WFs
+Split the `Model` into two `Model`s.
+
+# Arguments
+- `model`: the `Model` to be split
+- `n_val`: number of valence WFs
+
+!!! note
+
     Rotation eigenvectors are also returned, useful for further
-        rotation of UNK files or other operators.
+    rotation of `UNK` files or other operators.
 """
 function split_model(model::Model, n_val::Int)
     n_wann = model.n_wann
@@ -142,10 +174,18 @@ function split_model(model::Model, n_val::Int)
 end
 
 """
-Write splitted AMN/MMN/EIG/UNK(optional) files into valence and conduction groups.
+    split_wannierize(model::Model, n_val::Int)
 
-`n_val`: number of valence WFs
-return: models and rotation matrices for UNK files or other operators.
+Split the model and run parallel transport to smoothen the gauge.
+
+# Arguments
+- `model`: the `Model` to be split
+- `n_val`: number of valence WFs
+
+!!! note
+
+    Return two splitted `Model`s and rotation matrices which are
+    useful for `UNK` files or other operators.
 """
 function split_wannierize(model::Model, n_val::Int)
     model_v, model_c, UVv, UVc = split_model(model, n_val)

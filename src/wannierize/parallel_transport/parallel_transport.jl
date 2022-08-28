@@ -1,10 +1,24 @@
 using LinearAlgebra
 
+export parallel_transport
+
 include("contraction.jl")
 
 """
-Assumptions: the kpoints are contained in a N1 x N2 x N3 cartesian grid,
-the neighbor list must contain the six cartesian neighbors along x,y,z directions.
+    parallel_transport(model::Model{T}; use_A=false, log_interp=false)
+
+Parallel transport the gauge from the first kpoint to all other kpoints.
+
+Assumptions:
+- the kpoints are contained in a `N1 * N2 * N3` cartesian grid
+- the neighbor list must contain the six cartesian neighbors along x, y, z directions
+
+# Arguments
+- `model`: model
+
+# Keyword arguments
+- `use_A`: use the gauge `A` instead of random matrix
+- `log_interp`: use logarithmic interpolation method
 """
 function parallel_transport(
     model::Model{T}; use_A::Bool=false, log_interp::Bool=false
@@ -278,6 +292,11 @@ function parallel_transport(
     return A, obs
 end
 
+"""
+    compute_error(model, A::Array{Complex{T},3})
+
+Compute the smoothness error of the gauge.
+"""
 function compute_error(model::Model{T}, A::Array{Complex{T},3}) where {T<:Real}
     # initial error
     ϵ0 = 0.0

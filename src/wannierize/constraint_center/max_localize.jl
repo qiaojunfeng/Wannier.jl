@@ -1,5 +1,13 @@
 using Optim: Optim
 
+export max_localize_center
+
+# TODO refactor, this is a copy-paste of `Spread` :-(
+"""
+    struct SpreadCenter
+
+A `struct` containing both `Spread` and WF center penalty.
+"""
 struct SpreadCenter{T} <: AbstractSpread
     # Total spread, unit Å², Ω = ΩI + Ω̃
     Ω::T
@@ -64,6 +72,18 @@ function Base.show(io::IO, Ω::SpreadCenter)
     @printf(io, "   Ω̃   = %11.5f", Ω.Ω̃)
 end
 
+"""
+    omega_center(bvectors, M, A, r₀, λ)
+
+Compute WF spread with center penalty, for maximal localization.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `A`: `n_wann * n_wann * n_kpts` array
+- `r₀`: `3 * n_wann`, WF centers
+- `λ`: penalty strength
+"""
 @views function omega_center(
     bvectors::BVectors{T},
     M::Array{Complex{T},4},
@@ -79,6 +99,19 @@ end
     return SpreadCenter(Ω.Ω, Ω.ΩI, Ω.ΩOD, Ω.ΩD, Ω.Ω̃, Ω.ω, Ω.r, Ωc, Ωt, ωc, ωt)
 end
 
+"""
+    omega_center_grad(bvectors, M, A, r, r₀, λ)
+
+Compute gradient of WF spread with center penalty, for maximal localization.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `A`: `n_wann * n_wann * n_kpts` array
+- `r`: `3 * n_wann`, the current WF centers
+- `r₀`: `3 * n_wann`, the target WF centers
+- `λ`: penalty strength
+"""
 @views function omega_center_grad(
     bvectors::BVectors{FT},
     M::Array{Complex{FT},4},
@@ -145,6 +178,18 @@ end
     return G
 end
 
+"""
+    omega_center_grad(bvectors, M, A, r₀, λ)
+
+Compute gradient of WF spread with center penalty, for maximal localization.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `A`: `n_wann * n_wann * n_kpts` array
+- `r₀`: `3 * n_wann`, the target WF centers
+- `λ`: penalty strength
+"""
 function omega_center_grad(
     bvectors::BVectors{FT},
     M::Array{Complex{FT},4},
@@ -156,6 +201,11 @@ function omega_center_grad(
     return omega_center_grad(bvectors, M, A, r, r₀, λ)
 end
 
+"""
+    get_fg!_center_maxloc(model, r₀, λ=1.0)
+
+Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
+"""
 function get_fg!_center_maxloc(model::Model{T}, r₀::Matrix{T}, λ::T=1.0) where {T<:Real}
     f(A) = omega_center(model.bvectors, model.M, A, r₀, λ).Ωt
 
@@ -169,9 +219,20 @@ function get_fg!_center_maxloc(model::Model{T}, r₀::Matrix{T}, λ::T=1.0) wher
 end
 
 """
-Maximally localize spread functional w.r.t. all kpoints.
+    max_localize_center(model, r₀, λ=1.0; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=20)
 
-On a unitary matrix manifold.
+Maximally localize spread functional with center constraint on a unitary matrix manifold.
+
+# Arguments
+- `model`: model
+- `r₀`: `3 * n_wann`, WF centers
+- `λ`: penalty strength
+
+# Keyword arguments
+- `f_tol`: tolerance for spread convergence
+- `g_tol`: tolerance for gradient convergence
+- `max_iter`: maximum number of iterations
+- `history_size`: history size of LBFGS
 """
 function max_localize_center(
     model::Model{T},

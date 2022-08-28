@@ -1,6 +1,21 @@
 using LinearAlgebra
 using Optim: Optim
 
+export disentangle_center
+
+"""
+    omega_center(bvectors, M, X, Y, r₀, λ)
+
+Compute WF spread with center penalty, in the `(X, Y)` layout.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `X`: `n_wann * n_wann * n_kpts` array
+- `Y`: `n_bands * n_wann * n_kpts` array
+- `r₀`: `3 * n_wann`, WF centers
+- `λ`: penalty strength
+"""
 function omega_center(
     bvectors::BVectors{FT},
     M::Array{Complex{FT},4},
@@ -14,10 +29,18 @@ function omega_center(
 end
 
 """
-size(M) = n_bands * n_bands * n_bvecs * n_kpts
-size(Y) = n_wann * n_wann * n_kpts
-size(Y) = n_bands * n_wann * n_kpts
-size(frozen) = n_bands * n_kpts
+    omega_center_grad(bvectors, M, X, Y, frozen, r₀, λ)
+
+Compute gradient of WF spread with center penalty, in the `(X, Y)` layout.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `X`: `n_wann * n_wann * n_kpts` array
+- `Y`: `n_bands * n_wann * n_kpts` array
+- `frozen`: `n_bands * n_kpts` array for frozen bands
+- `r₀`: `3 * n_wann`, WF centers
+- `λ`: penalty strength
 """
 function omega_center_grad(
     bvectors::BVectors{FT},
@@ -50,6 +73,11 @@ function omega_center_grad(
     return GX, GY
 end
 
+"""
+    get_fg!_center_disentangle(model, r₀, λ=1.0)
+
+Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
+"""
 function get_fg!_center_disentangle(
     model::Model{T}, r₀::Matrix{T}, λ::T=1.0
 ) where {T<:Real}
@@ -76,6 +104,22 @@ function get_fg!_center_disentangle(
     return f, g!
 end
 
+"""
+    disentangle(model, r₀, λ=1.0; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=20)
+
+Run disentangle on the `Model` with center penalty.
+
+# Arguments
+- `model`: model
+- `r₀`: `3 * n_wann`, WF centers
+- `λ`: penalty strength
+
+# Keyword arguments
+- `f_tol`: tolerance for spread convergence
+- `g_tol`: tolerance for gradient convergence
+- `max_iter`: maximum number of iterations
+- `history_size`: history size of LBFGS
+"""
 function disentangle_center(
     model::Model{T},
     r₀::Matrix{T},

@@ -1,6 +1,22 @@
 using LinearAlgebra
 using Optim: Optim
 
+export disentangle
+
+"""
+    get_frozen_bands(E, dis_froz_max, dis_froz_min)
+
+Generate a `BitMatrix` of frozen bands by checking the two frozen windows.
+
+# Arguments
+- `E`: the energy eigenvalues of the Hamiltonian
+- `dis_froz_max`: the upper bound of the frozen window
+- `dis_froz_min`: the lower bound of the frozen window
+
+!!! note
+
+    The `dis_froz_max` and `dis_froz_min` work similarly as `Wannier90`.
+"""
 function get_frozen_bands(
     E::AbstractMatrix{T}, dis_froz_max::T, dis_froz_min::T=-Inf
 ) where {T<:Real}
@@ -20,6 +36,18 @@ function get_frozen_bands(
     return frozen_bands
 end
 
+"""
+    set_frozen_degen!(frozen_bands, E, atol=1e-4)
+
+Freeze bands which are degenerate with the `frozen_bands`.
+
+In some cases, we might want to freeze the whole set of degenerated eigen vectors.
+
+# Arguments
+- `frozen_bands`: the `BitMatrix` of frozen bands
+- `E`: the energy eigenvalues of the Hamiltonian
+- `atol`: the tolerance of degeneracy
+"""
 function set_frozen_degen!(
     frozen_bands::AbstractMatrix{Bool}, E::AbstractMatrix{T}, atol::T=1e-4
 ) where {T<:Real}
@@ -48,7 +76,15 @@ function set_frozen_degen!(
     return nothing
 end
 
-"""Make sure number of frozen bands at each kpoint <= n_wann"""
+"""
+    check_frozen_bands(frozen_bands, n_wann)
+
+Sanity check that the number of frozen bands at each kpoint <= `n_wann`.
+
+# Arguments
+- `frozen_bands`: the `BitMatrix` of frozen bands
+- `n_wann`: the number of wannier functions
+"""
 function check_frozen_bands(frozen_bands::AbstractMatrix{Bool}, n_wann::Int)
     n_bands, n_kpts = size(frozen_bands)
     n_wann > n_bands && error("n_wann > n_bands")
@@ -63,7 +99,18 @@ function check_frozen_bands(frozen_bands::AbstractMatrix{Bool}, n_wann::Int)
 end
 
 """
-Set frozen bands according to two energy windows
+    set_frozen_win!(model, dis_froz_max, dis_froz_min=-Inf; degen=false, degen_atol=1e-4)
+
+Set frozen bands of the `Model` according to two energy windows.
+
+# Arguments
+- `model`: the `Model` to be set
+- `dis_froz_max`: the upper bound of the frozen window
+- `dis_froz_min`: the lower bound of the frozen window
+
+# Keyword Arguments
+- `degen`: whether to freeze the whole set of degenerated eigen vectors
+- `degen_atol`: the tolerance of degeneracy
 """
 function set_frozen_win!(
     model::Model{T},
@@ -86,7 +133,23 @@ function set_frozen_win!(
 end
 
 """
-Get frozen bands according to projectability ∈ [0.0, 1.0]
+    get_frozen_proj(E, A, dis_proj_max)
+
+Get frozen bands according to band projectability.
+
+# Arguments
+- `E`: the energy eigenvalues of the Hamiltonian
+- `A`: the gauge rotation matrices
+- `dis_proj_max`: the upper bound projectability.
+    Bands with projectability >= `dis_proj_max` are frozen.
+
+!!! note
+
+    The band projectability for band ``n`` at kpoint ``\\bm{k}`` is calculated by
+    ``p_{n \\bm{k}} = \\sum_{m=1}^{m=n_{wann}} | A_{nm \\bm{k}} |^2``,
+    and usually each element ``p_{n \\bm{k}} \\in [0.0, 1.0]``.
+    In such cases, the `dis_proj_max` is usually set to sth. like `0.9` to
+    freeze high-projectability bands.
 """
 function get_frozen_proj(
     E::AbstractMatrix{T}, A::AbstractArray{Complex{T}}, dis_proj_max::T
@@ -114,7 +177,18 @@ function get_frozen_proj(
 end
 
 """
-Set frozen bands according to projectability ∈ [0.0, 1.0]
+    set_frozen_proj!(model, dis_proj_max; degen=false, degen_atol=1e-4)
+
+Set frozen bands of the `Model` according to projectability.
+
+# Arguments
+- `model`: the `Model` to be set
+- `dis_proj_max`: the upper bound projectability.
+    Bands with projectability >= `dis_proj_max` are frozen.
+
+# Keyword Arguments
+- `degen`: whether to freeze the whole set of degenerated eigen vectors
+- `degen_atol`: the tolerance of degeneracy
 """
 function set_frozen_proj!(
     model::Model{T}, dis_proj_max::T; degen::Bool=false, degen_atol::T=1e-4
@@ -133,14 +207,26 @@ function set_frozen_proj!(
 end
 
 """
-normalize and freeze a block of a matrix
+    orthonorm_freeze(A, frozen)
 
-Block form:  A = vcat(Uf, Ur)
-Semiunitary: A' * A = I
-             Uf' * Uf + Ur' * Ur = I
-Frozen:      Uf * Uf' = I
-Also:        Uf * Ur' = 0
-Strategy: first orthogonalize Uf, then project Uf out of Ur, then orthogonalize the range of Ur
+Normalize and freeze a block of a matrix.
+
+Conditions:
+- Block form:  `A = vcat(Uf, Ur)`
+- Semiunitary
+  - `A' * A = I`
+  - `Uf' * Uf + Ur' * Ur = I`
+- Frozen:      `Uf * Uf' = I`
+- Also:        `Uf * Ur' = 0`
+
+Strategy:
+1. orthogonalize `Uf`
+2. project `Uf` out of `Ur`
+3. orthogonalize the range of `Ur`
+
+# Arguments
+- `A`: the matrix to be orthonormalized and frozen
+- `frozen`: the `BitVector` specifying which bands are frozen
 """
 function orthonorm_freeze(A::Matrix{T}, frozen::BitVector) where {T<:Complex}
     n_bands, n_wann = size(A)
@@ -250,12 +336,15 @@ end
 # end
 
 """
-There are three formats: A, (X, Y), and XY stored contiguously in memory.
-A is the format used in the rest of the code, XY is the format used in the optimizer,
-(X, Y) is intermediate format.
-A is n_bands * n_wann,
-X is n_wann * n_wann,
-Y is n_bands * n_wann and has first block equal to [I 0].
+    X_Y_to_A(X::Array{T,3}, Y::Array{T,3})
+
+Convert the `(X, Y)` layout to the `A` layout.
+
+There are three formats: `A`, `(X, Y)`, and `XY` stored contiguously in memory.
+For each kpoint,
+- `A`: `size(A) = (n_bands, n_wann)`, the format used in the rest of the code
+- `(X, Y)`: `size(X) = (n_wann, n_wann)`, `size(Y) = (n_bands, n_wann)`, intermediate format
+- `XY`: this is the format used in the optimizer
 """
 function X_Y_to_A(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(Y)
@@ -263,7 +352,7 @@ function X_Y_to_A(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
     A = zeros(T, n_bands, n_wann, n_kpts)
 
     for ik in 1:n_kpts
-        # check
+        # sanity check, should be true but comment out to be faster
         # idx_f = model.frozen_bands[:, ik]
         # idx_nf = .!idx_f
         # n_froz = count(idx_f)
@@ -281,8 +370,15 @@ function X_Y_to_A(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
 end
 
 """
-size(A) = n_bands * n_wann * n_kpts
-size(frozen) = n_bands * n_kpts
+    A_to_X_Y(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
+
+Convert the `A` layout to the `(X, Y)` layout.
+
+See also [`X_Y_to_A`](@ref X_Y_to_A).
+
+# Arguments
+- `A`: `n_bands * n_wann * n_kpts`
+- `frozen`: `n_bands * n_kpts`
 """
 function A_to_X_Y(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(A)
@@ -323,7 +419,18 @@ function A_to_X_Y(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
     return X, Y
 end
 
-"""XY to (X, Y)"""
+"""
+    XY_to_X_Y(XY::Matrix{T}, n_bands::Int, n_wann::Int)
+
+Convert the `XY` layout to the `(X, Y)` layout.
+
+See also [`X_Y_to_A`](@ref X_Y_to_A).
+
+# Arguments
+- `XY`: `n_bands * n_wann * n_kpts` contiguous array
+- `n_bands`: number of bands, to be used to reshape `XY`
+- `n_wann`: number of wannier functions, to be used to reshape `XY`
+"""
 function XY_to_X_Y(XY::Matrix{T}, n_bands::Int, n_wann::Int) where {T<:Complex}
     n_kpts = size(XY, 2)
 
@@ -341,7 +448,13 @@ function XY_to_X_Y(XY::Matrix{T}, n_bands::Int, n_wann::Int) where {T<:Complex}
     return X, Y
 end
 
-"""XY to (X, Y)"""
+"""
+    X_Y_to_XY(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
+
+Convert the `(X, Y)` layout to the `XY` layout.
+
+See also [`X_Y_to_A`](@ref X_Y_to_A).
+"""
 function X_Y_to_XY(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(Y)
     # n_wann, n_wann, n_kpts = size(X)
@@ -358,6 +471,17 @@ function X_Y_to_XY(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
     return XY
 end
 
+"""
+    omega(bvectors, M, X, Y)
+
+Compute WF spread in the `(X, Y)` layout.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `X`: `n_wann * n_wann * n_kpts` array
+- `Y`: `n_bands * n_wann * n_kpts` array
+"""
 function omega(
     bvectors::BVectors{FT},
     M::Array{Complex{FT},4},
@@ -369,10 +493,16 @@ function omega(
 end
 
 """
-size(M) = n_bands * n_bands * n_bvecs * n_kpts
-size(Y) = n_wann * n_wann * n_kpts
-size(Y) = n_bands * n_wann * n_kpts
-size(frozen) = n_bands * n_kpts
+    omega_grad(bvectors, M, X, Y, frozen)
+
+Compute gradient of WF spread in the `(X, Y)` layout.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `X`: `n_wann * n_wann * n_kpts` array
+- `Y`: `n_bands * n_wann * n_kpts` array
+- `frozen`: `n_bands * n_kpts` array for frozen bands
 """
 function omega_grad(
     bvectors::BVectors{FT},
@@ -412,11 +542,17 @@ function omega_grad(
 end
 
 """
-Set grad of frozen bands to 0.
+    zero_froz_grad!(G, model)
+
+Set gradient of frozen bands to 0.
 
 This is used in test.
+
+# Arguments
+- `G`: gradient of the spread, in `XY` layout
+- `model`: model
 """
-function zero_froz_grad!(G::Matrix, model::Wannier.Model)
+function zero_froz_grad!(G::Matrix, model::Model)
     GX, GY = Wannier.XY_to_X_Y(G, model.n_bands, model.n_wann)
     for ik in 1:size(G, 2)
         idx_f = model.frozen_bands[:, ik]
@@ -428,6 +564,11 @@ function zero_froz_grad!(G::Matrix, model::Wannier.Model)
     return nothing
 end
 
+"""
+    get_fg!_disentangle(model::Model)
+
+Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
+"""
 function get_fg!_disentangle(model::Model)
     function f(XY)
         X, Y = XY_to_X_Y(XY, model.n_bands, model.n_wann)
@@ -453,6 +594,21 @@ function get_fg!_disentangle(model::Model)
     return f, g!
 end
 
+"""
+    disentangle(model; random_gauge=false, f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=20)
+
+Run disentangle on the `Model`.
+
+# Arguments
+- `model`: model
+
+# Keyword arguments
+- `random_gauge`: use random `A` matrices as initial guess
+- `f_tol`: tolerance for spread convergence
+- `g_tol`: tolerance for gradient convergence
+- `max_iter`: maximum number of iterations
+- `history_size`: history size of LBFGS
+"""
 function disentangle(
     model::Model{T};
     random_gauge::Bool=false,

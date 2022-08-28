@@ -1,5 +1,12 @@
 using Optim: Optim
 
+export max_localize
+
+"""
+    get_fg!_maxloc(model::Model)
+
+Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
+"""
 function get_fg!_maxloc(model::Model)
     f(A) = omega(model.bvectors, model.M, A).Ω
 
@@ -12,9 +19,18 @@ function get_fg!_maxloc(model::Model)
 end
 
 """
-Maximally localize spread functional w.r.t. all kpoints.
+    max_localize(model; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=20)
 
-On a unitary matrix manifold.
+Maximally localize spread functional w.r.t. all kpoints on a unitary matrix manifold.
+
+# Arguments
+- `model`: model
+
+# Keyword arguments
+- `f_tol`: tolerance for spread convergence
+- `g_tol`: tolerance for gradient convergence
+- `max_iter`: maximum number of iterations
+- `history_size`: history size of LBFGS
 """
 function max_localize(
     model::Model{T}; f_tol::T=1e-7, g_tol::T=1e-5, max_iter::Int=200, history_size::Int=20
