@@ -3,12 +3,12 @@ Interpolate band structure.
 
 # Args
 
-- `seedname`: seedname for AMN/MMN/EIG/CHK files
+- `seedname`: seedname for `amn`/`mmn`/`eig`/`chk` files
 
 # Options
 
 - `--out`: output seedname for bands.dat. Default is `wjl`
-- `--amn`: AMN filename. If not given, default is read chk.fmt file
+- `--amn`: `amn` filename. If not given, default is read `chk.fmt` file
 
 """
 @cast function band(seedname::String; out::String="wjl", amn::String="")

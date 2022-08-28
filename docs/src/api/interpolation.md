@@ -127,6 +127,23 @@ get_kpath
 
 ## Band structure
 
+!!! warning
+
+    Need some care when comparing the band interpolation between `Wannier.jl` and `Wannier90`,
+    after running the `Wannier.jl` disentanglement and writing an optimized `amn` file for
+    `Wannier90` to interpolate band structure.
+
+    When `Wannier90` read an `amn` file, it will (`Wannier90` v3.1.0)
+    1. Lowdin orthogonalize the `amn` matrices, in `disentangle.F90:dis_project`, line 1418
+        This should do no harm, since the optimized amn is already semi-unitary,
+        a SVD of it should not change the optimized amn (apart from numerical noise)
+    2. generate a new `amn` according to the frozen window, in `disentangle.F90:dis_proj_froz`,
+        line 1830. This will **DESTROY** the optimized `amn` matrices, if we restart
+        `Wannier90` from the optimized `amn` with `dis_num_iter = 0`, the spreads in `wout` file
+        is very different from the output of `Wannier.jl`, we must skip this step by commenting
+        out **ALL** the `dis_froz_min/max` in the `win` file, then
+        use `Wannier90` to interpolate bands, remember also set `num_iter` and `dis_num_ite = 0`.
+
 ```@docs
 get_Hk
 interpolate

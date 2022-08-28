@@ -3,11 +3,11 @@ Maximally localize an isolated group of bands.
 
 # Args
 
-- `seedname`: seedname for WIN/AMN/MMN/EIG files
+- `seedname`: seedname for `win`/`amn`/`mmn`/`eig` files
 
 # Options
 
-- `-o, --output=<str>`: filename for output AMN. Default is `seedname.maxloc.amn`
+- `-o, --output=<str>`: filename for output `amn`. Default is `seedname.maxloc.amn`
 - `-m, --maxiter=<int>`: max number of iterations. Default is `50`
 """
 @cast function maxloc(seedname::String; output::String="", maxiter::Int=50)

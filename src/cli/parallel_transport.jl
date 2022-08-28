@@ -3,11 +3,11 @@ Generate parallel transport gauge Wannier functions.
 
 # Args
 
-- `seedname`: seedname for WIN/AMN/MMN/EIG files
+- `seedname`: seedname for `win`/`amn`/`mmn`/`eig` files
 
 # Options
 
-- `-o, --output`: filename for output AMN. Default is `seedname.ptg.amn`
+- `-o, --output`: filename for output `amn`. Default is `seedname.ptg.amn`
 """
 @cast function ptg(seedname::String; output::String="")
     if output == ""

@@ -6,23 +6,23 @@ Then this command split WFs into two independent groups.
 
 # Args
 
-- `seedname`: seedname for WIN/AMN/MMN/EIG files
+- `seedname`: seedname for `win`/`amn`/`mmn`/`eig` files
 
 # Options
 
 - `--nval`: number of valence WFs. Default is `n_wann ÷ 2`
-- `--outdir-val`: dirname for output valence AMN/MMN/EIG. Default is `val`
-- `--outdir-cond`: dirname for output conduction AMN/MMN/EIG. Default is `cond`
+- `--outdir-val`: dirname for output valence `amn`/`mmn`/`eig`. Default is `val`
+- `--outdir-cond`: dirname for output conduction `amn`/`mmn`/`eig`. Default is `cond`
 
 # Flags
 
-- `--run-disentangle`: read AMN and run disentangle first, otherwise read CHK to
+- `--run-disentangle`: read `amn` and run disentangle first, otherwise read `chk` to
     get unitary matrices from `n_bands` to `n_wann`
 - `--run-optrot`: max localize w.r.t. single unitary matrix after parallel transport.
     Should further reduce the spread and much closer to the true max localization.
 - `--run-maxloc`: run a final max localize w.r.t. all kpoints.
     Should reach the true max localization.
-- `--rotate-unk`: generate UNK files for valence and conduction, for plotting WFs
+- `--rotate-unk`: generate `unk` files for valence and conduction, for plotting WFs
 """
 @cast function splitvc(
     seedname::String;

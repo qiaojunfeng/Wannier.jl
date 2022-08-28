@@ -3,11 +3,11 @@ Maximally localize a group of entangled bands.
 
 # Args
 
-- `seedname`: seedname for WIN/AMN/MMN/EIG files
+- `seedname`: seedname for `win`/`amn`/`mmn`/`eig` files
 
 # Options
 
-- `-o, --output=<str>`: filename for output AMN. Default is `seedname.dis.amn`
+- `-o, --output=<str>`: filename for output `amn`. Default is `seedname.dis.amn`
 - `-m, --maxiter=<int>`: max number of iterations. Default is `50`
 """
 @cast function dis(seedname::String; output::String="", maxiter::Int=50)
@@ -60,16 +60,3 @@ Maximally localize a group of entangled bands.
 
     return nothing
 end
-
-# Notes on band interpolation
-# After seedname.amn.optimized is generated, when using w90 to
-# interpolate bands, w90 does
-#    1. Lowdin orthogonalization of AMN matrix, in disentangle.F90:dis_project, line 1418
-#       This should do no harm, since the optmized amn is already semi-unitary,
-#       a SVD of it should not change the optmized amn (apart from numerical noise)
-#    2. Generate a new amn according to frozen window, in disentangle.F90:dis_proj_froz, line 1830
-#       This will DESTROY the optmized amn matrix, if we restart w90 from the optmized Amn
-#       with dis_num_iter = 0, the wout spreads is very different from the output of wannier.jl,
-#       we must skip this step by commenting out ALL the dis_froz_min/max in the win file and
-#       use w90 to interpolate bands, remember also set num_iter and dis_num_iter = 0.
-# In the future I might use FFT to directly interpolate bands in wannier.jl
