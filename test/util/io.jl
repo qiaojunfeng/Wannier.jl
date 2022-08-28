@@ -1,6 +1,6 @@
 
-@testset "isbinary_file" begin
-    @test !Wannier.isbinary_file(joinpath(FIXTURE_PATH, "silicon/UNK00001.1"))
+@testset "isbinary file" begin
+    @test !Wannier.isbinary(joinpath(FIXTURE_PATH, "silicon/UNK00001.1"))
 end
 
 @testset "parse_float" begin

@@ -167,7 +167,7 @@ function read_w90_tb(seedname::AbstractString)
     lattice = tbdat.lattice
     R_degen = tbdat.R_degen
     H = tbdat.hamiltonian
-    positions = tbdat.position
+    position_op = tbdat.position_op
 
     if Rvecs.R != tbdat.R_vecs
         @error "R vecs in tb.dat and wsvec.dat are not identical"
@@ -177,8 +177,8 @@ function read_w90_tb(seedname::AbstractString)
 
     if typeof(Rvecs) <: RVectorsMDRS
         Rvecs_mdrs = RVectorsMDRS(Rvecs_ws, Rvecs.T, Rvecs.Nᵀ)
-        return Rvecs_mdrs, H, positions
+        return Rvecs_mdrs, H, position_op
     end
 
-    return Rvecs_ws, H, positions
+    return Rvecs_ws, H, position_op
 end
