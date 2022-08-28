@@ -35,6 +35,7 @@ write_realspace_wf
 ## Evaluate operators in real space
 
 ```@docs
+cartesianize_xyz
 moment
 center(rgrid::RGrid, W::AbstractArray)
 omega(rgrid::RGrid, W::AbstractArray)

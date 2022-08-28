@@ -70,7 +70,23 @@ write_w90
 read_w90_band
 write_w90_band
 get_kpoints
+read_w90_wsvec
+read_w90_tbdat
 read_w90_tb
+```
+
+## File manipulation
+
+### Truncate Wannier90 matrices
+
+!!! tip
+
+    Here are some functions to remove some bands from `mmn`, `eig`, or `UNK` files,
+    so as to skip rerunning NSCF calculations and `pw2wannier90.x`.
+
+```@docs
+truncate_mmn_eig
+truncate_unk
 truncate_w90
 ```
 

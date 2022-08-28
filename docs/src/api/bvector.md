@@ -45,6 +45,8 @@ search_shells
 are_parallel
 delete_parallel
 compute_weights
+check_b1
+flatten_shells
 ```
 
 ## B vectors

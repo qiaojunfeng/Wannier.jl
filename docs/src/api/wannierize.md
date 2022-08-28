@@ -151,6 +151,13 @@ omega_center_grad(
     r₀::Matrix{FT},
     λ::FT,
 ) where {FT<:Real}
+omega_center_grad(
+    bvectors::BVectors{FT},
+    M::Array{Complex{FT},4},
+    A::Array{Complex{FT},3},
+    r₀::Matrix{FT},
+    λ::FT,
+) where {FT<:Real}
 get_fg!_center_maxloc
 max_localize_center
 ```
