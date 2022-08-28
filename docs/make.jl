@@ -7,6 +7,7 @@ makedocs(;
     modules=[Wannier],
     pages=[
         "Home" => "index.md",
+        "Quick start" => "quickstart.md",
         "Tutorial" => "tutorial.md",
         "Theory" => ["Normalization" => "theory/normalization.md"],
         "API" => [
