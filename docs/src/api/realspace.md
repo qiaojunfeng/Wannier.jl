@@ -36,7 +36,7 @@ write_realspace_wf
 
 ```@docs
 moment
-center
-omega
-position_op
+center(rgrid::RGrid, W::AbstractArray)
+omega(rgrid::RGrid, W::AbstractArray)
+position_op(rgrid::RGrid, W::AbstractArray{T,4}) where {T<:Complex}
 ```

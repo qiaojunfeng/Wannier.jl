@@ -81,7 +81,7 @@ Compute WF spread with center penalty, for maximal localization.
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
 - `A`: `n_wann * n_wann * n_kpts` array
-- `r₀`: `3 * n_wann`, WF centers
+- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
 @views function omega_center(
@@ -108,8 +108,8 @@ Compute gradient of WF spread with center penalty, for maximal localization.
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
 - `A`: `n_wann * n_wann * n_kpts` array
-- `r`: `3 * n_wann`, the current WF centers
-- `r₀`: `3 * n_wann`, the target WF centers
+- `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
+- `r₀`: `3 * n_wann`, the target WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
 @views function omega_center_grad(
@@ -187,7 +187,7 @@ Compute gradient of WF spread with center penalty, for maximal localization.
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
 - `A`: `n_wann * n_wann * n_kpts` array
-- `r₀`: `3 * n_wann`, the target WF centers
+- `r₀`: `3 * n_wann`, the target WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
 function omega_center_grad(
@@ -225,7 +225,7 @@ Maximally localize spread functional with center constraint on a unitary matrix 
 
 # Arguments
 - `model`: model
-- `r₀`: `3 * n_wann`, WF centers
+- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 
 # Keyword arguments

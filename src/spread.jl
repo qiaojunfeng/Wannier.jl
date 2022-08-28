@@ -5,12 +5,26 @@ export omega, omega_grad, center
 abstract type AbstractSpread end
 
 @doc raw"""
-The MV spread.
+    struct Spread
+
+The Marzari-Vanderbilt (MV) spread functional.
 
 From MV:
-Omega = ∑ₙ <r²>ₙ - |<r>ₙ|²
-<r>ₙ = -1/N ∑_k,b wb b Im ln(Mnn,kb)
-<r²>ₙ = 1/N ∑_k,b wb [(1 - |Mnn,kb|^2) + (Im ln(Mnn,kb))^2]
+- ``\Omega = \sum_n \langle r^2 \rangle_n - | \langle r \rangle_n |^2``
+- ``\langle r \rangle_n = -\frac{1}{N} \sum_{\bm{k},\bm{b}} w_{\bm{b}} \bm{b}
+    \Im \log M_{nn}^{\bm{k},\bm{b}}``
+- ``\langle r^2 \rangle_n = \frac{1}{N} \sum_{\bm{k},\bm{b}} w_{\bm{b}} \bm{b}
+    \left[ \left( 1 - | M_{nn}^{\bm{k},\bm{b}} |^2 \right) +
+    \left( \Im \log M_{nn}^{\bm{k},\bm{b}} \right)^2 \right]``
+
+# Fields
+- `Ω`: total spread, unit Å²
+- `ΩI`: gauge-invarient part, unit Å²
+- `ΩOD`: off-diagonal part, unit Å²
+- `ΩD`: diagonal part, unit Å²
+- `Ω̃`: Ω̃ = ΩOD + ΩD, unit Å²
+- `ω`: Ω of each WF, unit Å², `length(ω) = n_wann`
+- `r`: WF center, Cartesian coordinates, unit Å, `3 * n_wann`
 """
 struct Spread{T<:Real} <: AbstractSpread
     # Total spread, unit Å², Ω = ΩI + Ω̃
@@ -38,6 +52,16 @@ struct Spread{T<:Real} <: AbstractSpread
     # fix_centers :: Array{Float64,2} #3 x nwannier
 end
 
+"""
+    omega(bvectors, M, A)
+
+Compute WF spread.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `A`: `n_wann * n_wann * n_kpts` array
+"""
 @views function omega(
     bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
 ) where {FT<:Real}
@@ -135,7 +159,18 @@ end
     # return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, w_froz)
 end
 
+"""
+    omega(model)
+
+Compute WF spread for `Model`.
+"""
 omega(model::Model) = omega(model.bvectors, model.M, model.A)
+
+"""
+    omega(model, A)
+
+Compute WF spread for `Model` using given `A` gauge.
+"""
 function omega(model::Model, A::AbstractArray{T,3}) where {T<:Number}
     return omega(model.bvectors, model.M, A)
 end
@@ -157,9 +192,17 @@ function Base.show(io::IO, Ω::Spread)
 end
 
 """
-dΩ/dU, n_bands * n_wann * n_kpts
+    omega_grad(bvectors, M, A, r)
 
-r: WF centers, cartesian coordinates, 3 * n_wann
+Compute gradient of WF spread.
+
+Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `A`: `n_wann * n_wann * n_kpts` array
+- `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
 """
 @views function omega_grad(
     bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}, r::Matrix{FT}
@@ -240,6 +283,18 @@ r: WF centers, cartesian coordinates, 3 * n_wann
     return G
 end
 
+"""
+    omega_grad(bvectors, M, A)
+
+Compute gradient of WF spread.
+
+Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `A`: `n_wann * n_wann * n_kpts` array
+"""
 @views function omega_grad(
     bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
 ) where {FT<:Real}
@@ -249,9 +304,16 @@ end
 end
 
 """
-local part of the contribution to r^2
+    omega_local(bvectors, M, A)
+
+Local part of the contribution to `r^2`.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `A`: `n_wann * n_wann * n_kpts` array
 """
-function omega_loc(
+function omega_local(
     bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
 ) where {FT<:Real}
     n_bands, n_wann, n_kpts = size(A)
@@ -278,6 +340,16 @@ function omega_loc(
     return loc
 end
 
+"""
+    center(bvectors, M, A)
+
+Compute WF center in reciprocal space.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `A`: `n_wann * n_wann * n_kpts` array
+"""
 @views function center(
     bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
 ) where {FT<:Real}
@@ -311,13 +383,35 @@ end
     return r
 end
 
+"""
+    center(model)
+
+Compute WF center in reciprocal space for `Model`.
+"""
 center(model::Model) = center(model.bvectors, model.M, model.A)
+
+"""
+    center(model, A)
+
+Compute WF center in reciprocal space for `Model` with given `A` gauge.
+
+# Arguments
+- `model`: the `Model`
+- `A`: `n_wann * n_wann * n_kpts` array
+"""
 function center(model::Model, A::AbstractArray{T,3}) where {T<:Number}
     return center(model.bvectors, model.M, A)
 end
 
 """
-WF postion operator matrix
+    position_op(bvectors, M, A)
+
+Compute WF postion operator matrix in reciprocal space.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `A`: `n_wann * n_wann * n_kpts` array
 """
 @views function position_op(
     bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
@@ -364,16 +458,38 @@ WF postion operator matrix
     return R
 end
 
+"""
+    position_op(model)
+
+Compute WF postion operator matrix in reciprocal space for `Model`.
+"""
 position_op(model::Model) = position_op(model.bvectors, model.M, model.A)
+
+"""
+    position_op(model, A)
+
+Compute WF postion operator matrix in reciprocal space for `Model` with given `A` gauge.
+
+# Arguments
+- `model`: the `Model`
+- `A`: `n_wann * n_wann * n_kpts` array
+"""
 function position_op(model::Model, A::AbstractArray{T,3}) where {T<:Number}
     return position_op(model.bvectors, model.M, A)
 end
 
 """
-Berry connection at each kpoint
+    berry_connection(bvectors, M, A)
+
+Compute Berry connection at each kpoint.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `A`: `n_wann * n_wann * n_kpts` array
 """
 @views function berry_connection(
-    M::Array{Complex{FT},4}, A::Array{Complex{FT},3}, bvectors::BVectors{FT}
+    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
 ) where {FT<:Real}
     n_bands, n_wann, n_kpts = size(A)
     n_bvecs = size(M, 3)

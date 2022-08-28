@@ -13,7 +13,7 @@ Compute WF spread with center penalty, in the `(X, Y)` layout.
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
 - `X`: `n_wann * n_wann * n_kpts` array
 - `Y`: `n_bands * n_wann * n_kpts` array
-- `r₀`: `3 * n_wann`, WF centers
+- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
 function omega_center(
@@ -39,7 +39,7 @@ Compute gradient of WF spread with center penalty, in the `(X, Y)` layout.
 - `X`: `n_wann * n_wann * n_kpts` array
 - `Y`: `n_bands * n_wann * n_kpts` array
 - `frozen`: `n_bands * n_kpts` array for frozen bands
-- `r₀`: `3 * n_wann`, WF centers
+- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
 function omega_center_grad(
@@ -111,7 +111,7 @@ Run disentangle on the `Model` with center penalty.
 
 # Arguments
 - `model`: model
-- `r₀`: `3 * n_wann`, WF centers
+- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 
 # Keyword arguments
