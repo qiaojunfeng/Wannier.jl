@@ -2,6 +2,34 @@ using Printf: @printf
 
 export rotate_gauge
 
+"""
+    struct Model
+
+A struct containing the parameters and matrices of the crystal structure.
+
+# Fields
+- `lattice`: columns are the lattice vectors
+- `atom_positions`: columns are the fractional coordinates of atoms
+- `atom_labels`: labels of atoms
+- `kgrid`: number of kpoints along 3 lattice vectors
+- `kpoints`: columns are the fractional coordinates of kpoints
+- `bvectors`: bvectors satisfying the B1 condition
+- `frozen_bands`: indicates which bands are frozen
+- `M`: `n_bands * n_bands * n_bvecs * n_kpts`, overlap matrix ``M_{\\bm{k},\\bm{b}}``
+- `A`: `n_bands * n_wann * n_kpts`, (semi-)unitary gauge rotation matrix ``A_{\\bm{k}}``
+- `E`: `n_bands * n_kpts`, energy eigenvalues ``\\epsilon_{n \\bm{k}}``
+- `recip_lattice`: columns are the reciprocal lattice vectors
+- `n_atoms`: number of atoms
+- `n_bands`: number of bands
+- `n_wann`: number of wannier functions
+- `n_kpts`: number of kpoints
+- `n_bvecs`: number of bvectors
+
+!!! note
+
+    This only cotains the necessary information for maximal localization.
+    For Wannier interpolation, see [`InterpolationModel`](@ref InterpolationModel).
+"""
 struct Model{T<:Real}
     # unit cell, 3 * 3, Å unit, each column is a lattice vector
     lattice::Mat3{T}
@@ -57,6 +85,28 @@ struct Model{T<:Real}
     n_bvecs::Int
 end
 
+"""
+    Model(lattice, atom_positions, atom_labels, kgrid, kpoints, bvectors, frozen_bands, M, A, E)
+
+Construct a [`Model`](@ref Model) `struct`.
+
+# Arguments
+- `lattice`: columns are the lattice vectors
+- `atom_positions`: columns are the fractional coordinates of atoms
+- `atom_labels`: labels of atoms
+- `kgrid`: number of kpoints along 3 lattice vectors
+- `kpoints`: columns are the fractional coordinates of kpoints
+- `bvectors`: bvectors satisfying the B1 condition
+- `frozen_bands`: indicates which bands are frozen
+- `M`: `n_bands * n_bands * n_bvecs * n_kpts`, overlap matrix ``M_{\\bm{k},\\bm{b}}``
+- `A`: `n_bands * n_wann * n_kpts`, (semi-)unitary gauge rotation matrix ``A_{\\bm{k}}``
+- `E`: `n_bands * n_kpts`, energy eigenvalues ``\\epsilon_{n \\bm{k}}``
+
+!!! tip
+
+    This is more user-friendly constructor, only necessary information is required.
+    Remaining fields are generated automatically.
+"""
 function Model(
     lattice::Mat3{T},
     atom_positions::Matrix{T},
@@ -115,11 +165,26 @@ function Base.show(io::IO, model::Model)
     return nothing
 end
 
-"""Rotate the gauge of a Model"""
+"""
+    rotate_gauge(model::Model, A::Array{T,3})
+
+Rotate the gauge of a `Model`.
+
+# Arguments
+- `model`: a `Model` `struct`
+- `A`: `n_bands * n_wann * n_kpts`, (semi-)unitary gauge rotation matrix ``A_{\\bm{k}}``
+
+!!! note
+
+    The original `Model.A` will be discarded;
+    the `M`, and `E` matrices will be rotated by the input `A`.
+    However, since `E` is not the Hamiltonian matrices but only the eigenvalues,
+    this function only support rotations that keep the Hamiltonian in diagonal form.
+"""
 function rotate_gauge(model::Model, A::Array{T,3}) where {T<:Number}
     n_bands = model.n_bands
     n_kpts = model.n_kpts
-    size(A)[[1, 3]] != (n_bands, n_kpts) && error("A must have size (n_bands, ?, n_kpts)")
+    size(A)[[1, 3]] != (n_bands, n_kpts) && error("A must have size (n_bands, :, n_kpts)")
     # The new n_wann
     n_wann = size(A, 2)
 

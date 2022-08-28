@@ -47,7 +47,7 @@ imaglog
 orthonorm_lowdin
 fix_global_phase
 compute_imre_ratio
-rotate_gauge
+rotate_gauge(O::Array{T,3}, A::Array{T,3}) where {T<:Number}
 eyes_A
 rotate_A
 rotate_M
