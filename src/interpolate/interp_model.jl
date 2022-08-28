@@ -1,3 +1,14 @@
+"""
+    struct InterpolationModel
+
+The model for Wannier interpolation.
+
+# Fields
+- `model`: the Wannierization [`Model`](@ref Model)
+- `kRvectors`: the kpoint and R vectors
+- `kpath`: the kpoint path for band structure
+- `S`: `n_bands * n_bands * 3 * n_kpts`, the spin operator matrices
+"""
 struct InterpolationModel{T<:Real}
     # model storing results of Wannierization
     model::Model{T}
@@ -39,6 +50,18 @@ function Base.show(io::IO, model::InterpolationModel)
     return nothing
 end
 
+"""
+    InterpolationModel(
+        model::Model{T}, kRvectors::KRVectors{T}, kpath::KPath
+    ) where {T<:Real}
+
+A `InterpolationModel` constructor ignoring spin operator matrices.
+
+# Arguments
+- `model`: the Wannierization [`Model`](@ref Model)
+- `kRvectors`: the kpoint and R vectors
+- `kpath`: the kpoint path for band structure
+"""
 function InterpolationModel(
     model::Model{T}, kRvectors::KRVectors{T}, kpath::KPath
 ) where {T<:Real}
@@ -49,6 +72,20 @@ function InterpolationModel(
     )
 end
 
+"""
+    InterpolationModel(model::Model; mdrs::Bool=true)
+
+Construct a `InterpolationModel` from a Wannierization [`Model`](@ref Model).
+
+The `kpath` will be auto generated from the lattice by using
+[`get_kpath`](@ref get_kpath).
+
+# Arguments
+- `model`: the Wannierization [`Model`](@ref Model)
+
+# Keyword Arguments
+- `mdrs`: whether to use MDRS interpolation
+"""
 function InterpolationModel(model::Model; mdrs::Bool=true)
     if mdrs
         centers = center(model)

@@ -1,4 +1,19 @@
 
+"""
+    get_Hk(E, A)
+
+Construct k space Hamiltonian Hᵏ.
+
+```math
+H_{\\bm{k}} = A_{\\bm{k}}^\\dagger [\\epsilon_{n \\bm{k}}] A_{\\bm{k}},
+```
+where ``[\\epsilon_{n \\bm{k}}]`` is a diagonal matrix with
+``\\epsilon_{n \\bm{k}}`` as the diagonal elements.
+
+# Arguments
+- `E`: `n_bands * n_kpts`, energy eigenvalue
+- `A`: `n_bands * n_wann * n_kpts`, gauge matrices
+"""
 function get_Hk(E::Matrix{T}, A::Array{U,3}) where {T<:Number,U<:Number}
     n_bands, n_wann, n_kpts = size(A)
     size(E) != (n_bands, n_kpts) && error("size(E) != (n_bands, n_kpts)")
@@ -12,8 +27,14 @@ function get_Hk(E::Matrix{T}, A::Array{U,3}) where {T<:Number,U<:Number}
 end
 
 """
-interpolate band structure along a kpath
-kpoints: interpolated kpoints in fractional coordinates, 3 x n_kpts, can be nonuniform.
+    interpolate(model::InterpolationModel{T}, kpoints::Matrix{T}) where {T<:Real}
+
+Interpolate energy eigenvalues at `kpoints`.
+
+# Arguments
+- `model`: `InterpolationModel`
+- `kpoints`: `3 * n_kpts`, kpoints to be interpolated, in fractional coordinates,
+    can be nonuniform.
 """
 function interpolate(model::InterpolationModel{T}, kpoints::Matrix{T}) where {T<:Real}
     # n_wann x n_wann x n_kpts
@@ -53,7 +74,13 @@ function interpolate(model::InterpolationModel{T}, kpoints::Matrix{T}) where {T<
 end
 
 """
-Interpolate band structure along kpath.
+    interpolate(model::InterpolationModel, kpi::KPathInterpolant)
+
+Interpolate band structure along the given kpath.
+
+# Arguments
+- `model`: `InterpolationModel`
+- `kpi`: `KPathInterpolant`
 """
 function interpolate(model::InterpolationModel, kpi::KPathInterpolant)
     kpiᶠ = latticize(kpi)
@@ -67,7 +94,19 @@ function interpolate(model::InterpolationModel, kpi::KPathInterpolant)
 end
 
 """
+    interpolate(model::InterpolationModel)
+
 Interpolate band structure along kpath.
+
+The `model.kpath` will be used.
+
+# Arguments
+- `model`: `InterpolationModel`
+
+!!! note
+
+    The kpath has the same density as `Wannier90`'s default, i.e.,
+    `kpath_num_points = 100`.
 """
 function interpolate(model::InterpolationModel)
     kpi = interpolate_w90(model.kpath, 100)

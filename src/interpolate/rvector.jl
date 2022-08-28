@@ -1,8 +1,20 @@
 using LinearAlgebra
 import NearestNeighbors as NN
 
-@doc raw"""
-The R vectors for interpolations, sorted in the same order as the W90 nnkp file.
+"""
+    struct RVectors
+
+The R vectors for interpolation.
+
+# Fields
+- `lattice`: columns are lattice vectors
+- `grid`: number of FFT grid points in each direction, actually equal to `kgrid`
+- `R`: `3 * n_rvecs`, R vectors in fractional coordinates w.r.t. lattice
+- `N`: `n_rvecs`, degeneracy of each R vector
+
+!!! note
+
+    The R vectors are sorted in the same order as `Wannier90`.
 """
 struct RVectors{T<:Real}
     # lattice, 3 * 3, Å unit
@@ -30,6 +42,19 @@ function Base.getproperty(x::RVectors, sym::Symbol)
     end
 end
 
+"""
+    RVectors(lattice, grid, R, N)
+
+Constructor for `RVectors`.
+
+Auto transform `lattice` and `grid` to `Mat3` and `Vec3`, respectively.
+
+# Arguments
+- `lattice`: columns are lattice vectors
+- `grid`: number of FFT grid points in each direction, actually equal to `kgrid`
+- `R`: `3 * n_rvecs`, R vectors in fractional coordinates w.r.t. lattice
+- `N`: `n_rvecs`, degeneracy of each R vector
+"""
 function RVectors(
     lattice::AbstractMatrix,
     grid::AbstractVector{T},
@@ -48,6 +73,11 @@ function Base.show(io::IO, Rvectors::RVectors)
     @printf(io, "n_rvecs = %d", Rvectors.n_rvecs)
 end
 
+"""
+    check_weights(R::RVectors)
+
+Sanity check for the degeneracies of R vectors.
+"""
 function check_weights(R::RVectors)
     if sum(1 ./ R.N) ≉ prod(R.grid)
         error("weights do not sum to 1")
@@ -55,8 +85,19 @@ function check_weights(R::RVectors)
 end
 
 """
-atol: equivalent to `ws_distance_tol` in wannier90.
-max_cell: equivalent to `ws_search_size` in wannier90.
+    get_Rvectors_ws(lattice, rgrid; atol=1e-5, max_cell=3)
+
+Generate R vectors for Wigner-Seitz interpolation.
+
+# Arguments
+- `lattice`: columns are lattice vectors
+- `rgrid`: number of FFT grid points in each direction, actually equal to `kgrid`
+
+# Keyword arguments
+- `atol`: toerance for checking degeneracy,
+    equivalent to `Wannier90` input parameter `ws_distance_tol`
+- `max_cell`: number of neighboring cells to be searched,
+    equivalent to `Wannier90` input parameter `ws_search_size`
 """
 function get_Rvectors_ws(
     lattice::AbstractMatrix{T}, rgrid::AbstractVector{R}; atol::T=1e-5, max_cell::Int=3
@@ -113,8 +154,23 @@ function get_Rvectors_ws(
     return Rvecs
 end
 
-@doc raw"""
-The R vectors for interpolations, sorted in the same order as the W90 nnkp file.
+"""
+    struct RVectorsMDRS
+
+The R vectors for MDRS interpolation.
+
+# Fields
+- `Rvectors`: `Rvectors` for Wigner-Seitz interpolation
+## For MDRSv1
+- `T`: `n_wann * n_wann * n_rvecs`, translation vectors w.r.t to lattice for MDRSv1
+- `Nᵀ`: `n_wann * n_wann * n_rvecs`, degeneracy of each `T` vector for MDRSv1
+## For MDRSv2
+- `R̃vectors`: `RVectors` containing expanded set of `R + T` vectors used in MDRSv2
+- `R̃_RT`: mapping of `R̃vectors` to `R` and `T` vectors
+
+!!! note
+
+    The R vectors are sorted in the same order as `Wannier90`.
 """
 struct RVectorsMDRS{U<:Real}
     # R vectors of the Wigner-Seitz interplation
@@ -141,6 +197,19 @@ struct RVectorsMDRS{U<:Real}
     R̃_RT::Vector{Vector{SVector{4,Int}}}
 end
 
+"""
+    RVectorsMDRS(Rvectors, T, Nᵀ)
+
+A friendly constructor for `RVectorsMDRS`.
+
+The remaining fields `R̃vectors` and `R̃_RT` are only used in MDRSv2,
+the are calculated automatically based on the input arguments.
+
+# Arguments
+- `Rvectors`: `RVectors` for Wigner-Seitz interpolation
+- `T`: `n_wann * n_wann * n_rvecs`, translation vectors w.r.t to lattice for MDRSv1
+- `Nᵀ`: `n_wann * n_wann * n_rvecs`, degeneracy of each `T` vector for MDRSv1
+"""
 function RVectorsMDRS(Rvectors::RVectors, T::Array{Matrix{Int},3}, Nᵀ::Array{Int,3})
     # expanded R vectors
     R̃ = Vector{Vec3{Int}}()
@@ -199,7 +268,20 @@ function Base.show(io::IO, Rvectors::RVectorsMDRS)
 end
 
 """
-centers: fractional coordinates, 3 * n_wann
+    get_Rvectors_mdrs(lattice, rgrid, centers; atol=1e-5, max_cell=3)
+
+Generate R vectors for MDRS interpolation (both v1 and v2).
+
+# Arguments
+- `lattice`: columns are lattice vectors
+- `rgrid`: number of FFT grid points in each direction, actually equal to `kgrid`
+- `centers`: `3 * n_wann`, WF centers in fractional coordinates
+
+# Keyword arguments
+- `atol`: toerance for checking degeneracy,
+    equivalent to `Wannier90` input parameter `ws_distance_tol`
+- `max_cell`: number of neighboring cells to be searched,
+    equivalent to `Wannier90` input parameter `ws_search_size`
 """
 function get_Rvectors_mdrs(
     lattice::AbstractMatrix{T},

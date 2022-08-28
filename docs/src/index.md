@@ -18,8 +18,3 @@ experimentation of new ideas.
 
 1. Wigner-Seitz interpolation
 2. Minimal distance replica selection (MDRS) interpolation
-
-## Contents
-
-```@contents
-```

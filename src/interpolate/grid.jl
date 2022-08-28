@@ -1,6 +1,7 @@
 using LinearAlgebra
 using FFTW
 
+# TODO clean up this file
 function interpfft(A, newSize)
     Y = fft(A)
     (N1, N2, N3) = size(A)

@@ -3,13 +3,23 @@ using Brillouin
 using Spglib
 
 """
-Get kpoint coordinates from a KPath, same as W90.
+    interpolate_w90(kpath::KPath, n_points::Int)
+
+Get kpoint coordinates from a `KPath`.
 
 Use the kpath density of first segment to generate the following kpaths,
 also need to take care of high symmetry kpoints at the start and end of each segment.
 
-n_points: number of kpoints in the first segment, remaining segments
-    have the same density as 1st segment.
+Return a `KPathInterpolant`.
+
+# Arguments
+- `kpath`: a `KPath`
+- `n_points`: number of kpoints in the first segment, remaining segments
+    have the same density as the 1st segment.
+
+!!! note
+
+    This reproduce exactly the `Wannier90` input parameter `kpoint_path` block.
 """
 function interpolate_w90(kpath::KPath, n_points::Int)
     # cartesian
@@ -73,7 +83,12 @@ function interpolate_w90(kpath::KPath, n_points::Int)
 end
 
 """
-Get x axis value for plotting, cartesian length
+    get_x(kpi::KPathInterpolant)
+
+Get x axis value for plotting, in cartesian length.
+
+# Arguments
+- `kpi`: a `KPathInterpolant`
 """
 function get_x(kpi::KPathInterpolant)
     kpi_cart = cartesianize(kpi)
@@ -94,12 +109,17 @@ function get_x(kpi::KPathInterpolant)
     return cumsum(x)
 end
 
-@doc """
-Get KPath for arbitrary cell (can be non-standard)
+"""
+    get_kpath(lattice, atom_positions, atom_numbers)
 
-lattice: each column is a lattice vector, 3 * 3
-atom_positions: fractional coordinates, 3 * n_atoms
-atom_numbers: atomic numbers, n_atoms
+Get a `KPath` for arbitrary cell (can be non-standard).
+
+Internally use `Brillouin.jl`.
+
+# Arguments
+- `lattice`: `3 * 3`, each column is a lattice vector
+- `atom_positions`: `3 * n_atoms`, fractional coordinates
+- `atom_numbers`: `n_atoms` of integer, atomic numbers
 """
 function get_kpath(
     lattice::AbstractMatrix{T},
@@ -113,6 +133,18 @@ function get_kpath(
     return kpath
 end
 
+"""
+    get_kpath(lattice, atom_positions, atom_labels)
+
+Get a `KPath` for arbitrary cell (can be non-standard).
+
+Internally use `Brillouin.jl`.
+
+# Arguments
+- `lattice`: `3 * 3`, each column is a lattice vector
+- `atom_positions`: `3 * n_atoms`, fractional coordinates
+- `atom_labels`: `n_atoms` of string, atomic labels
+"""
 function get_kpath(
     lattice::AbstractMatrix{T},
     atom_positions::AbstractMatrix{T},

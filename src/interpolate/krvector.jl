@@ -1,4 +1,20 @@
-"""Contains both kpoints mapping and R vectors"""
+"""
+    struct KRVectors
+
+Contains both kpoints mapping and R vectors.
+
+# Fields
+- `lattice`: each column is a lattice vector
+- `kgrid`: number of kpoints along 3 directions
+- `kpoints`: each column is a kpoint in fractional coordinates
+- `k_xyz`: kpoints mappings from `ik` to `[ikx, iky, ikz]`
+- `xyz_k`: kpoints mappings from `[ikx, iky, ikz]` to `ik`
+- `Rvectors`: R vectors, can be either `RVectors` or `RVectorsMDRS`
+- `recip_lattice`: each column is a reciprocal lattice vector
+- `n_kpts`: number of kpoints
+- `n_rvecs`: number of R vectors
+- `n_r̃vecs`: number of R̃ vectors, only for MDRS
+"""
 struct KRVectors{T<:Real,RV<:Union{RVectors{T},RVectorsMDRS{T}}}
     # unit cell, 3 * 3, Å unit, each column is a lattice vector
     lattice::Mat3{T}
@@ -10,7 +26,7 @@ struct KRVectors{T<:Real,RV<:Union{RVectors{T},RVectorsMDRS{T}}}
     # n_kpts is the last index since julia array is column-major
     kpoints::Matrix{T}
 
-    # kpoints mappings between ik to (kx, ky, kz), n_kpts
+    # kpoints mappings between ik to [ikx, iky, ikz], n_kpts
     k_xyz::Vector{Vec3{Int}}
     # n_kx, n_ky, n_kz
     xyz_k::Array{Int,3}
@@ -50,6 +66,21 @@ function Base.getproperty(
     end
 end
 
+"""
+    KRVectors(lattice, kgrid, kpoints, k_xyz, xyz_k, Rvectors)
+
+A friendly constructor for `KRVectors`.
+
+Remaining fields are generated automatically based on input arguments.
+
+# Arguments
+- `lattice`: each column is a lattice vector
+- `kgrid`: number of kpoints along 3 directions
+- `kpoints`: each column is a kpoint in fractional coordinates
+- `k_xyz`: kpoints mappings from `ik` to `[ikx, iky, ikz]`
+- `xyz_k`: kpoints mappings from `[ikx, iky, ikz]` to `ik`
+- `Rvectors`: R vectors, can be either `RVectors` or `RVectorsMDRS`
+"""
 function KRVectors(
     lattice::Mat3{T},
     kgrid::Vec3{Int},
@@ -63,6 +94,20 @@ function KRVectors(
     return KRVectors(lattice, kgrid, kpoints, k_xyz, xyz_k, Rvectors, recip_lattice, n_kpts)
 end
 
+"""
+    KRVectors(lattice, kgrid, kpoints, Rvectors)
+
+A friendly constructor for `KRVectors`.
+
+The kpoint mappings `k_xyz` and `xyz_k` are generated based on `kpoints` and `kgrid`.
+Remaining fields are generated automatically based on input arguments.
+
+# Arguments
+- `lattice`: each column is a lattice vector
+- `kgrid`: number of kpoints along 3 directions
+- `kpoints`: each column is a kpoint in fractional coordinates
+- `Rvectors`: R vectors, can be either `RVectors` or `RVectorsMDRS`
+"""
 function KRVectors(
     lattice::Mat3{T},
     kgrid::Vec3{Int},

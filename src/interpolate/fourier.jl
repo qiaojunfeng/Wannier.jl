@@ -1,15 +1,20 @@
 using LinearAlgebra
 
 @doc raw"""
-Fourier transform operator from k space to R space.
-The so-called Wiger-Seitz (WS) interpolation.
+    fourier(kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3})
+    where {T<:Real,RV<:RVectors{T}}
+
+Fourier transform operator from k space to R space for Wiger-Seitz interpolation.
 
 ```math
-X_{mn}(\bf{R}) =
-\frac{1}{N_{\bf{k}}} \sum_{\bf k} e^{-i{\bf k}{\mathbf{R}}} X_{mn}(\bf k)
+X_{mn}(\bm{R}) = \frac{1}{N_{\bm{k}}}
+\sum_{\bm{k}} \exp(-i {\bm{k}} \bm{R}) X_{mn}(\bm{k}),
 ```
+where `N_{\bm{k}}` is the total number of kpoints.
 
-O: operator matrix, n_wann * n_wann * n_kpts
+# Arguments
+- `kRvectors`: for WS interpolation
+- `Oᵏ`: `n_wann * n_wann * n_kpts`, operator matrix in k space
 """
 function fourier(
     kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3}
@@ -36,15 +41,20 @@ function fourier(
 end
 
 @doc raw"""
-Inverse Fourier transform operator from R space to k space.
+    invfourier(kRvectors::KRVectors{T,RV}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T})
+    where {T<:Real,RV<:RVectors{T}}
+
+Inverse Fourier transform operator from R space to k space for WS interpolation.
 
 ```math
-X_{mn}(\bf{k}) =
-\sum_{\bf R} \frac{1}{N_{\bf R}} e^{i{\bf k}{\mathbf{R}}} X_{mn}(\bf R)
+X_{mn}(\bm{k}) = \sum_{\bm{R}} \frac{1}{N_{\bm{R}}}
+\exp(i \bm{k} \bm{R}) X_{mn}(\bm{R}),
 ```
+where ``N_{\bm{R}}`` is the degeneracy of R vectors (not the total number of R vectors).
 
-O_R: real space operator, i.e. in the frequency domain
-kpoints: kpoints to be interpolated, 3 * n_kpts, can be nonuniform, fractional coordinates.
+# Arguments
+- `Oᴿ`: `n_wann * n_wann * n_rvecs`, real space operator matrix
+- `kpoints`: `3 * n_kpts`, kpoints to be interpolated, fractional coordinates, can be nonuniform
 """
 function invfourier(
     kRvectors::KRVectors{T,RV}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
@@ -70,13 +80,23 @@ function invfourier(
 end
 
 @doc raw"""
-Fourier MDRS using plain loops.
-Slower, but reproduce W90 behavior, and generate the same seedname_tb.dat file.
+    _fourier_mdrs_v1(kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3})
+    where {T<:Real,RV<:RVectorsMDRS{T}}
 
+Fourier transform operator from k space to R space for MDRSv1.
+
+The same as the forward Fourier transform of WS interpolation,
 ```math
-X_{mn}(\bf R) =
-\frac{1}{N_{\bf k}} \sum_{{\bf k}}e^{-i{\bf k}{\bf R}} X_{mn}(\bf k)
+X_{mn}(\bm{R}) = \frac{1}{N_{\bm{k}}}
+\sum_{\bm{k}} \exp(-i \bm{k} \bm{R}) X_{mn}(\bm{k}),
 ```
+where `N_{\bm{k}}` is the total number of kpoints.
+
+See also [`_invfourier_mdrs_v1`](@ref _invfourier_mdrs_v1).
+
+# Arguments
+- `kRvectors`: for MDRS interpolation
+- `Oᵏ`: `n_wann * n_wann * n_kpts`, operator matrix in k space
 """
 function _fourier_mdrs_v1(
     kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3}
@@ -97,14 +117,33 @@ function _fourier_mdrs_v1(
 end
 
 @doc raw"""
-Faster version of Fourier MDRS, remove some for loops.
-But need to expand R vectors to R+T, so different from seeedname_tb.dat.
+    _fourier_mdrs_v2(kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3})
+    where {T<:Real,RV<:RVectorsMDRS{T}}
 
+Fourier transform operator from k space to R space for MDRSv2.
+
+To differentiate from the ``{X}_{mn}(\bm{R})`` of MDRSv1, I use
+``\widetilde{X}_{mn}(\widetilde{ \bm{R} })`` for MDRSv2,
 ```math
-\widetilde{X}_{mn}({\tilde{\bf R}}) =
-\sum_{{\bf R}} \frac{1}{N_{\bf R} {\cal N}_{mn{\bf R}}} X_{mn}({\bf R})
-\sum_{j=1}^{{\cal N}_{mn{\bf R}}}   \delta_{{\tilde{\bf R}},{\bf R}+\mathbf{T}_{mn{\bf R}}^{(j)}}
+\widetilde{X}_{mn}(\widetilde{ \bm{R} }) =
+\sum_{ \bm{R} } \frac{1}{ N_{ \bm{R} } \mathcal{N}_{ mn \bm{R} } } X_{mn}(\bm{R})
+\sum_{j=1}^{\mathcal{N}_{mn \bm{R} }}
+\delta_{ \widetilde{ \bm{R} }, \bm{R} + \bm{T}_{ mn \bm{R} }^{(j)} },
 ```
+where ``N_{\bm{R}}`` is the degeneracy of R vectors (not the total number of R vectors),
+and ``\mathcal{N}_{ mn \bm{R} }`` is the degeneracy of ``\bm{T}_{ mn \bm{R} }`` vectors.
+
+See also [`_invfourier_mdrs_v2`](@ref _invfourier_mdrs_v2).
+
+# Arguments
+- `kRvectors`: for MDRS interpolation
+- `Oᵏ`: `n_wann * n_wann * n_kpts`, operator matrix in k space
+
+!!! note
+
+    This is a faster version of MDRS, by removing some for loops.
+    But need to expand R vectors to `R + T`, so different from the R vectors
+    in `Wannier90` output `seeedname_tb.dat`.
 """
 function _fourier_mdrs_v2(
     kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3}
@@ -128,6 +167,21 @@ function _fourier_mdrs_v2(
     return Oᴿ̃
 end
 
+"""
+    fourier(kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3}; version::Symbol=:v2)
+    where {T<:Real,RV<:RVectorsMDRS{T}}
+
+Wrapper function for Fourier transform for both MDRS v1 and v2.
+
+# Arguments
+- `kRvectors`: for WS interpolation
+- `Oᵏ`: `n_wann * n_wann * n_kpts`, operator matrix in k space
+
+# Keyword Arguments
+- `version`: `:v1` or `:v2`, default is `:v2`
+
+See also [`_fourier_mdrs_v1`](@ref _fourier_mdrs_v1) and [`_fourier_mdrs_v2`](@ref _fourier_mdrs_v2).
+"""
 function fourier(
     kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3}; version::Symbol=:v2
 ) where {T<:Real,RV<:RVectorsMDRS{T}}
@@ -140,12 +194,33 @@ function fourier(
 end
 
 @doc raw"""
+    _invfourier_mdrs_v1(
+        kRvectors::KRVectors{FT,RV}, Oᴿ::Array{Complex{FT},3}, kpoints::AbstractMatrix{FT}
+    ) where {FT<:Real,RV<:RVectorsMDRS{FT}}
+
+Inverse Fourier transform operator from R space to k space for MDRSv1 interpolation.
 
 ```math
-X_{mn}({\bf k}) =
-\sum_{\bf R} \frac{1}{{\cal N}_{mn{\bf R}}} X_{mn}({\bf R})
-\sum_{j=1}^{{\cal N}_{mn{\bf R}}} e^{i{\bf k}\cdot\left({\bf R}+\mathbf{T}_{mn{\bf R}}^{(j)}\right)}
+X_{mn}(\bm{k}) = \sum_{\bm{R}}
+\frac{1}{ \mathcal{N}_{mn \bm{R}} } X_{mn}(\bm{R})
+\sum_{j=1}^{\mathcal{N}_{ mn \bm{R} }}
+\exp\left( i \bm{k} \cdot \left( \bm{R} + \bm{T}_{ mn \bm{R} }^{(j)} \right) \right)
 ```
+where ``N_{\bm{R}}`` is the degeneracy of R vectors (not the total number of R vectors),
+and ``\mathcal{N}_{ mn \bm{R} }`` is the degeneracy of ``\bm{T}_{ mn \bm{R} }`` vectors.
+
+See also [`_fourier_mdrs_v1`](@ref _fourier_mdrs_v1).
+
+# Arguments
+- `Oᴿ`: `n_wann * n_wann * n_rvecs`, real space operator matrix
+- `kpoints`: `3 * n_kpts`, kpoints to be interpolated, fractional coordinates, can be nonuniform
+
+!!! note
+
+    This is the MDRSv1 using plain loops.
+    It is slower, but reproduce the `Wannier90` behavior,
+    and generate the same `seedname_tb.dat` file as `Wannier90`.
+    The MDRSv2 has expanded set of R vectors, thus cannot be compared with `tb.dat` file.
 """
 function _invfourier_mdrs_v1(
     kRvectors::KRVectors{FT,RV}, Oᴿ::Array{Complex{FT},3}, kpoints::AbstractMatrix{FT}
@@ -179,10 +254,22 @@ function _invfourier_mdrs_v1(
 end
 
 @doc raw"""
+    _invfourier_mdrs_v2(
+        kRvectors::KRVectors{T,RV}, Oᴿ̃::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
+    ) where {T<:Real,RV<:RVectorsMDRS{T}}
+
+Inverse Fourier transform operator from R space to k space for MDRSv2 interpolation.
+
 ```math
-X_{mn}({\bf k}) =
-\sum_{\tilde{\bf R}}e^{i{\bf k}{\tilde{\bf R}}} \widetilde{X}_{mn}({\tilde{\bf R}})
+X_{mn}(\bm{k}) = \sum_{ \widetilde{\bm{R}} }
+\exp\left( i \bm{k} \widetilde{ \bm{R} } \right) \widetilde{X}_{mn}(\widetilde{\bm{R}})
 ```
+
+See also [`_fourier_mdrs_v2`](@ref _fourier_mdrs_v2).
+
+# Arguments
+- `Oᴿ̃`: `n_wann * n_wann * n_rvecs`, real space operator matrix
+- `kpoints`: `3 * n_kpts`, kpoints to be interpolated, fractional coordinates, can be nonuniform
 """
 function _invfourier_mdrs_v2(
     kRvectors::KRVectors{T,RV}, Oᴿ̃::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
@@ -208,6 +295,25 @@ function _invfourier_mdrs_v2(
     return Oᵏ
 end
 
+"""
+    invfourier(
+        kRvectors::KRVectors{T,RV}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T};
+        version::Symbol=:v2,
+    ) where {T<:Real,RV<:RVectorsMDRS{T}}
+
+Wrapper function for inverse Fourier transform for both MDRS v1 and v2.
+
+# Arguments
+- `kRvectors`: for MDRS interpolation
+- `Oᴿ`: `n_wann * n_wann * n_rvecs`, operator matrix in R space
+- `kpoints`: `3 * n_kpts`, kpoints to be interpolated, fractional coordinates, can be nonuniform
+
+# Keyword Arguments
+- `version`: `:v1` or `:v2`, default is `:v2`
+
+See also [`_invfourier_mdrs_v1`](@ref _invfourier_mdrs_v1) and
+[`_invfourier_mdrs_v2`](@ref _invfourier_mdrs_v2).
+"""
 function invfourier(
     kRvectors::KRVectors{T,RV},
     Oᴿ::Array{Complex{T},3},
