@@ -1,7 +1,7 @@
 import NearestNeighbors as NN
 
 """
-    find_nearests(point, search_neighbors, lattice ,atom_positions)
+    find_nearests(point, search_neighbors, lattice, atom_positions)
 
 Find nearest-atom (including its periodic images) to a `point`.
 
