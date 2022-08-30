@@ -1,0 +1,21 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Wannier.jl
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Junfeng
+    family-names: Qiao
+    email: qiaojunfeng@outlook.com
+    affiliation: École polytechnique fédérale de Lausanne
+    orcid: 'https://orcid.org/0000-0003-3728-0109'
+repository-code: 'https://github.com/qiaojunfeng/Wannier.jl'
+abstract: Julia package for Wannier functions
+keywords:
+  - Wannier functions
+  - Julia
+license: MIT
