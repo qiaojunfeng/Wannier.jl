@@ -1,12 +1,18 @@
 # # 1. Maximal localization of isolated manifold
 
 #=
+```@meta
+CurrentModule = Wannier
+```
+=#
+
+#=
 In the first tutorial, we run the maximal localization algorithm on
 the silicon valence bands. We need to
 
 1. generate the `amn`, `mmn`, and `eig` files by using `Quantum ESPRESSO` (QE)
-2. construct a [`Model`](@ref Model) for `Wannier.jl`, by reading the `win`, `amn`, `mmn`, and `eig` files
-3. run `Wannier.jl` [`max_localize`](@ref max_localize) on the `Model` to minimize the spread
+2. construct a [`Model`](@ref) for `Wannier.jl`, by reading the `win`, `amn`, `mmn`, and `eig` files
+3. run `Wannier.jl` [`max_localize`](@ref) on the `Model` to minimize the spread
 4. write the maximal localized gauge to a new `amn` file
 
 !!! note
@@ -32,7 +38,7 @@ initial projection block in the `win` file for valence bands of silicon.
 In such cases, we cannot use the `s` and `p` projections, but using
 bond-centered `s` orbitals as guides for the bonding WFs.
 
-The bond centers can be calculated by using the [`find_nearests`](@ref find_nearests) function
+The bond centers can be calculated by using the [`find_nearests`](@ref) function
 in `Wannier.jl`
 =#
 win = read_win("$CUR_DIR/si2.win")
@@ -98,7 +104,7 @@ model = read_w90("$CUR_DIR/si2")
 #=
 ## Maximal localization
 
-Maximal localization can be easily done by calling the [`max_localize`](@ref max_localize) function, which
+Maximal localization can be easily done by calling the [`max_localize`](@ref) function, which
 returns the gauge matrices `A`,
 =#
 A = max_localize(model)
@@ -116,7 +122,7 @@ spread only decreases a little bit.
 !!! note
 
     The convergence thresholds is determined by the
-    keyword arguments of [`max_localize`](@ref max_localize), e.g., `f_tol` for the tolerance on spread,
+    keyword arguments of [`max_localize`](@ref), e.g., `f_tol` for the tolerance on spread,
     and `g_tol` for the tolerance on the norm of spread gradient, etc. You can use stricter thresholds
     to further minimize a bit the spread.
 =#

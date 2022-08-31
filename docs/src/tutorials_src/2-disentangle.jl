@@ -1,12 +1,18 @@
 # # 2. Disentanglement of entangled manifold
 
 #=
+```@meta
+CurrentModule = Wannier
+```
+=#
+
+#=
 In the second tutorial, we will run the disentanglement algorithm on
 the silicon valence + conduction bands. As usual, we need to
 
 1. generate the `amn`, `mmn`, and `eig` files by using `Quantum ESPRESSO` (QE)
-2. construct a [`Model`](@ref Model) for `Wannier.jl`, by reading the `win`, `amn`, `mmn`, and `eig` files
-3. run `Wannier.jl` [`disentangle`](@ref disentangle) on the `Model` to minimize the spread
+2. construct a [`Model`](@ref) for `Wannier.jl`, by reading the `win`, `amn`, `mmn`, and `eig` files
+3. run `Wannier.jl` [`disentangle`](@ref) on the `Model` to minimize the spread
 4. write the maximal localized gauge to a new `amn` file
 
 !!! note
@@ -35,7 +41,7 @@ CUR_DIR = "2-disentangle"
 ## Model generation
 
 We will use the [`read_w90`](@ref) function to read the
-`win`, `amn`, `mmn`, and `eig` files, and construct a [`Model`](@ref Model) that abstracts the calculation
+`win`, `amn`, `mmn`, and `eig` files, and construct a [`Model`](@ref) that abstracts the calculation
 =#
 model = read_w90("$CUR_DIR/si2")
 
@@ -50,7 +56,7 @@ model = read_w90("$CUR_DIR/si2")
 #=
 ## Disentanglement and maximal localization
 
-The [`disentangle`](@ref disentangle) function
+The [`disentangle`](@ref) function
 will disentangle and maximally localize the spread
 functional, and returns the gauge matrices `A`,
 =#
@@ -66,7 +72,7 @@ omega(model, A)
 !!! note
 
     The convergence thresholds is determined by the
-    keyword arguments of [`disentangle`](@ref disentangle), e.g., `f_tol` for the tolerance on spread,
+    keyword arguments of [`disentangle`](@ref), e.g., `f_tol` for the tolerance on spread,
     and `g_tol` for the tolerance on the norm of spread gradient, etc. You can use stricter thresholds
     to further minimize a bit the spread.
 =#
