@@ -1,4 +1,3 @@
-#!/usr/bin/env julia
 using ArgParse: ArgParse
 import Wannier as Wan
 import Plots as Pl

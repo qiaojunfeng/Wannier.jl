@@ -1,69 +1,45 @@
-#!/usr/bin/env julia
-using ArgParse: ArgParse
-import Wannier as Wan
-import Plots as Pl
+# Must prepend a dot due to Requires.jl
+using .PlotlyJS
 
-function parse_commandline()
-    s = ArgParse.ArgParseSettings()
-    ArgParse.@add_arg_table s begin
-        # "--opt1"
-        #     help = "an option with an argument"
-        "--fermi_energy", "-f"
-        help = "Fermi energy"
-        arg_type = Float64
-        default = 0.0
-        "--dis_froz_max", "-d"
-        help = "dis_froz_max"
-        arg_type = Float64
-        required = false
-        # "--flag1"
-        #     help = "an option without argument, i.e. a flag"
-        #     action = :store_true
-        "qe"
-        help = "Filename of QE bands.x output bands.dat file"
-        required = true
-        "wannier90"
-        help = "Seedname of Wannier90 win file"
-        required = true
-    end
-    return ArgParse.parse_args(s)
-end
+export plot_band_diff
 
-function main()
-    parsed_args = parse_commandline()
+"""
+    plot_band_diff(kpi::KPathInterpolant, E1::AbstractArray, E22::AbstractArray; kwargs...)
 
-    f_qe_bands = parsed_args["qe"]
-    f_w90_bands = parsed_args["wannier90"]
-    fermi_energy = parsed_args["fermi_energy"]
-    dis_froz_max = parsed_args["dis_froz_max"]
+Compare two band structures.
 
-    qe_bands = Wan.InOut.read_qe_bands(f_qe_bands)
-    w90_bands = Wan.InOut.read_wannier90_bands(f_w90_bands)
+`E1` in black, while `E2` in dashed orange.
 
-    # QE bands kpaths in `alat`, needs to rescale
-    fac =
-        (w90_bands.kpaths[end] - w90_bands.kpaths[1]) /
-        (qe_bands.kpaths[end] - qe_bands.kpaths[1])
-    qe_bands.kpaths .*= fac
+# Arguments
+- `kpi`: KPathInterpolant
+- `E1`: band energies, 1D of length `n_kpts`, or 2D array of size `n_bands * n_kpts`
+- `E2`: band energies, 1D of length `n_kpts`, or 2D array of size `n_bands * n_kpts`
 
-    Wan.plot_bands_diff(
-        qe_bands,
-        w90_bands;
-        fermi_energy=fermi_energy,
-        dis_froz_max=dis_froz_max,
-        label1="QE",
-        label2="W90",
+# Keyword Arguments
+See also the keyword arguments of [`_get_band_plot`](@ref).
+"""
+function plot_band_diff(
+    kpi::KPathInterpolant, E1::AbstractArray, E2::AbstractArray; kwargs...
+)
+    x = get_x(kpi)
+    symm_idx, symm_label = _get_symm_idx_label(kpi)
+
+    P1 = _get_band_plot(
+        x, E1; color="black", symm_idx=symm_idx, symm_label=symm_label, kwargs...
+    )
+    # orange and slightly thinner
+    P2 = _get_band_plot(
+        x,
+        E2;
+        color="orange",
+        dash="dash",
+        width=0.9,
+        symm_idx=symm_idx,
+        symm_label=symm_label,
+        kwargs...,
     )
 
-    # print("Hit <enter> to continue")
-    # readline()
-    print("Save figure to PDF? (Y/n)")
-    y = lowercase(strip(readline()))
-    if y == "y" || y == ""
-        pdfname = "$(basename(f_qe_bands))+$(basename(f_w90_bands)).pdf"
-        Pl.savefig(pdfname)
-        println("Saved to $pdfname")
-    end
-end
+    addtraces!(P1, P2.data...)
 
-main()
+    return plot(P1)
+end
