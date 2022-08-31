@@ -21,6 +21,12 @@ the silicon valence bands. We need to
     Wannierization workflow using `QE` and `Wannier90`, a good starting
     point could be the tutorials of
     [`Wannier90`](https://github.com/wannier-developers/wannier90).
+
+!!! tip
+
+    This is a HTML version of the tutorial, you can download corresponding
+    - Jupyter notebook: [`1-maxloc.ipynb`](./1-maxloc.ipynb)
+    - Julia script: [`1-maxloc.jl`](./1-maxloc.jl)
 =#
 
 # ## Preparation
@@ -86,7 +92,8 @@ for i in 2:5
 end
 
 #=
-Now we can use these outputs for writing `projection` block in `win` file, and run the QE calculations for `amn`, `mmn`, and `eig` files.
+Now we can use these outputs for writing `projection` block in `win` file,
+and run the QE calculations for `amn`, `mmn`, and `eig` files.
 
 !!! tip
 
@@ -97,15 +104,16 @@ Now we can use these outputs for writing `projection` block in `win` file, and r
 ## Model generation
 
 We will use the [`read_w90`](@ref) function to read the
-`win`, `amn`, `mmn`, and `eig` files, and construct a [`Model`](@ref Model) that abstracts the calculation
+`win`, `amn`, `mmn`, and `eig` files, and construct a [`Model`](@ref Model)
+that abstracts the calculation
 =#
 model = read_w90("$CUR_DIR/si2")
 
 #=
 ## Maximal localization
 
-Maximal localization can be easily done by calling the [`max_localize`](@ref) function, which
-returns the gauge matrices `A`,
+Maximal localization can be easily done by calling the
+[`max_localize`](@ref) function, which returns the gauge matrices `A`,
 =#
 A = max_localize(model)
 
@@ -122,8 +130,9 @@ spread only decreases a little bit.
 !!! note
 
     The convergence thresholds is determined by the
-    keyword arguments of [`max_localize`](@ref), e.g., `f_tol` for the tolerance on spread,
-    and `g_tol` for the tolerance on the norm of spread gradient, etc. You can use stricter thresholds
+    keyword arguments of [`max_localize`](@ref), e.g., `f_tol` for
+    the tolerance on spread, and `g_tol` for the tolerance on the
+    norm of spread gradient, etc. You can use stricter thresholds
     to further minimize a bit the spread.
 =#
 

@@ -19,6 +19,12 @@ In this tutorial, we will use Wananier interpolation to calculate the band struc
     Wannierization workflow using `QE` and `Wannier90`, a good starting
     point could be the tutorials of
     [`Wannier90`](https://github.com/wannier-developers/wannier90).
+
+!!! tip
+
+    This is a HTML version of the tutorial, you can download corresponding
+    - Jupyter notebook: [`3-band.ipynb`](./3-band.ipynb)
+    - Julia script: [`3-band.jl`](./3-band.jl)
 =#
 
 # ## Preparation
@@ -197,7 +203,7 @@ Main.HTMLPlot(P) # hide
 Now we load the `Wannier90` interpolated band,
 to compare between the two codes,
 =#
-kpi_w90, E_w90 = read_w90_band("si2", model.recip_lattice)
+kpi_w90, E_w90 = read_w90_band("$CUR_DIR/si2", model.recip_lattice)
 #=
 !!! tip
 
@@ -213,6 +219,12 @@ P = plot_band(kpi_w90, E_w90)
 Main.HTMLPlot(P) # hide
 
 # Finally, do the comparison
+P = plot_band_diff(kpi, E_w90, E)
+Main.HTMLPlot(P) # hide
+
+#=
+As expected, the two band structures exactly overlaps. 🥳
+=#
 
 #=
 Well done! You have finished the first Wannier interpolation.

@@ -21,6 +21,12 @@ the silicon valence + conduction bands. As usual, we need to
     Wannierization workflow using `QE` and `Wannier90`, a good starting
     point could be the tutorials of
     [`Wannier90`](https://github.com/wannier-developers/wannier90).
+
+!!! tip
+
+    This is a HTML version of the tutorial, you can download corresponding
+    - Jupyter notebook: [`2-disentangle.ipynb`](./2-disentangle.ipynb)
+    - Julia script: [`2-disentangle.jl`](./2-disentangle.jl)
 =#
 
 # ## Preparation
