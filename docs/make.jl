@@ -21,7 +21,11 @@ makedocs(;
         "Home" => "index.md",
         "Quick start" => "quickstart.md",
         # the tutorials will be processed by Literate
-        "Tutorial" => ["Maximal localization" => "tutorials/1-maxloc.md"],
+        "Tutorial" => [
+            "Maximal localization" => "tutorials/1-maxloc.md",
+            "Disentanglement" => "tutorials/2-disentangle.md",
+            "Band structure" => "tutorials/3-band.md",
+        ],
         "Theory" => ["Normalization" => "theory/normalization.md"],
         "API" => [
             "Utilities" => "api/util.md",

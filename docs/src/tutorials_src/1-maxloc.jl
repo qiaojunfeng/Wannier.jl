@@ -45,9 +45,9 @@ win = read_win("$CUR_DIR/si2.win")
 
 #=
 We will find the 4 nearest atoms to
-the 2nd atom, i.e. 4 of the periodic images of
-the 1st atom, then calculate the middle point
-between these 4 atoms and the 2nd atom.
+the 1st atom, i.e. 4 of the periodic images of
+the 2nd atom, then calculate the middle point
+between each of these 4 atoms and the 1st atom.
 
 !!! note
 
@@ -55,15 +55,15 @@ between these 4 atoms and the 2nd atom.
 
 =#
 
-# fractional coordiantes of the 2nd Si atom
-atom2 = win.atoms_frac[:, 2]
-# cartesian coordiantes of `atom2`
-atom2_cart = win.unit_cell * atom2
-# find 4 nearest neighbors of `atom2`,
-# I use 5 because the 1st returned neighbor is the `atom2` itself
+# fractional coordiantes of the 1st Si atom
+atom1 = win.atoms_frac[:, 1]
+# cartesian coordiantes of `atom1`
+atom1_cart = win.unit_cell * atom1
+# find 4 nearest neighbors of `atom1`,
+# I use 5 because the 1st returned neighbor is the `atom1` itself
 distances, indexes, translations = Wannier.find_nearests(
-    atom2, 5, win.unit_cell, win.atoms_frac
-);
+    atom1, 5, win.unit_cell, win.atoms_frac
+)
 # print the nearest atom and bond center, in cartesian coordinates
 for i in 2:5
     idx = indexes[i]
@@ -75,7 +75,7 @@ for i in 2:5
         distances[i],
         nn_cart...
     )
-    c = (atom2_cart + nn_cart) / 2
+    c = (atom1_cart + nn_cart) / 2
     @printf("  bond center = (%.5f, %.5f, %.5f)\n", c...)
 end
 
@@ -99,9 +99,27 @@ model = read_w90("$CUR_DIR/si2")
 ## Maximal localization
 
 Maximal localization can be easily done by calling the [`max_localize`](@ref max_localize) function, which
-returns the gauge matrices `A`
+returns the gauge matrices `A`,
 =#
 A = max_localize(model)
+
+# The initial spread is
+omega(model)
+
+# The final spread is
+omega(model, A)
+
+#=
+Since we have very good initial guess, the
+spread only decreases a little bit.
+
+!!! note
+
+    The convergence thresholds is determined by the
+    keyword arguments of [`max_localize`](@ref max_localize), e.g., `f_tol` for the tolerance on spread,
+    and `g_tol` for the tolerance on the norm of spread gradient, etc. You can use stricter thresholds
+    to further minimize a bit the spread.
+=#
 
 #=
 ## Save the new gauge
