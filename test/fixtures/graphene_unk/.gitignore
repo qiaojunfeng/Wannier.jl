@@ -1,0 +1,12 @@
+*out
+pseudo
+*chk
+*nnkp
+*_band*
+graphene.chk.fmt
+graphene_00001.xsf
+graphene_00002.xsf
+graphene_00003.xsf
+graphene_00004.xsf
+graphene_00005.xsf
+w90chk2chk.log

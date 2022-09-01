@@ -1,0 +1,39 @@
+&CONTROL
+  calculation = 'scf'
+  etot_conv_thr =   2.0000000000d-05
+  forc_conv_thr =   1.0000000000d-04
+  max_seconds =   4.1040000000d+04
+  outdir = './out/'
+  prefix = 'gra'
+  pseudo_dir = './pseudo/'
+  tprnfor = .true.
+  tstress = .true.
+  verbosity = 'high'
+/
+&SYSTEM
+  degauss =   1.0000000000d-02
+  ecutrho =   360.0
+  ecutwfc =   45.0
+  ibrav = 0
+  nat = 2
+  nosym = .false.
+  ntyp = 1
+  occupations = 'smearing'
+  smearing = 'cold'
+/
+&ELECTRONS
+  conv_thr =   4.0000000000d-10
+  electron_maxstep = 80
+  mixing_beta =   4.0000000000d-01
+/
+ATOMIC_SPECIES
+C     12 C.pbesol-n-kjpaw_psl.1.0.0.UPF
+ATOMIC_POSITIONS crystal
+C         0.0000000000    0.0000000000    0.5
+C         0.3333333333    0.6666666667    0.5
+CELL_PARAMETERS angstrom
+    2.1304215583   -1.2299994602    0.0000000000
+    0.0000000000    2.4599989204    0.0000000000
+    0.0000000000    0.0000000000   10.0000000000
+K_POINTS automatic
+3 3 1 0 0 0

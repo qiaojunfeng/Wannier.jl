@@ -1,0 +1,10 @@
+&INPUTPP
+  outdir = './out/'
+  prefix = 'gra'
+  reduce_unk = .true.
+  reduce_unk_factor = 3
+  seedname = 'graphene'
+  spn_formatted = .true.
+  write_unk = .true.
+  wvfn_formatted = .true.
+/

@@ -35,4 +35,5 @@ const FIXTURE_PATH = joinpath(TEST_PATH, "fixtures")
     include("interpolate/fourier.jl")
     include("interpolate/kpath.jl")
     include("interpolate/hamiltonian.jl")
+    include("realspace.jl")
 end

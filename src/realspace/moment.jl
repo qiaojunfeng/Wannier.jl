@@ -61,7 +61,9 @@ Returned value in Å^2 unit.
 
 See also [`moment`](@ref moment).
 """
-omega(rgrid::RGrid, W::AbstractArray) = moment(rgrid, W, 2) - center(rgrid, W) .^ 2
+function omega(rgrid::RGrid, W::AbstractArray)
+    return sum(moment(rgrid, W, 2) - center(rgrid, W) .^ 2; dims=1)
+end
 
 """
     position_op(rgrid::RGrid, W::AbstractArray{T,4})
