@@ -535,6 +535,33 @@ function get_A(chk::Chk)
         return U
     end
 
+    Uᵈ = get_Aᵈ(chk)
+
+    for ik in 1:n_kpts
+        # Uᵈ: semi-unitary matrices from disentanglement
+        # chk.U: unitary matrices from maximal localization
+        U[:, :, ik] = Uᵈ[:, :, ik] * chk.U[:, :, ik]
+    end
+
+    return U
+end
+
+"""
+    get_Aᵈ(chk::Chk)
+
+Extract `A` matrices for disentanglement from `Chk`.
+"""
+function get_Aᵈ(chk::Chk)
+    n_kpts = chk.n_kpts
+    n_bands = chk.n_bands
+    n_wann = chk.n_wann
+
+    if !chk.have_disentangled
+        return eyes_A(eltype(U), n_bands, n_kpts)
+    end
+
+    U = similar(chk.U, n_bands, n_wann, n_kpts)
+
     # need to permute wavefunctions since Uᵈ is stored in a way that
     # the bands taking part in disentanglement are in the first few rows
     Iᵏ = Matrix{eltype(U)}(I, n_bands, n_bands)
@@ -553,9 +580,9 @@ function get_A(chk::Chk)
         #    disentanglement, then these low-proj bands are shifted to
         #    the last rows of Uᵈ
         # so we need to permute the Bloch states before multiplying Uᵈ
-        # Uᵈ: semi-unitary matrices from disentanglement
-        # U: unitary matrices from maximal localization
-        U[:, :, ik] = Iᵏ[:, p] * chk.Uᵈ[:, :, ik] * chk.U[:, :, ik]
+        # chk.Uᵈ: semi-unitary matrices from disentanglement
+        # chk.U: unitary matrices from maximal localization
+        U[:, :, ik] = Iᵏ[:, p] * chk.Uᵈ[:, :, ik]
     end
 
     return U
