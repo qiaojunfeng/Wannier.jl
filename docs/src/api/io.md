@@ -102,5 +102,7 @@ write_cube
 ## Quantum ESPRESSO related files
 
 ```@docs
+read_qe_band
+guess_kpath
 
 ```

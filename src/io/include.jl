@@ -13,3 +13,5 @@ include("truncate.jl")
 
 include("xsf.jl")
 include("cube.jl")
+
+include("qe.jl")
