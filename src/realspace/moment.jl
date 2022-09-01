@@ -1,4 +1,4 @@
-export moment, center, omega, position_op
+export center, omega, position_op
 
 """
     moment(rgrid::RGrid, W::AbstractArray, n)

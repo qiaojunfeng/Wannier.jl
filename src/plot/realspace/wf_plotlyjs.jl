@@ -1,13 +1,10 @@
 using LinearAlgebra
-using GeometryBasics
-using Meshing
-using PlotlyJS
-using GLMakie
-# using PeriodicTable
-using JSON
-# using Colors
-using StatsBase
-using Wannier
+using PeriodicTable: elements
+# prepend . due to Requires.jl
+using .GeometryBasics: Point, TriangleFace
+using .Meshing
+using .StatsBase
+using .PlotlyJS
 
 # I haven't include this file into the package, because this introduce lots of dependencies.
 # TODO Once I sorted out how to incoporate plotting functions into the package without significantly
@@ -19,8 +16,11 @@ using Wannier
 # TODO once there is a julia package providing atomic radius and color, switch to that one
 # You need to first run
 #   wget https://raw.githubusercontent.com/AlexGustafsson/molecular-data/master/json/elements.json
-elements = JSON.parsefile(joinpath(@__DIR__, "elements.json"))
+# elements = JSON.parsefile(joinpath(@__DIR__, "elements.json"))
 
+"""
+Generate a mesh3d for plotlyjs.
+"""
 function _plotly_mesh3d(
     origin::AbstractVector{T},
     lattice::AbstractMatrix{T},
@@ -71,6 +71,9 @@ function _plotly_mesh3d(
     return t
 end
 
+"""
+A plotly sphere.
+"""
 function _sphere(r₀, r; kwargs...)
     N = 32
     u = range(0, 2π, N)
@@ -86,15 +89,15 @@ end
 Plotly lattice and atoms
 
 lattice: each column is a lattice vector
-origin: the overall shift of the structure
-atom_positions: each column is an atomic position
+atom_positions: each column is an atomic position, in fractional coordinates
 atom_numbers: atomic number of each atom
+origin: the overall shift of the structure, in cartesian
 """
 function _plotly_structure(
-    origin::AbstractVector,
     lattice::AbstractMatrix,
     atom_positions::AbstractMatrix,
-    atom_numbers::AbstractVector,
+    atom_numbers::AbstractVector;
+    origin::AbstractVector=[0, 0, 0],
 )
     # trace to loop through all the lattice parallelepipede
     xyz =
@@ -163,24 +166,30 @@ function _plotly_structure(
     # )
     # atoms = scatter3d(d)
     atoms = []
-    for i in 1:size(atom_positions, 2)
-        # TODO find a package to get atom info instead of json
+    for i in axes(atom_positions, 2)
+        # TODO these are from json file
+        # ele = elements[atom_numbers[i]]
+        # s = ele["symbol"]
+        # c = ele["cpkHexColor"]
+        # r = ele["radius"] / elements[1]["radius"] / 10  # normalized by Hydrogen radius
+        # these from PeriodicTable
         ele = elements[atom_numbers[i]]
-        s = ele["symbol"]
-        c = ele["cpkHexColor"]
-        r = ele["radius"] / elements[1]["radius"] / 10  # normalized by Hydrogen radius
+        s = ele.symbol
+        c = ele.cpk_hex
+        # https://github.com/JuliaPhysics/PeriodicTable.jl/issues/34
+        r = 1  # currently no radius in PeriodicTable
         colorscale = [[0, c], [1, c]]
-        push!(
-            atoms,
-            _sphere(
-                atom_positions[:, i], r; colorscale=colorscale, text=s, showscale=false
-            ),
-        )
+        pos = lattice * atom_positions[:, i]
+        sph = _sphere(pos, r; colorscale=colorscale, text=s, showscale=false)
+        push!(atoms, sph)
     end
 
     return [lat, axs, atoms...]
 end
 
+"""
+Guess iso from histogram.
+"""
 function _guess_isolevel(data)
     h = fit(Histogram, vec(data); nbins=100)
     percent = cumsum(h.weights) / length(data)
@@ -190,64 +199,39 @@ function _guess_isolevel(data)
 end
 
 """
-Plot cube file with Plotly.
+Plot volumetric data with Plotly.
+
+E.g., realspace WFs.
 
 data: volumetric data in 3D
 """
-function plot_cube_plotly(
-    origin::AbstractVector{T},
+function plot_wf(
+    rgrid::RGrid,
+    W::AbstractArray{T,3},
     lattice::AbstractMatrix{T},
     atom_positions::AbstractMatrix{T},
-    atom_numbers::AbstractVector{U},
-    data::AbstractArray{T,3};
+    atom_numbers::AbstractVector{U};
     iso::Union{T,Nothing}=nothing,
 ) where {T<:Real,U<:Integer}
-    structure = _plotly_structure(origin, lattice, atom_positions, atom_numbers)
+    structure = _plotly_structure(lattice, atom_positions, atom_numbers)
 
     if isnothing(iso)
-        iso = _guess_isolevel(data)
+        iso = _guess_isolevel(W)
     end
-    a, b = minimum(data), maximum(data)
+
+    O = origin(rgrid)
+    spanvec = span_vectors(rgrid)
+    a, b = minimum(W), maximum(W)
     if iso >= a
-        s1 = _plotly_mesh3d(origin, lattice, data, iso, "#C3423F")
+        s1 = _plotly_mesh3d(O, spanvec, W, iso, "#C3423F")
     end
     if iso <= b
-        s2 = _plotly_mesh3d(origin, lattice, data, -iso, "#5BC0EB")
+        s2 = _plotly_mesh3d(O, spanvec, W, -iso, "#5BC0EB")
     end
 
     return PlotlyJS.plot([structure..., s1, s2])
 end
 
-function plot_cube_makie(
-    origin::AbstractVector{T},
-    lattice::AbstractMatrix{T},
-    atom_positions::AbstractMatrix{T},
-    atom_numbers::AbstractVector{U},
-    data::AbstractArray{T,3};
-    iso::Union{T,Nothing}=nothing,
-) where {T<:Real,U<:Integer}
-    scene = Makie.Scene()
-    cam3d!(scene)
-
-    if isnothing(iso)
-        iso = _guess_isolevel(data)
-    end
-    a, b = minimum(data), maximum(data)
-
-    if iso >= a
-        algo = MarchingCubes(; iso=iso, insidepositive=true)
-        mc = GeometryBasics.Mesh(data, algo)
-        Makie.mesh!(scene, mc; color="#C3423F", shading=true)#color=[norm(v) for v in coordinates(mc)])
-    end
-    if iso <= b
-        algo = MarchingCubes(; iso=-iso, insidepositive=true)
-        mc = GeometryBasics.Mesh(data, algo)
-        Makie.mesh!(scene, mc; color="#5BC0EB", shading=true)#color=[norm(v) for v in coordinates(mc)])
-    end
-
-    return scene
-end
-
-cube = read_cube(expanduser("~/BaTiO3_00002.cube"))
-plot_cube_plotly(cube.origin, cube.lattice, cube.atom_positions, cube.atom_numbers, cube.W)
-# plot_cube_makie(cube.origin, cube.lattice, cube.atom_positions, cube.atom_numbers, cube.W)
+# TODO seems not working for non-orthogonal cell?
+# x = read_xsf("si2_00001.xsf");
+# Wannier.plot_wf(x.rgrid, x.W, x.primvec, inv(x.primvec) * x.atom_positions, Wannier.get_atom_number(x.atoms))
