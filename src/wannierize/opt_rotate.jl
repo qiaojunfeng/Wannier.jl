@@ -95,26 +95,29 @@ function opt_rotate(
     model::Model{T}; f_tol::T=1e-7, g_tol::T=1e-5, max_iter::Int=200, history_size::Int=20
 ) where {T<:Real}
     n_wann = model.n_wann
+    model.n_bands == n_wann || error("n_bands != n_wann, run instead disentanglement?")
 
-    model.n_bands != n_wann && error("n_bands != n_wann, run instead disentanglement?")
-
-    f, g! = get_fg!_rotate(model)
-
-    Ωⁱ = omega(model.bvectors, model.M, model.A)
+    Ωⁱ = omega(model)
     @info "Initial spread"
     show(Ωⁱ)
     println("\n")
 
     # make sure A is identity matrices
-    model.M .= rotate_M(model.M, model.bvectors.kpb_k, model.A)
-    model.A .= eyes_A(eltype(model.A), model.n_wann, model.n_kpts)
+    # however I shouldn't modify the original model, deepcopy it
+    # note I cannot use `rotate_gauge(model, model.A)` because the rotated Hamiltonian
+    # might not be diagonal, however in this case I don't care about eigenvalues
+    model2 = deepcopy(model)
+    model2.M .= rotate_M(model2.M, model2.bvectors.kpb_k, model2.A)
+    model2.A .= eyes_A(eltype(model2.A), n_wann, model2.n_kpts)
 
     wManif = Optim.Stiefel_SVD()
 
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
-    W0 = Matrix{eltype(model.A)}(I, n_wann, n_wann)
+    W0 = Matrix{eltype(model2.A)}(I, n_wann, n_wann)
+
+    f, g! = get_fg!_rotate(model2)
 
     # Comment g! to use finite differences to compute the gradient
     opt = Optim.optimize(
@@ -135,9 +138,9 @@ function opt_rotate(
 
     Wmin = Optim.minimizer(opt)
 
-    # model.A is actually identity
-    A = rotate_A(model.A, Wmin)
-    Ωᶠ = omega(model.bvectors, model.M, A)
+    # model2.A is actually identity
+    A = rotate_A(model2.A, Wmin)
+    Ωᶠ = omega(model2, A)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
