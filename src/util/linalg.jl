@@ -279,3 +279,52 @@ function findvector(predicate::Function, v::AbstractVector, M::AbstractMatrix)
     error("$v not found in array!")
     return nothing
 end
+
+"""
+    rand_unitary(T::Type, m::Int, n::Int)
+
+Generate a random (semi-)unitary matrix using Lowdin orthonormalization.
+
+# Arguments
+- `T`: the type of the matrix
+- `m`: number of rows
+- `n`: number of columns
+"""
+function rand_unitary(T::Type, m::Int, n::Int)
+    T <: Complex || error("T must be Complex")
+    M = randn(T, m, n) + im * randn(T, m, n)
+    N = orthonorm_lowdin(M)
+    return N
+end
+
+"""
+    rand_unitary(T::Type, m::Int)
+
+Generate a random unitary matrix using Lowdin orthonormalization.
+
+# Arguments
+- `T`: the type of the matrix
+- `m`: number of rows (= number of columns)
+"""
+rand_unitary(T::Type, m::Int) = rand_unitary(T, m, m)
+
+"""
+    rand_unitary(T::Type, m::Int, n::Int, k::Int)
+
+Generate a series of random (semi-)unitary matrix using Lowdin orthonormalization.
+
+The returned `M[:, :, ik]` is (semi-)unitary for all `ik = 1:k`.
+
+# Arguments
+- `T`: the type of the matrix
+- `m`: number of rows
+- `n`: number of columns
+- `k`: number of matrices
+"""
+function rand_unitary(T::Type, m::Int, n::Int, k::Int)
+    M = zeros(T, m, n, k)
+    for ik in 1:k
+        M[:, :, ik] = rand_unitary(T, m, n)
+    end
+    return M
+end

@@ -24,11 +24,12 @@ thus more efficient than SCDM, which requires wavefunctions in real space.
 ## Outline
 
 1. construct a [`Model`](@ref), by reading the `win`, `amn`, `mmn`, and `eig` files
-2. truncate the `Model` to only the top valence band
+2. truncate the `Model` to the valence bands
 3. run `Wannier.jl` [`parallel_transport`](@ref) on the new `Model` to construct PTG
 4. further rotate the gauge to remove the gauge arbitraness of the first kpoint
 5. maxiaml localize to smoothen the gauge
 6. interpolate band, and write the real space WF
+7. similarly, Wannierize the top valence band
 
 !!! note
 
@@ -89,57 +90,73 @@ omega(model, A)
 #=
 ## Truncate bands
 
-To Wannierize only the top valence band, we need to remove the other bands from the `model`
+To Wannierize the valence bands, we need to remove the conduction bands from the `model`
 =#
-model2 = Wannier.truncate(model, [7])
+model_val = Wannier.truncate(model, 1:7)
 #=
 After truncatation, we have no initial projection anymore, by default it is filled with
 identity matrices. We can inspect the initial spread by
 =#
-omega(model2)
+omega(model_val)
 #=
 which shows the gauge is far from optimal.
 
 ## Parallel transport
 
-In such case, we run the [`parallel_transport`](@ref) which will construct a smooth gauge
+In such case, we run the [`parallel_transport`](@ref) which will construct a smooth gauge.
+
+Before running PTG, let me assure you that indeed there is no initial projection:
+we will generate a series of random unitary matrices, and run PTG starting from
+those matrices.
+
+However, to make the tutorial reproducible, we will use a fixed random seed.
 =#
-A2, _ = parallel_transport(model2)
+using Random
+Random.seed!(1234)
+R = Wannier.rand_unitary(eltype(model_val.A), size(model_val.A)...)
+# and assign it to the `model_val`
+model_val.A .= R;
+# of course now we have destroyed the gauge even farther
+omega(model_val)
+# we will ask `parallel_transport` to explicitly use our random matrices,
+A2, _ = parallel_transport(model_val; use_A=true)
 #=
 note the function returns a lit bit extra information which is irrelevant to this tutorial.
 
 Then we inspect the new gauge
 =#
-omega(model2, A2)
+omega(model_val, A2)
 
 #=
-## Rotate the gauge of the first kpoint
+## Fix gauge at first kpoint
 
 However, the [`parallel_transport`](@ref) itself does not fix the gauge of the first kpoint,
-which is arbitrary. We can fix it by maximal localizing w.r.t. a `n_wann * n_wann` single matrix
-`W` (i.e. independent of kpoints), by calling [`opt_rotate`](@ref),
+which is arbitrary. We can fix it by maximal localizing w.r.t. a single (i.e. independent of kpoints)
+`n_wann * n_wann` rotation matrix `W`, by calling [`opt_rotate`](@ref),
 =#
-model2.A .= A2;
-W = opt_rotate(model2)
-# then rotate the input gauge by `W`,
+model_val.A .= A2;
+W = opt_rotate(model_val)
+#=
+This is convenient since the calculation is cheap, and helps evade local minimum.
+
+Then let's rotate the input gauge by `W`,
+=#
 A3 = rotate_A(A2, W);
 #=
 and inspect the new gauge,
 =#
-omega(model2, A3)
+omega(model_val, A3)
 
 #=
-## Final maximal localization to smooth the gauge
+## Final maximal localization
 
 Often it is helpful to run a final maximal localization that could further
 smoothen the gauge,
 =#
-model2.A .= A3;
-A4 = max_localize(model2)
-#=
-and inspect the final gauge
-=#
-omega(model2, A4)
+model_val.A .= A3;
+A4 = max_localize(model_val)
+# and inspect the final gauge
+omega(model_val, A4)
 
 #=
 ## Band interpolation
@@ -151,20 +168,56 @@ Valence + conduction bands,
 model.A .= A;
 interp_model = Wannier.InterpolationModel(model)
 kpi, E = interpolate(interp_model)
-#=
-and top valence band,
-=#
-model2.A .= A4;
-interp_model2 = Wannier.InterpolationModel(model2)
-kpi2, E2 = interpolate(interp_model2)
-#=
-and plot the band structure
-=#
+# and top valence band,
+model_val.A .= A4;
+interp_model_val = Wannier.InterpolationModel(model_val)
+kpi2, E2 = interpolate(interp_model_val)
+# and plot the band structure
 using PlotlyJS
 P = Wannier.plot_band_diff(kpi, E, E2)
 Main.HTMLPlot(P, 500)  # hide
 
 #=
-Now we have automated Wannierization of the top valence band of MoS2,
-without any initial projection!
+Oh, no! The band interpolation is not working well 😰.
+
+This is because we are using a very coarse kgrid!
+Rerun with a finer kgrid and look at the differences.
+
+## Wannierization of top valence band
+
+Similarly, we can Wannierize only the top valence band, with PTG
+=#
+model_top = Wannier.truncate(model, [7])
+# and the initial spread
+omega(model_top)
+# with PTG
+A_top, _ = parallel_transport(model_top)
+omega(model_top, A_top)
+#=
+In the single-band case, there is no need to run optimal rotation.
+But we can still run maximal localization,
+=#
+model_top.A .= A_top;
+A_top2 = max_localize(model_top)
+omega(model_top, A_top2)
+# and band interpolation
+interp_model_top = Wannier.InterpolationModel(model_top)
+kpi3, E3 = interpolate(interp_model_top)
+# and compare
+P = Wannier.plot_band_diff(kpi, E, E3)
+Main.HTMLPlot(P, 500)  # hide
+
+#=
+Again, rerun with a finer kgrid and see the improvements of interpolation quality.
+Also, you can try to plot the WFs, by first truncating the `unk`
+=#
+Wannier.truncate_unk(CUR_DIR, [7], "$CUR_DIR/truncate")
+# the new `unk`s are stored in a subfolder `truncate`,
+# now write the realspace WF
+write_realspace_wf("$CUR_DIR/wjl", model_top; unkdir="$CUR_DIR/truncate")
+# and visualize with your favorite tool.
+
+#=
+Now we have automated Wannierization of the valence manifold,
+and the top valence band of MoS2, without any initial projection!
 =#

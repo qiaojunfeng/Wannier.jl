@@ -54,6 +54,7 @@ rotate_M
 isunitary
 get_projectability
 findvector
+rand_unitary
 ```
 
 ## Kpoints

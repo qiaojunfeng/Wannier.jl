@@ -67,6 +67,8 @@ makedocs(;
             "Band structure" => "tutorials/3-band.md",
             "Real space WF" => "tutorials/4-realspace.md",
             "Parallel transport" => "tutorials/5-parallel_transport.md",
+            "Split valence/conduction" => "tutorials/6-split.md",
+            "Constrain WF center" => "tutorials/7-constrain_center.md",
         ],
         "Theory" => [
             "Algorithm" => "theory/algorithm.md",
