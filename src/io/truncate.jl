@@ -110,3 +110,36 @@ function truncate_w90(
     println("Truncated files written in ", outdir)
     return nothing
 end
+
+"""
+    truncate(model::Model, keep_bands::AbstractVector{Int})
+
+Truncate `A`, `M`, `E` matrices in `model`.
+
+# Arguments
+- model: the model to be truncated.
+- keep_bands: Band indexes to be kept, start from 1.
+"""
+function truncate(model::Model, keep_bands::AbstractVector{Int})
+    E = model.E[keep_bands, :]
+    M = model.M[keep_bands, keep_bands, :, :]
+
+    n_bands = length(keep_bands)
+    n_kpts = model.n_kpts
+    A = eyes_A(eltype(M), n_bands, n_kpts)
+    frozen_bands = similar(model.frozen_bands, n_bands, n_kpts)
+
+    model2 = Model(
+        model.lattice,
+        model.atom_positions,
+        model.atom_labels,
+        model.kgrid,
+        model.kpoints,
+        model.bvectors,
+        frozen_bands,
+        M,
+        A,
+        E,
+    )
+    return model2
+end

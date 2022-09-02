@@ -31,6 +31,7 @@ Model(lattice::Mat3{T}, atom_positions::Matrix{T}, atom_labels::Vector{String}, 
 
 ```@docs
 rotate_gauge(model::Model, A::Array{T,3}) where {T<:Number}
+truncate(model::Model, keep_bands::AbstractVector{Int})
 ```
 
 ## Spread
