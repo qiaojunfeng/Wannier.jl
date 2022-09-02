@@ -159,6 +159,7 @@ where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data fo
 
 # Arguments
 - `lattice`: each column is a lattice vector
+- `A`: `n_bands * n_wann * n_kpts`, gauge rotation matrix
 """
 function read_realspace_wf(
     lattice::AbstractMatrix{T},
@@ -171,6 +172,29 @@ function read_realspace_wf(
     X, Y, Z, W = read_realspace_wf(A, kpoints, n_supercells, unkdir; R=R)
     rgrid = RGrid(lattice, X, Y, Z)
     return rgrid, W
+end
+
+"""
+    read_realspace_wf(model, A, n_supercells=2, unkdir="."; R=[0, 0, 0])
+
+Read `UNK` files, rotate gauge, and generate real space WFs.
+
+This is a most user-friendly version, use `lattice`, `A` and `kpoints` from `model`
+and returns a tuple of `(RGrid, W)`,
+where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data for WFs.
+
+# Arguments
+- `model`: a `Model`
+- `A`: `n_bands * n_wann * n_kpts`, gauge rotation matrix
+"""
+function read_realspace_wf(
+    model::Model{T},
+    A::AbstractArray{Complex{T},3},
+    n_supercells::Union{AbstractArray{Int},Int}=2,
+    unkdir::AbstractString=".";
+    R::AbstractVector{Int}=[0, 0, 0],
+) where {T<:Real}
+    return read_realspace_wf(model.lattice, A, model.kpoints, n_supercells, unkdir; R=R)
 end
 
 """
@@ -191,9 +215,7 @@ function read_realspace_wf(
     unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
-    return read_realspace_wf(
-        model.lattice, model.A, model.kpoints, n_supercells, unkdir; R=R
-    )
+    return read_realspace_wf(model, model.A, n_supercells, unkdir; R=R)
 end
 
 """

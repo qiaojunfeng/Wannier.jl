@@ -46,7 +46,7 @@ for md in readdir(TUTORIALS_SRCDIR)
     workdir = joinpath(@__DIR__, "../tutorials/tutorials/")
     Literate.notebook(file, workdir)
     f = splitext(md)[1]
-    mv(joinpath(workdir, "$f.ipynb"), joinpath(TUTORIALS_OUTDIR, "$f.ipynb"))
+    mv(joinpath(workdir, "$f.ipynb"), joinpath(TUTORIALS_OUTDIR, "$f.ipynb"); force=true)
 
     Literate.script(file, TUTORIALS_OUTDIR)
 end
@@ -65,6 +65,7 @@ makedocs(;
             "Maximal localization" => "tutorials/1-maxloc.md",
             "Disentanglement" => "tutorials/2-disentangle.md",
             "Band structure" => "tutorials/3-band.md",
+            "Real space WF" => "tutorials/4-realspace.md",
         ],
         "Theory" => ["Normalization" => "theory/normalization.md"],
         "API" => [

@@ -188,14 +188,14 @@ calling the [`plot_band`](@ref) function,
     This requires you having executed `using PlotlyJS`
 =#
 P = plot_band(kpi, E)
-Main.HTMLPlot(P) # hide
+Main.HTMLPlot(P, 500) # hide
 #=
 Or, you can use the plotting functions provided by
 [`Brillouin.jl`](https://thchr.github.io/Brillouin.jl/stable/kpaths/#Band-structure),
 but requires a little bit transposation to size `(n_kpts, n_bands)`
 =#
 P = plot(kpi, E')
-Main.HTMLPlot(P) # hide
+Main.HTMLPlot(P, 500) # hide
 
 #=
 ## Comparing band structures
@@ -216,11 +216,11 @@ kpi_w90, E_w90 = read_w90_band("$CUR_DIR/si2", model.recip_lattice)
 
 # Now let's have a look at `Wannier90` interpolated band
 P = plot_band(kpi_w90, E_w90)
-Main.HTMLPlot(P) # hide
+Main.HTMLPlot(P, 500) # hide
 
 # Finally, do the comparison
 P = plot_band_diff(kpi, E_w90, E)
-Main.HTMLPlot(P) # hide
+Main.HTMLPlot(P, 500) # hide
 
 #=
 As expected, the two band structures exactly overlaps. 🥳
