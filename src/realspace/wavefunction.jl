@@ -44,7 +44,7 @@ function read_realspace_wf(
     A::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T},
     n_supercells::AbstractVector{Int},
-    unkdir::String=".";
+    unkdir::AbstractString;
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
     n_bands, n_wann, n_kpts = size(A)
@@ -140,8 +140,8 @@ end
 function read_realspace_wf(
     A::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T},
-    n_supercells::Int=2,
-    unkdir::AbstractString=".";
+    n_supercells::Int,
+    unkdir::AbstractString;
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
     return read_realspace_wf(
@@ -164,7 +164,7 @@ function read_realspace_wf(
     lattice::AbstractMatrix{T},
     A::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T},
-    n_supercells::Int=2,
+    n_supercells::Union{AbstractArray{Int},Int}=2,
     unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
@@ -187,7 +187,7 @@ where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data fo
 """
 function read_realspace_wf(
     model::Model{T},
-    n_supercells::Int=2,
+    n_supercells::Union{AbstractArray{Int},Int}=2,
     unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
@@ -234,7 +234,7 @@ function write_realspace_wf(
     lattice::AbstractMatrix,
     atom_positions::AbstractMatrix,
     atom_labels::AbstractVector{String};
-    n_supercells::Int=2,
+    n_supercells::Union{AbstractArray{Int},Int}=2,
     unkdir::AbstractString=".",
     part::Function=real,
     format::Symbol=:xsf,
@@ -255,7 +255,12 @@ function write_realspace_wf(
     # mulitply the unitary matrices. But in read_readspace_wf, we normalized
     # the unk files, so here we need to multiply a factor to reproduce the
     # W90 output XSF or cube files.
-    W .*= sqrt(length(W) / n_wann / n_supercells^3)
+    if isa(n_supercells, Integer)
+        n_supcells = n_supercells^3
+    else
+        n_supcells = prod(n_supercells)
+    end
+    W .*= sqrt(length(W) / n_wann / n_supcells)
 
     for i in 1:n_wann
         f = fix_global_phase(W[:, :, :, i])
@@ -304,8 +309,8 @@ This is a user-friendly version that use `model` to fill the arguments of `write
 function write_realspace_wf(
     seedname::String,
     model::Model;
-    n_supercells::Int=2,
-    unkdir::String=".",
+    n_supercells::Union{AbstractArray{Int},Int}=2,
+    unkdir::AbstractString=".",
     part::Function=real,
     format::Symbol=:xsf,
 )
