@@ -67,7 +67,10 @@ makedocs(;
             "Band structure" => "tutorials/3-band.md",
             "Real space WF" => "tutorials/4-realspace.md",
         ],
-        "Theory" => ["Normalization" => "theory/normalization.md"],
+        "Theory" => [
+            "Algorithm" => "theory/algorithm.md",
+            "Normalization" => "theory/normalization.md",
+        ],
         "API" => [
             "Utility" => "api/util.md",
             "Input/Output" => "api/io.md",
