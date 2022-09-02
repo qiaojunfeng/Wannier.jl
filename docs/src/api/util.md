@@ -1,6 +1,6 @@
-# Utilities
+# Utility
 
-These are some simple convenience functions that are commonly used.
+These are some simple convenience functions for development.
 
 ```@meta
 CurrentModule = Wannier

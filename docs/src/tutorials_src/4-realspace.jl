@@ -75,7 +75,7 @@ omega(model, A)
 
 Now save the `A` to the `model`,
 =#
-model.A .= A
+model.A .= A;
 #=
 !!! tip
 

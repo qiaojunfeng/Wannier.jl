@@ -69,9 +69,9 @@ makedocs(;
         ],
         "Theory" => ["Normalization" => "theory/normalization.md"],
         "API" => [
-            "Utilities" => "api/util.md",
+            "Utility" => "api/util.md",
             "Input/Output" => "api/io.md",
-            "B vectors" => "api/bvector.md",
+            "B vector" => "api/bvector.md",
             "Model" => "api/model.md",
             "Wannierize" => "api/wannierize.md",
             "Interpolation" => "api/interpolation.md",

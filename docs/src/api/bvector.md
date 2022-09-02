@@ -1,6 +1,6 @@
-# B vectors
+# B vector
 
-The ``\bm{b}``-vectors connects kpoints ``\bm{k}`` to its neighboring kpoints ``\bm{k}+\bm{b}``,
+The ``\bm{b}``-vectors connect kpoint ``\bm{k}`` to its neighboring kpoints ``\bm{k}+\bm{b}``,
 for calculating WF centers, spreads in reciprocal space.
 
 The bvectors are first arranged in layers of shells, which contain bvectors having same norm.
