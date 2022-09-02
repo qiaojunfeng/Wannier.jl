@@ -66,6 +66,7 @@ makedocs(;
             "Disentanglement" => "tutorials/2-disentangle.md",
             "Band structure" => "tutorials/3-band.md",
             "Real space WF" => "tutorials/4-realspace.md",
+            "Parallel transport" => "tutorials/5-parallel_transport.md",
         ],
         "Theory" => [
             "Algorithm" => "theory/algorithm.md",

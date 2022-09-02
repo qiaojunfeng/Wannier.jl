@@ -43,7 +43,7 @@ Depth = 2
 Pages = ["io.md"]
 ```
 
-## Wannier90 related files
+## Wannier90 files
 
 ```@docs
 read_amn
@@ -99,7 +99,7 @@ read_cube
 write_cube
 ```
 
-## Quantum ESPRESSO related files
+## Quantum ESPRESSO files
 
 ```@docs
 read_qe_band
