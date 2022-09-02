@@ -68,7 +68,7 @@ function read_xsf(filename::AbstractString)
             line = strip(readline(io))
             # I only read the 1st data grid, others are ignored
             @assert startswith(line, "BEGIN_DATAGRID_3D")
-            identifier = chopprefix(line, "BEGIN_DATAGRID_3D_")
+            # identifier = chopprefix(line, "BEGIN_DATAGRID_3D_")
             ngx, ngy, ngz = parse.(Int, split(strip(readline(io))))
             origin = parse.(Float64, split(strip(readline(io))))
             # spanning vectors

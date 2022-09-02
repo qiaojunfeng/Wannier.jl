@@ -105,7 +105,7 @@ function get_fg!_center_disentangle(
 end
 
 """
-    disentangle(model, r₀, λ=1.0; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=20)
+    disentangle(model, r₀, λ=1.0; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
 
 Run disentangle on the `Model` with center penalty.
 
@@ -127,7 +127,7 @@ function disentangle_center(
     f_tol::T=1e-7,
     g_tol::T=1e-5,
     max_iter::Int=200,
-    history_size::Int=20,
+    history_size::Int=3,
 ) where {T<:Real}
     n_bands = model.n_bands
     n_wann = model.n_wann

@@ -19,7 +19,7 @@ function get_fg!_maxloc(model::Model)
 end
 
 """
-    max_localize(model; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=20)
+    max_localize(model; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
 
 Maximally localize spread functional w.r.t. all kpoints on a unitary matrix manifold.
 
@@ -33,7 +33,7 @@ Maximally localize spread functional w.r.t. all kpoints on a unitary matrix mani
 - `history_size`: history size of LBFGS
 """
 function max_localize(
-    model::Model{T}; f_tol::T=1e-7, g_tol::T=1e-5, max_iter::Int=200, history_size::Int=20
+    model::Model{T}; f_tol::T=1e-7, g_tol::T=1e-5, max_iter::Int=200, history_size::Int=3
 ) where {T<:Real}
     model.n_bands != model.n_wann &&
         error("n_bands != n_wann, run instead disentanglement?")

@@ -219,7 +219,7 @@ function get_fg!_center_maxloc(model::Model{T}, r₀::Matrix{T}, λ::T=1.0) wher
 end
 
 """
-    max_localize_center(model, r₀, λ=1.0; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=20)
+    max_localize_center(model, r₀, λ=1.0; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
 
 Maximally localize spread functional with center constraint on a unitary matrix manifold.
 
@@ -241,7 +241,7 @@ function max_localize_center(
     f_tol::T=1e-7,
     g_tol::T=1e-5,
     max_iter::Int=200,
-    history_size::Int=20,
+    history_size::Int=3,
 ) where {T<:Real}
     model.n_bands != model.n_wann &&
         error("n_bands != n_wann, run instead disentanglement?")
