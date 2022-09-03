@@ -166,7 +166,7 @@ function Base.show(io::IO, model::Model)
 end
 
 """
-    rotate_gauge(model::Model, A::Array{T,3})
+    rotate_gauge(model::Model, A::Array{T,3}; diag_H=false)
 
 Rotate the gauge of a `Model`.
 
@@ -174,19 +174,29 @@ Rotate the gauge of a `Model`.
 - `model`: a `Model` `struct`
 - `A`: `n_bands * n_wann * n_kpts`, (semi-)unitary gauge rotation matrix ``A_{\\bm{k}}``
 
+# Keyword Arguments
+- `diag_H`: if after rotation, the Hamiltonian is not diagonal, then diagonalize it and
+    save the eigenvalues to `model.E`, and the inverse of the eigenvectors to `model.A`,
+    so that the `model` is still in the input gauge `A`.
+    Otherwise, if the rotated Hamiltonian is not diagonal, raise error.
+
 !!! note
 
     The original `Model.A` will be discarded;
     the `M`, and `E` matrices will be rotated by the input `A`.
     However, since `E` is not the Hamiltonian matrices but only the eigenvalues,
-    this function only support rotations that keep the Hamiltonian in diagonal form.
+    if `diag_H = false`, this function only support rotations that keep the Hamiltonian
+    in diagonal form.
 """
-function rotate_gauge(model::Model, A::Array{T,3}) where {T<:Number}
+function rotate_gauge(model::Model, A::Array{T,3}; diag_H::Bool=false) where {T<:Number}
     n_bands = model.n_bands
     n_kpts = model.n_kpts
-    size(A)[[1, 3]] != (n_bands, n_kpts) && error("A must have size (n_bands, :, n_kpts)")
+    size(A)[[1, 3]] == (n_bands, n_kpts) || error("A must have size (n_bands, :, n_kpts)")
     # The new n_wann
     n_wann = size(A, 2)
+
+    # the new AMN is just identity
+    A2 = eyes_A(eltype(A), n_wann, n_kpts)
 
     # EIG
     E = model.E
@@ -194,25 +204,39 @@ function rotate_gauge(model::Model, A::Array{T,3}) where {T<:Number}
     H = zeros(eltype(model.A), n_wann, n_wann)
     # tolerance for checking Hamiltonian
     atol = 1e-8
+    # all the diagonalized kpoints, used if diag_H = true
+    diag_kpts = Int[]
     for ik in 1:n_kpts
         Aₖ = A[:, :, ik]
         H .= Aₖ' * diagm(0 => E[:, ik]) * Aₖ
-        if norm(H - diagm(0 => diag(H))) > atol
-            error("H is not diagonal after gauge rotation")
+        ϵ = diag(H)
+        if norm(H - diagm(0 => ϵ)) > atol
+            if diag_H
+                # diagonalize the Hamiltonian
+                ϵ, v = eigen(H)
+                A2[:, :, ik] = v
+                push!(diag_kpts, ik)
+            else
+                error("H is not diagonal after gauge rotation")
+            end
         end
-        if any(imag(diag(H)) .> atol)
+        if any(imag(ϵ) .> atol)
             error("H has non-zero imaginary part")
         end
-        E2[:, ik] = real(diag(H))
+        E2[:, ik] = real(ϵ)
     end
 
     # MMN
     M = model.M
     kpb_k = model.bvectors.kpb_k
     M2 = rotate_M(M, kpb_k, A)
-
-    # AMN
-    A2 = eyes_A(eltype(M), n_wann, n_kpts)
+    if diag_H && length(diag_kpts) > 0
+        M2 = rotate_M(M2, kpb_k, A2)
+        # A needs to save the inverse of the eigenvectors
+        for ik in diag_kpts
+            A2[:, :, ik] = inv(A2[:, :, ik])
+        end
+    end
 
     model2 = Model(
         model.lattice,

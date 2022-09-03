@@ -46,6 +46,7 @@ function get_fg!_rotate(model::Model)
             for ib in 1:n_bvecs
                 ikpb = kpb_k[ib, ik]
 
+                # need to use AW[:, :, ik] instead of W, if model.A is not identity
                 MWᵏᵇ .= M[:, :, ib, ik] * W
                 Nᵏᵇ .= W' * MWᵏᵇ
                 b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])

@@ -90,16 +90,17 @@ omega(model, A)
 #=
 ## Truncate bands
 
-To Wannierize the valence bands, we need to remove the conduction bands from the `model`
+To Wannierize the valence bands, we need to remove the conduction bands from the `model`,
+i.e., keeping the first 7 bands (the second `1:7` means targeting 7 WFs)
 =#
-model_val = Wannier.truncate(model, 1:7)
+model_val = Wannier.truncate(model, 1:7, 1:7)
 #=
-After truncatation, we have no initial projection anymore, by default it is filled with
-identity matrices. We can inspect the initial spread by
+In most cases, the initial gauge after truncation is often useless,
+we can inspect the initial spread by
 =#
 omega(model_val)
 #=
-which shows the gauge is far from optimal.
+not particularly bad but this is mostly due to luck.
 
 ## Parallel transport
 
@@ -116,12 +117,14 @@ Random.seed!(1234)
 R = Wannier.rand_unitary(eltype(model_val.A), size(model_val.A)...)
 # and assign it to the `model_val`
 model_val.A .= R;
-# of course now we have destroyed the gauge even farther
+# of course now we have totally destroyed the gauge 😈
 omega(model_val)
-# we will ask `parallel_transport` to explicitly use our random matrices,
+# and we will ask `parallel_transport` to explicitly use our random matrices,
+# by setting argument `use_A = true`,
 A2, _ = parallel_transport(model_val; use_A=true)
 #=
-note the function returns a lit bit extra information which is irrelevant to this tutorial.
+note the function returns a lit bit extra information which is irrelevant to this tutorial,
+so we discard it by a `_`.
 
 Then we inspect the new gauge
 =#
@@ -154,7 +157,7 @@ Often it is helpful to run a final maximal localization that could further
 smoothen the gauge,
 =#
 model_val.A .= A3;
-A4 = max_localize(model_val)
+A4 = max_localize(model_val);
 # and inspect the final gauge
 omega(model_val, A4)
 
@@ -187,10 +190,16 @@ Rerun with a finer kgrid and look at the differences.
 
 Similarly, we can Wannierize only the top valence band, with PTG
 =#
-model_top = Wannier.truncate(model, [7])
-# and the initial spread
+model_top = Wannier.truncate(model, [7], [1])
+#=
+note the `[1]` specifies which WF to be kept, but this does not matter
+since we won't use the gauge from the previous `model.A`. We use
+this `[1]` to specify that we only need 1 WF.
+
+The initial spread is
+=#
 omega(model_top)
-# with PTG
+# with PTG,
 A_top, _ = parallel_transport(model_top)
 omega(model_top, A_top)
 #=

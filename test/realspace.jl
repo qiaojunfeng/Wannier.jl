@@ -39,7 +39,6 @@ end
     @test isapprox(r, ref_r; atol=1e-4)
 
     ω = omega(rgrid, W)
-    display(ω)
     ref_ω = [56.5538 52.5582 48.4909 58.0671 58.2983]
     @test isapprox(ω, ref_ω; atol=1e-3)
 end

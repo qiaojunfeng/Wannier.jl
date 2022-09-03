@@ -193,7 +193,7 @@ Set frozen bands of the `Model` according to projectability.
 function set_frozen_proj!(
     model::Model{T}, dis_proj_max::T; degen::Bool=false, degen_atol::T=1e-4
 ) where {T<:Real}
-    frozen_bands = get_frozen_bands_proj(model.E, model.A, dis_proj_max)
+    frozen_bands = get_frozen_proj(model.E, model.A, dis_proj_max)
 
     if degen
         set_frozen_degen!(frozen_bands, model.E, degen_atol)
