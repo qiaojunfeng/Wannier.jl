@@ -13,7 +13,7 @@ by constructing the parallel transport gauge (PTG).
 Usually, Wannierization of selected group of bands is difficult because
 there is no prior knowledge of the initial projections. Possible solutions are
 
-- use random Gaussian as initial projections, then run may iterations of maxiaml localization
+- use random Gaussian as initial projections, then run many iterations of maxiaml localization
 - use SCDM for the isolated manifold, then run maximal localization
 
 The PTG does not need any initial projections, rather it constructs smooth

@@ -184,7 +184,7 @@ Split the model and run parallel transport to smoothen the gauge.
 
 !!! note
 
-    Return two splitted `Model`s and rotation matrices which are
+    Return two separated `Model`s and rotation matrices which are
     useful for `UNK` files or other operators.
 """
 function split_wannierize(model::Model, n_val::Int)

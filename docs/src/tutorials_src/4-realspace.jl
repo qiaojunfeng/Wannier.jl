@@ -89,7 +89,7 @@ The [`write_realspace_wf`](@ref) function reads the `UNK` files,
 compute the real space WFs in a `n_supercells`-sized super cell,
 and write them to `xsf` files,
 =#
-write_realspace_wf("wjl", model; unkdir=CUR_DIR, n_supercells=3, format=:xsf)
+write_realspace_wf("$CUR_DIR/wjl", model; unkdir=CUR_DIR, n_supercells=3, format=:xsf)
 
 #=
 Now, open the `wjl_00001.xsf`, etc. files with a 3D

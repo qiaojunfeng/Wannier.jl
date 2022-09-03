@@ -168,7 +168,7 @@ kpi
 You can save the result to the same format
 as `Wannier90` `band.dat`, by
 =#
-write_w90_band("wjl", kpi, E)
+write_w90_band("$CUR_DIR/wjl", kpi, E)
 #=
 where `wjl` is the seedname of the output,
 i.e., written files are
