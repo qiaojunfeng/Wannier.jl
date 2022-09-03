@@ -29,6 +29,28 @@ function omega_center(
 end
 
 """
+    omega_center(mode, X, Y, r₀, λ)
+
+Compute WF spread with center penalty, in the `(X, Y)` layout.
+
+# Arguments
+- `model`: `Model`
+- `X`: `n_wann * n_wann * n_kpts` array
+- `Y`: `n_bands * n_wann * n_kpts` array
+- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
+- `λ`: penalty strength
+"""
+function omega_center(
+    model::Model{FT},
+    X::Array{Complex{FT},3},
+    Y::Array{Complex{FT},3},
+    r₀::Matrix{FT},
+    λ::FT,
+) where {FT<:Real}
+    return omega_center(model.bvectors, model.M, X, Y, r₀, λ)
+end
+
+"""
     omega_center_grad(bvectors, M, X, Y, frozen, r₀, λ)
 
 Compute gradient of WF spread with center penalty, in the `(X, Y)` layout.
@@ -144,8 +166,13 @@ function disentangle_center(
     # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
     f, g! = get_fg!_center_disentangle(model, r₀, λ)
 
-    Ωⁱ = omega_center(model.bvectors, model.M, model.A, r₀, λ)
+    Ωⁱ = omega_center(model, r₀, λ)
     @info "Initial spread"
+    show(Ωⁱ)
+    println("\n")
+
+    Ωⁱ = omega_center(model, X0, Y0, r₀, λ)
+    @info "Initial spread (with states freezed)"
     show(Ωⁱ)
     println("\n")
 
@@ -185,7 +212,7 @@ function disentangle_center(
     Xmin, Ymin = XY_to_X_Y(XYmin, n_bands, n_wann)
     Amin = X_Y_to_A(Xmin, Ymin)
 
-    Ωᶠ = omega_center(model.bvectors, model.M, Amin, r₀, λ)
+    Ωᶠ = omega_center(model, Amin, r₀, λ)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")

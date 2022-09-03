@@ -100,6 +100,37 @@ Compute WF spread with center penalty, for maximal localization.
 end
 
 """
+    omega_center(model, A, r₀, λ)
+
+Compute WF spread with center penalty, for maximal localization.
+
+# Arguments
+- `model`: `Model`
+- `A`: `n_wann * n_wann * n_kpts` array
+- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
+- `λ`: penalty strength
+"""
+function omega_center(
+    model::Model{T}, A::Array{Complex{T},3}, r₀::Matrix{T}, λ::T
+) where {T<:Real}
+    return omega_center(model.bvectors, model.M, A, r₀, λ)
+end
+
+"""
+    omega_center(model, r₀, λ)
+
+Compute WF spread with center penalty, for maximal localization.
+
+# Arguments
+- `model`: `Model`
+- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
+- `λ`: penalty strength
+"""
+function omega_center(model::Model{T}, r₀::Matrix{T}, λ::T) where {T<:Real}
+    return omega_center(model, model.A, r₀, λ)
+end
+
+"""
     omega_center_grad(bvectors, M, A, r, r₀, λ)
 
 Compute gradient of WF spread with center penalty, for maximal localization.

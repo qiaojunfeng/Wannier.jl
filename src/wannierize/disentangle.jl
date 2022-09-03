@@ -493,6 +493,22 @@ function omega(
 end
 
 """
+    omega(model, X, Y)
+
+Compute WF spread in the `(X, Y)` layout.
+
+# Arguments
+- `model`: `Model`
+- `X`: `n_wann * n_wann * n_kpts` array
+- `Y`: `n_bands * n_wann * n_kpts` array
+"""
+function omega(
+    model::Model{FT}, X::Array{Complex{FT},3}, Y::Array{Complex{FT},3}
+) where {FT<:Real}
+    return omega(model.bvectors, model.M, X, Y)
+end
+
+"""
     omega_grad(bvectors, M, X, Y, frozen)
 
 Compute gradient of WF spread in the `(X, Y)` layout.
@@ -655,8 +671,13 @@ function disentangle(
     # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
     f, g! = get_fg!_disentangle(model)
 
-    Ωⁱ = omega(model.bvectors, model.M, model.A)
+    Ωⁱ = omega(model)
     @info "Initial spread"
+    show(Ωⁱ)
+    println("\n")
+
+    Ωⁱ = omega(model, X0, Y0)
+    @info "Initial spread (with states freezed)"
     show(Ωⁱ)
     println("\n")
 
@@ -696,7 +717,7 @@ function disentangle(
     Xmin, Ymin = XY_to_X_Y(XYmin, n_bands, n_wann)
     Amin = X_Y_to_A(Xmin, Ymin)
 
-    Ωᶠ = omega(model.bvectors, model.M, Amin)
+    Ωᶠ = omega(model, Amin)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
