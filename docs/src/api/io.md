@@ -73,6 +73,8 @@ get_kpoints
 read_w90_wsvec
 read_w90_tbdat
 read_w90_tb
+read_spn
+write_spn
 ```
 
 ## File manipulation

@@ -7,7 +7,7 @@ The model for Wannier interpolation.
 - `model`: the Wannierization [`Model`](@ref Model)
 - `kRvectors`: the kpoint and R vectors
 - `kpath`: the kpoint path for band structure
-- `S`: `n_bands * n_bands * 3 * n_kpts`, the spin operator matrices
+- `S`: `n_bands * n_bands * n_kpts * 3`, the spin operator matrices
 """
 struct InterpolationModel{T<:Real}
     # model storing results of Wannierization
@@ -19,7 +19,7 @@ struct InterpolationModel{T<:Real}
     # kpoint path for band structure
     kpath::KPath
 
-    # spin matrix, n_bands * n_bands * 3 * n_kpts
+    # spin matrix, n_bands * n_bands * n_kpts * 3
     S::Array{Complex{T},4}
 end
 

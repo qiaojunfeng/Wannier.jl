@@ -69,7 +69,7 @@ end
 Output `amn` file.
 
 # Arguments
-- header: optional, default is "Created by Wannier.jl CURRENT_DATE"
+- `header`: optional, default is "Created by Wannier.jl CURRENT_DATE"
 """
 function write_amn(filename::AbstractString, A::Array{ComplexF64,3}, header::AbstractString)
     n_bands, n_wann, n_kpts = size(A)
