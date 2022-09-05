@@ -59,7 +59,7 @@ makedocs(;
     workdir=joinpath(@__DIR__, "../tutorials/tutorials/"),
     pages=[
         "Home" => "index.md",
-        "Quick start" => "quickstart.md",
+        "Getting Started" => "start.md",
         # the tutorials will be processed by Literate
         "Tutorial" => [
             "Maximal localization" => "tutorials/1-maxloc.md",
