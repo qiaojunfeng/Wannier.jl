@@ -114,7 +114,7 @@ those matrices.
 However, to make the tutorial reproducible, we will use a fixed random seed.
 =#
 using Random
-Random.seed!(1234)
+Random.seed!(12345)
 R = Wannier.rand_unitary(eltype(model_val.A), size(model_val.A)...)
 # and assign it to the `model_val`
 model_val.A .= R;
