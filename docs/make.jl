@@ -82,7 +82,6 @@ makedocs(;
             "Wannierize" => "api/wannierize.md",
             "Interpolation" => "api/interpolation.md",
             "Real space" => "api/realspace.md",
-            "Plot" => "api/plot.md",
             "Command line" => "api/cli.md",
         ],
     ],

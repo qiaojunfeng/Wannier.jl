@@ -48,6 +48,7 @@ thus more efficient than SCDM, which requires wavefunctions in real space.
 # ## Preparation
 # Load the package
 using Wannier
+using WannierPlots
 
 # Path of current tutorial
 CUR_DIR = "5-parallel_transport"
@@ -176,8 +177,7 @@ model_val.A .= A4;
 interp_model_val = Wannier.InterpolationModel(model_val)
 kpi2, E2 = interpolate(interp_model_val)
 # and plot the band structure
-using PlotlyJS
-P = Wannier.plot_band_diff(kpi, E, E2)
+P = plot_band_diff(kpi, E, E2)
 Main.HTMLPlot(P, 500)  # hide
 
 #=
@@ -213,7 +213,7 @@ omega(model_top, A_top2)
 interp_model_top = Wannier.InterpolationModel(model_top)
 kpi3, E3 = interpolate(interp_model_top)
 # and compare
-P = Wannier.plot_band_diff(kpi, E, E3)
+P = plot_band_diff(kpi, E, E3)
 Main.HTMLPlot(P, 500)  # hide
 
 #=

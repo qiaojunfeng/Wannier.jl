@@ -74,6 +74,7 @@ conduction manifolds without human intervention.
 # ## Preparation
 # Load the package
 using Wannier
+using WannierPlots
 
 # Path of current tutorial
 CUR_DIR = "6-split"

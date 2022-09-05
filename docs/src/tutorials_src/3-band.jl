@@ -29,15 +29,13 @@ In this tutorial, we will use Wananier interpolation to calculate the band struc
 
 # ## Preparation
 # Load the package
-using PlotlyJS
 using Wannier
-
+using WannierPlots
 #=
-!!! note
-
-    You need to load the `PlotlyJS.jl` package
-    (both before or after `using Wannier` are fine),
-    otherwise, the plotting functions in `Wannier.jl` are disabled.
+The `WannierPlots` is a companion package of `Wannier.jl`, for plotting band structures,
+real space WFs, etc.
+This separation reduces the compiling latency of `Wannier.jl`, and avoids
+introduing too many package dependencies that are irrelevant to Wannierization.
 =#
 
 # Path of current tutorial
