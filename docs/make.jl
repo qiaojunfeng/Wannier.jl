@@ -62,6 +62,7 @@ makedocs(;
         "Getting Started" => "start.md",
         # the tutorials will be processed by Literate
         "Tutorial" => [
+            "Foreword" => "tutorials/0-foreword.md",
             "Maximal localization" => "tutorials/1-maxloc.md",
             "Disentanglement" => "tutorials/2-disentangle.md",
             "Band structure" => "tutorials/3-band.md",

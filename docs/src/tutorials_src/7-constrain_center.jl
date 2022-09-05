@@ -27,13 +27,6 @@ WFs to be centered at the bond centers, i.e., bonding and anti-bonding orbitals.
 2. disentangle, without WF center penalty
 3. disentangle, with WF center penalty
 
-!!! note
-
-    These tutorials assume you have already been familiar with the
-    Wannierization workflow using `QE` and `Wannier90`, a good starting
-    point could be the tutorials of
-    [`Wannier90`](https://github.com/wannier-developers/wannier90).
-
 !!! tip
 
     This is a HTML version of the tutorial, you can download corresponding
@@ -68,7 +61,7 @@ omega(model, A)
 #=
 ## Disentanglement with constraint
 
-As has been done in the [first tutorial](@ref Maximal-localization-of-isolated-manifold),
+As has been done in the [1. Maximal localization of isolated manifold](@ref) tutorial,
 we can use the [`find_nearests`](@ref) function to find the bond centers, which are
 =#
 r₀ = [

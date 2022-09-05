@@ -15,13 +15,6 @@ the silicon valence + conduction bands. As usual, we need to
 3. run `Wannier.jl` [`disentangle`](@ref) on the `Model` to minimize the spread
 4. write the maximal localized gauge to a new `amn` file
 
-!!! note
-
-    These tutorials assume you have already been familiar with the
-    Wannierization workflow using `QE` and `Wannier90`, a good starting
-    point could be the tutorials of
-    [`Wannier90`](https://github.com/wannier-developers/wannier90).
-
 !!! tip
 
     This is a HTML version of the tutorial, you can download corresponding

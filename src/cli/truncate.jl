@@ -1,5 +1,5 @@
 """
-Truncate `mmn`/`eig`/`unk` files.
+Truncate number of bands in `mmn`/`eig`/`unk` files.
 
 # Args
 

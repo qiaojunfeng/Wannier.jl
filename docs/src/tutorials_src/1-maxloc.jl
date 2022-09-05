@@ -15,13 +15,6 @@ the silicon valence bands. We need to
 3. run `Wannier.jl` [`max_localize`](@ref) on the `Model` to minimize the spread
 4. write the maximal localized gauge to a new `amn` file
 
-!!! note
-
-    These tutorials assume you have already been familiar with the
-    Wannierization workflow using `QE` and `Wannier90`, a good starting
-    point could be the tutorials of
-    [`Wannier90`](https://github.com/wannier-developers/wannier90).
-
 !!! tip
 
     This is a HTML version of the tutorial, you can download corresponding
@@ -52,7 +45,8 @@ win = read_win("$CUR_DIR/si2.win")
 #=
 !!! tip
 
-    Refer to the [`API`](@ref) documentation for more details about the function usage.
+    Refer to the [`API`](@ref Input/Output) documentation for more details
+    about the function usage.
 =#
 
 #=

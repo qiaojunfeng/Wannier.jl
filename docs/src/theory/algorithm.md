@@ -3,6 +3,8 @@
 Here are some detailed explanations of the algorithms used in this package,
 however, it might still be too concise, please refer to the references for full discussion.
 
+Moreover, a good starting point for the WF theory could be[^RMP].
+
 ## Wannierization
 
 - maximal localization for isolated bands, e.g. insulators
@@ -37,7 +39,7 @@ for band structure along a kpath or on a grid.
 [^MV97]: Marzari, N. & Vanderbilt, D.,
     Maximally localized generalized Wannier functions for composite energy bands,
     [Physical Review B, 1997, 56, 12847](https://doi.org/10.1103/physrevb.56.12847)
-[^MMYSV12]: Marzari, N.; Mostofi, A. A.; Yates, J. R.; Souza, I. & Vanderbilt, D.,
+[^RMP]: Marzari, N.; Mostofi, A. A.; Yates, J. R.; Souza, I. & Vanderbilt, D.,
     Maximally localized Wannier functions: Theory and applications,
     [Reviews of Modern Physics, 2012, 84, 1419](https://doi.org/10.1103/revmodphys.84.1419)
 [^SMV01]: Souza, I.; Marzari, N. & Vanderbilt, D.,

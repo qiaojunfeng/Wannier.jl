@@ -31,13 +31,6 @@ thus more efficient than SCDM, which requires wavefunctions in real space.
 6. interpolate band, and write the real space WF
 7. similarly, Wannierize the top valence band
 
-!!! note
-
-    These tutorials assume you have already been familiar with the
-    Wannierization workflow using `QE` and `Wannier90`, a good starting
-    point could be the tutorials of
-    [`Wannier90`](https://github.com/wannier-developers/wannier90).
-
 !!! tip
 
     This is a HTML version of the tutorial, you can download corresponding

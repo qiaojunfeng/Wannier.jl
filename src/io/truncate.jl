@@ -77,10 +77,10 @@ end
 """
     truncate_w90(seedname, keep_bands::Vector{Int}, outdir="truncate", unk=false)
 
-Truncate `amn`, `mmn`, `eig`, and optionally `UNK` files.
+Truncate `mmn`, `eig`, and optionally `UNK` files.
 
 # Arguments
-- seedname: seedname for input `amn`/`mmn`/`eig` files.
+- seedname: seedname for input `mmn` and `eig` files.
 - keep_bands: Band indexes to be kept, start from 1.
 - unk: If true also truncate `UNK` files.
 - outdir: folder for output files.
