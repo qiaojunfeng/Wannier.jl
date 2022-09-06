@@ -48,7 +48,7 @@ The [`disentangle`](@ref) function
 will disentangle and maximally localize the spread
 functional, and returns the gauge matrices `A`,
 =#
-A = disentangle(model)
+A = disentangle(model);
 
 # The initial spread is
 omega(model)
@@ -98,6 +98,32 @@ visualizer, e.g., `vesta`, to have a look at the WFs!
     see the beautiful WFs 😎
 
 =#
+
+using JSServe  # hide
+Page(; exportable=true, offline=true)  # hide
+#=
+We also provide a simple plotting package
+[`WannierPlots.jl`](https://github.com/qiaojunfeng/WannierPlots.jl)
+for quick Visualization of band structure, real space WFs, etc.
+
+First, load the plotting packages
+=#
+using WGLMakie
+set_theme!(; resolution=(800, 800))
+using WannierPlots
+#=
+!!! tip
+
+    Here we want to show the WFs in this web page, so we first load `WGLMakie`.
+    When you use the `WannierPlots` package in REPL, you can first load `GLMakie`,
+    then the WFs will be shown in a standalone window.
+=#
+# Read the 1st WF
+xsf = read_xsf("$CUR_DIR/wjl_00001.xsf");
+# Visualize with `WannierPlots.jl`,
+pos = inv(xsf.primvec) * xsf.atom_positions  # to fractional coordinates
+atom_numbers = parse.(Int, xsf.atoms)  # to integer atomic numbers
+plot_wf(xsf.rgrid, xsf.W, xsf.primvec, pos, atom_numbers)
 
 #=
 ## Compute WF centers in realspace

@@ -95,21 +95,14 @@ function read_xsf(filename::AbstractString)
         n_x, n_y, n_z = size(W)
         # fractional w.r.t. span_vectors
         O = inv(span_vectors) * origin
-        X = range(0, 1, n_x) .- O[1]
-        Y = range(0, 1, n_y) .- O[2]
-        Z = range(0, 1, n_z) .- O[3]
+        X = range(0, 1, n_x) .+ O[1]
+        Y = range(0, 1, n_y) .+ O[2]
+        Z = range(0, 1, n_z) .+ O[3]
         Xg, Yg, Zg = ndgrid(X, Y, Z)
         rgrid = RGrid(span_vectors, Xg, Yg, Zg)
     end
 
-    return (
-        primvec=primvec,
-        convvec=convvec,
-        atoms=atoms,
-        atom_positions=atom_positions,
-        rgrid=rgrid,
-        W=W,
-    )
+    return (; primvec, convvec, atoms, atom_positions, rgrid, W)
 end
 
 """

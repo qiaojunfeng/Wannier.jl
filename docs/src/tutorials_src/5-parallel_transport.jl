@@ -216,8 +216,31 @@ Also, you can try to plot the WFs, by first truncating the `unk`
 Wannier.truncate_unk(CUR_DIR, [7], "$CUR_DIR/truncate")
 # the new `unk`s are stored in a subfolder `truncate`,
 # now write the realspace WF
-write_realspace_wf("$CUR_DIR/wjl", model_top; unkdir="$CUR_DIR/truncate")
+write_realspace_wf(
+    "$CUR_DIR/wjl", model_top; n_supercells=[3, 3, 2], unkdir="$CUR_DIR/truncate"
+)
 # and visualize with your favorite tool.
+
+# As a reference, here is the real space WFs visualized with [`WannierPlots.jl`].
+using JSServe  # hide
+Page(; exportable=true, offline=true)  # hide
+# First, load the plotting packages
+using WGLMakie
+set_theme!(; resolution=(800, 800))
+using WannierPlots
+#=
+!!! tip
+
+    Here we want to show the WFs in this web page, so we first load `WGLMakie`.
+    When you use the `WannierPlots` package in REPL, you can first load `GLMakie`,
+    then the WFs will be shown in a standalone window.
+=#
+# Read the 1st WF
+xsf = read_xsf("$CUR_DIR/wjl_00001.xsf");
+# Visualize with `WannierPlots.jl`,
+pos = inv(xsf.primvec) * xsf.atom_positions  # to fractional coordinates
+atom_numbers = parse.(Int, xsf.atoms)  # to integer atomic numbers
+plot_wf(xsf.rgrid, xsf.W, xsf.primvec, pos, atom_numbers)
 
 #=
 Now we have automated Wannierization of the valence manifold,
