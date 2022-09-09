@@ -42,7 +42,7 @@ This is the recommended way to install `Wannier.jl` for end users.
 ```bash
 git clone https://github.com/qiaojunfeng/Wannier.jl.git
 cd Wannier.jl
-julia --project=. -e 'using Pkg; Pkg.resolve(); Pkg.instantiate()'
+julia --project=. -e 'using Pkg; Pkg.update(); Pkg.resolve(); Pkg.instantiate()'
 ```
 
 #### From tarball
@@ -50,7 +50,7 @@ julia --project=. -e 'using Pkg; Pkg.resolve(); Pkg.instantiate()'
 ```bash
 tar xvf Wannier.jl.tgz
 cd Wannier.jl
-julia --project=. -e 'using Pkg; Pkg.resolve(); Pkg.instantiate()'
+julia --project=. -e 'using Pkg; Pkg.update(); Pkg.resolve(); Pkg.instantiate()'
 ```
 
 !!! tip
