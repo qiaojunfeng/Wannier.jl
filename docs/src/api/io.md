@@ -1,6 +1,15 @@
 # Input/Output
 
-This page lists functions for reading and writing files.
+```@meta
+CurrentModule = Wannier
+```
+
+The reading and writing functions are implemented in the
+[`WannierIO.jl`](https://github.com/qiaojunfeng/WannierIO.jl)
+package. However, here are also some convenience functions which
+wrap the corresponding functions in `WannierIO.jl`, to utilize the
+`struct`s defined in `Wannier90.jl`, e.g. [`BVectors`](@ref),
+[`RGrid`](@ref), etc.
 
 !!! tip
 
@@ -26,10 +35,6 @@ This page lists functions for reading and writing files.
     `n_wann` is the second index, and `n_kpts` is the third index.
     For example, `A` for the `amn` matrices is a 3D array of size `(n_bands, n_wann, n_kpts)`.
 
-```@meta
-CurrentModule = Wannier
-```
-
 ## Contents
 
 ```@contents
@@ -46,35 +51,16 @@ Pages = ["io.md"]
 ## Wannier90 files
 
 ```@docs
-read_amn
 read_orthonorm_amn
-write_amn
-read_mmn
-write_mmn
-read_eig
-write_eig
-Chk
-read_chk
+read_w90_band
+write_w90_band
 write_chk
-get_model
-get_A
-read_win
-read_wout
-read_nnkp
-write_nnkp
-read_unk
-write_unk
 read_w90
 read_w90_post
 write_w90
-read_w90_band
-write_w90_band
-get_kpoints
-read_w90_wsvec
-read_w90_tbdat
+read_nnkp
+write_nnkp
 read_w90_tb
-read_spn
-write_spn
 ```
 
 ## File manipulation
@@ -101,10 +87,11 @@ read_cube
 write_cube
 ```
 
-## Quantum ESPRESSO files
+## Misc
 
 ```@docs
-read_qe_band
-guess_kpath
-
+KPathInterpolant
+get_kpoints
+get_symm_idx_label
+Model(chk::WannierIO.Chk)
 ```

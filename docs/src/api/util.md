@@ -25,14 +25,6 @@ Pages = ["util.md"]
 get_atom_number
 ```
 
-## Fortran related
-
-```@docs
-isbinary
-parse_float
-parse_bool
-```
-
 ## Lattice
 
 ```@docs
@@ -65,6 +57,20 @@ make_supercell
 get_kpoints(kgrid::AbstractVector{Int}; fractional::Bool=true)
 sort_kpoints
 get_kgrid
+```
+
+## KPath
+
+The `KPath` and `KPathInterpolant` are defined in `Brillouin.jl`,
+they are used to store the high-symmetry kpoints and their labels.
+
+```@docs
+KPath(
+    lattice::AbstractMatrix, kpoint_path::Vector{Vector{Pair{Symbol,T}}}
+) where {T<:AbstractVector{<:Real}}
+interpolate_w90
+get_x
+get_kpath
 ```
 
 ## Centers

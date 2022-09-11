@@ -114,17 +114,6 @@ InterpolationModel(
 InterpolationModel(model::Model; mdrs::Bool=true)
 ```
 
-## KPath
-
-The `KPath` and `KPathInterpolant` are defined in `Brillouin.jl`,
-they are used to store the high-symmetry kpoints and their labels.
-
-```@docs
-interpolate_w90
-get_x
-get_kpath
-```
-
 ## Band structure
 
 !!! warning

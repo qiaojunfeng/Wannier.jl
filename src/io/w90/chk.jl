@@ -2,8 +2,21 @@ using Printf: @sprintf
 
 export write_chk
 
+"""
+    write_chk(filename, model; exclude_bands=nothing)
+
+Write the `model` to a Wannier90 `.chk` file.
+
+# Arguments
+- `filename`: filename of the `.chk` file
+- `model`: a `Model` struct
+
+# Keyword Arguments
+- `exclude_bands`: a list of band indices to exclude.
+    This is irrelevant to the `model`, but `chk` file has this entry.
+"""
 function write_chk(
-    filename::String,
+    filename::AbstractString,
     model::Model;
     exclude_bands::Union{AbstractVector{Int},Nothing}=nothing,
 )
@@ -46,7 +59,7 @@ end
 """
     Model(chk::Chk)
 
-Construct a model from `chk` file.
+Construct a model from a `WannierIO.Chk` struct.
 """
 function Model(chk::WannierIO.Chk)
     atom_positions = zeros(Float64, 3, 0)
