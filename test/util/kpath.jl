@@ -1,3 +1,29 @@
+
+@testset "KPath" begin
+    test_data = YAML.load_file(String(@__DIR__) * "/test_data/kpath.yaml")
+
+    win = read_win(joinpath(FIXTURE_PATH, "silicon/silicon.win"))
+
+    # yaml_dict = Dict(
+    #     "kpoint_path" => Dict(
+    #         "basis" => win.kpoint_path.basis,
+    #         "paths" => win.kpoint_path.paths,
+    #         "points" => win.kpoint_path.points,
+    #         "setting" => win.kpoint_path.setting,
+    #     ),
+    # )
+    # YAML.write_file(String(@__DIR__) * "/test_data/kpath.yaml", yaml_dict)
+
+    test_kpath = test_data["kpoint_path"]
+    win_kpath = KPath(win.unit_cell, win.kpoint_path)
+    t_points = Dict(Symbol(k) => v for (k, v) in test_kpath["points"])
+    @test t_points == win_kpath.points
+    t_paths = [[Symbol(i) for i in l] for l in test_kpath["paths"]]
+    @test t_paths == win_kpath.paths
+    @test test_kpath["basis"] == win_kpath.basis
+    @test Symbol(test_kpath["setting"]) == Symbol(win_kpath.setting)
+end
+
 @testset "interpolate w90 kpath" begin
     win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
     lattice = win.unit_cell

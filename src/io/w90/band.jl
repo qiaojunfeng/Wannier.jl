@@ -92,6 +92,11 @@ function get_kpoints(kpi::KPathInterpolant)
     return kpoints
 end
 
+"""
+    get_symm_idx_label(kpi::KPathInterpolant)
+
+Return the symmetry indexes and labels.
+"""
 function get_symm_idx_label(kpi::KPathInterpolant)
     kpi_frac = latticize(kpi)
 

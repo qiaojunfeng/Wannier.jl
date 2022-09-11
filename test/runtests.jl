@@ -11,6 +11,8 @@ Aqua.test_ambiguities(Wannier)
 const TEST_PATH = @__DIR__
 const FIXTURE_PATH = joinpath(TEST_PATH, "fixtures")
 
+mat2vec(A::AbstractMatrix) = [v for v in eachcol(A)]
+
 @testset "Wannier.jl" begin
     include("io/w90.jl")
     include("io/model.jl")
@@ -19,6 +21,7 @@ const FIXTURE_PATH = joinpath(TEST_PATH, "fixtures")
     include("util/kpoint.jl")
     include("util/element.jl")
     include("util/center.jl")
+    include("util/kpath.jl")
 
     include("wannierize/max_localize.jl")
     include("wannierize/disentangle.jl")
@@ -32,7 +35,6 @@ const FIXTURE_PATH = joinpath(TEST_PATH, "fixtures")
 
     include("interpolate/rvector.jl")
     include("interpolate/fourier.jl")
-    include("interpolate/kpath.jl")
     include("interpolate/hamiltonian.jl")
     include("realspace.jl")
 end
