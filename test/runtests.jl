@@ -17,7 +17,6 @@ const FIXTURE_PATH = joinpath(TEST_PATH, "fixtures")
     include("bvector.jl")
     include("spread.jl")
     include("util/kpoint.jl")
-    include("util/io.jl")
     include("util/element.jl")
     include("util/center.jl")
 

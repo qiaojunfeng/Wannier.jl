@@ -1,5 +1,7 @@
 using LinearAlgebra
-import NearestNeighbors as NN
+using NearestNeighbors: KDTree, knn
+
+export get_Rvectors_ws, get_Rvectors_mdrs
 
 """
     struct RVectors
@@ -117,12 +119,12 @@ function get_Rvectors_ws(
     translations_cart = lattice * translations
 
     # 2. KDTree to get the distance of supercell points to translations of lattice_wf
-    kdtree = NN.KDTree(translations_cart)
+    kdtree = KDTree(translations_cart)
     # in priciple, need to calculate distances to all the supercell translations to
     # count degeneracies, this need a search of `size(translations_cart, 2)` neighbors.
     # usually we don't need such high degeneracies, so I only search for 8 neighbors.
     max_neighbors = min(8, size(translations_cart, 2))
-    idxs, dists = NN.knn(kdtree, supercell_cart, max_neighbors, true)
+    idxs, dists = knn(kdtree, supercell_cart, max_neighbors, true)
 
     # 3. supercell_cart point which is closest to lattice_wf at origin is inside WS cell
     idx_origin = findvector(==, [0, 0, 0], translations)
@@ -309,7 +311,7 @@ function get_Rvectors_mdrs(
     translations_cart = lattice * translations
 
     # 2. KDTree to get the distance of supercell points to translations of lattice_wf
-    kdtree = NN.KDTree(translations_cart)
+    kdtree = KDTree(translations_cart)
     # usually we don't need such high degeneracies, so I only search for 8 neighbors
     max_neighbors = min(8, size(translations_cart, 2))
     idx_origin = findvector(==, [0, 0, 0], translations)
@@ -326,7 +328,7 @@ function get_Rvectors_mdrs(
                 # to cartesian
                 Tᶜ = supercell_cart .+ lattice * Tᶠ
                 # get distances
-                idxs, dists = NN.knn(kdtree, Tᶜ, max_neighbors, true)
+                idxs, dists = knn(kdtree, Tᶜ, max_neighbors, true)
                 # collect T vectors
                 T_idxs = Vector{Int}()
                 for it in axes(Tᶜ, 2)

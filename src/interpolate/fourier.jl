@@ -1,5 +1,7 @@
 using LinearAlgebra
 
+export fourier, invfourier
+
 @doc raw"""
     fourier(kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3})
     where {T<:Real,RV<:RVectors{T}}

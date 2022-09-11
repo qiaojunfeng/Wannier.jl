@@ -1,3 +1,4 @@
+export interpolate
 
 """
     get_Hk(E, A)

@@ -1,3 +1,5 @@
+using LazyGrids: ndgrid
+
 """
     struct RGrid(basis, X, Y, Z)
 
@@ -40,6 +42,42 @@ end
 function RGrid(basis::AbstractMatrix, X, Y, Z)
     size(X) == size(Y) == size(Z) || error("X, Y, Z must have the same size")
     return RGrid(Mat3(basis), X, Y, Z)
+end
+
+"""
+    RGrid(basis, origin, X, Y, Z)
+
+Construct a regular grid of points.
+
+# Arguments
+- `basis`: each column is a basis vector of the grid,
+    usually just the lattice vectors.
+- `origin`: `3`, origin of the grid in cartesian coordinates
+- `X`: `nx` vector of fractional coordinate w.r.t `basis`,
+    the x coordinate of each point in the grid.
+- `Y`: `ny` vector of fractional coordinate w.r.t `basis`,
+    the y coordinate of each point in the grid.
+- `Z`: `nz` vector of fractional coordinate w.r.t `basis`,
+    the z coordinate of each point in the grid.
+"""
+function RGrid(
+    basis::AbstractMatrix,
+    origin::AbstractVector,
+    X::AbstractVector,
+    Y::AbstractVector,
+    Z::AbstractVector,
+)
+    size(basis, 1) == length(origin) || error("incompatible basis and origin")
+
+    # fractional w.r.t. basis
+    O = inv(basis) * origin
+    X1 = X .+ O[1]
+    Y1 = Y .+ O[2]
+    Z1 = Z .+ O[3]
+    Xg, Yg, Zg = ndgrid(X1, Y1, Z1)
+    rgrid = RGrid(span_vectors, Xg, Yg, Zg)
+
+    return rgrid
 end
 
 """

@@ -1,6 +1,77 @@
 using LinearAlgebra
-using Brillouin
+using Brillouin: KPath, LATTICE, KPathInterpolant
 using Spglib
+using Bravais: reciprocalbasis
+
+export get_kpath
+
+function _new_kpath_label(l::Symbol, all_labels::AbstractVector{Symbol})
+    i = 1
+    while true
+        new_label = Symbol(String(l) * "_$i")
+        if new_label ∉ all_labels
+            return new_label
+        end
+        i += 1
+    end
+    return error("Cannot find a new label?")
+end
+
+"""
+    KPath(unit_cell, kpoint_path)
+
+Construct a `Brillouin.KPath` from the returned `kpoint_path` of `WannierIO.read_win`.
+
+# Arguments
+- `lattice`: each column is a lattice vector
+- `kpoint_path`: the returned `kpoint_path` of `WannierIO.read_win`, e.g.,
+    ```julia
+    kpoint_path = [[:Γ => [0.0, 0.0, 0.0], :M => [0.5, 0.5, 0.0]],
+                   [:M => [0.5, 0.5, 0.0], :R => [0.5, 0.5, 0.5]]]
+    ```
+"""
+function KPath(
+    lattice::AbstractMatrix,
+    kpoint_path::AbstractVector{AbstractVector{Pair{Symbol,AbstractVector{T}}}},
+) where {T<:Real}
+    points = Dict{Symbol,Vec3{T}}()
+    paths = Vector{Vector{Symbol}}()
+
+    warn_str = "Two kpoints in kpoint_path have same label but different coordinates, I will append a number to the label"
+
+    for path in kpoint_path
+        k1 = path[1]
+        k2 = path[2]
+        # start kpoint
+        label1 = Symbol(k1.first)
+        v1 = Vec3{T}(k1.second)
+        if label1 ∈ keys(points) && points[label1] ≉ v1
+            @warn warn_str label = label1 k1 = points[label1] k2 = v1
+            label1 = _new_kpath_label(label1, keys(points))
+        end
+        points[label1] = v1
+        # end kpoint
+        label2 = Symbol(k2.first)
+        v2 = Vec3{T}(k2.second)
+        if label2 ∈ keys(points) && points[label2] ≉ v2
+            @warn warn_str label = label2 k1 = points[label2] k2 = v2
+            label2 = _new_kpath_label(label2, keys(points))
+        end
+        points[label2] = v2
+        # push to kpath
+        if length(paths) > 0 && label1 == paths[end][end]
+            push!(paths[end], label2)
+        else
+            push!(paths, [label1, label2])
+        end
+    end
+
+    basis = reciprocalbasis([v for v in eachcol(lattice)])
+    setting = Ref(LATTICE)
+    kpath = Brillouin.KPath(points, paths, basis, setting)
+
+    return kpath
+end
 
 """
     interpolate_w90(kpath::KPath, n_points::Int)
