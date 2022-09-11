@@ -1,13 +1,15 @@
 @testset "interpolate w90 kpath" begin
     win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
-    recip_lattice = Wannier.get_recip_lattice(win.unit_cell)
+    lattice = win.unit_cell
+    recip_lattice = Wannier.get_recip_lattice(lattice)
     kpi, E = read_w90_band(
         joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"), recip_lattice
     )
 
     # num points of 1st segment
     n_points = 100
-    test_kpi = Wannier.interpolate_w90(win.kpoint_path, n_points)
+    kpath = Wannier.KPath(lattice, win.kpoint_path)
+    test_kpi = Wannier.interpolate_w90(kpath, n_points)
 
     @test all(isapprox.(test_kpi.kpaths, kpi.kpaths; atol=1e-5))
     # If in the kpath block of win file, there are two kpoints with same label but
@@ -33,10 +35,14 @@
     @test Symbol(test_kpi.setting) == Symbol(kpi.setting)
 end
 
-@testset "get x kpath" begin
+@testset "get_x kpath" begin
     win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
-    recip_lattice = Wannier.get_recip_lattice(win.unit_cell)
-    band = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
-    kpi = Wannier.interpolate_w90(win.kpoint_path, 100)
+    lattice = win.unit_cell
+
+    band = WannierIO.read_w90_band(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
+
+    kpoint_path = Wannier.KPath(lattice, win.kpoint_path)
+    kpi = Wannier.interpolate_w90(kpoint_path, 100)
+
     @test all(isapprox.(band.x, Wannier.get_x(kpi); atol=1e-5))
 end

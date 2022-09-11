@@ -39,7 +39,9 @@ struct RGrid{T<:Real,XT<:AbstractArray3,YT<:AbstractArray3,ZT<:AbstractArray3}
     Z::ZT
 end
 
-function RGrid(basis::AbstractMatrix, X, Y, Z)
+function RGrid(
+    basis::AbstractMatrix, X::AbstractArray3, Y::AbstractArray3, Z::AbstractArray3
+)
     size(X) == size(Y) == size(Z) || error("X, Y, Z must have the same size")
     return RGrid(Mat3(basis), X, Y, Z)
 end
@@ -75,7 +77,7 @@ function RGrid(
     Y1 = Y .+ O[2]
     Z1 = Z .+ O[3]
     Xg, Yg, Zg = ndgrid(X1, Y1, Z1)
-    rgrid = RGrid(span_vectors, Xg, Yg, Zg)
+    rgrid = RGrid(basis, Xg, Yg, Zg)
 
     return rgrid
 end
@@ -83,7 +85,7 @@ end
 """
     origin(rgrid::RGrid)
 
-Get the origin, i.e. the 1st point, of the `RGrid`.
+Get the origin in cartesian coordinates, i.e. the 1st point, of the `RGrid`.
 """
 function origin(rgrid::RGrid)
     O = [rgrid.X[1, 1, 1], rgrid.Y[1, 1, 1], rgrid.Z[1, 1, 1]]
@@ -123,7 +125,7 @@ end
 
 Return `X`, `Y`, `Z` in cartesian coordinates.
 
-The size of the returned `X`, `Y`, `Z` are `nx * ny * nz`.
+The size of the returned `X`, `Y`, and `Z` are `nx * ny * nz`.
 """
 function cartesianize_xyz(rgrid::RGrid)
     XYZ = vcat(reshape(rgrid.X, :)', reshape(rgrid.Y, :)', reshape(rgrid.Z, :)')

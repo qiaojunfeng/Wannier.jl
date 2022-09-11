@@ -155,15 +155,15 @@ function read_w90_post(
     end
     kRvecs = KRVectors(model.lattice, model.kgrid, model.kpoints, Rvecs)
 
-    if !ismissing(win.kpoint_path)
-        kpath = win.kpoint_path
-    else
+    if ismissing(win.kpoint_path)
         # an empty kpath
         points = Dict{Symbol,Vec3{Float64}}()
         paths = Vector{Vector{Symbol}}()
         basis = ReciprocalBasis([v for v in eachcol(model.recip_lattice)])
         setting = Ref(Brillouin.LATTICE)
         kpath = KPath{3}(points, paths, basis, setting)
+    else
+        kpath = KPath(win.unit_cell, win.kpoint_path)
     end
 
     return InterpolationModel(model, kRvecs, kpath)

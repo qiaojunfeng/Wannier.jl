@@ -33,7 +33,7 @@ mat2vec(A::AbstractMatrix) = [v for v in eachcol(A)]
     # YAML.write_file(String(@__DIR__) * "/test_data/win.yaml", yaml_dict)
 
     test_kpath = test_data["kpoint_path"]
-    win_kpath = win.kpoint_path
+    win_kpath = KPath(win.unit_cell, win.kpoint_path)
     t_points = Dict(Symbol(k) => v for (k, v) in test_kpath["points"])
     @test t_points == win_kpath.points
     t_paths = [[Symbol(i) for i in l] for l in test_kpath["paths"]]
@@ -140,33 +140,14 @@ end
     @test chk.n_bands == 12
 end
 
-@testset "read/write w90 band dat" begin
-    band = read_w90_band(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
-
-    outdir = mktempdir(; cleanup=true)
-    outseedname = joinpath(outdir, "silicon")
-
-    write_w90_band(
-        outseedname, band.kpoints, band.E, band.x, band.symm_idx, band.symm_label
-    )
-
-    band2 = read_w90_band(outseedname)
-
-    @test band.kpoints ≈ band2.kpoints
-    @test band.E ≈ band2.E
-    @test band.x ≈ band2.x
-    @test band.symm_idx == band2.symm_idx
-    @test band.symm_label == band2.symm_label
-end
-
-@testset "read/write w90 band dat kpi" begin
+@testset "read/write w90 band" begin
     win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
     recip_lattice = Wannier.get_recip_lattice(win.unit_cell)
     kpi, E = read_w90_band(
         joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"), recip_lattice
     )
 
-    outdir = mktempdir(; cleanup=false)#true)
+    outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "silicon")
 
     write_w90_band(outseedname, kpi, E)
@@ -187,7 +168,7 @@ end
     @test chk.lattice ≈ win.unit_cell
 
     tmpfile = tempname(; cleanup=true)
-    write_chk(tmpfile, chk)
+    WannierIO.write_chk(tmpfile, chk)
     chk2 = read_chk(tmpfile)
 
     @test chk.header == chk2.header
@@ -249,16 +230,18 @@ end
 end
 
 @testset "read wsvec" begin
-    Rvecs = Wannier.read_w90_wsvec(
+    mdrs, wsvec = read_w90_wsvec(
         joinpath(FIXTURE_PATH, "valence/band/ws/silicon_wsvec.dat")
     )
     # just some simple tests
-    @test Rvecs.R[:, 1] == [-3, 1, 1]
+    @test !mdrs
+    @test wsvec.R[:, 1] == [-3, 1, 1]
 
-    Rvecs = Wannier.read_w90_wsvec(
+    mdrs, wsvec = read_w90_wsvec(
         joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon_wsvec.dat")
     )
-    @test Rvecs.R[:, 1] == [-3, 1, 1]
+    @test mdrs
+    @test wsvec.R[:, 1] == [-3, 1, 1]
 end
 
 @testset "read tb" begin

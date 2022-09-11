@@ -8,7 +8,13 @@ export read_xsf, write_xsf
 
 Read `xsf` file.
 
-All outputs in cartesian coordinates, Å unit.
+# Return
+- `primvec`: `3 * 3`, Å, each column is a primitive lattice vector
+- `convvec`: `3 * 3`, Å, each column is a conventional lattice vector
+- `atoms`: `n_atoms` String, atomic symbols or numbers
+- `atom_positions`: `3 * n_atoms`, Å, cartesian coordinates
+- `rgrid`: [`RGrid`](@ref), grid on which `W` is defined
+- `W`: `nx * ny * nz`, volumetric data
 
 !!! note
 
@@ -40,8 +46,7 @@ Write `xsf` file.
 This is a more user-friendly version. The `rgrid` contains the information of the
 grid origin and spanning vectors.
 
-See also [`write_xsf(filename, lattice, atom_positions, atom_numbers, origin, span_vectors, W)`]
-(@ref write_xsf(filename, lattice, atom_positions, atom_numbers, origin, span_vectors, W))
+See also [`WannierIO.write_xsf`](@ref)
 """
 function write_xsf(
     filename::AbstractString,
