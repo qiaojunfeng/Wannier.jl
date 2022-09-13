@@ -14,7 +14,7 @@ point could be the tutorials of
 
 The input files of each tutorial can be found in the
 [`wjl-tutorials`](https://github.com/qiaojunfeng/wjl-tutorials/) repo.
-`git clone` the repo, and run it when you are going through the tutorials.
+First `git clone` the repo, and run it when you are going through the tutorials.
 
 !!! warning
 
@@ -27,8 +27,4 @@ The input files of each tutorial can be found in the
     You should rerun the calculations with production-quality convergence
     parameters, and the results should be much better.
 
-The plotting related code is inside another package,
-[`WannierPlots.jl`](https://github.com/qiaojunfeng/WannierPlots.jl),
-this reduces a lot the startup latency of the `Wannier.jl` package,
-and allows smoother user/development experience.
 =#

@@ -108,6 +108,19 @@ and the source code of each function.
 
 The repo is hosted at <https://github.com/qiaojunfeng/Wannier.jl>
 
+To reduce the startup latency of the `Wannier.jl` package,
+and to allow smoother user/development experience, some of the
+functionality are implemented inside standalone packages:
+
+- The input/output functions are inside
+    [`WannierIO.jl`](https://github.com/qiaojunfeng/WannierIO.jl) repo,
+    and its documentation at
+    [io.wannierjl.org](https://io.wannierjl.org/)
+- The plotting related code is inside
+    [`WannierPlots.jl`](https://github.com/qiaojunfeng/WannierPlots.jl) repo,
+    and its documentation at
+    [plots.wannierjl.org](https://plots.wannierjl.org/)
+
 ### Pre-commit
 
 To ensure uniform code style, we use [pre-commit](https://pre-commit.com/),
