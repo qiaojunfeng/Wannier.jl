@@ -83,13 +83,17 @@ inside the function.
 - `Uc`: the Wannier (semi-)unitary matrix for rotating conduction bands
 - `outdir_val`: output directory for valence bands
 - `outdir_cond`: output directory for conduction bands
+
+# Keyword arguments
+- `binary`: whether to write in Fortran binary format
 """
 function split_unk(
     dir::AbstractString,
     Uv::Array{T,3},
     Uc::Array{T,3},
     outdir_val::AbstractString="val",
-    outdir_cond::AbstractString="cond",
+    outdir_cond::AbstractString="cond";
+    binary::Bool=false,
 ) where {T<:Complex}
     n_kpts = size(Uv, 3)
     n_kpts != size(Uc, 3) && error("incompatible n_kpts")
@@ -129,10 +133,10 @@ function split_unk(
         ΨUc = reshape(ΨUc, n_gx, n_gy, n_gz, n_cond)
 
         val = joinpath(outdir_val, unk)
-        write_unk(val, ik, ΨUv)
+        write_unk(val, ik, ΨUv; binary=binary)
 
         cond = joinpath(outdir_cond, unk)
-        write_unk(cond, ik, ΨUc)
+        write_unk(cond, ik, ΨUc; binary=binary)
 
         println("ik = ", ik, " files written: ", val, " ", cond)
     end

@@ -173,19 +173,22 @@ end
     write_w90(seedname::AbstractString, model::Model)
 
 Write `Model` into `eig`, `mmn`, `amn` files.
+
+# Keyword arguments
+- `binary`: write `eig`, `mmn`, and `amn` in Fortran binary format
 """
-function write_w90(seedname::AbstractString, model::Model)
+function write_w90(seedname::AbstractString, model::Model; binary::Bool=false)
     # Note I need to use basename! If seedname is absolute path the joinpath
     # will just return seedname.
     outname(suffix::String) = "$seedname.$suffix"
 
-    write_eig(outname("eig"), model.E)
+    write_eig(outname("eig"), model.E; binary=binary)
 
     kpb_k = model.bvectors.kpb_k
     kpb_b = model.bvectors.kpb_b
-    write_mmn(outname("mmn"), model.M, kpb_k, kpb_b)
+    write_mmn(outname("mmn"), model.M, kpb_k, kpb_b; binary=binary)
 
-    write_amn(outname("amn"), model.A)
+    write_amn(outname("amn"), model.A; binary=binary)
 
     return nothing
 end

@@ -23,6 +23,7 @@ Then this command split WFs into two independent groups.
 - `--run-maxloc`: run a final max localize w.r.t. all kpoints.
     Should reach the true max localization.
 - `--rotate-unk`: generate `unk` files for valence and conduction, for plotting WFs
+- `--binary`: write `amn`/`mmn`/`eig`/`unk` in Fortran binary format
 """
 @cast function splitvc(
     seedname::String;
@@ -33,6 +34,7 @@ Then this command split WFs into two independent groups.
     run_optrot::Bool=false,
     run_maxloc::Bool=false,
     rotate_unk::Bool=false,
+    binary::Bool=false,
 )
     # Input AMN is Silicon s,p projection
     model = read_w90(seedname; amn=false)
@@ -42,8 +44,12 @@ Then this command split WFs into two independent groups.
         model.A .= read_orthonorm_amn("$seedname.amn")
         model.A .= disentangle(model)
     else
-        # Get max localized gauge from chk file
-        chk = read_chk("$seedname.chk.fmt")
+        # Get max localized gauge from chk file, 1st try text format, then binary
+        if isfile("$seedname.chk.fmt")
+            chk = read_chk("$seedname.chk.fmt")
+        else
+            chk = read_chk("$seedname.chk")
+        end
         # We replace the initial projection by the "good" max loc gauge
         model.A .= get_A(chk)
     end
@@ -82,10 +88,10 @@ Then this command split WFs into two independent groups.
 
     # Write files
     seedname_val = new_seedname(seedname, outdir_val)
-    write_w90(seedname_val, model_val)
+    write_w90(seedname_val, model_val; binary=binary)
 
     seedname_cond = new_seedname(seedname, outdir_cond)
-    write_w90(seedname_cond, model_cond)
+    write_w90(seedname_cond, model_cond; binary=binary)
 
     # UNK files for plotting WFs
     if rotate_unk
@@ -95,7 +101,7 @@ Then this command split WFs into two independent groups.
         end
         outdir_val = dirname(seedname_val)
         outdir_cond = dirname(seedname_cond)
-        split_unk(dir, Uv, Uc, outdir_val, outdir_cond)
+        split_unk(dir, Uv, Uc, outdir_val, outdir_cond; binary=binary)
     end
 
     return nothing
