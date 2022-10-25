@@ -36,5 +36,6 @@ mat2vec(A::AbstractMatrix) = [v for v in eachcol(A)]
     include("interpolate/rvector.jl")
     include("interpolate/fourier.jl")
     include("interpolate/hamiltonian.jl")
+    include("interpolate/fermisurf.jl")
     include("realspace.jl")
 end

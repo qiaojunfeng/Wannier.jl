@@ -1,10 +1,10 @@
 using LinearAlgebra
 
-export fourier, invfourier
+export fourier, invfourier, mdrs_v1tov2
 
 @doc raw"""
-    fourier(kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3})
-    where {T<:Real,RV<:RVectors{T}}
+    fourier(kRvectors::KRVectors{T,RVectors{T}}, Oᵏ::Array{Complex{T},3})
+    where {T<:Real}
 
 Fourier transform operator from k space to R space for Wiger-Seitz interpolation.
 
@@ -19,8 +19,8 @@ where `N_{\bm{k}}` is the total number of kpoints.
 - `Oᵏ`: `n_wann * n_wann * n_kpts`, operator matrix in k space
 """
 function fourier(
-    kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3}
-) where {T<:Real,RV<:RVectors{T}}
+    kRvectors::KRVectors{T,RVectors{T}}, Oᵏ::Array{Complex{T},3}
+) where {T<:Real}
     n_wann = size(Oᵏ, 1)
     n_kpts = kRvectors.n_kpts
     n_rvecs = kRvectors.n_rvecs
@@ -43,10 +43,9 @@ function fourier(
 end
 
 @doc raw"""
-    invfourier(kRvectors::KRVectors{T,RV}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T})
-    where {T<:Real,RV<:RVectors{T}}
+    invfourier(Rvectors::RVectors{T}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}) where {T<:Real}
 
-Inverse Fourier transform operator from R space to k space for WS interpolation.
+Inverse Fourier transform operator from ``\bm{R}`` space to ``k`` space for Wigner-Seitz interpolation.
 
 ```math
 X_{mn}(\bm{k}) = \sum_{\bm{R}} \frac{1}{N_{\bm{R}}}
@@ -59,11 +58,11 @@ where ``N_{\bm{R}}`` is the degeneracy of R vectors (not the total number of R v
 - `kpoints`: `3 * n_kpts`, kpoints to be interpolated, fractional coordinates, can be nonuniform
 """
 function invfourier(
-    kRvectors::KRVectors{T,RV}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
-) where {T<:Real,RV<:RVectors{T}}
+    Rvectors::RVectors{T}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
+) where {T<:Real}
     n_wann = size(Oᴿ, 1)
     n_kpts = size(kpoints, 2)
-    n_rvecs = kRvectors.n_rvecs
+    n_rvecs = Rvectors.n_rvecs
     @assert size(Oᴿ, 1) == size(Oᴿ, 2)
     @assert size(Oᴿ, 3) == n_rvecs
 
@@ -72,18 +71,34 @@ function invfourier(
     for ik in 1:n_kpts
         k = kpoints[:, ik]
         for ir in 1:n_rvecs
-            R = kRvectors.Rvectors.R[:, ir]
+            R = Rvectors.R[:, ir]
             fac = exp(im * 2π * dot(k, R))
-            fac /= kRvectors.Rvectors.N[ir]
+            fac /= Rvectors.N[ir]
             Oᵏ[:, :, ik] += fac * Oᴿ[:, :, ir]
         end
     end
     return Oᵏ
 end
 
+"""
+    invfourier(
+        kRvectors::KRVectors{T,RVectors{T}}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
+    ) where {T<:Real}
+
+A simple wrapper of `invfourier` to support `kRvectors`.
+
+See also [`invfourier`](@ref invfourier(
+    kRvectors::KRVectors{T,RVectors{T}}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
+) where {T<:Real}).
+"""
+function invfourier(
+    kRvectors::KRVectors{T,RVectors{T}}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
+) where {T<:Real}
+    return invfourier(kRvectors.Rvectors, Oᴿ, kpoints)
+end
+
 @doc raw"""
-    _fourier_mdrs_v1(kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3})
-    where {T<:Real,RV<:RVectorsMDRS{T}}
+    _fourier_mdrs_v1(kRvectors::KRVectors{T,RVectorsMDRS{T}}, Oᵏ::Array{Complex{T},3}) where {T<:Real}
 
 Fourier transform operator from k space to R space for MDRSv1.
 
@@ -101,8 +116,8 @@ See also [`_invfourier_mdrs_v1`](@ref _invfourier_mdrs_v1).
 - `Oᵏ`: `n_wann * n_wann * n_kpts`, operator matrix in k space
 """
 function _fourier_mdrs_v1(
-    kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3}
-) where {T<:Real,RV<:RVectorsMDRS{T}}
+    kRvectors::KRVectors{T,RVectorsMDRS{T}}, Oᵏ::Array{Complex{T},3}
+) where {T<:Real}
     # this is the same as Wigner-Seitz fourier
     kR = KRVectors{T,RVectors{T}}(
         kRvectors.lattice,
@@ -119,8 +134,8 @@ function _fourier_mdrs_v1(
 end
 
 @doc raw"""
-    _fourier_mdrs_v2(kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3})
-    where {T<:Real,RV<:RVectorsMDRS{T}}
+    _fourier_mdrs_v2(kRvectors::KRVectors{T,RVectorsMDRS{T}}, Oᵏ::Array{Complex{T},3})
+    where {T<:Real}
 
 Fourier transform operator from k space to R space for MDRSv2.
 
@@ -148,21 +163,42 @@ See also [`_invfourier_mdrs_v2`](@ref _invfourier_mdrs_v2).
     in `Wannier90` output `seeedname_tb.dat`.
 """
 function _fourier_mdrs_v2(
-    kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3}
-) where {T<:Real,RV<:RVectorsMDRS{T}}
+    kRvectors::KRVectors{T,RVectorsMDRS{T}}, Oᵏ::Array{Complex{T},3}
+) where {T<:Real}
     # first generate O(R) where R is just the WS interpolation R vectors
     Oᴿ = _fourier_mdrs_v1(kRvectors, Oᵏ)
     # now expand O(R) to O(R̃) where R̃ is the MDRS expanded R vectors
-    n_r̃vecs = kRvectors.n_r̃vecs
-    n_wann = size(Oᵏ, 1)
+    return mdrs_v1tov2(kRvectors.Rvectors, Oᴿ)
+end
+
+"""
+    mdrs_v1tov2(Rvectors::RVectorsMDRS{T}, Oᴿ::Array{Complex{T},3}) where {T<:Real}
+
+Expand an operator defined on MDRSv1 R vectors to MDRSv2 R̃ vectors.
+
+# Arguments
+- `Rvectors`: R vectors for MDRS interpolation
+- `Oᴿ`: `n_wann * n_wann * n_rvecs`, operator defined on R vectors
+
+# Return
+- `Oᴿ̃`: `n_wann * n_wann * n_r̃vecs`, operator defined on R̃ vectors
+
+!!! note
+
+    This is useful when reading Hamiltonian from `seedname_tb.dat` and use MDRSv2 interpolation
+    in `Wannier.jl`.
+"""
+function mdrs_v1tov2(Rvectors::RVectorsMDRS{T}, Oᴿ::Array{Complex{T},3}) where {T<:Real}
+    n_r̃vecs = Rvectors.n_r̃vecs
+    n_wann = size(Oᴿ, 1)
     Oᴿ̃ = zeros(Complex{T}, n_wann, n_wann, n_r̃vecs)
 
     for ir̃ in 1:n_r̃vecs
-        for (ir, m, n, it) in kRvectors.Rvectors.R̃_RT[ir̃]
-            fac = kRvectors.Rvectors.Nᵀ[m, n, ir]
-            # I divide here the degeneracy or R vector,
+        for (ir, m, n, it) in Rvectors.R̃_RT[ir̃]
+            fac = Rvectors.Nᵀ[m, n, ir]
+            # I divide here the degeneracy of R vector,
             # so no need to divide again in invfourier
-            fac *= kRvectors.Rvectors.N[ir]
+            fac *= Rvectors.N[ir]
             Oᴿ̃[m, n, ir̃] += Oᴿ[m, n, ir] / fac
         end
     end
@@ -170,8 +206,8 @@ function _fourier_mdrs_v2(
 end
 
 """
-    fourier(kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3}; version::Symbol=:v2)
-    where {T<:Real,RV<:RVectorsMDRS{T}}
+    fourier(kRvectors::KRVectors{T,RVectorsMDRS{T}}, Oᵏ::Array{Complex{T},3}; version::Symbol=:v2)
+    where {T<:Real}
 
 Wrapper function for Fourier transform for both MDRS v1 and v2.
 
@@ -185,8 +221,8 @@ Wrapper function for Fourier transform for both MDRS v1 and v2.
 See also [`_fourier_mdrs_v1`](@ref _fourier_mdrs_v1) and [`_fourier_mdrs_v2`](@ref _fourier_mdrs_v2).
 """
 function fourier(
-    kRvectors::KRVectors{T,RV}, Oᵏ::Array{Complex{T},3}; version::Symbol=:v2
-) where {T<:Real,RV<:RVectorsMDRS{T}}
+    kRvectors::KRVectors{T,RVectorsMDRS{T}}, Oᵏ::Array{Complex{T},3}; version::Symbol=:v2
+) where {T<:Real}
     version ∈ [:v1, :v2] || error("version must be v1 or v2")
     if version == :v1
         return _fourier_mdrs_v1(kRvectors, Oᵏ)
@@ -197,8 +233,8 @@ end
 
 @doc raw"""
     _invfourier_mdrs_v1(
-        kRvectors::KRVectors{FT,RV}, Oᴿ::Array{Complex{FT},3}, kpoints::AbstractMatrix{FT}
-    ) where {FT<:Real,RV<:RVectorsMDRS{FT}}
+        Rvectors::RVectorsMDRS{FT}, Oᴿ::Array{Complex{FT},3}, kpoints::AbstractMatrix{FT}
+    ) where {FT<:Real}
 
 Inverse Fourier transform operator from R space to k space for MDRSv1 interpolation.
 
@@ -225,25 +261,25 @@ See also [`_fourier_mdrs_v1`](@ref _fourier_mdrs_v1).
     The MDRSv2 has expanded set of R vectors, thus cannot be compared with `tb.dat` file.
 """
 function _invfourier_mdrs_v1(
-    kRvectors::KRVectors{FT,RV}, Oᴿ::Array{Complex{FT},3}, kpoints::AbstractMatrix{FT}
-) where {FT<:Real,RV<:RVectorsMDRS{FT}}
+    Rvectors::RVectorsMDRS{FT}, Oᴿ::Array{Complex{FT},3}, kpoints::AbstractMatrix{FT}
+) where {FT<:Real}
     n_wann = size(Oᴿ, 1)
     n_kpts = size(kpoints, 2)
-    n_rvecs = kRvectors.n_rvecs
+    n_rvecs = Rvectors.n_rvecs
     @assert size(Oᴿ, 1) == size(Oᴿ, 2)
     @assert size(Oᴿ, 3) == n_rvecs
 
     Oᵏ = zeros(Complex{FT}, n_wann, n_wann, n_kpts)
 
     for ik in 1:n_kpts
-        k = kRvectors.kpoints[:, ik]
+        k = kpoints[:, ik]
         for ir in 1:n_rvecs
-            R = kRvectors.Rvectors.R[:, ir]
-            N = kRvectors.Rvectors.N[ir]
+            R = Rvectors.R[:, ir]
+            N = Rvectors.N[ir]
             for n in 1:n_wann
                 for m in 1:n_wann
-                    Nᵀ = kRvectors.Rvectors.Nᵀ[m, n, ir]
-                    for T in eachcol(kRvectors.Rvectors.T[m, n, ir])
+                    Nᵀ = Rvectors.Nᵀ[m, n, ir]
+                    for T in eachcol(Rvectors.T[m, n, ir])
                         fac = exp(im * 2π * dot(k, (R + T)))
                         fac /= N * Nᵀ
                         Oᵏ[m, n, ik] += fac * Oᴿ[m, n, ir]
@@ -257,8 +293,8 @@ end
 
 @doc raw"""
     _invfourier_mdrs_v2(
-        kRvectors::KRVectors{T,RV}, Oᴿ̃::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
-    ) where {T<:Real,RV<:RVectorsMDRS{T}}
+        Rvectors::RVectorsMDRS{T}, Oᴿ̃::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
+    ) where {T<:Real}
 
 Inverse Fourier transform operator from R space to k space for MDRSv2 interpolation.
 
@@ -274,11 +310,11 @@ See also [`_fourier_mdrs_v2`](@ref _fourier_mdrs_v2).
 - `kpoints`: `3 * n_kpts`, kpoints to be interpolated, fractional coordinates, can be nonuniform
 """
 function _invfourier_mdrs_v2(
-    kRvectors::KRVectors{T,RV}, Oᴿ̃::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
-) where {T<:Real,RV<:RVectorsMDRS{T}}
+    Rvectors::RVectorsMDRS{T}, Oᴿ̃::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
+) where {T<:Real}
     n_wann = size(Oᴿ̃, 1)
     n_kpts = size(kpoints, 2)
-    n_r̃vecs = kRvectors.Rvectors.n_r̃vecs
+    n_r̃vecs = Rvectors.n_r̃vecs
     @assert size(Oᴿ̃, 1) == size(Oᴿ̃, 2)
     @assert size(Oᴿ̃, 3) == n_r̃vecs
 
@@ -289,7 +325,7 @@ function _invfourier_mdrs_v2(
     for ik in 1:n_kpts
         k = kpoints[:, ik]
         for ir̃ in 1:n_r̃vecs
-            R̃ = kRvectors.Rvectors.R̃vectors.R[:, ir̃]
+            R̃ = Rvectors.R̃vectors.R[:, ir̃]
             fac = exp(im * 2π * dot(k, R̃))
             Oᵏ[:, :, ik] += fac * Oᴿ̃[:, :, ir̃]
         end
@@ -299,14 +335,16 @@ end
 
 """
     invfourier(
-        kRvectors::KRVectors{T,RV}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T};
+        Rvectors::RVectorsMDRS{T},
+        Oᴿ::AbstractArray{Complex{T},3},
+        kpoints::AbstractMatrix{T};
         version::Symbol=:v2,
-    ) where {T<:Real,RV<:RVectorsMDRS{T}}
+    ) where {T<:Real}
 
 Wrapper function for inverse Fourier transform for both MDRS v1 and v2.
 
 # Arguments
-- `kRvectors`: for MDRS interpolation
+- `Rvectors`: for MDRS interpolation
 - `Oᴿ`: `n_wann * n_wann * n_rvecs`, operator matrix in R space
 - `kpoints`: `3 * n_kpts`, kpoints to be interpolated, fractional coordinates, can be nonuniform
 
@@ -317,15 +355,41 @@ See also [`_invfourier_mdrs_v1`](@ref _invfourier_mdrs_v1) and
 [`_invfourier_mdrs_v2`](@ref _invfourier_mdrs_v2).
 """
 function invfourier(
-    kRvectors::KRVectors{T,RV},
-    Oᴿ::Array{Complex{T},3},
+    Rvectors::RVectorsMDRS{T},
+    Oᴿ::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T};
     version::Symbol=:v2,
-) where {T<:Real,RV<:RVectorsMDRS{T}}
+) where {T<:Real}
     version ∈ [:v1, :v2] || error("version must be v1 or v2")
     if version == :v1
-        return _invfourier_mdrs_v1(kRvectors, Oᴿ, kpoints)
+        return _invfourier_mdrs_v1(Rvectors, Oᴿ, kpoints)
     else
-        return _invfourier_mdrs_v2(kRvectors, Oᴿ, kpoints)
+        return _invfourier_mdrs_v2(Rvectors, Oᴿ, kpoints)
     end
+end
+
+"""
+    invfourier(
+        kRvectors::KRVectors{T,RVectorsMDRS{T}},
+        Oᴿ::AbstractArray{Complex{T},3},
+        kpoints::AbstractMatrix{T};
+        version::Symbol=:v2,
+    ) where {T<:Real}
+
+A simple wrapper of `invfourier` to support `kRvectors`.
+
+See also [`invfourier`](@ref invfourier(
+    Rvectors::RVectorsMDRS{T},
+    Oᴿ::AbstractArray{Complex{T},3},
+    kpoints::AbstractMatrix{T};
+    version::Symbol=:v2,
+) where {T<:Real}).
+"""
+function invfourier(
+    kRvectors::KRVectors{T,RVectorsMDRS{T}},
+    Oᴿ::AbstractArray{Complex{T},3},
+    kpoints::AbstractMatrix{T};
+    version::Symbol=:v2,
+) where {T<:Real}
+    return invfourier(kRvectors.Rvectors, Oᴿ, kpoints; version)
 end

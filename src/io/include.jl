@@ -20,5 +20,5 @@ include("w90/tb.jl")
 
 include("truncate.jl")
 
-include("xsf.jl")
-include("cube.jl")
+include("volume/xsf.jl")
+include("volume/cube.jl")

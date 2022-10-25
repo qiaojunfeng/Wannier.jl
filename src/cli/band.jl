@@ -18,19 +18,23 @@ Interpolate band structure.
         model = read_w90_post(seedname; chk=false, amn=amn)
     end
 
-    type_Rvectors = typeof(model.kRvectors.Rvectors)
-    if type_Rvectors <: RVectorsMDRS
-        interp_type = "MDRS"
-    elseif type_Rvectors <: RVectors
-        interp_type = "WS"
-    else
-        interp_type = "???"
-    end
-    @info "Using $interp_type interpolation"
-    println()
+    _print_type(model.kRvectors.Rvectors)
 
     kpi, E = interpolate(model)
 
     write_w90_band(out, kpi, E)
     return nothing
+end
+
+function _print_type(Rvectors::RV) where {RV<:Union{RVectors,RVectorsMDRS}}
+    T = typeof(Rvectors)
+    if T <: RVectorsMDRS
+        interp_type = "MDRS"
+    elseif T <: RVectors
+        interp_type = "WS"
+    else
+        interp_type = "???"
+    end
+    @info "Using $interp_type interpolation"
+    return println()
 end

@@ -92,7 +92,7 @@ function make_supercell(kpoints::Matrix{T}, replica::R=5) where {T<:Number,R<:In
 end
 
 """
-    get_kpoints(kgrid; fractional=true)
+    get_kpoints(kgrid; fractional=true, endpoint=false)
 
 Generate list of kpoint coordinates from kpoint grid.
 
@@ -101,12 +101,17 @@ Generate list of kpoint coordinates from kpoint grid.
 
 # Keyword Arguments
 - `fractional`: return an explicit list of kpoints in fractional coordinates, else integers
+- `endpoint`: include the endpoint of the grid, only for fractional case. E.g., if true, 1.0 is included
 
 !!! note
 
-    Work just like `kmesh.pl` of `Wannier90`.
+    If the default keyword arguments are used, this function works just like `kmesh.pl` of `Wannier90`.
 """
-function get_kpoints(kgrid::AbstractVector{Int}; fractional::Bool=true)
+function get_kpoints(
+    kgrid::AbstractVector{Int}; fractional::Bool=true, endpoint::Bool=false
+)
+    endpoint && !fractional && error("endpoint can only be used for fractional coordinates")
+
     n_pts = prod(kgrid)
     nx, ny, nz = kgrid
 
@@ -127,9 +132,15 @@ function get_kpoints(kgrid::AbstractVector{Int}; fractional::Bool=true)
     end
 
     if fractional
-        kpoints[1, :] ./= nx
-        kpoints[2, :] ./= ny
-        kpoints[3, :] ./= nz
+        if endpoint
+            kpoints[1, :] ./= (nx - 1)
+            kpoints[2, :] ./= (ny - 1)
+            kpoints[3, :] ./= (nz - 1)
+        else
+            kpoints[1, :] ./= nx
+            kpoints[2, :] ./= ny
+            kpoints[3, :] ./= nz
+        end
     end
 
     return kpoints

@@ -38,6 +38,17 @@ end
     @test kpoints == ref_kpoints
 end
 
+@testset "get_kpoints endpoint" begin
+    kpoints = Wannier.get_kpoints([2, 2, 2]; endpoint=true)
+
+    ref_kpoints = [
+        0.0 0.0 0.0 0.0 1.0 1.0 1.0 1.0
+        0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0
+        0.0 1.0 0.0 1.0 0.0 1.0 0.0 1.0
+    ]
+    @test kpoints == ref_kpoints
+end
+
 @testset "sort_kpoints" begin
     ref_kpoints = [
         0.0 0.0 0.0 0.0 0.5 0.5 0.5 0.5

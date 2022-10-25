@@ -96,6 +96,7 @@ fourier
 invfourier
 _fourier_mdrs_v1
 _fourier_mdrs_v2
+mdrs_v1tov2
 _invfourier_mdrs_v1
 _invfourier_mdrs_v2
 ```
@@ -136,6 +137,19 @@ InterpolationModel(model::Model; mdrs::Bool=true)
 ```@docs
 get_Hk
 interpolate
+```
+
+## Fermi surface
+
+!!! note
+
+    The `fermi_surface` function will use WS or MDRS interpolation based on the type of `Rvectors`.
+    However, `Wannier90` only use WS interpolation when plotting Fermi surface (even if the
+    `use_ws_distance` is set as `true` in the `win` file).
+    So the `fermi_surface` function will output different result than `Wannier90` if using MDRS.
+
+```@docs
+fermi_surface
 ```
 
 [^WAN20]: Pizzi, G.; Vitale, V.; Arita, R.; Blügel, S.; Freimuth, F.; Géranton, G.; Gibertini, M.;

@@ -11,6 +11,7 @@ include("opt_rotate.jl")
 include("split_wannierize.jl")
 include("truncate.jl")
 include("band.jl")
+include("fermisurf.jl")
 
 """
 Julia package for Wannier functions.
