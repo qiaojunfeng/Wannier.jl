@@ -1,4 +1,5 @@
 using Printf: @sprintf
+using Dates: now
 
 export write_chk
 
@@ -19,6 +20,7 @@ function write_chk(
     filename::AbstractString,
     model::Model;
     exclude_bands::Union{AbstractVector{Int},Nothing}=nothing,
+    binary::Bool=false,
 )
     header = @sprintf "Created by Wannier.jl %s" string(now())
 
@@ -52,7 +54,7 @@ function write_chk(
         Ω.ω,
     )
 
-    write_chk(filename, chk)
+    WannierIO.write_chk(filename, chk; binary=binary)
     return nothing
 end
 
