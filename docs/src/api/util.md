@@ -70,6 +70,7 @@ KPath(
 ) where {T<:AbstractVector{<:Real}}
 interpolate_w90
 get_x
+get_kpoints(kpi::KPathInterpolant)
 get_kpath
 ```
 

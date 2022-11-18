@@ -3,7 +3,7 @@ using Brillouin: KPath, LATTICE, KPathInterpolant
 using Spglib
 using Bravais: reciprocalbasis
 
-export get_kpath
+export get_kpath, get_kpoints
 
 function _new_kpath_label(
     l::T, all_labels::Union{AbstractVector{T},AbstractSet{T}}
@@ -179,6 +179,28 @@ function get_x(kpi::KPathInterpolant)
     end
 
     return cumsum(x)
+end
+
+"""
+    get_kpoints(kpi::KPathInterpolant)
+
+Get the kpoints coordinates from a `KPathInterpolant`.
+
+# Arguments
+- `kpi`: `KPathInterpolant`
+
+# Return
+- `kpoints`: `3 * n_kpts`, kpath points coordinates in fractional coordinates.
+"""
+function get_kpoints(kpi::KPathInterpolant)
+    kpiᶠ = latticize(kpi)
+    # to Matrix
+    kpoints = zeros(Float64, 3, length(kpi))
+    for i in axes(kpoints, 2)
+        kpoints[:, i] = kpiᶠ[i]
+    end
+
+    return kpoints
 end
 
 """

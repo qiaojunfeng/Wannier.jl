@@ -1,7 +1,7 @@
 using Brillouin
 using Bravais: ReciprocalBasis
 
-export read_w90_band, write_w90_band, get_kpoints
+export read_w90_band, write_w90_band
 
 """
     KPathInterpolant(kpoints, symm_idx, symm_label, recip_lattice)
@@ -69,27 +69,6 @@ function read_w90_band(seedname::AbstractString, recip_lattice::AbstractMatrix)
     band = WannierIO.read_w90_band(seedname)
     kpi = KPathInterpolant(band.kpoints, band.symm_idx, band.symm_label, recip_lattice)
     return kpi, band.E
-end
-
-"""
-    get_kpoints(kpi::KPathInterpolant)
-
-Return the kpoints of `kpi` in fractional coordinates.
-"""
-function get_kpoints(kpi::KPathInterpolant)
-    kpi_frac = latticize(kpi)
-
-    n_kpts = sum(length(kp) for kp in kpi_frac.kpaths)
-    kpoints = zeros(Float64, 3, n_kpts)
-
-    ik = 1
-    for kp in kpi_frac.kpaths
-        for k in kp
-            kpoints[:, ik] = k
-            ik += 1
-        end
-    end
-    return kpoints
 end
 
 """

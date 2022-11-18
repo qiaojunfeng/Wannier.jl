@@ -91,7 +91,6 @@ write_cube
 
 ```@docs
 KPathInterpolant
-get_kpoints
 get_symm_idx_label
 Model(chk::WannierIO.Chk)
 ```
