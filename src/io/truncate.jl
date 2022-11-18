@@ -38,7 +38,7 @@ function truncate_mmn_eig(
 end
 
 """
-    truncate_unk(dir, keep_bands::Vector{Int}, outdir="truncate")
+    truncate_unk(dir, keep_bands::Vector{Int}, outdir="truncate"; binary=true)
 
 Truncate `UNK` files for specified bands.
 
@@ -46,9 +46,13 @@ Truncate `UNK` files for specified bands.
 - `dir`: folder of `UNK` files.
 - `keep_bands`: the band indexes to keep. Start from 1.
 - `outdir`: folder to write output `UNK` files.
+- `binary`: whether to write binary `UNK` files.
 """
 function truncate_unk(
-    dir::AbstractString, keep_bands::AbstractVector{Int}, outdir::AbstractString="truncate"
+    dir::AbstractString,
+    keep_bands::AbstractVector{Int},
+    outdir::AbstractString="truncate";
+    binary::Bool=true,
 )
     !isdir(outdir) && mkdir(outdir)
 
@@ -68,7 +72,7 @@ function truncate_unk(
         @assert ik == ik1
 
         Ψ1 = Ψ[:, :, :, keep_bands]
-        write_unk(joinpath(outdir, unk), ik, Ψ1)
+        write_unk(joinpath(outdir, unk), ik, Ψ1; binary=binary)
     end
 
     return nothing
@@ -102,6 +106,7 @@ function truncate_w90(
     truncate_mmn_eig(seedname, keep_bands, outdir)
 
     dir = dirname(seedname)
+    isempty(dir) && (dir = ".")
 
     if unk
         truncate_unk(dir, keep_bands, outdir)
