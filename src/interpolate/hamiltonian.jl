@@ -61,13 +61,13 @@ function interpolate(model::InterpolationModel{T}, kpoints::Matrix{T}) where {T<
     Hᵏ_path = invfourier(model.kRvectors, Hᴿ, kpoints)
 
     # diagonalize
-    Eᵏ_path, _ = diag(Hᵏ_path)
+    Eᵏ_path, _ = diag_Hk(Hᵏ_path)
 
     return Eᵏ_path
 end
 
 """
-    diag(Hᵏ:: AbstractArray{T, 3}) where {T<:Complex}
+    diag_Hk(Hᵏ:: AbstractArray{T, 3}) where {T<:Complex}
 
 Diagonalize k space Hamiltonian `H`.
 
@@ -78,7 +78,7 @@ Diagonalize k space Hamiltonian `H`.
 - `E`: `n_wann * n_kpts`, energy eigen values
 - `V`: `n_wann * n_wann * n_kpts`, `V[:, i, ik]` is the i-th eigen vector at `ik`-th kpoint
 """
-function diag(H::AbstractArray{T,3}) where {T<:Complex}
+function diag_Hk(H::AbstractArray{T,3}) where {T<:Complex}
     n_wann = size(H, 1)
     n_kpts = size(H, 3)
     size(H) == (n_wann, n_wann, n_kpts) || error("size(H) != (n_wann, n_wann, n_kpts)")

@@ -136,6 +136,7 @@ InterpolationModel(model::Model; mdrs::Bool=true)
 
 ```@docs
 get_Hk
+diag_Hk
 interpolate
 ```
 
