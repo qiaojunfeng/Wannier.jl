@@ -32,13 +32,14 @@ function parallel_transport(
     n_kx, n_ky, n_kz = model.kgrid
     n_kpts = model.n_kpts
     n_wann = model.n_wann
+    kpoints = model.kpoints
 
     # start from 0
     tx = collect(0:(n_kx - 1)) / n_kx
     ty = collect(0:(n_ky - 1)) / n_ky
     tz = collect(0:(n_kz - 1)) / n_kz
 
-    k_xyz, xyz_k = get_kpoint_mappings(model.kpoints, model.kgrid)
+    k_xyz, xyz_k = get_kpoint_mappings(kpoints, model.kgrid)
 
     # for overlap matrices
     M = model.M
@@ -54,7 +55,8 @@ function parallel_transport(
     # 1. propagate along kx
     @info "Filling (kx,0,0)"
     kpts = [xyz_k[i, 1, 1] for i in 1:n_kx]
-    propagate!(A, kpts, M, bvectors)
+    dk = [1 / n_kx, 0.0, 0.0]
+    propagate!(A, kpts, dk, M, bvectors)
 
     # compute obstruction matrix for dimension d = 1
     # In GLS2019 paper, ũ(1) = ( τ₁ ũ(0) ) Vₒ, where Vₒ is the obstruction matrix.
@@ -65,7 +67,13 @@ function parallel_transport(
     # so our Vₒ is actually the inverse of the Vₒ in the paper.
     k1 = xyz_k[end, 1, 1]
     k2 = xyz_k[1, 1, 1]
-    ib = index_bvector(bvectors, k1, k2, [1, 0, 0])
+    # Compute shifting b vector, for regular MP grid, b = [1, 0, 0].
+    # However, for grids having negative cooridnates (i.e, -0.25 instead of 0.75),
+    # we need to recompute b vector.
+    # For MP grid, k1 + dk == k2 + [1, 0, 0], so b = [1, 0, 0].
+    # For other grids, b = k1 + dk - k2.
+    b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
+    ib = index_bvector(bvectors, k1, k2, b)
     Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
     O1 = orthonorm_lowdin(Nᵏᵇ)
     @debug "Obstruction matrix =" V = O1
@@ -91,15 +99,19 @@ function parallel_transport(
 
     # 2. propagate along ky
     @info "Filling (kx,ky,0)"
+    dk = [0.0, 1 / n_ky, 0.0]
     for ik in 1:n_kx
         kpts = [xyz_k[ik, j, 1] for j in 1:n_ky]
-        propagate!(A, kpts, M, bvectors)
+        propagate!(A, kpts, dk, M, bvectors)
     end
 
     # corner obstruction
     k1 = xyz_k[1, end, 1]
     k2 = xyz_k[1, 1, 1]
-    ib = index_bvector(bvectors, k1, k2, [0, 1, 0])
+    # For MP grid, b = [0, 1, 0]
+    # For other grids,
+    b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
+    ib = index_bvector(bvectors, k1, k2, b)
     Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
     O2 = orthonorm_lowdin(Nᵏᵇ)
 
@@ -129,7 +141,10 @@ function parallel_transport(
     for i in 1:n_kx
         k1 = xyz_k[i, n_ky, 1]
         k2 = xyz_k[i, 1, 1]
-        ib = index_bvector(bvectors, k1, k2, [0, 1, 0])
+        # For MP grid, b = [0, 1, 0]
+        # For other grids,
+        b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
+        ib = index_bvector(bvectors, k1, k2, b)
         Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
         Oxy[:, :, i] = orthonorm_lowdin(Nᵏᵇ)
         detO3[i] = det(Oxy[:, :, i])
@@ -173,15 +188,19 @@ function parallel_transport(
 
     # Propagate along the third dimension
     @info "Filling (k1,k2,k3)"
+    dk = [0.0, 0.0, 1 / n_kz]
     for i in 1:n_kx, j in 1:n_ky
         kpts = [xyz_k[i, j, k] for k in 1:n_kz]
-        propagate!(A, kpts, M, bvectors)
+        propagate!(A, kpts, dk, M, bvectors)
     end
 
     # Fix corner
     k1 = xyz_k[1, 1, n_kz]
     k2 = xyz_k[1, 1, 1]
-    ib = index_bvector(bvectors, k1, k2, [0, 0, 1])
+    # For MP grid, b = [0, 0, 1]
+    # For other grids,
+    b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
+    ib = index_bvector(bvectors, k1, k2, b)
     Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
     O4 = orthonorm_lowdin(Nᵏᵇ)
     d, V = eigen(O4)
@@ -211,7 +230,10 @@ function parallel_transport(
     for i in 1:n_kx
         k1 = xyz_k[i, 1, n_kz]
         k2 = xyz_k[i, 1, 1]
-        ib = index_bvector(bvectors, k1, k2, [0, 0, 1])
+        # For MP grid, b = [0, 0, 1]
+        # For other grids,
+        b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
+        ib = index_bvector(bvectors, k1, k2, b)
         Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
         Oxz[:, :, i] = orthonorm_lowdin(Nᵏᵇ)
     end
@@ -245,7 +267,10 @@ function parallel_transport(
     for j in 1:n_ky
         k1 = xyz_k[1, j, n_kz]
         k2 = xyz_k[1, j, 1]
-        ib = index_bvector(bvectors, k1, k2, [0, 0, 1])
+        # For MP grid, b = [0, 0, 1]
+        # For other grids,
+        b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
+        ib = index_bvector(bvectors, k1, k2, b)
         Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
         Oyz[:, :, j] = orthonorm_lowdin(Nᵏᵇ)
     end
@@ -276,7 +301,10 @@ function parallel_transport(
     for i in 1:n_kx, j in 1:n_ky
         k1 = xyz_k[i, j, n_kz]
         k2 = xyz_k[i, j, 1]
-        ib = index_bvector(bvectors, k1, k2, [0, 0, 1])
+        # For MP grid, b = [0, 0, 1]
+        # For other grids,
+        b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
+        ib = index_bvector(bvectors, k1, k2, b)
         Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
         O = orthonorm_lowdin(Nᵏᵇ)
 
@@ -304,7 +332,8 @@ function compute_error(model::Model{T}, A::Array{Complex{T},3}) where {T<:Real}
     ϵ1 = 0.0
 
     n_kx, n_ky, n_kz = model.kgrid
-    k_xyz, xyz_k = get_kpoint_mappings(model.kpoints, model.kgrid)
+    kpoints = model.kpoints
+    k_xyz, xyz_k = get_kpoint_mappings(kpoints, model.kgrid)
 
     M = model.M
     A0 = model.A
@@ -315,35 +344,54 @@ function compute_error(model::Model{T}, A::Array{Complex{T},3}) where {T<:Real}
         norm(orthonorm_lowdin(Nᵏᵇ) - I)^2
     end
 
+    dkx = [1 / n_kx, 0.0, 0.0]
+    dky = [0.0, 1 / n_ky, 0.0]
+    dkz = [0.0, 0.0, 1 / n_kz]
+
     for i in 1:n_kx, j in 1:n_ky, k in 1:n_kz
         k1 = xyz_k[i, j, k]
         if i == n_kx
             k2 = xyz_k[1, j, k]
-            b = [1, 0, 0]
+            # For MP grid
+            # b = [1, 0, 0]
         else
             k2 = xyz_k[i + 1, j, k]
-            b = [0, 0, 0]
+            # For MP grid
+            # b = [0, 0, 0]
         end
+        # For other grids
+        b = round.(Int, kpoints[:, k1] + dkx - kpoints[:, k2])
+
         ϵ0 += epsilon(k1, k2, b, A0)
         ϵ1 += epsilon(k1, k2, b, A)
 
         if j == n_ky
             k2 = xyz_k[i, 1, k]
-            b = [0, 1, 0]
+            # For MP grid
+            # b = [0, 1, 0]
         else
             k2 = xyz_k[i, j + 1, k]
-            b = [0, 0, 0]
+            # For MP grid
+            # b = [0, 0, 0]
         end
+        # For other grids
+        b = round.(Int, kpoints[:, k1] + dky - kpoints[:, k2])
+
         ϵ0 += epsilon(k1, k2, b, A0)
         ϵ1 += epsilon(k1, k2, b, A)
 
         if k == n_kz
             k2 = xyz_k[i, j, 1]
-            b = [0, 0, 1]
+            # For MP grid
+            # b = [0, 0, 1]
         else
             k2 = xyz_k[i, j, k + 1]
-            b = [0, 0, 0]
+            # For MP grid
+            # b = [0, 0, 0]
         end
+        # For other grids
+        b = round.(Int, kpoints[:, k1] + dkz - kpoints[:, k2])
+
         ϵ0 += epsilon(k1, k2, b, A0)
         ϵ1 += epsilon(k1, k2, b, A)
     end
