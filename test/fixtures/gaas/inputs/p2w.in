@@ -1,0 +1,9 @@
+&INPUTPP
+  outdir = './out/'
+  prefix = 'aiida'
+!  reduce_unk = .true.
+  seedname = 'gaas'
+!  spn_formatted = .true.
+  write_unk = .true.
+!  wvfn_formatted = .true.
+/

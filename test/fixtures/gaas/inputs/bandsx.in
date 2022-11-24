@@ -1,0 +1,5 @@
+&BANDS
+prefix='aiida'
+outdir='./out/'
+filband='bands.dat'
+/
