@@ -163,11 +163,11 @@ Finally, let's have a look at the band interpolation.
 Valence + conduction bands,
 =#
 model.A .= A;
-interp_model = Wannier.InterpolationModel(model)
+interp_model = Wannier.InterpModel(model)
 kpi, E = interpolate(interp_model)
 # and top valence band,
 model_val.A .= A4;
-interp_model_val = Wannier.InterpolationModel(model_val)
+interp_model_val = Wannier.InterpModel(model_val)
 kpi2, E2 = interpolate(interp_model_val)
 # and plot the band structure
 P = plot_band_diff(kpi, E, E2)
@@ -203,7 +203,7 @@ model_top.A .= A_top;
 A_top2 = max_localize(model_top)
 omega(model_top, A_top2)
 # and band interpolation
-interp_model_top = Wannier.InterpolationModel(model_top)
+interp_model_top = Wannier.InterpModel(model_top)
 kpi3, E3 = interpolate(interp_model_top)
 # and compare
 P = plot_band_diff(kpi, E, E3)

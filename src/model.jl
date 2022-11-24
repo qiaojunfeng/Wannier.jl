@@ -28,7 +28,7 @@ A struct containing the parameters and matrices of the crystal structure.
 !!! note
 
     This only cotains the necessary information for maximal localization.
-    For Wannier interpolation, see [`InterpolationModel`](@ref InterpolationModel).
+    For Wannier interpolation, see [`InterpModel`](@ref InterpModel).
 """
 struct Model{T<:Real}
     # unit cell, 3 * 3, Å unit, each column is a lattice vector

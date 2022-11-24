@@ -1,5 +1,5 @@
 """
-    struct InterpolationModel
+    struct InterpModel
 
 The model for Wannier interpolation.
 
@@ -9,7 +9,7 @@ The model for Wannier interpolation.
 - `kpath`: the kpoint path for band structure
 - `S`: `n_bands * n_bands * n_kpts * 3`, the spin operator matrices
 """
-struct InterpolationModel{T<:Real}
+struct InterpModel{T<:Real}
     # model storing results of Wannierization
     model::Model{T}
 
@@ -23,7 +23,7 @@ struct InterpolationModel{T<:Real}
     S::Array{Complex{T},4}
 end
 
-function Base.getproperty(x::InterpolationModel, sym::Symbol)
+function Base.getproperty(x::InterpModel, sym::Symbol)
     if sym ∈ fieldnames(Model)
         return getfield(x.model, sym)
     elseif sym ∈ fieldnames(KRVectors)
@@ -36,7 +36,7 @@ function Base.getproperty(x::InterpolationModel, sym::Symbol)
     end
 end
 
-function Base.show(io::IO, model::InterpolationModel)
+function Base.show(io::IO, model::InterpModel)
     @info "model"
     show(io, model.model)
     println(io, "\n")
@@ -51,31 +51,29 @@ function Base.show(io::IO, model::InterpolationModel)
 end
 
 """
-    InterpolationModel(
+    InterpModel(
         model::Model{T}, kRvectors::KRVectors{T}, kpath::KPath
     ) where {T<:Real}
 
-A `InterpolationModel` constructor ignoring spin operator matrices.
+A `InterpModel` constructor ignoring spin operator matrices.
 
 # Arguments
 - `model`: the Wannierization [`Model`](@ref Model)
 - `kRvectors`: the kpoint and R vectors
 - `kpath`: the kpoint path for band structure
 """
-function InterpolationModel(
-    model::Model{T}, kRvectors::KRVectors{T}, kpath::KPath
-) where {T<:Real}
+function InterpModel(model::Model{T}, kRvectors::KRVectors{T}, kpath::KPath) where {T<:Real}
     n_bands = model.n_bands
     n_kpts = model.n_kpts
-    return InterpolationModel(
+    return InterpModel(
         model, kRvectors, kpath, Array{Complex{T},4}(undef, n_bands, n_bands, 3, n_kpts)
     )
 end
 
 """
-    InterpolationModel(model::Model; mdrs::Bool=true)
+    InterpModel(model::Model; mdrs::Bool=true)
 
-Construct a `InterpolationModel` from a Wannierization [`Model`](@ref Model).
+Construct a `InterpModel` from a Wannierization [`Model`](@ref Model).
 
 The `kpath` will be auto generated from the lattice by using
 [`get_kpath`](@ref get_kpath).
@@ -86,7 +84,7 @@ The `kpath` will be auto generated from the lattice by using
 # Keyword Arguments
 - `mdrs`: whether to use MDRS interpolation
 """
-function InterpolationModel(model::Model; mdrs::Bool=true)
+function InterpModel(model::Model; mdrs::Bool=true)
     if mdrs
         centers = center(model)
         # from cartesian to fractional
@@ -99,5 +97,5 @@ function InterpolationModel(model::Model; mdrs::Bool=true)
 
     kpath = get_kpath(model.lattice, model.atom_positions, model.atom_labels)
 
-    return InterpolationModel(model, kRvecs, kpath)
+    return InterpModel(model, kRvecs, kpath)
 end

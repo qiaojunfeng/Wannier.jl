@@ -29,7 +29,7 @@ end
 @testset "read_w90_post" begin
     model = read_w90_post(joinpath(FIXTURE_PATH, "valence/band/silicon"))
 
-    @test typeof(model) <: Wannier.InterpolationModel
+    @test typeof(model) <: Wannier.InterpModel
     @test model.model.n_wann == 4
     @test model.model.n_kpts == 64
 end

@@ -28,16 +28,16 @@ function get_Hk(E::Matrix{T}, A::Array{U,3}) where {T<:Number,U<:Number}
 end
 
 """
-    interpolate(model::InterpolationModel{T}, kpoints::Matrix{T}) where {T<:Real}
+    interpolate(model::InterpModel{T}, kpoints::Matrix{T}) where {T<:Real}
 
 Interpolate energy eigenvalues at `kpoints`.
 
 # Arguments
-- `model`: `InterpolationModel`
+- `model`: `InterpModel`
 - `kpoints`: `3 * n_kpts`, kpoints to be interpolated, in fractional coordinates,
     can be nonuniform.
 """
-function interpolate(model::InterpolationModel{T}, kpoints::Matrix{T}) where {T<:Real}
+function interpolate(model::InterpModel{T}, kpoints::Matrix{T}) where {T<:Real}
     # n_wann x n_wann x n_kpts
     Hᵏ = get_Hk(model.E, model.A)
 
@@ -99,35 +99,35 @@ function diag_Hk(H::AbstractArray{T,3}) where {T<:Complex}
 end
 
 """
-    interpolate(model::InterpolationModel, kpi::KPathInterpolant)
+    interpolate(model::InterpModel, kpi::KPathInterpolant)
 
 Interpolate band structure along the given kpath.
 
 # Arguments
-- `model`: `InterpolationModel`
+- `model`: `InterpModel`
 - `kpi`: `KPathInterpolant`
 """
-function interpolate(model::InterpolationModel, kpi::KPathInterpolant)
+function interpolate(model::InterpModel, kpi::KPathInterpolant)
     kpoints = get_kpoints(kpi)
     return interpolate(model, kpoints)
 end
 
 """
-    interpolate(model::InterpolationModel)
+    interpolate(model::InterpModel)
 
 Interpolate band structure along kpath.
 
 The `model.kpath` will be used.
 
 # Arguments
-- `model`: `InterpolationModel`
+- `model`: `InterpModel`
 
 !!! note
 
     The kpath has the same density as `Wannier90`'s default, i.e.,
     `kpath_num_points = 100`.
 """
-function interpolate(model::InterpolationModel)
+function interpolate(model::InterpModel)
     kpi = interpolate_w90(model.kpath, 100)
     return kpi, interpolate(model, kpi)
 end

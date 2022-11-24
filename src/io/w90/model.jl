@@ -104,7 +104,7 @@ end
 """
     read_w90_post(seedname::AbstractString; chk=true, amn=nothing, mdrs=nothing)
 
-Return an `InterpolationModel` for Wannier interpolation.
+Return an `InterpModel` for Wannier interpolation.
 
 # Keyword arguments
 - chk: if `true`, read `chk` file to get the unitary matrices,
@@ -166,7 +166,7 @@ function read_w90_post(
         kpath = KPath(win.unit_cell, win.kpoint_path)
     end
 
-    return InterpolationModel(model, kRvecs, kpath)
+    return InterpModel(model, kRvecs, kpath)
 end
 
 """

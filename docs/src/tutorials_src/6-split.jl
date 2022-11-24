@@ -156,13 +156,13 @@ Finally, let's compare band interpolation,
 =#
 using PlotlyJS
 # the valence + conduction,
-interp_model = Wannier.InterpolationModel(model)
+interp_model = Wannier.InterpModel(model)
 kpi, E = interpolate(interp_model)
 # the valence,
-interp_model_v = Wannier.InterpolationModel(model_v)
+interp_model_v = Wannier.InterpModel(model_v)
 _, Ev = interpolate(interp_model_v)
 # the conduction,
-interp_model_c = Wannier.InterpolationModel(model_c)
+interp_model_c = Wannier.InterpModel(model_c)
 _, Ec = interpolate(interp_model_c)
 # and compare valence,
 P = plot_band_diff(kpi, E, Ev)

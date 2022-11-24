@@ -9,8 +9,8 @@ CurrentModule = Wannier
 #=
 In this tutorial, we will use Wananier interpolation to calculate the band structure of silicon valence and conduction manifold. A bit different from previous tutorials, we will
 
-1. construct a [`InterpolationModel`](@ref) by reading the `win`, `mmn`, `eig`, and `chk.fmt` files
-2. run [`interpolate`](@ref) on the `InterpolationModel` to compute band structure
+1. construct a [`InterpModel`](@ref) by reading the `win`, `mmn`, `eig`, and `chk.fmt` files
+2. run [`interpolate`](@ref) on the `InterpModel` to compute band structure
 3. read `Wannier90` interpolated `band.dat` and compare with `Wannier.jl` interpolated bands
 
 !!! tip
@@ -47,7 +47,7 @@ CUR_DIR = "3-band"
 
 We will use the [`read_w90_post`](@ref) function to read the
 `win`, `mmn`, `eig`, and `chk.fmt` files, and construct an
-[`InterpolationModel`](@ref) that is used for interpolation purpose.
+[`InterpModel`](@ref) that is used for interpolation purpose.
 =#
 model = read_w90_post("$CUR_DIR/si2")
 
@@ -57,7 +57,7 @@ model = read_w90_post("$CUR_DIR/si2")
     To avoid a bloated `Model` that contains everything, and to
     ["Do One Thing And Do It Well"](https://en.wikipedia.org/wiki/Unix_philosophy#Do_One_Thing_and_Do_It_Well),
     we separate on purpose the `Model` that is solely for
-    Wannierization, and the `InterpolationModel`, that is only used
+    Wannierization, and the `InterpModel`, that is only used
     for Wannier interpolation of operators.
     This is convenient for developers to focus on the
     the Wannierization or interpolation algorithm without
@@ -71,10 +71,10 @@ You can also use the [`read_w90`](@ref) function to read the
 =#
 m = read_w90("$CUR_DIR/si2")
 #=
-Then use the [`InterpolationModel`](@ref) constructor to
-construct an `InterpolationModel` from an existing `Model`,
+Then use the [`InterpModel`](@ref) constructor to
+construct an `InterpModel` from an existing `Model`,
 =#
-m = Wannier.InterpolationModel(m)
+m = Wannier.InterpModel(m)
 #=
 However, there are some differences:
 1. the `amn` gauge is used, instead of that from `chk`
@@ -83,7 +83,7 @@ However, there are some differences:
 
 So, it is recommended to use the `read_w90_post` function,
 or you run a `max_localize` or `disentangle` on the `Model`
-to smooth the gauge, then construct an `InterpolationModel`.
+to smooth the gauge, then construct an `InterpModel`.
 =#
 
 #=
@@ -91,7 +91,7 @@ to smooth the gauge, then construct an `InterpolationModel`.
 
 The `read_w90_post` function will parse the `kpoint_path` block in the `win` file:
 1. if the `kpoint_path` block is found, it will use that path
-2. if the `kpoint_path` block is not found, the `InterpolationModel`
+2. if the `kpoint_path` block is not found, the `InterpModel`
     constructor will auto generate a kpath from the lattice,
     by using the [`get_kpath`](@ref) function
 
@@ -119,7 +119,7 @@ the `win` file:
 3. if not found, it will use the MDRS
 
 You can also control the interpolation algorithm by the constructor
-[`InterpolationModel(model::Model; mdrs::Bool=true)`](@ref InterpolationModel(model::Model; mdrs::Bool=true)).
+[`InterpModel(model::Model; mdrs::Bool=true)`](@ref InterpModel(model::Model; mdrs::Bool=true)).
 
 Moreover, there are two versions of MDRS, i.e., `mdrsv1` and `mdrsv2` in the
 jargon of `Wannier.jl`. The `v2` is faster than `v1` so it is used by default.
@@ -146,7 +146,7 @@ kpi, E = interpolate(model)
 
 #=
 The `kpi` stores the specific kpoint coordinates along the kpath,
-while the `InterpolationModel.kpath` only stores the high-symmetry kpoints
+while the `InterpModel.kpath` only stores the high-symmetry kpoints
 their labels, that's why we need to return the `kpi` object
 =#
 kpi
