@@ -109,9 +109,7 @@ while [`Model`](@ref Model) works only for Wannierization.
 
 ```@docs
 InterpModel
-InterpModel(
-    model::Model{T}, kRvectors::KRVectors{T}, kpath::KPath
-) where {T<:Real}
+InterpModel(kRvectors, H, kpath)
 InterpModel(model::Model; mdrs::Bool=true)
 ```
 

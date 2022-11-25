@@ -38,32 +38,11 @@ Interpolate energy eigenvalues at `kpoints`.
     can be nonuniform.
 """
 function interpolate(model::InterpModel{T}, kpoints::Matrix{T}) where {T<:Real}
-    # n_wann x n_wann x n_kpts
-    Hᵏ = get_Hk(model.E, model.A)
-
-    # H_R = zeros(Complex{T}, n_wann, n_wann, n_kx, n_ky, n_kz)
-    # bring to R space
-    # for m = 1:n_wann
-    #     for n = 1:n_wann
-    #         H_R[m, n, :, :, :] = FFTW.fft(H_k[m, n, :, :, :], [3, 4, 5])
-    #     end
-    # end
-    # H_R .= FFTW.fft(H_k, [3, 4, 5])
-
-    # n_wann x n_wann x n_rvecs
-    Hᴿ = fourier(model.kRvectors, Hᵏ)
-
-    # default fftfreq(4, 1) = [0.0  0.25  -0.5  -0.25]
-    # same as kmesh.pl, but if user use a different kgrid,
-    # the results is wrong.
-    # model.kpoints[:, 1] ≉ zeros(T, 3) && error("kpoints[:, 0] ≉ zeros(3)")
-
-    Hᵏ_path = invfourier(model.kRvectors, Hᴿ, kpoints)
-
+    Hᵏ = invfourier(model.kRvectors, model.H, kpoints)
     # diagonalize
-    Eᵏ_path, _ = diag_Hk(Hᵏ_path)
+    Eᵏ, _ = diag_Hk(Hᵏ)
 
-    return Eᵏ_path
+    return Eᵏ
 end
 
 """

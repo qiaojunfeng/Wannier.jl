@@ -1,32 +1,40 @@
-"""
+@doc raw"""
     struct InterpModel
 
 The model for Wannier interpolation.
 
+Store the real space matrices, e.g., the Hamiltonian ``H(\bm{R})``.
+
+Usually after Wannierization of a [`Model`](@ref Model), we construct this
+`InterpModel` for Wannier interpolation of operators.
+
 # Fields
-- `model`: the Wannierization [`Model`](@ref Model)
-- `kRvectors`: the kpoint and R vectors
+- `kRvectors`: the kpoints and R vectors
+- `H`: `n_wann * n_wann * n_rvecs`, the Hamiltonian in real space
 - `kpath`: the kpoint path for band structure
-- `S`: `n_bands * n_bands * n_kpts * 3`, the spin operator matrices
+- `S`: `n_wann * n_wann * n_rvecs * 3`, optional, the spin operator
 """
 struct InterpModel{T<:Real}
-    # model storing results of Wannierization
-    model::Model{T}
-
     # R vectors for Fourier transform
     kRvectors::KRVectors{T}
+
+    # Hamiltonian H(R), n_wann * n_wann * n_rvecs
+    H::Array{Complex{T},3}
 
     # kpoint path for band structure
     kpath::KPath
 
-    # spin matrix, n_bands * n_bands * n_kpts * 3
+    # spin matrix S(R), n_wann * n_wann * n_rvecs * 3
     S::Array{Complex{T},4}
+
+    # These fields are filled automatically upon construction
+
+    # number of Wannier functions (WFs)
+    n_wann::Int
 end
 
 function Base.getproperty(x::InterpModel, sym::Symbol)
-    if sym ∈ fieldnames(Model)
-        return getfield(x.model, sym)
-    elseif sym ∈ fieldnames(KRVectors)
+    if sym ∈ fieldnames(KRVectors)
         return getfield(x.kRvectors, sym)
     elseif sym == :n_rvecs
         return getproperty(x.kRvectors, sym)
@@ -37,9 +45,8 @@ function Base.getproperty(x::InterpModel, sym::Symbol)
 end
 
 function Base.show(io::IO, model::InterpModel)
-    @info "model"
-    show(io, model.model)
-    println(io, "\n")
+    @info "n_wann = $(model.n_wann)"
+    println(io, "")  # empty line
 
     @info "k & R vectors"
     show(io, model.kRvectors)
@@ -50,24 +57,33 @@ function Base.show(io::IO, model::InterpModel)
     return nothing
 end
 
+function InterpModel(kRvectors, H, kpath, S)
+    n_wann = size(H, 1)
+    return InterpModel(kRvectors, H, kpath, S, n_wann)
+end
+
 """
-    InterpModel(
-        model::Model{T}, kRvectors::KRVectors{T}, kpath::KPath
-    ) where {T<:Real}
+    InterpModel(kRvectors, H, kpath)
 
 A `InterpModel` constructor ignoring spin operator matrices.
 
 # Arguments
-- `model`: the Wannierization [`Model`](@ref Model)
 - `kRvectors`: the kpoint and R vectors
+- `H`: `n_wann * n_wann * n_rvecs`, the Hamiltonian in real space
 - `kpath`: the kpoint path for band structure
 """
-function InterpModel(model::Model{T}, kRvectors::KRVectors{T}, kpath::KPath) where {T<:Real}
-    n_bands = model.n_bands
-    n_kpts = model.n_kpts
-    return InterpModel(
-        model, kRvectors, kpath, Array{Complex{T},4}(undef, n_bands, n_bands, 3, n_kpts)
-    )
+function InterpModel(kRvectors, H, kpath)
+    Rvecs = kRvectors.Rvectors
+    if typeof(Rvecs) <: RVectorsMDRS
+        n_rvecs = Rvecs.n_r̃vecs
+    elseif typeof(Rvecs) <: RVectors
+        n_rvecs = Rvecs.n_rvecs
+    else
+        error("Unknown Rvectors type: $(typeof(Rvecs))")
+    end
+    n_wann = size(H, 1)
+    S = Array{eltype(H),4}(undef, n_wann, n_wann, n_rvecs, 3)
+    return InterpModel(kRvectors, H, kpath, S)
 end
 
 """
@@ -97,5 +113,8 @@ function InterpModel(model::Model; mdrs::Bool=true)
 
     kpath = get_kpath(model.lattice, model.atom_positions, model.atom_labels)
 
-    return InterpModel(model, kRvecs, kpath)
+    Hᵏ = get_Hk(model.E, model.A)
+    Hᴿ = fourier(kRvecs, Hᵏ)
+
+    return InterpModel(kRvecs, Hᴿ, kpath)
 end

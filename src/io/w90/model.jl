@@ -166,7 +166,10 @@ function read_w90_post(
         kpath = KPath(win.unit_cell, win.kpoint_path)
     end
 
-    return InterpModel(model, kRvecs, kpath)
+    Hᵏ = get_Hk(model.E, model.A)
+    Hᴿ = fourier(kRvecs, Hᵏ)
+
+    return InterpModel(kRvecs, Hᴿ, kpath)
 end
 
 """
