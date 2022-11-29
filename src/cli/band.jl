@@ -13,9 +13,9 @@ Interpolate band structure.
 """
 @cast function band(seedname::String; out::String="wjl", amn::String="")
     if isempty(amn)
-        model = read_w90_post(seedname)
+        model = read_w90_interp(seedname)
     else
-        model = read_w90_post(seedname; chk=false, amn=amn)
+        model = read_w90_interp(seedname; chk=false, amn=amn)
     end
 
     _print_type(model.kRvectors.Rvectors)

@@ -45,11 +45,11 @@ CUR_DIR = "3-band"
 
 ### from `chk.fmt` file
 
-We will use the [`read_w90_post`](@ref) function to read the
+We will use the [`read_w90_interp`](@ref) function to read the
 `win`, `mmn`, `eig`, and `chk.fmt` files, and construct an
 [`InterpModel`](@ref) that is used for interpolation purpose.
 =#
-model = read_w90_post("$CUR_DIR/si2")
+model = read_w90_interp("$CUR_DIR/si2")
 
 #=
 !!! tip
@@ -81,7 +81,7 @@ However, there are some differences:
 2. the kpoint path for band structure is auto generated from
     the lattice, instead of using that in `win` file (if found)
 
-So, it is recommended to use the `read_w90_post` function,
+So, it is recommended to use the `read_w90_interp` function,
 or you run a `max_localize` or `disentangle` on the `Model`
 to smooth the gauge, then construct an `InterpModel`.
 =#
@@ -89,7 +89,7 @@ to smooth the gauge, then construct an `InterpModel`.
 #=
 ### Tips on kpath
 
-The `read_w90_post` function will parse the `kpoint_path` block in the `win` file:
+The `read_w90_interp` function will parse the `kpoint_path` block in the `win` file:
 1. if the `kpoint_path` block is found, it will use that path
 2. if the `kpoint_path` block is not found, the `InterpModel`
     constructor will auto generate a kpath from the lattice,
@@ -112,7 +112,7 @@ There are two interpolation algorithms
 1. Wigner-Seitz (WS) interpolation
 2. Minimal-distance replica selection (MDRS) method
 
-The `read_w90_post` function will parse the `use_ws_distance` parameter in
+The `read_w90_interp` function will parse the `use_ws_distance` parameter in
 the `win` file:
 1. if `use_ws_distance` is `true`, it will use the MDRS
 2. if `use_ws_distance` is `false`, it will use the WS

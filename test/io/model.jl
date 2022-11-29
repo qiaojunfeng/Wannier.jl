@@ -26,8 +26,8 @@ end
     @test kpb_b ≈ model.bvectors.kpb_b
 end
 
-@testset "read_w90_post" begin
-    model = read_w90_post(joinpath(FIXTURE_PATH, "valence/band/silicon"))
+@testset "read_w90_interp" begin
+    model = read_w90_interp(joinpath(FIXTURE_PATH, "valence/band/silicon"))
 
     @test model isa Wannier.InterpModel
     @test model.n_wann == 4

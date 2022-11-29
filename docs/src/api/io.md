@@ -56,7 +56,7 @@ read_w90_band
 write_w90_band
 write_chk
 read_w90
-read_w90_post
+read_w90_interp
 write_w90
 read_nnkp
 write_nnkp

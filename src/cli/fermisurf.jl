@@ -31,9 +31,9 @@ Interpolate Fermi surface.
         model = read_w90_tb(seedname)
     else
         if isempty(amn)
-            model = read_w90_post(seedname)
+            model = read_w90_interp(seedname)
         else
-            model = read_w90_post(seedname; chk=false, amn=amn)
+            model = read_w90_interp(seedname; chk=false, amn=amn)
         end
     end
     Rvecs = model.kRvectors.Rvectors

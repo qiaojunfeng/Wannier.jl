@@ -1,4 +1,4 @@
-export read_w90, read_w90_post, write_w90
+export read_w90, read_w90_interp, write_w90
 
 """
     read_w90(seedname::AbstractString; amn=true, orthonorm_amn=true, mmn=true, eig=true)
@@ -102,7 +102,7 @@ function read_w90(
 end
 
 """
-    read_w90_post(seedname::AbstractString; chk=true, amn=nothing, mdrs=nothing)
+    read_w90_interp(seedname::AbstractString; chk=true, amn=nothing, mdrs=nothing)
 
 Return an `InterpModel` for Wannier interpolation.
 
@@ -115,7 +115,7 @@ Return an `InterpModel` for Wannier interpolation.
     If is `nothing`, detect from `win` file;
     and if no `use_ws_distance` in `win` file, default to `true`.
 """
-function read_w90_post(
+function read_w90_interp(
     seedname::AbstractString;
     chk::Bool=true,
     amn::Union{Nothing,AbstractString}=nothing,

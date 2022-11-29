@@ -1,6 +1,6 @@
 
-model_ws = read_w90_post(joinpath(FIXTURE_PATH, "valence/band/silicon"); mdrs=false)
-model_mdrs = read_w90_post(joinpath(FIXTURE_PATH, "valence/band/silicon"); mdrs=true)
+model_ws = read_w90_interp(joinpath(FIXTURE_PATH, "valence/band/silicon"); mdrs=false)
+model_mdrs = read_w90_interp(joinpath(FIXTURE_PATH, "valence/band/silicon"); mdrs=true)
 
 @testset "Hamiltonian WS" begin
     ref_band = WannierIO.read_w90_band(joinpath(FIXTURE_PATH, "valence/band/ws/silicon"))
