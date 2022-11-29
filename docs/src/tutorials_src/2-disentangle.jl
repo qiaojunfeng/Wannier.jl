@@ -57,15 +57,15 @@ model = read_w90("$CUR_DIR/si2")
 
 The [`disentangle`](@ref) function
 will disentangle and maximally localize the spread
-functional, and returns the gauge matrices `A`,
+functional, and returns the gauge matrices `U`,
 =#
-A = disentangle(model)
+U = disentangle(model)
 
 # The initial spread is
 omega(model)
 
 # The final spread is
-omega(model, A)
+omega(model, U)
 
 #=
 !!! note
@@ -83,7 +83,7 @@ Again, we save the new gauge to an `amn` file,
 which can be used as the new initial guess for `Wannier90`,
 or reuse it in `Wannier.jl`.
 =#
-write_amn("$CUR_DIR/si2.dis.amn", A)
+write_amn("$CUR_DIR/si2.dis.amn", U)
 
 #=
 Great! Now you have finished the disentanglement tutorial.

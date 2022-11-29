@@ -32,9 +32,9 @@ function write_chk(
     have_disentangled = true
     Ω = omega(model)
     dis_bands = trues(model.n_bands, model.n_kpts)
-    Uᵈ = model.A
-    U = eyes_A(eltype(Uᵈ), model.n_wann, model.n_kpts)
-    M = rotate_M(model.M, model.bvectors.kpb_k, model.A)
+    Uᵈ = model.U
+    U = eyes_U(eltype(Uᵈ), model.n_wann, model.n_kpts)
+    M = rotate_M(model.M, model.bvectors.kpb_k, model.U)
 
     chk = WannierIO.Chk(
         header,
@@ -78,10 +78,10 @@ function Model(chk::WannierIO.Chk)
 
     frozen_bands = falses(chk.n_bands, chk.n_kpts)
 
-    # the M in chk is already rotated by the A matrix
+    # the M in chk is already rotated by the U matrix
     M = chk.M
-    # so I set A matrix as identity
-    A = eyes_A(eltype(M), chk.n_wann, chk.n_kpts)
+    # so I set U matrix as identity
+    U = eyes_U(eltype(M), chk.n_wann, chk.n_kpts)
 
     # no eig in chk file
     E = zeros(Float64, chk.n_wann, chk.n_kpts)
@@ -95,7 +95,7 @@ function Model(chk::WannierIO.Chk)
         bvectors,
         frozen_bands,
         M,
-        A,
+        U,
         E,
     )
     return model

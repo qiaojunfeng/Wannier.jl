@@ -4,7 +4,7 @@
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
     n_val = 4
 
-    U = get_A(chk)
+    U = get_U(chk)
 
     Ev, Ec, _, _ = Wannier.split_eig(E, U, n_val)
 
@@ -20,7 +20,7 @@ end
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
     n_val = 4
 
-    U = get_A(chk)
+    U = get_U(chk)
     Ev, Ec, _, _ = Wannier.split_eig(E, U, n_val)
 
     M, kpb_k, kpb_b = read_mmn(joinpath(FIXTURE_PATH, "silicon/silicon.mmn"))
@@ -55,26 +55,26 @@ end
     # write_mmn(joinpath(FIXTURE_PATH, "conduction", "silicon.mmn"), Mc, kpb_k, kpb_b)
 end
 
-@testset "eyes_A" begin
+@testset "eyes_U" begin
     n_wann = 4
     n_kpts = 64
 
-    A = eyes_A(ComplexF64, n_wann, n_kpts)
+    U = eyes_U(ComplexF64, n_wann, n_kpts)
 
-    Av = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.amn"))
-    Ac = read_amn(joinpath(FIXTURE_PATH, "conduction", "silicon.amn"))
+    Uv = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.amn"))
+    Uc = read_amn(joinpath(FIXTURE_PATH, "conduction", "silicon.amn"))
 
-    @test isapprox(A, Av; atol=1e-7)
-    @test isapprox(A, Ac; atol=1e-7)
+    @test isapprox(U, Uv; atol=1e-7)
+    @test isapprox(U, Uc; atol=1e-7)
 
-    # write_amn(joinpath(FIXTURE_PATH, "valence", "silicon.amn"), A)
-    # write_amn(joinpath(FIXTURE_PATH, "conduction", "silicon.amn"), A)
+    # write_amn(joinpath(FIXTURE_PATH, "valence", "silicon.amn"), U)
+    # write_amn(joinpath(FIXTURE_PATH, "conduction", "silicon.amn"), U)
 end
 
 @testset "split_model" begin
     model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
-    model.A .= get_A(chk)
+    model.U .= get_U(chk)
 
     n_val = 4
 

@@ -8,10 +8,10 @@ export max_localize
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_maxloc(model::Model)
-    f(A) = omega(model.bvectors, model.M, A).Ω
+    f(U) = omega(model.bvectors, model.M, U).Ω
 
-    g!(G, A) = begin
-        G .= omega_grad(model.bvectors, model.M, A)
+    g!(G, U) = begin
+        G .= omega_grad(model.bvectors, model.M, U)
         nothing
     end
 
@@ -40,7 +40,7 @@ function max_localize(
 
     f, g! = get_fg!_maxloc(model)
 
-    Ωⁱ = omega(model.bvectors, model.M, model.A)
+    Ωⁱ = omega(model.bvectors, model.M, model.U)
     @info "Initial spread"
     show(Ωⁱ)
     println("\n")
@@ -51,12 +51,12 @@ function max_localize(
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
-    Ainit = deepcopy(model.A)
+    Uinit = deepcopy(model.U)
 
     opt = Optim.optimize(
         f,
         g!,
-        Ainit,
+        Uinit,
         meth(; manifold=Manif, linesearch=ls, m=history_size),
         Optim.Options(;
             show_trace=true,
@@ -68,12 +68,12 @@ function max_localize(
     )
     display(opt)
 
-    Amin = Optim.minimizer(opt)
+    Umin = Optim.minimizer(opt)
 
-    Ωᶠ = omega(model.bvectors, model.M, Amin)
+    Ωᶠ = omega(model.bvectors, model.M, Umin)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
 
-    return Amin
+    return Umin
 end

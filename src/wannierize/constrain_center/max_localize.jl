@@ -73,25 +73,25 @@ function Base.show(io::IO, Ω::SpreadCenter)
 end
 
 """
-    omega_center(bvectors, M, A, r₀, λ)
+    omega_center(bvectors, M, U, r₀, λ)
 
 Compute WF spread with center penalty, for maximal localization.
 
 # Arguments
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 - `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
 @views function omega_center(
     bvectors::BVectors{T},
     M::Array{Complex{T},4},
-    A::Array{Complex{T},3},
+    U::Array{Complex{T},3},
     r₀::Matrix{T},
     λ::T,
 ) where {T<:Real}
-    Ω = omega(bvectors, M, A)
+    Ω = omega(bvectors, M, U)
     ωc = λ * dropdims(sum(abs2, Ω.r - r₀; dims=1); dims=1)
     ωt = Ω.ω + ωc
     Ωc = sum(ωc)
@@ -100,20 +100,20 @@ Compute WF spread with center penalty, for maximal localization.
 end
 
 """
-    omega_center(model, A, r₀, λ)
+    omega_center(model, U, r₀, λ)
 
 Compute WF spread with center penalty, for maximal localization.
 
 # Arguments
 - `model`: `Model`
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 - `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
 function omega_center(
-    model::Model{T}, A::Array{Complex{T},3}, r₀::Matrix{T}, λ::T
+    model::Model{T}, U::Array{Complex{T},3}, r₀::Matrix{T}, λ::T
 ) where {T<:Real}
-    return omega_center(model.bvectors, model.M, A, r₀, λ)
+    return omega_center(model.bvectors, model.M, U, r₀, λ)
 end
 
 """
@@ -127,18 +127,18 @@ Compute WF spread with center penalty, for maximal localization.
 - `λ`: penalty strength
 """
 function omega_center(model::Model{T}, r₀::Matrix{T}, λ::T) where {T<:Real}
-    return omega_center(model, model.A, r₀, λ)
+    return omega_center(model, model.U, r₀, λ)
 end
 
 """
-    omega_center_grad(bvectors, M, A, r, r₀, λ)
+    omega_center_grad(bvectors, M, U, r, r₀, λ)
 
 Compute gradient of WF spread with center penalty, for maximal localization.
 
 # Arguments
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 - `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
 - `r₀`: `3 * n_wann`, the target WF centers in cartesian coordinates
 - `λ`: penalty strength
@@ -146,12 +146,12 @@ Compute gradient of WF spread with center penalty, for maximal localization.
 @views function omega_center_grad(
     bvectors::BVectors{FT},
     M::Array{Complex{FT},4},
-    A::Array{Complex{FT},3},
+    U::Array{Complex{FT},3},
     r::Matrix{FT},
     r₀::Matrix{FT},
     λ::FT,
 ) where {FT<:Real}
-    n_bands, n_wann, n_kpts = size(A)
+    n_bands, n_wann, n_kpts = size(U)
     n_bvecs = size(M, 3)
 
     kpb_k = bvectors.kpb_k
@@ -168,14 +168,14 @@ Compute gradient of WF spread with center penalty, for maximal localization.
     b = zeros(FT, 3)
 
     Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
-    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
+    MUᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
 
     for ik in 1:n_kpts
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
 
-            MAᵏᵇ .= M[:, :, ib, ik] * A[:, :, ikpb]
-            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+            MUᵏᵇ .= M[:, :, ib, ik] * U[:, :, ikpb]
+            Nᵏᵇ .= U[:, :, ik]' * MUᵏᵇ
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
             wᵇ = wb[ib]
 
@@ -195,8 +195,8 @@ Compute gradient of WF spread with center penalty, for maximal localization.
                 t = -im * q[n] / Nᵏᵇ[n, n]
 
                 for m in 1:n_bands
-                    R[m, n] = -MAᵏᵇ[m, n] * conj(Nᵏᵇ[n, n])
-                    T[m, n] = t * MAᵏᵇ[m, n]
+                    R[m, n] = -MUᵏᵇ[m, n] * conj(Nᵏᵇ[n, n])
+                    T[m, n] = t * MUᵏᵇ[m, n]
                 end
             end
 
@@ -210,26 +210,26 @@ Compute gradient of WF spread with center penalty, for maximal localization.
 end
 
 """
-    omega_center_grad(bvectors, M, A, r₀, λ)
+    omega_center_grad(bvectors, M, U, r₀, λ)
 
 Compute gradient of WF spread with center penalty, for maximal localization.
 
 # Arguments
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 - `r₀`: `3 * n_wann`, the target WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
 function omega_center_grad(
     bvectors::BVectors{FT},
     M::Array{Complex{FT},4},
-    A::Array{Complex{FT},3},
+    U::Array{Complex{FT},3},
     r₀::Matrix{FT},
     λ::FT,
 ) where {FT<:Real}
-    r = center(bvectors, M, A)
-    return omega_center_grad(bvectors, M, A, r, r₀, λ)
+    r = center(bvectors, M, U)
+    return omega_center_grad(bvectors, M, U, r, r₀, λ)
 end
 
 """
@@ -238,11 +238,11 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_center_maxloc(model::Model{T}, r₀::Matrix{T}, λ::T=1.0) where {T<:Real}
-    f(A) = omega_center(model.bvectors, model.M, A, r₀, λ).Ωt
+    f(U) = omega_center(model.bvectors, model.M, U, r₀, λ).Ωt
 
-    function g!(G, A)
-        r = center(model.bvectors, model.M, A)
-        G .= omega_center_grad(model.bvectors, model.M, A, r, r₀, λ)
+    function g!(G, U)
+        r = center(model.bvectors, model.M, U)
+        G .= omega_center_grad(model.bvectors, model.M, U, r, r₀, λ)
         return nothing
     end
 
@@ -280,7 +280,7 @@ function max_localize_center(
 
     f, g! = get_fg!_center_maxloc(model, r₀, λ)
 
-    Ωⁱ = omega_center(model.bvectors, model.M, model.A, r₀, λ)
+    Ωⁱ = omega_center(model.bvectors, model.M, model.U, r₀, λ)
     @info "Initial spread"
     show(Ωⁱ)
     println("\n")
@@ -291,12 +291,12 @@ function max_localize_center(
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
-    Ainit = deepcopy(model.A)
+    Uinit = deepcopy(model.U)
 
     opt = Optim.optimize(
         f,
         g!,
-        Ainit,
+        Uinit,
         meth(; manifold=Manif, linesearch=ls, m=history_size),
         Optim.Options(;
             show_trace=true,
@@ -308,12 +308,12 @@ function max_localize_center(
     )
     display(opt)
 
-    Amin = Optim.minimizer(opt)
+    Umin = Optim.minimizer(opt)
 
-    Ωᶠ = omega_center(model.bvectors, model.M, Amin, r₀, λ)
+    Ωᶠ = omega_center(model.bvectors, model.M, Umin, r₀, λ)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
 
-    return Amin
+    return Umin
 end

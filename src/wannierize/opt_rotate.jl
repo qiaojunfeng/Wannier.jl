@@ -2,7 +2,7 @@ using LinearAlgebra
 using Optim: Optim
 import NLSolversBase: OnceDifferentiable
 
-export opt_rotate, rotate_A
+export opt_rotate, rotate_U
 
 """
     get_fg!_rotate(model::Model)
@@ -11,8 +11,8 @@ Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_rotate(model::Model)
     function f(W)
-        A = rotate_A(model.A, W)
-        return omega(model.bvectors, model.M, A).Ω
+        U = rotate_U(model.U, W)
+        return omega(model.bvectors, model.M, U).Ω
     end
 
     function g!(G, W)
@@ -34,19 +34,19 @@ function get_fg!_rotate(model::Model)
         MWᵏᵇ = zeros(eltype(W), n_wann, n_wann)
         Nᵏᵇ = zeros(eltype(W), n_wann, n_wann)
 
-        AW = rotate_A(model.A, W)
-        r = center(bvectors, M, AW)
+        UW = rotate_U(model.U, W)
+        r = center(bvectors, M, UW)
         # actually I can just call this, equivalent to the for loop below.
-        # G_A = omega_grad(bvectors, M, AW, r)
+        # G_U = omega_grad(bvectors, M, UW, r)
         # # sum w.r.t. kpoints
-        # G .= dropdims(sum(G_A, dims = 3); dims = 3)
+        # G .= dropdims(sum(G_U, dims = 3); dims = 3)
         # return nothing
 
         for ik in 1:n_kpts
             for ib in 1:n_bvecs
                 ikpb = kpb_k[ib, ik]
 
-                # need to use AW[:, :, ik] instead of W, if model.A is not identity
+                # need to use UW[:, :, ik] instead of W, if model.U is not identity
                 MWᵏᵇ .= M[:, :, ib, ik] * W
                 Nᵏᵇ .= W' * MWᵏᵇ
                 b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
@@ -103,20 +103,20 @@ function opt_rotate(
     show(Ωⁱ)
     println("\n")
 
-    # make sure A is identity matrices
+    # make sure U is identity matrices
     # however I shouldn't modify the original model, deepcopy it
-    # note I cannot use `rotate_gauge(model, model.A)` because the rotated Hamiltonian
+    # note I cannot use `rotate_gauge(model, model.U)` because the rotated Hamiltonian
     # might not be diagonal, however in this case I don't care about eigenvalues
     model2 = deepcopy(model)
-    model2.M .= rotate_M(model2.M, model2.bvectors.kpb_k, model2.A)
-    model2.A .= eyes_A(eltype(model2.A), n_wann, model2.n_kpts)
+    model2.M .= rotate_M(model2.M, model2.bvectors.kpb_k, model2.U)
+    model2.U .= eyes_U(eltype(model2.U), n_wann, model2.n_kpts)
 
     wManif = Optim.Stiefel_SVD()
 
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
-    W0 = Matrix{eltype(model2.A)}(I, n_wann, n_wann)
+    W0 = Matrix{eltype(model2.U)}(I, n_wann, n_wann)
 
     f, g! = get_fg!_rotate(model2)
 
@@ -139,9 +139,9 @@ function opt_rotate(
 
     Wmin = Optim.minimizer(opt)
 
-    # model2.A is actually identity
-    A = rotate_A(model2.A, Wmin)
-    Ωᶠ = omega(model2, A)
+    # model2.U is actually identity
+    U = rotate_U(model2.U, Wmin)
+    Ωᶠ = omega(model2, U)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
@@ -150,24 +150,24 @@ function opt_rotate(
 end
 
 """
-    rotate_A(A::Array{T,3}, W::Matrix{T}) where {T<:Complex}
+    rotate_U(U::Array{T,3}, W::Matrix{T}) where {T<:Complex}
 
-Rotate the `A` matrices at each kpoint by the same `W` matrix.
+Rotate the `U` matrices at each kpoint by the same `W` matrix.
 
-``\\forall \\bm{k}``, ``A_{\\bm{k}} W``
+``\\forall \\bm{k}``, ``U_{\\bm{k}} W``
 
 Useful once we have the optimal rotation matrix `W`, then update the initial
-`A` matrices by rotating them by `W`.
+`U` matrices by rotating them by `W`.
 """
-function rotate_A(A::Array{T,3}, W::Matrix{T}) where {T<:Complex}
-    n_bands, n_wann, n_kpts = size(A)
+function rotate_U(U::Array{T,3}, W::Matrix{T}) where {T<:Complex}
+    n_bands, n_wann, n_kpts = size(U)
     size(W) != (n_wann, n_wann) && error("W must be a n_wann x n_wann matrix")
 
-    A1 = similar(A)
+    U1 = similar(U)
 
     for ik in 1:n_kpts
-        A1[:, :, ik] .= A[:, :, ik] * W
+        U1[:, :, ik] .= U[:, :, ik] * W
     end
 
-    return A1
+    return U1
 end

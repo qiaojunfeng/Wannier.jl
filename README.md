@@ -77,8 +77,8 @@ For example, running a maximal localization can be easily achieved by
 using Wannier
 
 model = read_w90("silicon")
-A = max_localize(model)
-write_amn("silicon.amn", A)
+U = max_localize(model)
+write_amn("silicon.amn", U)
 ```
 
 For a much more detailed overview, please see

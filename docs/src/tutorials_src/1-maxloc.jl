@@ -107,15 +107,15 @@ model = read_w90("$CUR_DIR/si2")
 ## Maximal localization
 
 Maximal localization can be easily done by calling the
-[`max_localize`](@ref) function, which returns the gauge matrices `A`,
+[`max_localize`](@ref) function, which returns the gauge matrices `U`,
 =#
-A = max_localize(model)
+U = max_localize(model)
 
 # The initial spread is
 omega(model)
 
 # The final spread is
-omega(model, A)
+omega(model, U)
 
 #=
 Since we have very good initial guess, the
@@ -134,12 +134,12 @@ spread only decreases a little bit.
 ## Save the new gauge
 
 We can further do band interpolation in `Wannier.jl` with
-the new `A` matrices, however, for this very first tutorial,
+the new `U` matrices, however, for this very first tutorial,
 we will just save the new gauge to an `amn` file,
 which can be used as the new initial guess for `Wannier90`,
 or reuse it in `Wannier.jl`.
 =#
-write_amn("$CUR_DIR/si2.maxloc.amn", A)
+write_amn("$CUR_DIR/si2.maxloc.amn", U)
 
 #=
 Voilà! We have finished the first tutorial! 🎉🎉🎉

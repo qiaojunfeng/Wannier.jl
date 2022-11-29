@@ -9,10 +9,10 @@ r₀[:, 1:4] .= 1.34940  # bond center
 f, g! = Wannier.get_fg!_center_disentangle(model, r₀, λ)
 
 @testset "constraint center disentangle spread gradient" begin
-    A0 = deepcopy(model.A)
+    U0 = deepcopy(model.U)
 
     # analytical gradient
-    X, Y = Wannier.A_to_X_Y(A0, model.frozen_bands)
+    X, Y = Wannier.U_to_X_Y(U0, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
     G = similar(XY)
     g!(G, XY)
@@ -26,8 +26,8 @@ f, g! = Wannier.get_fg!_center_disentangle(model, r₀, λ)
     @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
-    A1 = Wannier.disentangle_center(model, r₀, λ; max_iter=1)
-    X, Y = Wannier.A_to_X_Y(A1, model.frozen_bands)
+    U1 = Wannier.disentangle_center(model, r₀, λ; max_iter=1)
+    X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
     g!(G, XY)
@@ -38,8 +38,8 @@ f, g! = Wannier.get_fg!_center_disentangle(model, r₀, λ)
 end
 
 @testset "constraint center disentangle" begin
-    Amin = Wannier.disentangle_center(model, r₀, λ; max_iter=4)
-    Ω = Wannier.omega_center(model.bvectors, model.M, Amin, r₀, λ)
+    Umin = Wannier.disentangle_center(model, r₀, λ; max_iter=4)
+    Ω = Wannier.omega_center(model.bvectors, model.M, Umin, r₀, λ)
 
     display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃

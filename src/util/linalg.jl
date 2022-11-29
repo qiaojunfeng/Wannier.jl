@@ -1,7 +1,7 @@
 using LinearAlgebra
 
 export get_recip_lattice, get_lattice
-export orthonorm_lowdin, eyes_A, rotate_M
+export orthonorm_lowdin, eyes_U, rotate_M
 export isunitary
 
 """
@@ -26,38 +26,38 @@ Return lattice.
 get_lattice(recip_lattice::Mat3) = inv(recip_lattice / (2π))'
 
 """
-    orthonorm_lowdin(A::Matrix{T})
+    orthonorm_lowdin(U::Matrix{T})
 
-Lowdin orthonormalize a matrix `A` to be (semi-)unitary.
+Lowdin orthonormalize a matrix `U` to be (semi-)unitary.
 
-If `X` is a matrix with orthogonal columns and `A` a non-singular matrix,
-then Lowdin-orthogonalizing `X*A` is equivalent to computing `X*orthonorm_lowdin(A)`.
+If `U` is a matrix with orthogonal columns and `V` a non-singular matrix,
+then Lowdin-orthogonalizing `U*V` is equivalent to computing `U*orthonorm_lowdin(V)`.
 """
-function orthonorm_lowdin(A::Matrix{T}) where {T<:Union{Complex,Real}}
-    U, S, V = svd(A)
-    # @assert A ≈ U * Diagonal(S) * V'
-    return U * V'
+function orthonorm_lowdin(U::Matrix{T}) where {T<:Union{Complex,Real}}
+    A, S, B = svd(U)
+    # @assert U ≈ A * Diagonal(S) * B'
+    return A * B'
 end
 
 """
-    orthonorm_lowdin(A::Array{T,3})
+    orthonorm_lowdin(U::Array{T,3})
 
-Lowdin orthonormalize a series of matrices `A`.
+Lowdin orthonormalize a series of matrices `M`.
 """
-function orthonorm_lowdin(A::Array{T,3}) where {T<:Union{Complex,Real}}
-    n_kpts = size(A, 3)
+function orthonorm_lowdin(U::Array{T,3}) where {T<:Union{Complex,Real}}
+    n_kpts = size(U, 3)
 
-    B = similar(A)
+    A = similar(U)
 
     for ik in 1:n_kpts
-        B[:, :, ik] .= orthonorm_lowdin(A[:, :, ik])
+        A[:, :, ik] .= orthonorm_lowdin(U[:, :, ik])
     end
 
-    return B
+    return A
 end
 
-function orthonorm_cholesky(A)
-    return A / chol(A'A)
+function orthonorm_cholesky(U)
+    return U / chol(U'U)
 end
 
 """
@@ -104,93 +104,93 @@ function compute_imre_ratio(W::AbstractArray)
 end
 
 """
-Power of a unitary (or at least, normal) matrix A
+Power of a unitary (or at least, normal) matrix `U`.
 """
 # TODO cleanup this, seems not used anymore
-function powm(A::AbstractMatrix{T}, p::F) where {T<:Union{Complex,Real},F<:Real}
+function powm(U::AbstractMatrix{T}, p::F) where {T<:Union{Complex,Real},F<:Real}
     # Workaround, eigen incompatible with lazy adjoint.
-    d, V = eigen(Matrix(A))
+    d, V = eigen(Matrix(U))
 
     V = orthonorm_lowdin(V)
-    # accuracy = norm(V * Diagonal(d) * V' - A)
+    # accuracy = norm(V * Diagonal(d) * V' - U)
     # @assert accuracy < 1e-10
 
     return V * Diagonal(d .^ p) * V'
 end
 
 """
-    rotate_gauge(O::Array{T,3}, A::Array{T,3})
+    rotate_gauge(O::Array{T,3}, U::Array{T,3})
 
 Rotate the gauge of the operator `O`.
 
-I.e., ``A^{\\dagger} O A``.
+I.e., ``U^{\\dagger} O U``.
 """
-function rotate_gauge(O::Array{T,3}, A::Array{T,3}) where {T<:Number}
-    n_bands, n_wann, n_kpts = size(A)
+function rotate_gauge(O::Array{T,3}, U::Array{T,3}) where {T<:Number}
+    n_bands, n_wann, n_kpts = size(U)
     size(O) != (n_bands, n_bands, n_kpts) &&
         error("O must have size (n_bands, n_bands, n_kpts)")
 
     O1 = similar(O, n_wann, n_wann, n_kpts)
 
     for ik in 1:n_kpts
-        O1[:, :, ik] .= A[:, :, ik]' * O[:, :, ik] * A[:, :, ik]
+        O1[:, :, ik] .= U[:, :, ik]' * O[:, :, ik] * U[:, :, ik]
     end
 
     return O1
 end
 
 """
-    eyes_A(T::Type, n_wann::Int, n_kpts::Int)
+    eyes_U(T::Type, n_wann::Int, n_kpts::Int)
 
 Return a series of indentity matrices of type `T` and size `n_wann * n_wann * n_kpts`.
 """
-function eyes_A(T::Type, n_wann::Int, n_kpts::Int)
-    A = zeros(T, n_wann, n_wann, n_kpts)
+function eyes_U(T::Type, n_wann::Int, n_kpts::Int)
+    U = zeros(T, n_wann, n_wann, n_kpts)
     Iₖ = diagm(0 => ones(n_wann))
 
     for ik in 1:n_kpts
-        A[:, :, ik] = Iₖ
+        U[:, :, ik] = Iₖ
     end
 
-    return A
+    return U
 end
 
 """
-    eyes_A(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
+    eyes_U(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
 
 Return a series of indentity matrices of type `T` and size `n_bands * n_wann * n_kpts`.
 """
-function eyes_A(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
-    A = zeros(T, n_bands, n_wann, n_kpts)
+function eyes_U(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
+    U = zeros(T, n_bands, n_wann, n_kpts)
     n = min(n_bands, n_wann)
     Iₖ = diagm(0 => ones(n))
 
     for ik in 1:n_kpts
-        A[1:n, 1:n, ik] = Iₖ
+        U[1:n, 1:n, ik] = Iₖ
     end
 
-    return A
+    return U
 end
 
 """
-    rotate_A(A::Array{T,3}, U::Array{T,3})
+    rotate_U(U::Array{T,3}, V::Array{T,3})
 
-Rotate the gauge matrices `A` by `U`.
+Rotate the gauge matrices `U` by `V`.
 
-I.e., for each kpoint ``\\bm{k}``, ``A_{\\bm{k}} U_{\\bm{k}}``.
+I.e., for each kpoint ``\\bm{k}``, ``U_{\\bm{k}} V_{\\bm{k}}``.
 """
-function rotate_A(A::Array{T,3}, U::Array{T,3}) where {T<:Complex}
-    n_bands, n_wann, n_kpts = size(A)
-    size(U)[[1, 3]] != (n_wann, n_kpts) && error("U must be a n_wann x ? x n_kpts matrix")
-    m = size(U, 2)
+function rotate_U(U::Array{T,3}, V::Array{T,3}) where {T<:Complex}
+    n_bands, n_wann, n_kpts = size(U)
+    size(V)[[1, 3]] != (n_wann, n_kpts) && error("V must be a n_wann * ? * n_kpts matrix")
+    m = size(V, 2)
 
-    A1 = similar(A, n_bands, m, n_kpts)
+    U1 = similar(U, n_bands, m, n_kpts)
 
     for ik in 1:n_kpts
-        A1[:, :, ik] .= A[:, :, ik] * U[:, :, ik]
+        U1[:, :, ik] .= U[:, :, ik] * V[:, :, ik]
     end
 
-    return A1
+    return U1
 end
 
 """
@@ -228,19 +228,19 @@ i.e., for each kpoint ``\\bm{k}``,
 end
 
 """
-    isunitary(A::AbstractArray{T,3}; atol=1e-10)
+    isunitary(U::AbstractArray{T,3}; atol=1e-10)
 
 Check if matrix is unitary or semi-unitary for all the kpoints?
 
 I.e. does it have orthogonal columns?
 """
-function isunitary(A::AbstractArray{T,3}; atol::Real=1e-10) where {T<:Number}
-    n_bands, n_wann, n_kpts = size(A)
+function isunitary(U::AbstractArray{T,3}; atol::Real=1e-10) where {T<:Number}
+    n_bands, n_wann, n_kpts = size(U)
 
     for ik in 1:n_kpts
-        Aₖ = @view A[:, :, ik]
-        if norm(Aₖ' * Aₖ - I) > atol
-            @debug "not unitary" ik norm(Aₖ' * Aₖ - I)
+        Uₖ = @view U[:, :, ik]
+        if norm(Uₖ' * Uₖ - I) > atol
+            @debug "not unitary" ik norm(Uₖ' * Uₖ - I)
             return false
         end
     end
@@ -248,15 +248,15 @@ function isunitary(A::AbstractArray{T,3}; atol::Real=1e-10) where {T<:Number}
 end
 
 """
-    get_projectability(A::AbstractArray{T,3})
+    get_projectability(U::AbstractArray{T,3})
 
 Return projectability of each kpoint.
 """
-function get_projectability(A::AbstractArray{T,3}) where {T<:Number}
-    n_bands, n_wann, n_kpts = size(A)
+function get_projectability(U::AbstractArray{T,3}) where {T<:Number}
+    n_bands, n_wann, n_kpts = size(U)
     P = zeros(T, n_bands, n_kpts)
     for ik in 1:n_kpts
-        p = A[:, :, ik] * A[:, :, ik]'
+        p = U[:, :, ik] * U[:, :, ik]'
         P[:, ik] = real(diag(p))
     end
     return P

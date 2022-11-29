@@ -48,15 +48,15 @@ Maximally localize a group of entangled bands.
     #     Wan.Disentangle.set_frozen_bands!(data, params)
     # end
 
-    Amin = disentangle(model; max_iter=maxiter)
+    Umin = disentangle(model; max_iter=maxiter)
 
     # if dis_froz_pao
     #     for ik = 1:data.num_kpts
-    #         A[:,:,ik] = V[:,:,ik] * A[:,:,ik]
+    #         U[:,:,ik] = V[:,:,ik] * U[:,:,ik]
     #     end
     # end
 
-    write_amn(output, Amin)
+    write_amn(output, Umin)
 
     return nothing
 end

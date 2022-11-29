@@ -2,7 +2,7 @@ using Printf
 
 # A reusable fixture for a model
 model = read_w90(joinpath(FIXTURE_PATH, "graphene_unk/graphene"))
-model.A .= read_amn(joinpath(FIXTURE_PATH, "graphene_unk/graphene.w90.amn"))
+model.U .= read_amn(joinpath(FIXTURE_PATH, "graphene_unk/graphene.w90.amn"))
 unkdir = joinpath(FIXTURE_PATH, "graphene_unk")
 
 @testset "realspace xsf" begin

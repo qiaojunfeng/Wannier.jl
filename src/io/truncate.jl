@@ -118,9 +118,9 @@ end
 
 """
     truncate(model::Model, keep_bands::Vector{Int}, keep_wfs::Vector{Int}=nothing;
-        orthonorm_A::Bool=true)
+        orthonorm_U::Bool=true)
 
-Truncate `A`, `M`, `E` matrices in `model`.
+Truncate `U`, `M`, `E` matrices in `model`.
 
 # Arguments
 - `model`: the `Model` to be truncated.
@@ -128,11 +128,11 @@ Truncate `A`, `M`, `E` matrices in `model`.
 - `keep_wfs`: WF indexes to be kept, start from 1. If `nothing`, keep all.
 
 # Keyword arguments
-- `orthonorm_A`: If true, Lowdin orthonormalize `A` after truncation.
-    The `A` needs to be (semi-)unitary, so it should always be true.
+- `orthonorm_U`: If true, Lowdin orthonormalize `U` after truncation.
+    The `U` needs to be (semi-)unitary, so it should always be true.
 """
 function truncate(
-    model::Model, keep_bands::T, keep_wfs::Union{T,Nothing}=nothing; orthonorm_A::Bool=true
+    model::Model, keep_bands::T, keep_wfs::Union{T,Nothing}=nothing; orthonorm_U::Bool=true
 ) where {T<:AbstractVector{Int}}
     all(1 .<= keep_bands .<= model.n_bands) || error("Invalid band index")
     if !isnothing(keep_wfs)
@@ -142,13 +142,13 @@ function truncate(
 
     E = model.E[keep_bands, :]
     M = model.M[keep_bands, keep_bands, :, :]
-    A = model.A[keep_bands, :, :]
+    U = model.U[keep_bands, :, :]
 
     if !isnothing(keep_wfs)
-        A = A[:, keep_wfs, :]
+        U = U[:, keep_wfs, :]
     end
-    if orthonorm_A
-        A = orthonorm_lowdin(A)
+    if orthonorm_U
+        U = orthonorm_lowdin(U)
     end
     frozen_bands = model.frozen_bands[keep_bands, :]
 
@@ -161,7 +161,7 @@ function truncate(
         model.bvectors,
         frozen_bands,
         M,
-        A,
+        U,
         E,
     )
     return model2

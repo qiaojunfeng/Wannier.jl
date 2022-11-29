@@ -24,13 +24,13 @@ Pages = ["model.md"]
 
 ```@docs
 Model
-Model(lattice::Mat3{T}, atom_positions::Matrix{T}, atom_labels::Vector{String}, kgrid::Vec3{Int}, kpoints::Matrix{T}, bvectors::BVectors{T}, frozen_bands::AbstractMatrix{Bool}, M::Array{Complex{T}, 4}, A::Array{Complex{T}, 3}, E::Matrix{T}) where {T<:Real}
+Model(lattice::Mat3{T}, atom_positions::Matrix{T}, atom_labels::Vector{String}, kgrid::Vec3{Int}, kpoints::Matrix{T}, bvectors::BVectors{T}, frozen_bands::AbstractMatrix{Bool}, M::Array{Complex{T}, 4}, U::Array{Complex{T}, 3}, E::Matrix{T}) where {T<:Real}
 ```
 
 ## Model functions
 
 ```@docs
-rotate_gauge(model::Model, A::Array{T,3}) where {T<:Number}
+rotate_gauge(model::Model, U::Array{T,3}) where {T<:Number}
 truncate(model::Model, keep_bands::AbstractVector{Int})
 ```
 

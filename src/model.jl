@@ -16,7 +16,7 @@ A struct containing the parameters and matrices of the crystal structure.
 - `bvectors`: bvectors satisfying the B1 condition
 - `frozen_bands`: indicates which bands are frozen
 - `M`: `n_bands * n_bands * n_bvecs * n_kpts`, overlap matrix ``M_{\\bm{k},\\bm{b}}``
-- `A`: `n_bands * n_wann * n_kpts`, (semi-)unitary gauge rotation matrix ``A_{\\bm{k}}``
+- `U`: `n_bands * n_wann * n_kpts`, (semi-)unitary gauge rotation matrix ``U_{\\bm{k}}``
 - `E`: `n_bands * n_kpts`, energy eigenvalues ``\\epsilon_{n \\bm{k}}``
 - `recip_lattice`: columns are the reciprocal lattice vectors
 - `n_atoms`: number of atoms
@@ -57,8 +57,8 @@ struct Model{T<:Real}
     # Mmn matrix, n_bands * n_bands * n_bvecs * n_kpts
     M::Array{Complex{T},4}
 
-    # Amn matrix, n_bands * n_wann * n_kpts
-    A::Array{Complex{T},3}
+    # the unitary transformation matrix, n_bands * n_wann * n_kpts
+    U::Array{Complex{T},3}
 
     # eigenvalues, n_bands * n_kpts
     E::Matrix{T}
@@ -86,7 +86,7 @@ struct Model{T<:Real}
 end
 
 """
-    Model(lattice, atom_positions, atom_labels, kgrid, kpoints, bvectors, frozen_bands, M, A, E)
+    Model(lattice, atom_positions, atom_labels, kgrid, kpoints, bvectors, frozen_bands, M, U, E)
 
 Construct a [`Model`](@ref Model) `struct`.
 
@@ -99,7 +99,7 @@ Construct a [`Model`](@ref Model) `struct`.
 - `bvectors`: bvectors satisfying the B1 condition
 - `frozen_bands`: indicates which bands are frozen
 - `M`: `n_bands * n_bands * n_bvecs * n_kpts`, overlap matrix ``M_{\\bm{k},\\bm{b}}``
-- `A`: `n_bands * n_wann * n_kpts`, (semi-)unitary gauge rotation matrix ``A_{\\bm{k}}``
+- `U`: `n_bands * n_wann * n_kpts`, (semi-)unitary gauge rotation matrix ``U_{\\bm{k}}``
 - `E`: `n_bands * n_kpts`, energy eigenvalues ``\\epsilon_{n \\bm{k}}``
 
 !!! tip
@@ -116,7 +116,7 @@ function Model(
     bvectors::BVectors{T},
     frozen_bands::AbstractMatrix{Bool},
     M::Array{Complex{T},4},
-    A::Array{Complex{T},3},
+    U::Array{Complex{T},3},
     E::Matrix{T},
 ) where {T<:Real}
     return Model(
@@ -128,13 +128,13 @@ function Model(
         bvectors,
         BitMatrix(frozen_bands),
         M,
-        A,
+        U,
         E,
         get_recip_lattice(lattice),
         length(atom_labels),
-        size(A, 1),
-        size(A, 2),
-        size(A, 3),
+        size(U, 1),
+        size(U, 2),
+        size(U, 3),
         bvectors.n_bvecs,
     )
 end
@@ -166,55 +166,55 @@ function Base.show(io::IO, model::Model)
 end
 
 """
-    rotate_gauge(model::Model, A::Array{T,3}; diag_H=false)
+    rotate_gauge(model::Model, U::Array{T,3}; diag_H=false)
 
 Rotate the gauge of a `Model`.
 
 # Arguments
 - `model`: a `Model` `struct`
-- `A`: `n_bands * n_wann * n_kpts`, (semi-)unitary gauge rotation matrix ``A_{\\bm{k}}``
+- `U`: `n_bands * n_wann * n_kpts`, (semi-)unitary gauge rotation matrix ``U_{\\bm{k}}``
 
 # Keyword Arguments
 - `diag_H`: if after rotation, the Hamiltonian is not diagonal, then diagonalize it and
-    save the eigenvalues to `model.E`, and the inverse of the eigenvectors to `model.A`,
-    so that the `model` is still in the input gauge `A`.
+    save the eigenvalues to `model.E`, and the inverse of the eigenvectors to `model.U`,
+    so that the `model` is still in the input gauge `U`.
     Otherwise, if the rotated Hamiltonian is not diagonal, raise error.
 
 !!! note
 
-    The original `Model.A` will be discarded;
-    the `M`, and `E` matrices will be rotated by the input `A`.
+    The original `Model.U` will be discarded;
+    the `M`, and `E` matrices will be rotated by the input `U`.
     However, since `E` is not the Hamiltonian matrices but only the eigenvalues,
     if `diag_H = false`, this function only support rotations that keep the Hamiltonian
     in diagonal form.
 """
-function rotate_gauge(model::Model, A::Array{T,3}; diag_H::Bool=false) where {T<:Number}
+function rotate_gauge(model::Model, U::Array{T,3}; diag_H::Bool=false) where {T<:Number}
     n_bands = model.n_bands
     n_kpts = model.n_kpts
-    size(A)[[1, 3]] == (n_bands, n_kpts) || error("A must have size (n_bands, :, n_kpts)")
+    size(U)[[1, 3]] == (n_bands, n_kpts) || error("U must have size (n_bands, :, n_kpts)")
     # The new n_wann
-    n_wann = size(A, 2)
+    n_wann = size(U, 2)
 
-    # the new AMN is just identity
-    A2 = eyes_A(eltype(A), n_wann, n_kpts)
+    # the new gauge is just identity
+    U2 = eyes_U(eltype(U), n_wann, n_kpts)
 
     # EIG
     E = model.E
     E2 = zeros(eltype(E), n_wann, n_kpts)
-    H = zeros(eltype(model.A), n_wann, n_wann)
+    H = zeros(eltype(model.U), n_wann, n_wann)
     # tolerance for checking Hamiltonian
     atol = 1e-8
     # all the diagonalized kpoints, used if diag_H = true
     diag_kpts = Int[]
     for ik in 1:n_kpts
-        Aₖ = A[:, :, ik]
-        H .= Aₖ' * diagm(0 => E[:, ik]) * Aₖ
+        Uₖ = U[:, :, ik]
+        H .= Uₖ' * diagm(0 => E[:, ik]) * Uₖ
         ϵ = diag(H)
         if norm(H - diagm(0 => ϵ)) > atol
             if diag_H
                 # diagonalize the Hamiltonian
                 ϵ, v = eigen(H)
-                A2[:, :, ik] = v
+                U2[:, :, ik] = v
                 push!(diag_kpts, ik)
             else
                 error("H is not diagonal after gauge rotation")
@@ -229,12 +229,12 @@ function rotate_gauge(model::Model, A::Array{T,3}; diag_H::Bool=false) where {T<
     # MMN
     M = model.M
     kpb_k = model.bvectors.kpb_k
-    M2 = rotate_M(M, kpb_k, A)
+    M2 = rotate_M(M, kpb_k, U)
     if diag_H && length(diag_kpts) > 0
-        M2 = rotate_M(M2, kpb_k, A2)
-        # A needs to save the inverse of the eigenvectors
+        M2 = rotate_M(M2, kpb_k, U2)
+        # the gauge matrix needs to save the inverse of the eigenvectors
         for ik in diag_kpts
-            A2[:, :, ik] = inv(A2[:, :, ik])
+            U2[:, :, ik] = inv(U2[:, :, ik])
         end
     end
 
@@ -247,7 +247,7 @@ function rotate_gauge(model::Model, A::Array{T,3}; diag_H::Bool=false) where {T<
         model.bvectors,
         zeros(Bool, n_wann, n_kpts),
         M2,
-        A2,
+        U2,
         E2,
     )
     return model2

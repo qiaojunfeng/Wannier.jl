@@ -1,27 +1,27 @@
 export interpolate
 
 """
-    get_Hk(E, A)
+    get_Hk(E, U)
 
 Construct k space Hamiltonian Hᵏ.
 
 ```math
-H_{\\bm{k}} = A_{\\bm{k}}^\\dagger [\\epsilon_{n \\bm{k}}] A_{\\bm{k}},
+H_{\\bm{k}} = U_{\\bm{k}}^\\dagger [\\epsilon_{n \\bm{k}}] U_{\\bm{k}},
 ```
 where ``[\\epsilon_{n \\bm{k}}]`` is a diagonal matrix with
 ``\\epsilon_{n \\bm{k}}`` as the diagonal elements.
 
 # Arguments
 - `E`: `n_bands * n_kpts`, energy eigenvalue
-- `A`: `n_bands * n_wann * n_kpts`, gauge matrices
+- `U`: `n_bands * n_wann * n_kpts`, gauge matrices
 """
-function get_Hk(E::Matrix{T}, A::Array{U,3}) where {T<:Number,U<:Number}
-    n_bands, n_wann, n_kpts = size(A)
+function get_Hk(E::Matrix{T}, U::Array{S,3}) where {T<:Number,S<:Number}
+    n_bands, n_wann, n_kpts = size(U)
     size(E) != (n_bands, n_kpts) && error("size(E) != (n_bands, n_kpts)")
 
-    Hᵏ = zeros(U, n_wann, n_wann, n_kpts)
+    Hᵏ = zeros(S, n_wann, n_wann, n_kpts)
     for ik in 1:n_kpts
-        Hᵏ[:, :, ik] = A[:, :, ik]' * Diagonal(E[:, ik]) * A[:, :, ik]
+        Hᵏ[:, :, ik] = U[:, :, ik]' * Diagonal(E[:, ik]) * U[:, :, ik]
     end
 
     return Hᵏ

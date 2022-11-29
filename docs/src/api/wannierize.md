@@ -34,8 +34,8 @@ set_frozen_win!
 get_frozen_proj
 set_frozen_proj!
 orthonorm_freeze
-X_Y_to_A
-A_to_X_Y
+X_Y_to_U
+U_to_X_Y
 XY_to_X_Y
 X_Y_to_XY
 omega(bvectors::BVectors{FT},M::Array{Complex{FT},4},X::Array{Complex{FT},3},Y::Array{Complex{FT},3}) where {FT<:Real}
@@ -74,12 +74,12 @@ compute_error
 !!! note
 
     In general, the user only need to call `opt_rotate` to find the optimal rotation matrix
-    for the `Model`, then call `rotate_A` to rotate the initial `A` matrices at each kpoint.
+    for the `Model`, then call `rotate_U` to rotate the initial `U` matrices at each kpoint.
 
 ```@docs
 get_fg!_rotate
 opt_rotate
-rotate_A(A::Array{T,3}, W::Matrix{T}) where {T<:Complex}
+rotate_U(U::Array{T,3}, W::Matrix{T}) where {T<:Complex}
 ```
 
 ## Splitting the Model
@@ -139,14 +139,14 @@ SpreadCenter
 omega_center(
     bvectors::BVectors{T},
     M::Array{Complex{T},4},
-    A::Array{Complex{T},3},
+    U::Array{Complex{T},3},
     r₀::Matrix{T},
     λ::T,
 ) where {T<:Real}
 omega_center_grad(
     bvectors::BVectors{FT},
     M::Array{Complex{FT},4},
-    A::Array{Complex{FT},3},
+    U::Array{Complex{FT},3},
     r::Matrix{FT},
     r₀::Matrix{FT},
     λ::FT,
@@ -154,7 +154,7 @@ omega_center_grad(
 omega_center_grad(
     bvectors::BVectors{FT},
     M::Array{Complex{FT},4},
-    A::Array{Complex{FT},3},
+    U::Array{Complex{FT},3},
     r₀::Matrix{FT},
     λ::FT,
 ) where {FT<:Real}

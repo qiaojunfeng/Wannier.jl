@@ -54,9 +54,9 @@ model = read_w90("$CUR_DIR/si2")
 
 First let's disentangle the valence + conduction manifold, without WF center penalty
 =#
-A = disentangle(model);
+U = disentangle(model);
 # Now we arrive at `s, p` WFs centered at atom centers,
-omega(model, A)
+omega(model, U)
 
 #=
 ## Disentanglement with constraint
@@ -88,9 +88,9 @@ As expected, there are large penalties on WFs due to there centers.
 
 Then disentangle with [`disentangle_center`](@ref) function,
 =#
-A1 = disentangle_center(model, r₀, λ);
+U1 = disentangle_center(model, r₀, λ);
 # the final spreads are
-Wannier.omega_center(model, A1, r₀, λ)
+Wannier.omega_center(model, U1, r₀, λ)
 #=
 Look, the the WF centers are positioned where we want, and now
 these are 4 degenerate bonding WFs, and 4 degenerate anti-bonding WFs!

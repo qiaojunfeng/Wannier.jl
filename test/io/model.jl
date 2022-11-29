@@ -14,8 +14,8 @@ end
     outseedname = joinpath(outdir, "silicon")
     write_w90(outseedname, model)
 
-    A = read_orthonorm_amn("$outseedname.amn")
-    @test A ≈ model.A
+    U = read_orthonorm_amn("$outseedname.amn")
+    @test U ≈ model.U
 
     E = read_eig("$outseedname.eig")
     @test E ≈ model.E

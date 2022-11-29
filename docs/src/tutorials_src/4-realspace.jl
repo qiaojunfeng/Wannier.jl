@@ -46,15 +46,15 @@ model = read_w90("$CUR_DIR/graphene")
 
 The [`disentangle`](@ref) function
 will disentangle and maximally localize the spread
-functional, and returns the gauge matrices `A`,
+functional, and returns the gauge matrices `U`,
 =#
-A = disentangle(model);
+U = disentangle(model);
 
 # The initial spread is
 omega(model)
 
 # The final spread is
-omega(model, A)
+omega(model, U)
 
 #=
 !!! note
@@ -68,15 +68,15 @@ omega(model, A)
 #=
 ## Write real space WFs
 
-Now save the `A` to the `model`,
+Now save the `U` to the `model`,
 =#
-model.A .= A;
+model.U .= U;
 #=
 !!! tip
 
-    You need to use `.=` to assign the `A` to the `model`,
+    You need to use `.=` to assign the `U` to the `model`,
     because in Julia `model` is an immutable `struct` so you cannot
-    use `model.A = A`.
+    use `model.U = U`.
 =#
 
 #=

@@ -53,19 +53,19 @@ struct Spread{T<:Real} <: AbstractSpread
 end
 
 """
-    omega(bvectors, M, A)
+    omega(bvectors, M, U)
 
 Compute WF spread.
 
 # Arguments
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 """
 @views function omega(
-    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
+    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, U::Array{Complex{FT},3}
 ) where {FT<:Real}
-    n_bands, n_wann, n_kpts = size(A)
+    n_bands, n_wann, n_kpts = size(U)
     n_bvecs = size(M, 3)
 
     kpb_k = bvectors.kpb_k
@@ -90,19 +90,19 @@ Compute WF spread.
     b = zeros(FT, 3)
 
     Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
-    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
+    MUᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
 
     for ik in 1:n_kpts
-        # w_froz -= μ * sum(abs2, A[1:n_froz, :, ik])
+        # w_froz -= μ * sum(abs2, U[1:n_froz, :, ik])
 
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
 
-            MAᵏᵇ .= M[:, :, ib, ik] * A[:, :, ikpb]
+            MUᵏᵇ .= M[:, :, ib, ik] * U[:, :, ikpb]
             # compute-intensive, but should be true
             # ibm = index_bvector(bvectors, ikpb, ik, -kpb_b[:, ib, ik])
             # @assert M[:, :, ib, ik]' ≈ M[:, :, ibm, ikpb]
-            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+            Nᵏᵇ .= U[:, :, ik]' * MUᵏᵇ
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
 
             wᵇ = wb[ib]
@@ -132,7 +132,7 @@ Compute WF spread.
     # for ik in 1:n_kpts
     #     for ib in 1:n_bvecs
     #         ikpb = kpb_k[ib, ik]
-    #         Nᵏᵇ .= A[:, :, ik]' * M[:, :, ib, ik] * A[:, :, ikpb]
+    #         Nᵏᵇ .= U[:, :, ik]' * M[:, :, ib, ik] * U[:, :, ikpb]
     #         b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
     #         wᵇ = wb[ib]
 
@@ -164,15 +164,15 @@ end
 
 Compute WF spread for `Model`.
 """
-omega(model::Model) = omega(model.bvectors, model.M, model.A)
+omega(model::Model) = omega(model.bvectors, model.M, model.U)
 
 """
-    omega(model, A)
+    omega(model, U)
 
-Compute WF spread for `Model` using given `A` gauge.
+Compute WF spread for `Model` using given `U` gauge.
 """
-function omega(model::Model, A::AbstractArray{T,3}) where {T<:Number}
-    return omega(model.bvectors, model.M, A)
+function omega(model::Model, U::AbstractArray{T,3}) where {T<:Number}
+    return omega(model.bvectors, model.M, U)
 end
 
 function Base.show(io::IO, Ω::Spread)
@@ -192,7 +192,7 @@ function Base.show(io::IO, Ω::Spread)
 end
 
 """
-    omega_grad(bvectors, M, A, r)
+    omega_grad(bvectors, M, U, r)
 
 Compute gradient of WF spread.
 
@@ -201,13 +201,13 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
 # Arguments
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 - `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
 """
 @views function omega_grad(
-    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}, r::Matrix{FT}
+    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, U::Array{Complex{FT},3}, r::Matrix{FT}
 ) where {FT<:Real}
-    n_bands, n_wann, n_kpts = size(A)
+    n_bands, n_wann, n_kpts = size(U)
     n_bvecs = size(M, 3)
 
     kpb_k = bvectors.kpb_k
@@ -230,17 +230,17 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
     b = zeros(FT, 3)
 
     Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
-    MAᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
+    MUᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
 
     for ik in 1:n_kpts
-        # w_froz -= μ * sum(abs2, A[1:n_froz, :, ik])
-        # G[1:n_froz, :, ik] = -2 * μ * A[1:n_froz, :, ik]
+        # w_froz -= μ * sum(abs2, U[1:n_froz, :, ik])
+        # G[1:n_froz, :, ik] = -2 * μ * U[1:n_froz, :, ik]
 
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
 
-            MAᵏᵇ .= M[:, :, ib, ik] * A[:, :, ikpb]
-            Nᵏᵇ .= A[:, :, ik]' * MAᵏᵇ
+            MUᵏᵇ .= M[:, :, ib, ik] * U[:, :, ikpb]
+            Nᵏᵇ .= U[:, :, ik]' * MUᵏᵇ
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
             wᵇ = wb[ib]
 
@@ -268,9 +268,9 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
                 t = -im * q[n] / Nᵏᵇ[n, n]
 
                 for m in 1:n_bands
-                    R[m, n] = -MAᵏᵇ[m, n] * conj(Nᵏᵇ[n, n])
-                    # T[m, n] = -im * MAᵏᵇ[m, n] / (Nᵏᵇ[n, n]) * q[n]
-                    T[m, n] = t * MAᵏᵇ[m, n]
+                    R[m, n] = -MUᵏᵇ[m, n] * conj(Nᵏᵇ[n, n])
+                    # T[m, n] = -im * MUᵏᵇ[m, n] / (Nᵏᵇ[n, n]) * q[n]
+                    T[m, n] = t * MUᵏᵇ[m, n]
                 end
             end
 
@@ -284,7 +284,7 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
 end
 
 """
-    omega_grad(bvectors, M, A)
+    omega_grad(bvectors, M, U)
 
 Compute gradient of WF spread.
 
@@ -293,30 +293,30 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
 # Arguments
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 """
 @views function omega_grad(
-    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
+    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, U::Array{Complex{FT},3}
 ) where {FT<:Real}
-    # r = omega(bvectors, M, A).r
-    r = center(bvectors, M, A)
-    return omega_grad(bvectors, M, A, r)
+    # r = omega(bvectors, M, U).r
+    r = center(bvectors, M, U)
+    return omega_grad(bvectors, M, U, r)
 end
 
 """
-    omega_local(bvectors, M, A)
+    omega_local(bvectors, M, U)
 
 Local part of the contribution to `r^2`.
 
 # Arguments
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 """
 function omega_local(
-    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
+    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, U::Array{Complex{FT},3}
 ) where {FT<:Real}
-    n_bands, n_wann, n_kpts = size(A)
+    n_bands, n_wann, n_kpts = size(U)
     n_bvecs = size(M, 3)
 
     kpb_k = bvectors.kpb_k
@@ -329,7 +329,7 @@ function omega_local(
     for ik in 1:n_kpts
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
-            Nᵏᵇ .= A[:, :, ik]' * M[:, :, ib, ik] * A[:, :, ikpb]
+            Nᵏᵇ .= U[:, :, ik]' * M[:, :, ib, ik] * U[:, :, ikpb]
 
             for n in 1:n_wann
                 loc[ik] += wb[ib] * (1 - abs(Nᵏᵇ[n, n])^2 + imaglog(Nᵏᵇ[n, n])^2)
@@ -341,19 +341,19 @@ function omega_local(
 end
 
 """
-    center(bvectors, M, A)
+    center(bvectors, M, U)
 
 Compute WF center in reciprocal space.
 
 # Arguments
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 """
 @views function center(
-    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
+    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, U::Array{Complex{FT},3}
 ) where {FT<:Real}
-    n_bands, n_wann, n_kpts = size(A)
+    n_bands, n_wann, n_kpts = size(U)
     n_bvecs = size(M, 3)
 
     kpb_k = bvectors.kpb_k
@@ -369,7 +369,7 @@ Compute WF center in reciprocal space.
     for ik in 1:n_kpts
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
-            Nᵏᵇ .= A[:, :, ik]' * M[:, :, ib, ik] * A[:, :, ikpb]
+            Nᵏᵇ .= U[:, :, ik]' * M[:, :, ib, ik] * U[:, :, ikpb]
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
 
             for n in 1:n_wann
@@ -388,35 +388,35 @@ end
 
 Compute WF center in reciprocal space for `Model`.
 """
-center(model::Model) = center(model.bvectors, model.M, model.A)
+center(model::Model) = center(model.bvectors, model.M, model.U)
 
 """
-    center(model, A)
+    center(model, U)
 
-Compute WF center in reciprocal space for `Model` with given `A` gauge.
+Compute WF center in reciprocal space for `Model` with given `U` gauge.
 
 # Arguments
 - `model`: the `Model`
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 """
-function center(model::Model, A::AbstractArray{T,3}) where {T<:Number}
-    return center(model.bvectors, model.M, A)
+function center(model::Model, U::AbstractArray{T,3}) where {T<:Number}
+    return center(model.bvectors, model.M, U)
 end
 
 """
-    position_op(bvectors, M, A)
+    position_op(bvectors, M, U)
 
 Compute WF postion operator matrix in reciprocal space.
 
 # Arguments
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 """
 @views function position_op(
-    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
+    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, U::Array{Complex{FT},3}
 ) where {FT<:Real}
-    n_bands, n_wann, n_kpts = size(A)
+    n_bands, n_wann, n_kpts = size(U)
     n_bvecs = size(M, 3)
 
     kpb_k = bvectors.kpb_k
@@ -436,7 +436,7 @@ Compute WF postion operator matrix in reciprocal space.
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
 
-            Nᵏᵇ .= A[:, :, ik]' * M[:, :, ib, ik] * A[:, :, ikpb]
+            Nᵏᵇ .= U[:, :, ik]' * M[:, :, ib, ik] * U[:, :, ikpb]
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
 
             wᵇ = wb[ib]
@@ -463,35 +463,35 @@ end
 
 Compute WF postion operator matrix in reciprocal space for `Model`.
 """
-position_op(model::Model) = position_op(model.bvectors, model.M, model.A)
+position_op(model::Model) = position_op(model.bvectors, model.M, model.U)
 
 """
-    position_op(model, A)
+    position_op(model, U)
 
-Compute WF postion operator matrix in reciprocal space for `Model` with given `A` gauge.
+Compute WF postion operator matrix in reciprocal space for `Model` with given `U` gauge.
 
 # Arguments
 - `model`: the `Model`
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 """
-function position_op(model::Model, A::AbstractArray{T,3}) where {T<:Number}
-    return position_op(model.bvectors, model.M, A)
+function position_op(model::Model, U::AbstractArray{T,3}) where {T<:Number}
+    return position_op(model.bvectors, model.M, U)
 end
 
 """
-    berry_connection(bvectors, M, A)
+    berry_connection(bvectors, M, U)
 
 Compute Berry connection at each kpoint.
 
 # Arguments
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `A`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_wann * n_wann * n_kpts` array
 """
 @views function berry_connection(
-    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, A::Array{Complex{FT},3}
+    bvectors::BVectors{FT}, M::Array{Complex{FT},4}, U::Array{Complex{FT},3}
 ) where {FT<:Real}
-    n_bands, n_wann, n_kpts = size(A)
+    n_bands, n_wann, n_kpts = size(U)
     n_bvecs = size(M, 3)
 
     kpb_k = bvectors.kpb_k
@@ -509,7 +509,7 @@ Compute Berry connection at each kpoint.
         for ib in 1:n_bvecs
             ikpb = kpb_k[ib, ik]
 
-            Nᵏᵇ .= A[:, :, ik]' * M[:, :, ib, ik] * A[:, :, ikpb]
+            Nᵏᵇ .= U[:, :, ik]' * M[:, :, ib, ik] * U[:, :, ikpb]
             b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
             wᵇ = wb[ib]
 

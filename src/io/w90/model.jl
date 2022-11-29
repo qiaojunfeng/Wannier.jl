@@ -53,15 +53,15 @@ function read_w90(
 
     if amn
         if orthonorm_amn
-            A = read_orthonorm_amn("$seedname.amn")
+            U = read_orthonorm_amn("$seedname.amn")
         else
-            A = read_amn("$seedname.amn")
+            U = read_amn("$seedname.amn")
         end
-        n_bands != size(A)[1] && error("n_bands != size(A)[1]")
-        n_wann != size(A)[2] && error("n_wann != size(A)[2]")
-        n_kpts != size(A)[3] && error("n_kpts != size(A)[3]")
+        n_bands != size(U)[1] && error("n_bands != size(U)[1]")
+        n_wann != size(U)[2] && error("n_wann != size(U)[2]")
+        n_kpts != size(U)[3] && error("n_kpts != size(U)[3]")
     else
-        A = zeros(ComplexF64, n_bands, n_wann, n_kpts)
+        U = zeros(ComplexF64, n_bands, n_wann, n_kpts)
     end
 
     if eig
@@ -96,7 +96,7 @@ function read_w90(
         bvectors,
         frozen_bands,
         M,
-        A,
+        U,
         E,
     )
 end
@@ -134,14 +134,14 @@ function read_w90_interp(
     if chk
         model = read_w90(seedname; amn=false)
         chkfmt = read_chk("$seedname.chk.fmt")
-        model.A .= get_A(chkfmt)
+        model.U .= get_U(chkfmt)
         centers = chkfmt.r
     else
         if isnothing(amn)
             model = read_w90(seedname)
         else
             model = read_w90(seedname; amn=false)
-            model.A .= read_orthonorm_amn(amn)
+            model.U .= read_orthonorm_amn(amn)
         end
         centers = center(model)
     end
@@ -166,7 +166,7 @@ function read_w90_interp(
         kpath = KPath(win.unit_cell, win.kpoint_path)
     end
 
-    Hᵏ = get_Hk(model.E, model.A)
+    Hᵏ = get_Hk(model.E, model.U)
     Hᴿ = fourier(kRvecs, Hᵏ)
 
     return InterpModel(kRvecs, kpath, Hᴿ)
@@ -191,7 +191,7 @@ function write_w90(seedname::AbstractString, model::Model; binary::Bool=false)
     kpb_b = model.bvectors.kpb_b
     write_mmn(outname("mmn"), model.M, kpb_k, kpb_b; binary=binary)
 
-    write_amn(outname("amn"), model.A; binary=binary)
+    write_amn(outname("amn"), model.U; binary=binary)
 
     return nothing
 end

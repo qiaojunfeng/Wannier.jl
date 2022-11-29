@@ -1,11 +1,11 @@
 using LinearAlgebra
 
 """
-Propagate A, defined at the first kpt, to the given list of kpts.
+Propagate U, defined at the first kpt, to the given list of kpts.
 Those must be neighbors, and only the first kpoint is assumed to have been rotated.
 
 # Arguments
-- `A`: `n_wann * n_wann * n_kpts` gauge matrices
+- `U`: `n_wann * n_wann * n_kpts` gauge matrices
 - `kpts`: list of kpoints along which to propagate the gauge matrices
 - `dk`: the distance between two consecutive kpoints, in fractional coordinates
 - `M`: overlap matrices
@@ -14,7 +14,7 @@ Those must be neighbors, and only the first kpoint is assumed to have been rotat
 - `kpb_b`: `BVectors.kpb_b`
 """
 function propagate!(
-    A::Array{T,3},
+    U::Array{T,3},
     kpts::Vector{Int},
     dk::Vector{R},
     M::Array{T,4},
@@ -23,8 +23,8 @@ function propagate!(
     kpb_b::Array{Int,3},
 ) where {T<:Complex,R<:Real}
     N = length(kpts)
-    n = size(A, 1)
-    m = size(A, 2)
+    n = size(U, 1)
+    m = size(U, 2)
     @assert n == m "Non square matrix given as argument in propagate"
 
     for i in 2:N
@@ -42,14 +42,14 @@ function propagate!(
         b = round.(Int, kpoints[:, ik] - dk - kpoints[:, ik0])
         ib = index_bvector(kpb_k, kpb_b, ik, ik0, b)
         Mᵏᵇ = M[:, :, ib, ik]
-        A[:, :, ik] = orthonorm_lowdin(Mᵏᵇ * A[:, :, ik0])
+        U[:, :, ik] = orthonorm_lowdin(Mᵏᵇ * U[:, :, ik0])
     end
 
     return nothing
 end
 
-function propagate!(A, kpts, dk, M, bvectors::BVectors)
-    return propagate!(A, kpts, dk, M, bvectors.kpoints, bvectors.kpb_k, bvectors.kpb_b)
+function propagate!(U, kpts, dk, M, bvectors::BVectors)
+    return propagate!(U, kpts, dk, M, bvectors.kpoints, bvectors.kpb_k, bvectors.kpb_b)
 end
 
 """

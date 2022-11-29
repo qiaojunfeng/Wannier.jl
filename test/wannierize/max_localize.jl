@@ -6,15 +6,15 @@ model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
 f, g! = Wannier.get_fg!_maxloc(model)
 
 @testset "maxloc spread gradient" begin
-    A0 = deepcopy(model.A)
+    U0 = deepcopy(model.U)
 
     # analytical gradient
-    G = similar(A0)
-    g!(G, A0)
+    G = similar(U0)
+    g!(G, U0)
 
     # finite diff gradient
-    d = OnceDifferentiable(f, A0, zero(eltype(real(A0))))
-    G_ref = NLSolversBase.gradient!(d, A0)
+    d = OnceDifferentiable(f, U0, zero(eltype(real(U0))))
+    G_ref = NLSolversBase.gradient!(d, U0)
 
     # I am using a looser tolerance here
     @test isapprox(G, G_ref; atol=1e-6)
@@ -28,20 +28,20 @@ f, g! = Wannier.get_fg!_maxloc(model)
         -0.0956088+0.205024im 0.468778+0.234124im 0.563928-0.141122im -0.572565+0.0921779im
         0.561868-0.269944im 0.350754-0.00970417im 0.451343+0.247661im 0.471665-0.0282528im
     ]
-    A1 = rotate_A(A0, W1)
+    U1 = rotate_U(U0, W1)
 
-    g!(G, A1)
-    d = OnceDifferentiable(f, A1, zero(eltype(real(A1))))
-    G_ref = NLSolversBase.gradient!(d, A1)
+    g!(G, U1)
+    d = OnceDifferentiable(f, U1, zero(eltype(real(U1))))
+    G_ref = NLSolversBase.gradient!(d, U1)
     @test isapprox(G, G_ref; atol=1e-6)
 end
 
 @testset "maxloc valence" begin
     # start from parallel transport gauge
-    model.A .= read_orthonorm_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
+    model.U .= read_orthonorm_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
 
-    Amin = max_localize(model)
-    Ω = omega(model.bvectors, model.M, Amin)
+    Umin = max_localize(model)
+    Ω = omega(model.bvectors, model.M, Umin)
 
     @test isapprox(Ω.Ω, 6.374823673444644; atol=1e-7)
     @test isapprox(Ω.ΩI, 5.812709709242578; atol=1e-7)

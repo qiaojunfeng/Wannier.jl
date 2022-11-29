@@ -64,13 +64,13 @@ the valence + conduction manifolds of MoS2.
 Since we are focusing on the isolated manifolds of MoS2,
 we only need to run [`max_localize`](@ref) function,
 =#
-A = max_localize(model);
+U = max_localize(model);
 
 # The initial spread is
 omega(model)
 
 # The final spread is
-omega(model, A)
+omega(model, U)
 
 #=
 !!! note
@@ -108,21 +108,21 @@ However, to make the tutorial reproducible, we will use a fixed random seed.
 =#
 using Random
 Random.seed!(12345)
-R = Wannier.rand_unitary(eltype(model_val.A), size(model_val.A)...)
+R = Wannier.rand_unitary(eltype(model_val.U), size(model_val.U)...)
 # and assign it to the `model_val`
-model_val.A .= R;
+model_val.U .= R;
 # of course now we have totally destroyed the gauge 😈
 omega(model_val)
 # and we will ask `parallel_transport` to explicitly use our random matrices,
-# by setting argument `use_A = true`,
-A2, _ = parallel_transport(model_val; use_A=true)
+# by setting argument `use_U = true`,
+U2, _ = parallel_transport(model_val; use_U=true)
 #=
 note the function returns a lit bit extra information which is irrelevant to this tutorial,
 so we discard it by a `_`.
 
 Then we inspect the new gauge
 =#
-omega(model_val, A2)
+omega(model_val, U2)
 
 #=
 ## Fix gauge at first kpoint
@@ -131,18 +131,18 @@ However, the [`parallel_transport`](@ref) itself does not fix the gauge of the f
 which is arbitrary. We can fix it by maximal localizing w.r.t. a single (i.e. independent of kpoints)
 `n_wann * n_wann` rotation matrix `W`, by calling [`opt_rotate`](@ref),
 =#
-model_val.A .= A2;
+model_val.U .= U2;
 W = opt_rotate(model_val)
 #=
 This is convenient since the calculation is cheap, and helps evade local minimum.
 
 Then let's rotate the input gauge by `W`,
 =#
-A3 = rotate_A(A2, W);
+U3 = rotate_U(U2, W);
 #=
 and inspect the new gauge,
 =#
-omega(model_val, A3)
+omega(model_val, U3)
 
 #=
 ## Final maximal localization
@@ -150,10 +150,10 @@ omega(model_val, A3)
 Often it is helpful to run a final maximal localization that could further
 smoothen the gauge,
 =#
-model_val.A .= A3;
-A4 = max_localize(model_val);
+model_val.U .= U3;
+U4 = max_localize(model_val);
 # and inspect the final gauge
-omega(model_val, A4)
+omega(model_val, U4)
 
 #=
 ## Band interpolation
@@ -162,11 +162,11 @@ Finally, let's have a look at the band interpolation.
 
 Valence + conduction bands,
 =#
-model.A .= A;
+model.U .= U;
 interp_model = Wannier.InterpModel(model)
 kpi, E = interpolate(interp_model)
 # and top valence band,
-model_val.A .= A4;
+model_val.U .= U4;
 interp_model_val = Wannier.InterpModel(model_val)
 kpi2, E2 = interpolate(interp_model_val)
 # and plot the band structure
@@ -186,22 +186,22 @@ Similarly, we can Wannierize only the top valence band, with PTG
 model_top = Wannier.truncate(model, [7], [1])
 #=
 note the `[1]` specifies which WF to be kept, but this does not matter
-since we won't use the gauge from the previous `model.A`. We use
+since we won't use the gauge from the previous `model.U`. We use
 this `[1]` to specify that we only need 1 WF.
 
 The initial spread is
 =#
 omega(model_top)
 # with PTG,
-A_top, _ = parallel_transport(model_top)
-omega(model_top, A_top)
+U_top, _ = parallel_transport(model_top)
+omega(model_top, U_top)
 #=
 In the single-band case, there is no need to run optimal rotation.
 But we can still run maximal localization,
 =#
-model_top.A .= A_top;
-A_top2 = max_localize(model_top)
-omega(model_top, A_top2)
+model_top.U .= U_top;
+U_top2 = max_localize(model_top)
+omega(model_top, U_top2)
 # and band interpolation
 interp_model_top = Wannier.InterpModel(model_top)
 kpi3, E3 = interpolate(interp_model_top)

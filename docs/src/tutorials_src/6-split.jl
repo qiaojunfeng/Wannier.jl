@@ -85,7 +85,7 @@ model = read_w90("$CUR_DIR/si2")
 
 First let's disentangle the valence + conduction manifold,
 =#
-A = disentangle(model);
+U = disentangle(model);
 
 #=
 ## Splitting the model
@@ -105,11 +105,11 @@ in that case you need to pass these two matrices to the function
 
 Next, we construct PTG for the two `Model`s,
 =#
-Av, _ = parallel_transport(model_v)
-model_v.A .= Av;
+Uv, _ = parallel_transport(model_v)
+model_v.U .= Uv;
 # and
-Ac, _ = parallel_transport(model_c)
-model_c.A .= Ac;
+Uc, _ = parallel_transport(model_c)
+model_c.U .= Uc;
 # and take a look at the spread
 omega(model_v)
 omega(model_c)
@@ -123,11 +123,11 @@ omega(model_c)
 
 We can further run maximal localization to smoothen the gauge,
 =#
-Av = max_localize(model_v)
-model_v.A .= Av;
+Uv = max_localize(model_v)
+model_v.U .= Uv;
 # and
-Ac = max_localize(model_c)
-model_c.A .= Ac;
+Uc = max_localize(model_c)
+model_c.U .= Uc;
 #=
 !!! tip
 
@@ -139,7 +139,7 @@ model_c.A .= Ac;
 
 The valence + conduction,
 =#
-model.A .= A;
+model.U .= U;
 omega(model)
 # the valence,
 omega(model_v)

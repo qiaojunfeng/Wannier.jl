@@ -23,22 +23,22 @@ Generate parallel transport gauge Wannier functions.
 
     #Build the gauge that makes the Bloch frame continuous on the Brillouin Zone.
     #This is equivalent to building a set of algebraic decaying Wannier functions
-    A, obs = parallel_transport(model; log_interp=false)
+    U, obs = parallel_transport(model; log_interp=false)
 
-    Ωⁱ = omega(model.bvectors, model.M, model.A)
+    Ωⁱ = omega(model.bvectors, model.M, model.U)
     @info "Initial spread"
     show(Ωⁱ)
     println("\n")
 
-    Ωᶠ = omega(model.bvectors, model.M, A)
+    Ωᶠ = omega(model.bvectors, model.M, U)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
 
     # Plot and display the results
-    # Wannier.plot_obstruction(model, A, obs)
+    # Wannier.plot_obstruction(model, U, obs)
 
-    write_amn(output, A)
+    write_amn(output, U)
 
     return nothing
 end

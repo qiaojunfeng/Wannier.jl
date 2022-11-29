@@ -164,10 +164,10 @@ function split_model(model::Model, n_val::Int)
 
     # EIG
     E = model.E
-    U = model.A
+    U = model.U
     Ev, Ec, Vv, Vc = split_eig(E, U, n_val)
-    UVv = rotate_A(U, Vv)
-    UVc = rotate_A(U, Vc)
+    UVv = rotate_U(U, Vv)
+    UVc = rotate_U(U, Vc)
 
     model_v = rotate_gauge(model, UVv)
     @assert model_v.E ≈ Ev
@@ -194,10 +194,10 @@ Split the model and run parallel transport to smoothen the gauge.
 function split_wannierize(model::Model, n_val::Int)
     model_v, model_c, UVv, UVc = split_model(model, n_val)
 
-    Av, _ = parallel_transport(model_v)
-    model_v.A .= Av
-    Ac, _ = parallel_transport(model_c)
-    model_c.A .= Ac
+    Uv, _ = parallel_transport(model_v)
+    model_v.U .= Uv
+    Uc, _ = parallel_transport(model_c)
+    model_c.U .= Uc
 
     return model_v, model_c, UVv, UVc
 end

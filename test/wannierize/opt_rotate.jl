@@ -36,8 +36,8 @@ end
 
 @testset "opt_rotate valence" begin
     # start from parallel transport gauge
-    A0 = read_orthonorm_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
-    model.A .= A0
+    U0 = read_orthonorm_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
+    model.U .= U0
 
     Wmin = opt_rotate(model)
     Wref = [
@@ -49,9 +49,9 @@ end
     # display(Wmin)
     @test isapprox(Wmin, Wref; atol=1e-5)
 
-    # Amin = rotate_A(A0, Wmin)
-    # Aref = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.optrot.amn"))
-    # @test isapprox(Amin, Aref; atol=1e-6)
+    # Umin = rotate_U(U0, Wmin)
+    # Uref = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.optrot.amn"))
+    # @test isapprox(Umin, Uref; atol=1e-6)
 
-    # write_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.optrot.amn"), Amin)
+    # write_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.optrot.amn"), Umin)
 end

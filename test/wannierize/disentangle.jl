@@ -4,19 +4,19 @@ using NLSolversBase
 model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
 f, g! = Wannier.get_fg!_disentangle(model)
 
-@testset "A_to_X_Y X_Y_to_A" begin
-    X, Y = Wannier.A_to_X_Y(model.A, model.frozen_bands)
-    A1 = Wannier.X_Y_to_A(X, Y)
-    # A1 != model.A since some states are frozen
-    X1, Y1 = Wannier.A_to_X_Y(A1, model.frozen_bands)
+@testset "U_to_X_Y X_Y_to_U" begin
+    X, Y = Wannier.U_to_X_Y(model.U, model.frozen_bands)
+    U1 = Wannier.X_Y_to_U(X, Y)
+    # U1 != model.U since some states are frozen
+    X1, Y1 = Wannier.U_to_X_Y(U1, model.frozen_bands)
     # X1 != X, Y1 != Y, since the X, Y gauge are arbitrary due to SVD
-    # However the A1 should = A2
-    A2 = Wannier.X_Y_to_A(X1, Y1)
-    @test isapprox(A1, A2; atol=1e-6)
+    # However the U1 should = U2
+    U2 = Wannier.X_Y_to_U(X1, Y1)
+    @test isapprox(U1, U2; atol=1e-6)
 end
 
 @testset "XY_to_X_Y X_Y_to_XY" begin
-    X, Y = Wannier.A_to_X_Y(model.A, model.frozen_bands)
+    X, Y = Wannier.U_to_X_Y(model.U, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
     X1, Y1 = Wannier.XY_to_X_Y(XY, model.n_bands, model.n_wann)
     @test isapprox(X, X1; atol=1e-6)
@@ -24,10 +24,10 @@ end
 end
 
 @testset "disentangle spread gradient" begin
-    A0 = deepcopy(model.A)
+    U0 = deepcopy(model.U)
 
     # analytical gradient
-    X, Y = Wannier.A_to_X_Y(A0, model.frozen_bands)
+    X, Y = Wannier.U_to_X_Y(U0, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
     G = similar(XY)
     g!(G, XY)
@@ -41,8 +41,8 @@ end
     @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
-    A1 = Wannier.disentangle(model; max_iter=1)
-    X, Y = Wannier.A_to_X_Y(A1, model.frozen_bands)
+    U1 = Wannier.disentangle(model; max_iter=1)
+    X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
     g!(G, XY)
@@ -53,8 +53,8 @@ end
 end
 
 @testset "disentangle" begin
-    Amin = Wannier.disentangle(model; max_iter=4)
-    Ω = Wannier.omega(model.bvectors, model.M, Amin)
+    Umin = Wannier.disentangle(model; max_iter=4)
+    Ω = Wannier.omega(model.bvectors, model.M, Umin)
 
     # display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃

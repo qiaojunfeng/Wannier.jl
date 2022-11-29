@@ -17,9 +17,9 @@ Maximally localize an isolated group of bands.
 
     model = read_w90(seedname)
 
-    A = max_localize(model; max_iter=maxiter)
+    U = max_localize(model; max_iter=maxiter)
 
-    write_amn(output, A)
+    write_amn(output, U)
 
     return nothing
 end

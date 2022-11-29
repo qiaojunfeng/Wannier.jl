@@ -41,8 +41,8 @@ Then this command split WFs into two independent groups.
 
     if run_disentangle
         # You can also use disentangle to get a good gauge from initial projection
-        model.A .= read_orthonorm_amn("$seedname.amn")
-        model.A .= disentangle(model)
+        model.U .= read_orthonorm_amn("$seedname.amn")
+        model.U .= disentangle(model)
     else
         # Get max localized gauge from chk file, 1st try text format, then binary
         if isfile("$seedname.chk.fmt")
@@ -51,7 +51,7 @@ Then this command split WFs into two independent groups.
             chk = read_chk("$seedname.chk")
         end
         # We replace the initial projection by the "good" max loc gauge
-        model.A .= get_A(chk)
+        model.U .= get_U(chk)
     end
 
     @info "Valence + conduction initial spread"
@@ -74,16 +74,16 @@ Then this command split WFs into two independent groups.
         @info "Run optimal rotation"
         println()
         Wv = opt_rotate(model_val)
-        model_val.A .= rotate_A(model_val.A, Wv)
+        model_val.U .= rotate_U(model_val.U, Wv)
         Wc = opt_rotate(model_cond)
-        model_cond.A .= rotate_A(model_cond.A, Wc)
+        model_cond.U .= rotate_U(model_cond.U, Wc)
     end
 
     if run_maxloc
         @info "Run max localization"
         println()
-        model_val.A .= max_localize(model_val)
-        model_cond.A .= max_localize(model_cond)
+        model_val.U .= max_localize(model_val)
+        model_cond.U .= max_localize(model_cond)
     end
 
     # Write files

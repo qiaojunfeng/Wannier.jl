@@ -5,7 +5,7 @@ export parallel_transport
 include("contraction.jl")
 
 """
-    parallel_transport(model::Model{T}; use_A=false, log_interp=false)
+    parallel_transport(model::Model{T}; use_U=false, log_interp=false)
 
 Parallel transport the gauge from the first kpoint to all other kpoints.
 
@@ -17,11 +17,11 @@ Assumptions:
 - `model`: model
 
 # Keyword arguments
-- `use_A`: use the gauge `A` instead of random matrix
+- `use_U`: use the gauge `U` instead of random matrix
 - `log_interp`: use logarithmic interpolation method
 """
 function parallel_transport(
-    model::Model{T}; use_A::Bool=false, log_interp::Bool=false
+    model::Model{T}; use_U::Bool=false, log_interp::Bool=false
 ) where {T<:Real}
     if log_interp
         println("log interpolation")
@@ -46,24 +46,24 @@ function parallel_transport(
     bvectors = model.bvectors
 
     # the new gauge
-    if use_A
-        A = deepcopy(model.A)
+    if use_U
+        U = deepcopy(model.U)
     else
-        A = eyes_A(Complex{T}, n_wann, n_kpts)
+        U = eyes_U(Complex{T}, n_wann, n_kpts)
     end
 
     # 1. propagate along kx
     @info "Filling (kx,0,0)"
     kpts = [xyz_k[i, 1, 1] for i in 1:n_kx]
     dk = [1 / n_kx, 0.0, 0.0]
-    propagate!(A, kpts, dk, M, bvectors)
+    propagate!(U, kpts, dk, M, bvectors)
 
     # compute obstruction matrix for dimension d = 1
     # In GLS2019 paper, ũ(1) = ( τ₁ ũ(0) ) Vₒ, where Vₒ is the obstruction matrix.
-    # However, here we compute Vₒ = A(nkx)' * M(nkx,1) * A(0),
+    # However, here we compute Vₒ = U(nkx)' * M(nkx,1) * U(0),
     # since kpoints are discretized 1...nkx, we need approximations:
-    #     ũ(1) ≈ |ψ(nkx)> * A(nkx),
-    #     τ₁ ũ(0) = |ψ(1+nkx)> * A(1),
+    #     ũ(1) ≈ |ψ(nkx)> * U(nkx),
+    #     τ₁ ũ(0) = |ψ(1+nkx)> * U(1),
     # so our Vₒ is actually the inverse of the Vₒ in the paper.
     k1 = xyz_k[end, 1, 1]
     k2 = xyz_k[1, 1, 1]
@@ -74,7 +74,7 @@ function parallel_transport(
     # For other grids, b = k1 + dk - k2.
     b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
     ib = index_bvector(bvectors, k1, k2, b)
-    Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
+    Nᵏᵇ = U[:, :, k1]' * M[:, :, ib, k1] * U[:, :, k2]
     O1 = orthonorm_lowdin(Nᵏᵇ)
     @debug "Obstruction matrix =" V = O1
 
@@ -94,7 +94,7 @@ function parallel_transport(
         # Since our Vₒ is the inverse of the Vₒ in the paper,
         # we don't need a minus sign here.
         Oₖ = V * diagm(0 => exp.(tx[i] * logd)) * V'
-        A[:, :, ik] *= Oₖ
+        U[:, :, ik] *= Oₖ
     end
 
     # 2. propagate along ky
@@ -102,7 +102,7 @@ function parallel_transport(
     dk = [0.0, 1 / n_ky, 0.0]
     for ik in 1:n_kx
         kpts = [xyz_k[ik, j, 1] for j in 1:n_ky]
-        propagate!(A, kpts, dk, M, bvectors)
+        propagate!(U, kpts, dk, M, bvectors)
     end
 
     # corner obstruction
@@ -112,7 +112,7 @@ function parallel_transport(
     # For other grids,
     b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
     ib = index_bvector(bvectors, k1, k2, b)
-    Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
+    Nᵏᵇ = U[:, :, k1]' * M[:, :, ib, k1] * U[:, :, k2]
     O2 = orthonorm_lowdin(Nᵏᵇ)
 
     d, V = eigen(O2)
@@ -130,7 +130,7 @@ function parallel_transport(
             ik = xyz_k[i, j, 1]
             # no need a minus sign here
             Oₖ = V * diagm(0 => exp.(ty[j] * logd)) * V'
-            A[:, :, ik] *= Oₖ
+            U[:, :, ik] *= Oₖ
         end
     end
 
@@ -145,7 +145,7 @@ function parallel_transport(
         # For other grids,
         b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
         ib = index_bvector(bvectors, k1, k2, b)
-        Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
+        Nᵏᵇ = U[:, :, k1]' * M[:, :, ib, k1] * U[:, :, k2]
         Oxy[:, :, i] = orthonorm_lowdin(Nᵏᵇ)
         detO3[i] = det(Oxy[:, :, i])
     end
@@ -181,8 +181,8 @@ function parallel_transport(
         for j in 1:n_ky
             ik = xyz_k[i, j, 1]
 
-            A[:, :, ik] *= exp(im * logD[i] * ty[j] / 2)
-            A[:, :, ik] *= Uxy[:, :, i, j]
+            U[:, :, ik] *= exp(im * logD[i] * ty[j] / 2)
+            U[:, :, ik] *= Uxy[:, :, i, j]
         end
     end
 
@@ -191,7 +191,7 @@ function parallel_transport(
     dk = [0.0, 0.0, 1 / n_kz]
     for i in 1:n_kx, j in 1:n_ky
         kpts = [xyz_k[i, j, k] for k in 1:n_kz]
-        propagate!(A, kpts, dk, M, bvectors)
+        propagate!(U, kpts, dk, M, bvectors)
     end
 
     # Fix corner
@@ -201,7 +201,7 @@ function parallel_transport(
     # For other grids,
     b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
     ib = index_bvector(bvectors, k1, k2, b)
-    Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
+    Nᵏᵇ = U[:, :, k1]' * M[:, :, ib, k1] * U[:, :, k2]
     O4 = orthonorm_lowdin(Nᵏᵇ)
     d, V = eigen(O4)
     logd = log.(d)
@@ -219,7 +219,7 @@ function parallel_transport(
 
         for i in 1:n_kx, j in 1:n_ky
             ik = xyz_k[i, j, k]
-            A[:, :, ik] *= W
+            U[:, :, ik] *= W
         end
     end
 
@@ -234,7 +234,7 @@ function parallel_transport(
         # For other grids,
         b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
         ib = index_bvector(bvectors, k1, k2, b)
-        Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
+        Nᵏᵇ = U[:, :, k1]' * M[:, :, ib, k1] * U[:, :, k2]
         Oxz[:, :, i] = orthonorm_lowdin(Nᵏᵇ)
     end
 
@@ -249,12 +249,12 @@ function parallel_transport(
 
                 for j in 1:n_ky
                     ik = xyz_k[i, j, k]
-                    A[:, :, ik] *= W
+                    U[:, :, ik] *= W
                 end
             else
                 for j in 1:n_ky
                     ik = xyz_k[i, j, k]
-                    A[:, :, ik] *= Uxz[:, :, i, k]
+                    U[:, :, ik] *= Uxz[:, :, i, k]
                 end
             end
         end
@@ -271,7 +271,7 @@ function parallel_transport(
         # For other grids,
         b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
         ib = index_bvector(bvectors, k1, k2, b)
-        Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
+        Nᵏᵇ = U[:, :, k1]' * M[:, :, ib, k1] * U[:, :, k2]
         Oyz[:, :, j] = orthonorm_lowdin(Nᵏᵇ)
     end
 
@@ -286,12 +286,12 @@ function parallel_transport(
 
                 for i in 1:n_kx
                     ik = xyz_k[i, j, k]
-                    A[:, :, ik] *= W
+                    U[:, :, ik] *= W
                 end
             else
                 for i in 1:n_kx
                     ik = xyz_k[i, j, k]
-                    A[:, :, ik] *= Uyz[:, :, j, k]
+                    U[:, :, ik] *= Uyz[:, :, j, k]
                 end
             end
         end
@@ -305,27 +305,27 @@ function parallel_transport(
         # For other grids,
         b = round.(Int, kpoints[:, k1] + dk - kpoints[:, k2])
         ib = index_bvector(bvectors, k1, k2, b)
-        Nᵏᵇ = A[:, :, k1]' * M[:, :, ib, k1] * A[:, :, k2]
+        Nᵏᵇ = U[:, :, k1]' * M[:, :, ib, k1] * U[:, :, k2]
         O = orthonorm_lowdin(Nᵏᵇ)
 
         for k in 1:n_kz
             ik = xyz_k[i, j, k]
-            A[:, :, ik] *= powm(O, tz[k])
+            U[:, :, ik] *= powm(O, tz[k])
         end
     end
 
-    compute_error(model, A)
+    compute_error(model, U)
 
     obs = Obstruction(Oxy, Oxz, Oyz, Uxy, Uxz, Uyz)
-    return A, obs
+    return U, obs
 end
 
 """
-    compute_error(model, A::Array{Complex{T},3})
+    compute_error(model, U::Array{Complex{T},3})
 
 Compute the smoothness error of the gauge.
 """
-function compute_error(model::Model{T}, A::Array{Complex{T},3}) where {T<:Real}
+function compute_error(model::Model{T}, U::Array{Complex{T},3}) where {T<:Real}
     # initial error
     ϵ0 = 0.0
     # final error
@@ -336,7 +336,7 @@ function compute_error(model::Model{T}, A::Array{Complex{T},3}) where {T<:Real}
     k_xyz, xyz_k = get_kpoint_mappings(kpoints, model.kgrid)
 
     M = model.M
-    A0 = model.A
+    U0 = model.U
 
     epsilon(i, j, b, B) = begin
         ib = index_bvector(model.bvectors, i, j, b)
@@ -362,8 +362,8 @@ function compute_error(model::Model{T}, A::Array{Complex{T},3}) where {T<:Real}
         # For other grids
         b = round.(Int, kpoints[:, k1] + dkx - kpoints[:, k2])
 
-        ϵ0 += epsilon(k1, k2, b, A0)
-        ϵ1 += epsilon(k1, k2, b, A)
+        ϵ0 += epsilon(k1, k2, b, U0)
+        ϵ1 += epsilon(k1, k2, b, U)
 
         if j == n_ky
             k2 = xyz_k[i, 1, k]
@@ -377,8 +377,8 @@ function compute_error(model::Model{T}, A::Array{Complex{T},3}) where {T<:Real}
         # For other grids
         b = round.(Int, kpoints[:, k1] + dky - kpoints[:, k2])
 
-        ϵ0 += epsilon(k1, k2, b, A0)
-        ϵ1 += epsilon(k1, k2, b, A)
+        ϵ0 += epsilon(k1, k2, b, U0)
+        ϵ1 += epsilon(k1, k2, b, U)
 
         if k == n_kz
             k2 = xyz_k[i, j, 1]
@@ -392,8 +392,8 @@ function compute_error(model::Model{T}, A::Array{Complex{T},3}) where {T<:Real}
         # For other grids
         b = round.(Int, kpoints[:, k1] + dkz - kpoints[:, k2])
 
-        ϵ0 += epsilon(k1, k2, b, A0)
-        ϵ1 += epsilon(k1, k2, b, A)
+        ϵ0 += epsilon(k1, k2, b, U0)
+        ϵ1 += epsilon(k1, k2, b, U)
     end
 
     ϵ0 = sqrt(ϵ0) / model.n_kpts

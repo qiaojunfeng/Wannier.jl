@@ -151,7 +151,7 @@ function InterpModel(model::Model; mdrs::Bool=true)
 
     kpath = get_kpath(model.lattice, model.atom_positions, model.atom_labels)
 
-    Hᵏ = get_Hk(model.E, model.A)
+    Hᵏ = get_Hk(model.E, model.U)
     Hᴿ = fourier(kRvecs, Hᵏ)
 
     return InterpModel(kRvecs, kpath, Hᴿ)

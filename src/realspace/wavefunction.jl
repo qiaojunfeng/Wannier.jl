@@ -21,12 +21,12 @@ function _get_unk_ext(unkdir::AbstractString)
 end
 
 """
-    read_realspace_wf(A, kpoints, n_supercells, unkdir="."; R=[0, 0, 0])
+    read_realspace_wf(U, kpoints, n_supercells, unkdir="."; R=[0, 0, 0])
 
 Read `UNK` files, rotate gauge, and generate real space WFs.
 
 # Arguments
-- `A`: `n_bands * n_wann * n_kpts`, gauge rotation matrix
+- `U`: `n_bands * n_wann * n_kpts`, gauge rotation matrix
 - `kpoints`: `3 * n_kpts`, each column is a vector for fractional coordinates
 - `n_supercells`: an integer or a vector of 3 integers for 3 directions along lattice vectors,
     defines the number of super cells where the real space WF lives
@@ -41,13 +41,13 @@ Read `UNK` files, rotate gauge, and generate real space WFs.
     See also the section [Normalization convention of WFs](@ref) for further explanation.
 """
 function read_realspace_wf(
-    A::AbstractArray{Complex{T},3},
+    U::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T},
     n_supercells::AbstractVector{Int},
     unkdir::AbstractString;
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
-    n_bands, n_wann, n_kpts = size(A)
+    n_bands, n_wann, n_kpts = size(U)
     length(n_supercells) == 3 || error("n_supercells must be 3-vector")
 
     supercells = Vector{UnitRange}()
@@ -73,7 +73,7 @@ function read_realspace_wf(
     size(Ψₖ, 4) == n_bands || error("incompatible n_bands")
 
     # WF in realspace
-    W = zeros(eltype(A), n_gx * n_sx, n_gy * n_sy, n_gz * n_sz, n_wann)
+    W = zeros(eltype(U), n_gx * n_sx, n_gy * n_sy, n_gz * n_sz, n_wann)
 
     # generate X, Y, Z fractional coordinates relative to lattice (here unknown)
     # actually X./n_gx, Y./n_gy, Z./n_gz are the fractional coordinates w.r.t lattice
@@ -95,7 +95,7 @@ function read_realspace_wf(
         # rotate Ψ
         # * does not support high dimensional matrix multiplication,
         # I need to reshape it to 2D matrix
-        ΨAₖ = reshape(reshape(Ψₖ, :, n_bands) * A[:, :, ik], n_gx, n_gy, n_gz, n_wann)
+        ΨUₖ = reshape(reshape(Ψₖ, :, n_bands) * U[:, :, ik], n_gx, n_gy, n_gz, n_wann)
         # make sure Ψ is normalized to 1 in unit cell
         # the QE output UNK needs this factor to be normalized
         # Note in QE, the r->G FFT has a factor 1/N,
@@ -103,7 +103,7 @@ function read_realspace_wf(
         # but FFT/IFFT is unitary only if they have factor sqrt(1/N)
         f0 = 1 / sqrt(n_gx * n_gy * n_gz)
         for (iz, z) in enumerate(Z)
-            # ΨAₖ is only defined in the home unit cell, find corresponding indexes
+            # ΨUₖ is only defined in the home unit cell, find corresponding indexes
             # e.g. x=0 -> W[1,1,1], x=1 -> W[2,1,1], x=n_gx -> W[1,1,1], x=-1 -> W[end,1,1]
             jz = mod(z, n_gz) + 1
             for (iy, y) in enumerate(Y)
@@ -112,10 +112,10 @@ function read_realspace_wf(
                     jx = mod(x, n_gx) + 1
                     # r grid in fractional coordinates
                     r = [x / n_gx, y / n_gy, z / n_gz]
-                    # UNK file (and ΨAₖ) is the periodic part of Bloch wavefunction,
+                    # UNK file (and ΨUₖ) is the periodic part of Bloch wavefunction,
                     # need a factor exp(ikr)
                     f = f0 * exp(2π * im * k' * (r - R))
-                    W[ix, iy, iz, :] += f * ΨAₖ[jx, jy, jz, :]
+                    W[ix, iy, iz, :] += f * ΨUₖ[jx, jy, jz, :]
                 end
             end
         end
@@ -138,19 +138,19 @@ function read_realspace_wf(
 end
 
 function read_realspace_wf(
-    A::AbstractArray{Complex{T},3},
+    U::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T},
     n_supercells::Int,
     unkdir::AbstractString;
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
     return read_realspace_wf(
-        A, kpoints, [n_supercells, n_supercells, n_supercells], unkdir; R=R
+        U, kpoints, [n_supercells, n_supercells, n_supercells], unkdir; R=R
     )
 end
 
 """
-    read_realspace_wf(lattice, A, kpoints, n_supercells=2, unkdir="."; R=[0, 0, 0])
+    read_realspace_wf(lattice, U, kpoints, n_supercells=2, unkdir="."; R=[0, 0, 0])
 
 Read `UNK` files, rotate gauge, and generate real space WFs.
 
@@ -159,42 +159,42 @@ where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data fo
 
 # Arguments
 - `lattice`: each column is a lattice vector
-- `A`: `n_bands * n_wann * n_kpts`, gauge rotation matrix
+- `U`: `n_bands * n_wann * n_kpts`, gauge rotation matrix
 """
 function read_realspace_wf(
     lattice::AbstractMatrix{T},
-    A::AbstractArray{Complex{T},3},
+    U::AbstractArray{Complex{T},3},
     kpoints::AbstractMatrix{T},
     n_supercells::Union{AbstractArray{Int},Int}=2,
     unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
-    X, Y, Z, W = read_realspace_wf(A, kpoints, n_supercells, unkdir; R=R)
+    X, Y, Z, W = read_realspace_wf(U, kpoints, n_supercells, unkdir; R=R)
     rgrid = RGrid(lattice, X, Y, Z)
     return rgrid, W
 end
 
 """
-    read_realspace_wf(model, A, n_supercells=2, unkdir="."; R=[0, 0, 0])
+    read_realspace_wf(model, U, n_supercells=2, unkdir="."; R=[0, 0, 0])
 
 Read `UNK` files, rotate gauge, and generate real space WFs.
 
-This is a most user-friendly version, use `lattice`, `A` and `kpoints` from `model`
+This is a most user-friendly version, use `lattice`, `U` and `kpoints` from `model`
 and returns a tuple of `(RGrid, W)`,
 where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data for WFs.
 
 # Arguments
 - `model`: a `Model`
-- `A`: `n_bands * n_wann * n_kpts`, gauge rotation matrix
+- `U`: `n_bands * n_wann * n_kpts`, gauge rotation matrix
 """
 function read_realspace_wf(
     model::Model{T},
-    A::AbstractArray{Complex{T},3},
+    U::AbstractArray{Complex{T},3},
     n_supercells::Union{AbstractArray{Int},Int}=2,
     unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
-    return read_realspace_wf(model.lattice, A, model.kpoints, n_supercells, unkdir; R=R)
+    return read_realspace_wf(model.lattice, U, model.kpoints, n_supercells, unkdir; R=R)
 end
 
 """
@@ -202,7 +202,7 @@ end
 
 Read `UNK` files, rotate gauge, and generate real space WFs.
 
-This is a most user-friendly version, use `lattice`, `A` and `kpoints` from `model`
+This is a most user-friendly version, use `lattice`, `U` and `kpoints` from `model`
 and returns a tuple of `(RGrid, W)`,
 where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data for WFs.
 
@@ -215,18 +215,18 @@ function read_realspace_wf(
     unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
-    return read_realspace_wf(model, model.A, n_supercells, unkdir; R=R)
+    return read_realspace_wf(model, model.U, n_supercells, unkdir; R=R)
 end
 
 """
-    write_realspace_wf(seedname, A, kpoints, lattice, atom_positions, atom_labels;
+    write_realspace_wf(seedname, U, kpoints, lattice, atom_positions, atom_labels;
         n_supercells=2, unkdir=".", part=real, format=:xsf, wf_center=nothing)
 
 Write real space WFs to `xsf` or `cube` files.
 
 # Arguments
 - `seedname`: the name prefix for `cube` files, e.g., `seedname_00001.cube`
-- `A`: gauge rotation matrix
+- `U`: gauge rotation matrix
 - `kpoints`: each column is a kpoint, fractional coordinates
 - `lattice`: each column is a lattice vector
 - `atom_positions`: each column is an atom position, fractional coordinates w.r.t. lattice
@@ -251,7 +251,7 @@ Write real space WFs to `xsf` or `cube` files.
 """
 function write_realspace_wf(
     seedname::AbstractString,
-    A::AbstractArray,
+    U::AbstractArray,
     kpoints::AbstractMatrix,
     lattice::AbstractMatrix,
     atom_positions::AbstractMatrix,
@@ -264,7 +264,7 @@ function write_realspace_wf(
 )
     format ∈ [:xsf, :cube] || error("format must be :xsf or :cube")
 
-    rgrid, W = read_realspace_wf(lattice, A, kpoints, n_supercells, unkdir)
+    rgrid, W = read_realspace_wf(lattice, U, kpoints, n_supercells, unkdir)
     n_wann = size(W, 4)
     if format == :cube && wf_center === nothing
         # if not given, compute in realspace, lower accuracy. in fractional coordinates
@@ -343,7 +343,7 @@ function write_realspace_wf(
     end
     return write_realspace_wf(
         seedname,
-        model.A,
+        model.U,
         model.kpoints,
         model.lattice,
         model.atom_positions,

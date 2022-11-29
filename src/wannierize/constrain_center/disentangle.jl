@@ -24,8 +24,8 @@ function omega_center(
     r₀::Matrix{FT},
     λ::FT,
 ) where {FT<:Real}
-    A = X_Y_to_A(X, Y)
-    return omega_center(bvectors, M, A, r₀, λ)
+    U = X_Y_to_U(X, Y)
+    return omega_center(bvectors, M, U, r₀, λ)
 end
 
 """
@@ -75,8 +75,8 @@ function omega_center_grad(
 ) where {FT<:Real}
     n_kpts = size(Y, 3)
 
-    A = X_Y_to_A(X, Y)
-    G = omega_center_grad(bvectors, M, A, r₀, λ)
+    U = X_Y_to_U(X, Y)
+    G = omega_center_grad(bvectors, M, U, r₀, λ)
 
     GX = zero(X)
     GY = zero(Y)
@@ -155,14 +155,14 @@ function disentangle_center(
     n_wann = model.n_wann
     n_kpts = model.n_kpts
 
-    X0, Y0 = A_to_X_Y(model.A, model.frozen_bands)
+    X0, Y0 = U_to_X_Y(model.U, model.frozen_bands)
 
     # compact storage
     XY0 = X_Y_to_XY(X0, Y0)
 
     # We have three storage formats:
     # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
-    # A: n_bands * n_wann * n_kpts
+    # U: n_bands * n_wann * n_kpts
     # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
     f, g! = get_fg!_center_disentangle(model, r₀, λ)
 
@@ -210,12 +210,12 @@ function disentangle_center(
     XYmin = Optim.minimizer(opt)
 
     Xmin, Ymin = XY_to_X_Y(XYmin, n_bands, n_wann)
-    Amin = X_Y_to_A(Xmin, Ymin)
+    Umin = X_Y_to_U(Xmin, Ymin)
 
-    Ωᶠ = omega_center(model, Amin, r₀, λ)
+    Ωᶠ = omega_center(model, Umin, r₀, λ)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
 
-    return Amin
+    return Umin
 end

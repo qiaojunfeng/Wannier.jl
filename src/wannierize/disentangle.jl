@@ -133,26 +133,26 @@ function set_frozen_win!(
 end
 
 """
-    get_frozen_proj(E, A, dis_proj_max)
+    get_frozen_proj(E, U, dis_proj_max)
 
 Get frozen bands according to band projectability.
 
 # Arguments
 - `E`: the energy eigenvalues of the Hamiltonian
-- `A`: the gauge rotation matrices
+- `U`: the gauge rotation matrices
 - `dis_proj_max`: the upper bound projectability.
     Bands with projectability >= `dis_proj_max` are frozen.
 
 !!! note
 
     The band projectability for band ``n`` at kpoint ``\\bm{k}`` is calculated by
-    ``p_{n \\bm{k}} = \\sum_{m=1}^{m=n_{wann}} | A_{nm \\bm{k}} |^2``,
+    ``p_{n \\bm{k}} = \\sum_{m=1}^{m=n_{wann}} | U_{nm \\bm{k}} |^2``,
     and usually each element ``p_{n \\bm{k}} \\in [0.0, 1.0]``.
     In such cases, the `dis_proj_max` is usually set to sth. like `0.9` to
     freeze high-projectability bands.
 """
 function get_frozen_proj(
-    E::AbstractMatrix{T}, A::AbstractArray{Complex{T}}, dis_proj_max::T
+    E::AbstractMatrix{T}, U::AbstractArray{Complex{T}}, dis_proj_max::T
 ) where {T<:Real}
     n_bands, n_kpts = size(E)
     frozen_bands = falses(n_bands, n_kpts)
@@ -164,9 +164,9 @@ function get_frozen_proj(
         fill!(frozen_k, false)
 
         # n_bands * n_wann
-        Aₖ = A[:, :, ik]
+        Uₖ = U[:, :, ik]
         # projectability
-        p = dropdims(real(sum(Aₖ .* conj(Aₖ); dims=2)); dims=2)
+        p = dropdims(real(sum(Uₖ .* conj(Uₖ); dims=2)); dims=2)
         # @debug "projectability" ik p
 
         frozen_k[p .>= dis_proj_max] .= true
@@ -193,7 +193,7 @@ Set frozen bands of the `Model` according to projectability.
 function set_frozen_proj!(
     model::Model{T}, dis_proj_max::T; degen::Bool=false, degen_atol::T=1e-4
 ) where {T<:Real}
-    frozen_bands = get_frozen_proj(model.E, model.A, dis_proj_max)
+    frozen_bands = get_frozen_proj(model.E, model.U, dis_proj_max)
 
     if degen
         set_frozen_degen!(frozen_bands, model.E, degen_atol)
@@ -207,14 +207,14 @@ function set_frozen_proj!(
 end
 
 """
-    orthonorm_freeze(A, frozen)
+    orthonorm_freeze(U, frozen)
 
 Normalize and freeze a block of a matrix.
 
 Conditions:
-- Block form:  `A = vcat(Uf, Ur)`
+- Block form:  `U = vcat(Uf, Ur)`
 - Semiunitary
-  - `A' * A = I`
+  - `U' * U = I`
   - `Uf' * Uf + Ur' * Ur = I`
 - Frozen:      `Uf * Uf' = I`
 - Also:        `Uf * Ur' = 0`
@@ -225,18 +225,18 @@ Strategy:
 3. orthogonalize the range of `Ur`
 
 # Arguments
-- `A`: the matrix to be orthonormalized and frozen
+- `U`: the matrix to be orthonormalized and frozen
 - `frozen`: the `BitVector` specifying which bands are frozen
 """
-function orthonorm_freeze(A::Matrix{T}, frozen::BitVector) where {T<:Complex}
-    n_bands, n_wann = size(A)
+function orthonorm_freeze(U::Matrix{T}, frozen::BitVector) where {T<:Complex}
+    n_bands, n_wann = size(U)
     non_frozen = .!frozen
 
     # Make sure Uf can fully represent frozen bands.
     # Uf = <ψ|g>, where |ψ> is Bloch wfcs, |g> is the guiding functions.
     # We do a Lowdin orthonormalization on Uf so that Uf * Uf' = I,
     # i.e. <ψ|g'><g'|ψ> = I -> |g'>s span the frozen |ψ>s.
-    Uf = A[frozen, :]
+    Uf = U[frozen, :]
     Uf = orthonorm_lowdin(Uf)
     # Uf = orthonorm_cholesky(Uf)
 
@@ -250,7 +250,7 @@ function orthonorm_freeze(A::Matrix{T}, frozen::BitVector) where {T<:Complex}
     #     |ψr> -= |ψf><ψf|ψr>
     # =>  |g><g|ψr> -= |g><g|ψf><ψf|g><g|ψr>
     # =>  Ur' -= Uf' * Uf * Ur'
-    Ur = A[non_frozen, :]
+    Ur = U[non_frozen, :]
     Ur -= Ur * Uf' * Uf
 
     # alternative method, maybe more stable but slower
@@ -267,25 +267,25 @@ function orthonorm_freeze(A::Matrix{T}, frozen::BitVector) where {T<:Complex}
     # after removal of Uf, we need to renormalize so the |wr> are orthonormal.
     # I = <wr|wr> = Ur' <ψ|ψ> Ur  =>  Ur' * Ur = I
     # Use Lowdin normalization but needs to limit the number of independent vectors.
-    U, S, V = svd(Ur)
+    A, S, B = svd(Ur)
     atol = 1e-10
     @assert count(x -> x > atol, S) == n_wann - count(frozen)
     S[S .> atol] .= 1
     S[S .< atol] .= 0
-    Ur = U * Diagonal(S) * V'
+    Ur = A * Diagonal(S) * B'
 
-    B = similar(A)
-    B[frozen, :] .= Uf
-    B[non_frozen, :] .= Ur
+    V = similar(U)
+    V[frozen, :] .= Uf
+    V[non_frozen, :] .= Ur
 
     # Semiunitary
-    @assert isapprox(B' * B, I; atol=atol)
+    @assert isapprox(V' * V, I; atol=atol)
     # Frozen
-    @assert isapprox(B[frozen, :] * B[frozen, :]', I; atol=atol)
+    @assert isapprox(V[frozen, :] * V[frozen, :]', I; atol=atol)
     # Independent
     @assert norm(Uf * Ur') < atol
 
-    return B
+    return V
 end
 
 # function max_projectability(A::Matrix{ComplexF64})
@@ -336,20 +336,20 @@ end
 # end
 
 """
-    X_Y_to_A(X::Array{T,3}, Y::Array{T,3})
+    X_Y_to_U(X::Array{T,3}, Y::Array{T,3})
 
-Convert the `(X, Y)` layout to the `A` layout.
+Convert the `(X, Y)` layout to the `U` layout.
 
-There are three formats: `A`, `(X, Y)`, and `XY` stored contiguously in memory.
+There are three formats: `U`, `(X, Y)`, and `XY` stored contiguously in memory.
 For each kpoint,
-- `A`: `size(A) = (n_bands, n_wann)`, the format used in the rest of the code
+- `U`: `size(U) = (n_bands, n_wann)`, the format used in the rest of the code
 - `(X, Y)`: `size(X) = (n_wann, n_wann)`, `size(Y) = (n_bands, n_wann)`, intermediate format
 - `XY`: this is the format used in the optimizer
 """
-function X_Y_to_A(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
+function X_Y_to_U(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(Y)
 
-    A = zeros(T, n_bands, n_wann, n_kpts)
+    U = zeros(T, n_bands, n_wann, n_kpts)
 
     for ik in 1:n_kpts
         # sanity check, should be true but comment out to be faster
@@ -362,26 +362,26 @@ function X_Y_to_A(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
         # @assert norm(Y[idx_nf, 1:n_froz, ik]) ≈ 0
         # @assert norm(Y[idx_f, n_froz+1:end, ik]) ≈ 0
 
-        A[:, :, ik] = Y[:, :, ik] * X[:, :, ik]
-        # @assert orthonorm_freeze(A[:, :, ik], frozen_bands[:, ik]) ≈ A[:, :, ik] rtol=1e-4
+        U[:, :, ik] = Y[:, :, ik] * X[:, :, ik]
+        # @assert orthonorm_freeze(U[:, :, ik], frozen_bands[:, ik]) ≈ U[:, :, ik] rtol=1e-4
     end
 
-    return A
+    return U
 end
 
 """
-    A_to_X_Y(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
+    U_to_X_Y(U::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
 
-Convert the `A` layout to the `(X, Y)` layout.
+Convert the `U` layout to the `(X, Y)` layout.
 
-See also [`X_Y_to_A`](@ref X_Y_to_A).
+See also [`X_Y_to_U`](@ref).
 
 # Arguments
-- `A`: `n_bands * n_wann * n_kpts`
+- `U`: `n_bands * n_wann * n_kpts`
 - `frozen`: `n_bands * n_kpts`
 """
-function A_to_X_Y(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
-    n_bands, n_wann, n_kpts = size(A)
+function U_to_X_Y(U::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
+    n_bands, n_wann, n_kpts = size(U)
 
     X = zeros(T, n_wann, n_wann, n_kpts)
     Y = zeros(T, n_bands, n_wann, n_kpts)
@@ -391,7 +391,7 @@ function A_to_X_Y(A::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
         idx_nf = .!idx_f
         n_froz = count(idx_f)
 
-        Af = orthonorm_freeze(A[:, :, ik], idx_f)
+        Af = orthonorm_freeze(U[:, :, ik], idx_f)
         Uf = Af[idx_f, :]
         Ur = Af[idx_nf, :]
 
@@ -424,7 +424,7 @@ end
 
 Convert the `XY` layout to the `(X, Y)` layout.
 
-See also [`X_Y_to_A`](@ref X_Y_to_A).
+See also [`X_Y_to_U`](@ref).
 
 # Arguments
 - `XY`: `n_bands * n_wann * n_kpts` contiguous array
@@ -453,7 +453,7 @@ end
 
 Convert the `(X, Y)` layout to the `XY` layout.
 
-See also [`X_Y_to_A`](@ref X_Y_to_A).
+See also [`X_Y_to_U`](@ref).
 """
 function X_Y_to_XY(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(Y)
@@ -488,8 +488,8 @@ function omega(
     X::Array{Complex{FT},3},
     Y::Array{Complex{FT},3},
 ) where {FT<:Real}
-    A = X_Y_to_A(X, Y)
-    return omega(bvectors, M, A)
+    U = X_Y_to_U(X, Y)
+    return omega(bvectors, M, U)
 end
 
 """
@@ -529,9 +529,9 @@ function omega_grad(
 ) where {FT<:Real}
     n_kpts = size(Y, 3)
 
-    A = X_Y_to_A(X, Y)
+    U = X_Y_to_U(X, Y)
 
-    G = omega_grad(bvectors, M, A)
+    G = omega_grad(bvectors, M, U)
 
     GX = zero(X)
     GY = zero(Y)
@@ -619,7 +619,7 @@ Run disentangle on the `Model`.
 - `model`: model
 
 # Keyword arguments
-- `random_gauge`: use random `A` matrices as initial guess
+- `random_gauge`: use random `U` matrices as initial guess
 - `f_tol`: tolerance for spread convergence
 - `g_tol`: tolerance for gradient convergence
 - `max_iter`: maximum number of iterations
@@ -659,7 +659,7 @@ function disentangle(
             Y0[idx_nf, (n_froz + 1):n_wann, ik] = orthonorm_lowdin(N)
         end
     else
-        X0, Y0 = A_to_X_Y(model.A, model.frozen_bands)
+        X0, Y0 = U_to_X_Y(model.U, model.frozen_bands)
     end
 
     # compact storage
@@ -667,7 +667,7 @@ function disentangle(
 
     # We have three storage formats:
     # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
-    # A: n_bands * n_wann * n_kpts
+    # U: n_bands * n_wann * n_kpts
     # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
     f, g! = get_fg!_disentangle(model)
 
@@ -715,12 +715,12 @@ function disentangle(
     XYmin = Optim.minimizer(opt)
 
     Xmin, Ymin = XY_to_X_Y(XYmin, n_bands, n_wann)
-    Amin = X_Y_to_A(Xmin, Ymin)
+    Umin = X_Y_to_U(Xmin, Ymin)
 
-    Ωᶠ = omega(model, Amin)
+    Ωᶠ = omega(model, Umin)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
 
-    return Amin
+    return Umin
 end

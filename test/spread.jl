@@ -27,13 +27,13 @@ f, g! = Wannier.get_fg!_maxloc(model)
 end
 
 @testset "spread gradient" begin
-    G = zero(model.A)
-    g!(G, model.A)
+    G = zero(model.U)
+    g!(G, model.U)
 
     # Use finite difference as reference
-    Ainit = model.A
-    d = NLSolversBase.OnceDifferentiable(f, Ainit, real(zero(eltype(Ainit))))
-    G_ref = NLSolversBase.gradient!(d, model.A)
+    Uinit = model.U
+    d = NLSolversBase.OnceDifferentiable(f, Uinit, real(zero(eltype(Uinit))))
+    G_ref = NLSolversBase.gradient!(d, model.U)
 
     @test isapprox(G, G_ref; atol=1e-7)
 end
