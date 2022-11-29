@@ -59,23 +59,33 @@ end
 end
 
 @testset "read tb" begin
-    Rvecs, H, positions = Wannier.read_w90_tb(
-        joinpath(FIXTURE_PATH, "valence/band/ws/silicon")
-    )
+    model = Wannier.read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/ws/silicon"))
+    Rvecs = model.kRvectors.Rvectors
     # just some simple tests
     R1 = [-3, 1, 1]
     @test Rvecs.R[:, 1] == R1
     H111 = 0.51893360E-02 + im * -0.29716277E-02
-    @test H[1, 1, 1] ≈ H111
+    @test model.H[1, 1, 1] ≈ H111
     P111end = 0.24832468E-03 + im * -0.21054981E-03
-    @test positions[1, 1, 1, end] ≈ P111end
+    @test model.r[1, 1, 1, end] ≈ P111end
 
-    Rvecs, H, positions = Wannier.read_w90_tb(
-        joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon")
-    )
+    model = Wannier.read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
+    Rvecs = model.kRvectors.Rvectors
     @test Rvecs.R[:, 1] == R1
     @test Rvecs.T[1, 1, 1] == [0 4 4 4; 0 -4 0 0; 0 0 -4 0]
     @test Rvecs.Nᵀ[1, 1, 1] == 4
-    @test H[1, 1, 1] ≈ H111
-    @test positions[1, 1, 1, end] ≈ P111end
+    @test model.H[1, 1, 1] ≈ H111
+    @test model.r[1, 1, 1, end] ≈ P111end
+end
+
+@testset "read tb kpoints/kpath" begin
+    win = Wannier.read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
+    interp_model = Wannier.read_w90_tb(
+        joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon");
+        kpoints=win.kpoints,
+        atom_positions=win.atoms_frac,
+        atom_labels=win.atom_labels,
+    )
+
+    @test interp_model isa Wannier.InterpModel
 end

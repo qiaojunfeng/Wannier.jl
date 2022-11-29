@@ -169,7 +169,7 @@ function read_w90_post(
     Hᵏ = get_Hk(model.E, model.A)
     Hᴿ = fourier(kRvecs, Hᵏ)
 
-    return InterpModel(kRvecs, Hᴿ, kpath)
+    return InterpModel(kRvecs, kpath, Hᴿ)
 end
 
 """

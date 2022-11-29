@@ -28,15 +28,15 @@ Interpolate Fermi surface.
     ws::Bool=false,
 )
     if tb
-        Rvecs, H, r = read_w90_tb(seedname)
+        model = read_w90_tb(seedname)
     else
         if isempty(amn)
             model = read_w90_post(seedname)
         else
             model = read_w90_post(seedname; chk=false, amn=amn)
         end
-        Rvecs = model.kRvectors.Rvectors
     end
+    Rvecs = model.kRvectors.Rvectors
     _print_type(Rvecs)
 
     # If you really want, you can use WS interpolation.
@@ -45,7 +45,7 @@ Interpolate Fermi surface.
     if ws && (Rvecs isa RVectorsMDRS)
         Rvecs = Rvecs.Rvectors
     end
-    kpoints, E = fermi_surface(Rvecs, H; n_k=nk)
+    kpoints, E = fermi_surface(Rvecs, model.H; n_k=nk)
 
     origin = zeros(Float64, 3)
     recip_latt = get_recip_lattice(Rvecs.lattice)

@@ -32,18 +32,10 @@ function fermi_surface(
 ) where {
     T<:Real,RV<:Union{RVectors{T},RVectorsMDRS{T}},KT<:Union{AbstractVector{Int},Integer}
 }
-    length(n_k) in [1, 3] || error("n_k must be an integer or a vector of length 3")
-
     n_wann, _, n_rvecs = size(H)
     n_rvecs == Rvectors.n_rvecs || error("n_rvecs of H != Rvectors.n_rvecs")
 
-    # bxsf need general grid, i.e., the last kpoint is the periodic image of the first one
-    # so I increase the n_k by 1
-    if length(n_k) == 3
-        n_kx, n_ky, n_kz = [n + 1 for n in n_k]
-    else
-        n_kx = n_ky = n_kz = n_k + 1
-    end
+    n_kx, n_ky, n_kz = _expand_nk(n_k)
     # kpoints are in fractional coordinates
     kpoints = get_kpoints([n_kx, n_ky, n_kz]; endpoint=true)
     n_kpts = n_kx * n_ky * n_kz
@@ -80,4 +72,32 @@ function fermi_surface(
     E = permutedims(E, (1, 4, 3, 2))
 
     return kpoints, E
+end
+
+"""
+    fermi_surface(model; n_k)
+
+Interpolate Fermi surface.
+
+# Arguments
+- `model`: [`InterpModel`](@ref)
+
+See also [`fermi_surface`](@ref fermi_surface(Rvectors::RV, H::AbstractArray{Complex{T},3}; n_k::KT)).
+"""
+function fermi_surface(model::InterpModel; n_k)
+    return fermi_surface(model.kRvectors.Rvectors, model.H; n_k=n_k)
+end
+
+function _expand_nk(n_k::T) where {T<:Union{AbstractVector{Int},Integer}}
+    length(n_k) in [1, 3] || error("n_k must be an integer or a vector of length 3")
+
+    # bxsf need general grid, i.e., the last kpoint is the periodic image of the first one
+    # so I increase the n_k by 1
+    if length(n_k) == 3
+        n_kx, n_ky, n_kz = [n + 1 for n in n_k]
+    else
+        n_kx = n_ky = n_kz = n_k + 1
+    end
+
+    return n_kx, n_ky, n_kz
 end

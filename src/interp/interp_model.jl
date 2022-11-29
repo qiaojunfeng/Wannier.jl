@@ -10,19 +10,28 @@ Usually after Wannierization of a [`Model`](@ref Model), we construct this
 
 # Fields
 - `kRvectors`: the kpoints and R vectors
-- `H`: `n_wann * n_wann * n_rvecs`, the Hamiltonian in real space
 - `kpath`: the kpoint path for band structure
+- `H`: `n_wann * n_wann * n_rvecs`, the Hamiltonian in real space
+- `r`: `n_wann * n_wann * n_rvecs`, the position operator in real space
 - `S`: `n_wann * n_wann * n_rvecs * 3`, optional, the spin operator
+
+!!! note
+    For MDRS interpolation, the `n_rvecs` in this docstring is actually the
+    number of ``\tilde{\bm{R}}`` vectors, i.e., `KRVectors.Rvectors.n_r̃vecs`.
+    For WS interpolation, it is just `KRVectors.Rvectors.n_rvecs`.
 """
 struct InterpModel{T<:Real}
     # R vectors for Fourier transform
     kRvectors::KRVectors{T}
 
+    # kpoint path for band structure
+    kpath::KPath
+
     # Hamiltonian H(R), n_wann * n_wann * n_rvecs
     H::Array{Complex{T},3}
 
-    # kpoint path for band structure
-    kpath::KPath
+    # position operator r(R), n_wann * n_wann * n_rvecs * 3
+    r::Array{Complex{T},4}
 
     # spin matrix S(R), n_wann * n_wann * n_rvecs * 3
     S::Array{Complex{T},4}
@@ -57,33 +66,62 @@ function Base.show(io::IO, model::InterpModel)
     return nothing
 end
 
-function InterpModel(kRvectors, H, kpath, S)
+function InterpModel(
+    kRvectors::KRVectors, kpath::KPath, H::Array{T,3}, r::Array{T,4}, S::Array{T,4}
+) where {T<:Complex}
     n_wann = size(H, 1)
-    return InterpModel(kRvectors, H, kpath, S, n_wann)
+    return InterpModel(kRvectors, kpath, H, r, S, n_wann)
+end
+
+function _get_nrvecs(kRvectors::KRVectors)
+    Rvecs = kRvectors.Rvectors
+    if Rvecs isa RVectorsMDRS
+        n_rvecs = Rvecs.n_r̃vecs
+    elseif Rvecs isa RVectors
+        n_rvecs = Rvecs.n_rvecs
+    else
+        error("Unknown Rvectors type: $(typeof(Rvecs))")
+    end
+    return n_rvecs
 end
 
 """
-    InterpModel(kRvectors, H, kpath)
+    InterpModel(kRvectors, H, kpath, H, r)
 
 A `InterpModel` constructor ignoring spin operator matrices.
 
 # Arguments
 - `kRvectors`: the kpoint and R vectors
-- `H`: `n_wann * n_wann * n_rvecs`, the Hamiltonian in real space
 - `kpath`: the kpoint path for band structure
+- `H`: `n_wann * n_wann * n_rvecs`, the Hamiltonian in real space
+- `r`: `n_wann * n_wann * n_rvecs * 3`, the position operator in real space
 """
-function InterpModel(kRvectors, H, kpath)
-    Rvecs = kRvectors.Rvectors
-    if typeof(Rvecs) <: RVectorsMDRS
-        n_rvecs = Rvecs.n_r̃vecs
-    elseif typeof(Rvecs) <: RVectors
-        n_rvecs = Rvecs.n_rvecs
-    else
-        error("Unknown Rvectors type: $(typeof(Rvecs))")
-    end
+function InterpModel(
+    kRvectors::KRVectors, kpath::KPath, H::Array{T,3}, r::Array{T,4}
+) where {T<:Complex}
+    n_rvecs = _get_nrvecs(kRvectors)
     n_wann = size(H, 1)
-    S = Array{eltype(H),4}(undef, n_wann, n_wann, n_rvecs, 3)
-    return InterpModel(kRvectors, H, kpath, S)
+    S = Array{T,4}(undef, n_wann, n_wann, n_rvecs, 3)
+
+    return InterpModel(kRvectors, kpath, H, r, S)
+end
+
+"""
+    InterpModel(kRvectors, H, kpath, H)
+
+A `InterpModel` constructor ignoring position and spin operator matrices.
+
+# Arguments
+- `kRvectors`: the kpoint and R vectors
+- `kpath`: the kpoint path for band structure
+- `H`: `n_wann * n_wann * n_rvecs`, the Hamiltonian in real space
+"""
+function InterpModel(kRvectors::KRVectors, kpath::KPath, H::Array{T,3}) where {T<:Complex}
+    n_rvecs = _get_nrvecs(kRvectors)
+    n_wann = size(H, 1)
+    r = Array{T,4}(undef, n_wann, n_wann, n_rvecs, 3)
+    S = Array{T,4}(undef, n_wann, n_wann, n_rvecs, 3)
+    return InterpModel(kRvectors, kpath, H, r, S)
 end
 
 """
@@ -116,5 +154,5 @@ function InterpModel(model::Model; mdrs::Bool=true)
     Hᵏ = get_Hk(model.E, model.A)
     Hᴿ = fourier(kRvecs, Hᵏ)
 
-    return InterpModel(kRvecs, Hᴿ, kpath)
+    return InterpModel(kRvecs, kpath, Hᴿ)
 end

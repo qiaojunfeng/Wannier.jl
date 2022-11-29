@@ -118,6 +118,27 @@ function KRVectors(
     return KRVectors(lattice, kgrid, kpoints, k_xyz, xyz_k, Rvectors)
 end
 
+"""
+    KRVectors(Rvectors)
+
+Construct a `KRVectors` from `RVectors` or `RVectorsMDRS`.
+
+The kpoints part are just empty.
+
+!!! note
+
+    If we only need to Wannier interpolate operators, e.g., interpolate band structure
+    from `tb.dat` file, then we don't need info on the kpoint grid of Wannierization,
+    so we can just leave it empty.
+"""
+function KRVectors(Rvectors::Union{RVectors{T},RVectorsMDRS{T}}) where {T<:Real}
+    kgrid = Vec3{Int}([0, 0, 0])  # no info on kgrid
+    k_xyz = Vector{Vec3{Int}}(undef, 0)
+    xyz_k = Array{Int,3}(undef, 0, 0, 0)
+    kpoints = zeros(T, 3, 0)
+    return KRVectors(Rvectors.lattice, kgrid, kpoints, k_xyz, xyz_k, Rvectors)
+end
+
 function Base.show(io::IO, x::KRVectors)
     @printf(io, "recip_lattice: Å⁻¹\n")
     for i in 1:3

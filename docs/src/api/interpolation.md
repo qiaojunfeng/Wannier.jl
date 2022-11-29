@@ -109,7 +109,7 @@ while [`Model`](@ref Model) works only for Wannierization.
 
 ```@docs
 InterpModel
-InterpModel(kRvectors, H, kpath)
+InterpModel(kRvectors, kpath, H)
 InterpModel(model::Model; mdrs::Bool=true)
 ```
 
