@@ -71,10 +71,10 @@ function diag_Hk(H::AbstractArray{T,3}) where {T<:Complex}
         # Hᵏ = 0.5 * (Hᵏ + Hᵏ')
         ϵ, v = eigen(Hᵏ)
         E[:, ik] = real.(ϵ)
-        H[:, :, ik] = v
+        V[:, :, ik] = v
     end
 
-    return E, H
+    return E, V
 end
 
 """
