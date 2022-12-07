@@ -62,11 +62,33 @@ function invfourier(
 ) where {T<:Real}
     n_wann = size(Oᴿ, 1)
     n_kpts = size(kpoints, 2)
+    Oᵏ = zeros(Complex{T}, n_wann, n_wann, n_kpts)
+    invfourier!(Oᵏ, Rvectors, Oᴿ, kpoints)
+    return Oᵏ
+end
+
+"""
+    invfourier!(Oᵏ, Rvectors, Oᴿ, kpoints)
+
+In-place version of [`invfourier`](@ref), no allocation inside.
+
+# Arguments
+- `Oᵏ`: `n_wann * n_wann * n_kpts`, output operator matrix in k space
+"""
+function invfourier!(
+    Oᵏ::Array{Complex{T},3},
+    Rvectors::RVectors{T},
+    Oᴿ::Array{Complex{T},3},
+    kpoints::AbstractMatrix{T},
+) where {T<:Real}
+    n_wann = size(Oᴿ, 1)
+    n_kpts = size(kpoints, 2)
     n_rvecs = Rvectors.n_rvecs
     @assert size(Oᴿ, 1) == size(Oᴿ, 2)
     @assert size(Oᴿ, 3) == n_rvecs
+    @assert size(Oᵏ) == (n_wann, n_wann, n_kpts)
 
-    Oᵏ = zeros(Complex{T}, n_wann, n_wann, n_kpts)
+    Oᵏ .= 0.0  # clean buffer
 
     for ik in 1:n_kpts
         k = kpoints[:, ik]
@@ -77,7 +99,7 @@ function invfourier(
             Oᵏ[:, :, ik] += fac * Oᴿ[:, :, ir]
         end
     end
-    return Oᵏ
+    return nothing
 end
 
 """
@@ -95,6 +117,15 @@ function invfourier(
     kRvectors::KRVectors{T,RVectors{T}}, Oᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
 ) where {T<:Real}
     return invfourier(kRvectors.Rvectors, Oᴿ, kpoints)
+end
+
+function invfourier!(
+    Oᵏ::Array{Complex{T},3},
+    kRvectors::KRVectors{T,RVectors{T}},
+    Oᴿ::Array{Complex{T},3},
+    kpoints::AbstractMatrix{T},
+) where {T<:Real}
+    return invfourier!(Oᵏ, kRvectors.Rvectors, Oᴿ, kpoints)
 end
 
 @doc raw"""
@@ -232,6 +263,51 @@ function fourier(
 end
 
 @doc raw"""
+    _invfourier_mdrs_v1!(Oᵏ,
+        Rvectors::RVectorsMDRS{FT}, Oᴿ::Array{Complex{FT},3}, kpoints::AbstractMatrix{FT}
+    ) where {FT<:Real}
+
+In-place version of [`_invfourier_mdrs_v1`](@ref).
+
+# Arguments
+- `Oᵏ`: `n_wann * n_wann * n_kpts`, operator matrix in k space
+"""
+function _invfourier_mdrs_v1!(
+    Oᵏ::Array{Complex{FT},3},
+    Rvectors::RVectorsMDRS{FT},
+    Oᴿ::Array{Complex{FT},3},
+    kpoints::AbstractMatrix{FT},
+) where {FT<:Real}
+    n_wann = size(Oᴿ, 1)
+    n_kpts = size(kpoints, 2)
+    n_rvecs = Rvectors.n_rvecs
+    @assert size(Oᴿ, 1) == size(Oᴿ, 2)
+    @assert size(Oᴿ, 3) == n_rvecs
+    @assert size(Oᵏ) == (n_wann, n_wann, n_kpts)
+
+    Oᵏ .= 0.0  # clean buffer
+
+    for ik in 1:n_kpts
+        k = kpoints[:, ik]
+        for ir in 1:n_rvecs
+            R = Rvectors.R[:, ir]
+            N = Rvectors.N[ir]
+            for n in 1:n_wann
+                for m in 1:n_wann
+                    Nᵀ = Rvectors.Nᵀ[m, n, ir]
+                    for T in eachcol(Rvectors.T[m, n, ir])
+                        fac = exp(im * 2π * dot(k, (R + T)))
+                        fac /= N * Nᵀ
+                        Oᵏ[m, n, ik] += fac * Oᴿ[m, n, ir]
+                    end
+                end
+            end
+        end
+    end
+    return nothing
+end
+
+@doc raw"""
     _invfourier_mdrs_v1(
         Rvectors::RVectorsMDRS{FT}, Oᴿ::Array{Complex{FT},3}, kpoints::AbstractMatrix{FT}
     ) where {FT<:Real}
@@ -265,30 +341,46 @@ function _invfourier_mdrs_v1(
 ) where {FT<:Real}
     n_wann = size(Oᴿ, 1)
     n_kpts = size(kpoints, 2)
-    n_rvecs = Rvectors.n_rvecs
-    @assert size(Oᴿ, 1) == size(Oᴿ, 2)
-    @assert size(Oᴿ, 3) == n_rvecs
-
     Oᵏ = zeros(Complex{FT}, n_wann, n_wann, n_kpts)
+    _invfourier_mdrs_v1!(Oᵏ, Rvectors, Oᴿ, kpoints)
+    return Oᵏ
+end
 
+@doc raw"""
+    _invfourier_mdrs_v2!(Oᵏ,
+        Rvectors::RVectorsMDRS{T}, Oᴿ̃::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
+    ) where {T<:Real}
+
+In-place version of [`_invfourier_mdrs_v2`](@ref).
+
+# Arguments
+- `Oᵏ`: `n_wann * n_wann * n_kpts`, operator matrix in k space
+"""
+function _invfourier_mdrs_v2!(
+    Oᵏ::Array{Complex{T},3},
+    Rvectors::RVectorsMDRS{T},
+    Oᴿ̃::Array{Complex{T},3},
+    kpoints::AbstractMatrix{T},
+) where {T<:Real}
+    n_wann = size(Oᴿ̃, 1)
+    n_kpts = size(kpoints, 2)
+    n_r̃vecs = Rvectors.n_r̃vecs
+    @assert size(Oᴿ̃, 1) == size(Oᴿ̃, 2)
+    @assert size(Oᴿ̃, 3) == n_r̃vecs
+    @assert size(Oᵏ) == (n_wann, n_wann, n_kpts)
+
+    Oᵏ .= 0.0  # clean buffer
+
+    # almost the same as WS invfourier, except that
+    # the degeneracies are handled during fourier transform
     for ik in 1:n_kpts
-        k = kpoints[:, ik]
-        for ir in 1:n_rvecs
-            R = Rvectors.R[:, ir]
-            N = Rvectors.N[ir]
-            for n in 1:n_wann
-                for m in 1:n_wann
-                    Nᵀ = Rvectors.Nᵀ[m, n, ir]
-                    for T in eachcol(Rvectors.T[m, n, ir])
-                        fac = exp(im * 2π * dot(k, (R + T)))
-                        fac /= N * Nᵀ
-                        Oᵏ[m, n, ik] += fac * Oᴿ[m, n, ir]
-                    end
-                end
-            end
+        k = @view kpoints[:, ik]
+        for ir̃ in 1:n_r̃vecs
+            R̃ = @view Rvectors.R̃vectors.R[:, ir̃]
+            Oᵏ[:, :, ik] += exp(im * 2π * dot(k, R̃)) * Oᴿ̃[:, :, ir̃]
         end
     end
-    return Oᵏ
+    return nothing
 end
 
 @doc raw"""
@@ -314,22 +406,8 @@ function _invfourier_mdrs_v2(
 ) where {T<:Real}
     n_wann = size(Oᴿ̃, 1)
     n_kpts = size(kpoints, 2)
-    n_r̃vecs = Rvectors.n_r̃vecs
-    @assert size(Oᴿ̃, 1) == size(Oᴿ̃, 2)
-    @assert size(Oᴿ̃, 3) == n_r̃vecs
-
     Oᵏ = zeros(Complex{T}, n_wann, n_wann, n_kpts)
-
-    # almost the same as WS invfourier, except that
-    # the degeneracies are handled during fourier transform
-    for ik in 1:n_kpts
-        k = kpoints[:, ik]
-        for ir̃ in 1:n_r̃vecs
-            R̃ = Rvectors.R̃vectors.R[:, ir̃]
-            fac = exp(im * 2π * dot(k, R̃))
-            Oᵏ[:, :, ik] += fac * Oᴿ̃[:, :, ir̃]
-        end
-    end
+    _invfourier_mdrs_v2!(Oᵏ, Rvectors, Oᴿ̃, kpoints)
     return Oᵏ
 end
 
@@ -368,6 +446,21 @@ function invfourier(
     end
 end
 
+function invfourier!(
+    Oᵏ::Array{Complex{T},3},
+    Rvectors::RVectorsMDRS{T},
+    Oᴿ::AbstractArray{Complex{T},3},
+    kpoints::AbstractMatrix{T};
+    version::Symbol=:v2,
+) where {T<:Real}
+    version ∈ [:v1, :v2] || error("version must be v1 or v2")
+    if version == :v1
+        return _invfourier_mdrs_v1!(Oᵏ, Rvectors, Oᴿ, kpoints)
+    else
+        return _invfourier_mdrs_v2!(Oᵏ, Rvectors, Oᴿ, kpoints)
+    end
+end
+
 """
     invfourier(
         kRvectors::KRVectors{T,RVectorsMDRS{T}},
@@ -392,4 +485,14 @@ function invfourier(
     version::Symbol=:v2,
 ) where {T<:Real}
     return invfourier(kRvectors.Rvectors, Oᴿ, kpoints; version)
+end
+
+function invfourier!(
+    Oᵏ::Array{Complex{T},3},
+    kRvectors::KRVectors{T,RVectorsMDRS{T}},
+    Oᴿ::AbstractArray{Complex{T},3},
+    kpoints::AbstractMatrix{T};
+    version::Symbol=:v2,
+) where {T<:Real}
+    return invfourier!(Oᵏ, kRvectors.Rvectors, Oᴿ, kpoints; version)
 end

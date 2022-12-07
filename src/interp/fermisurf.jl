@@ -47,22 +47,35 @@ function fermi_surface(
         H = mdrs_v1tov2(Rvectors, H)
     end
 
-    print("n_threads: ", Threads.nthreads(), "\n")
+    println("n_threads: ", Threads.nthreads())
 
     # Actually doing this once is faster, but there's no multi-threading
-    # HH = invfourier(Rvectors, H, kpoints)
+    Hwork = zeros(Complex{T}, n_wann, n_wann, n_kpts)
+    invfourier!(Hwork, Rvectors, H, kpoints)
     # There are lots of FFTs, so I add a progress bar, although it slows down a bit
-    # Threads.@threads for ik in 1:n_kpts
-    Threads.@threads for ik in ProgressBar(1:n_kpts)
-        k = kpoints[:, ik:ik]  # use range in last dimension to keep it 2D
-        Hᵏ = invfourier(Rvectors, H, k)[:, :, 1]  # only 1 kpoint
-        # Hᵏ = HH[:, :, ik]
+    for ik in ProgressBar(1:n_kpts)
+        Hᵏ = @view Hwork[:, :, ik]
         # check Hermiticity
         @assert norm(Hᵏ - Hᵏ') < 1e-10
         # diagonalize
-        ϵ, v = eigen(Hᵏ)
+        ϵ = eigen(Hᵏ).values
         E[:, ik] = real.(ϵ)
     end
+
+    # # preallocate buffers
+    # Hwork = [zeros(Complex{T}, n_wann, n_wann, 1) for _ in 1:Threads.nthreads()]
+    # # There are lots of FFTs, so I add a progress bar, although it slows down a bit
+    # Threads.@threads for ik in ProgressBar(1:n_kpts)
+    #     k = kpoints[:, ik:ik]  # use range in last dimension to keep it 2D
+    #     # Hwork[ik] .= invfourier(Rvectors, H, k)
+    #     invfourier!(Hwork[Threads.threadid()], Rvectors, H, k)
+    #     Hᵏ = @view Hwork[Threads.threadid()][:, :, 1]
+    #     # check Hermiticity
+    #     @assert norm(Hᵏ - Hᵏ') < 1e-10
+    #     # diagonalize
+    #     ϵ = eigen(Hᵏ).values
+    #     E[:, ik] = real.(ϵ)
+    # end
 
     # The kz increase the fastest in kpoints, reshape them to (n_kx, n_ky, n_kz)
     kpoints = reshape(kpoints, 3, n_kz, n_ky, n_kx)
