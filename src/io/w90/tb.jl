@@ -31,7 +31,12 @@ function _read_w90_tb(seedname::AbstractString)
     end
 
     Rvecs_mdrs = RVectorsMDRS(Rvecs, T, Nᵀ)
-    return Rvecs_mdrs, tbdat.H, tbdat.r
+    H = mdrs_v1tov2(Rvecs_mdrs, tbdat.H)
+    r = similar(tbdat.r, 3, size(H)...)  # 3 * n_wann * n_wann * n_r̃vecs
+    r[1, :, :, :] .= mdrs_v1tov2(Rvecs_mdrs, tbdat.r[1, :, :, :])
+    r[2, :, :, :] .= mdrs_v1tov2(Rvecs_mdrs, tbdat.r[2, :, :, :])
+    r[3, :, :, :] .= mdrs_v1tov2(Rvecs_mdrs, tbdat.r[3, :, :, :])
+    return Rvecs_mdrs, H, r
 end
 
 """
