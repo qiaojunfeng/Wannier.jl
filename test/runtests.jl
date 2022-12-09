@@ -1,3 +1,4 @@
+using LinearAlgebra
 using Wannier
 using Test
 
@@ -18,6 +19,7 @@ mat2vec(A::AbstractMatrix) = [v for v in eachcol(A)]
     include("io/model.jl")
     include("bvector.jl")
     include("spread.jl")
+
     include("util/kpoint.jl")
     include("util/element.jl")
     include("util/center.jl")
@@ -31,6 +33,8 @@ mat2vec(A::AbstractMatrix) = [v for v in eachcol(A)]
     include("wannierize/constrain_center/max_localize.jl")
     include("wannierize/constrain_center/disentangle.jl")
 
+    include("realspace.jl")
+
     include("cli/help.jl")
 
     include("interp/rvector.jl")
@@ -38,5 +42,4 @@ mat2vec(A::AbstractMatrix) = [v for v in eachcol(A)]
     include("interp/hamiltonian.jl")
     include("interp/fermisurf.jl")
     include("interp/derivative.jl")
-    include("realspace.jl")
 end
