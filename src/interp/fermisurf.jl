@@ -7,7 +7,7 @@ Interpolate Fermi surface.
 
 # Arguments
 - `Rvectors`: `RVectors` or `RVectorsMDRS`
-- `H`: `n_wann * n_wann * n_rvecs`, Hamiltonian in R space
+- `H`: `n_wann * n_wann * n_r̃vecs`, Hamiltonian in R space
 - `n_k`: integer or 3-vector, number of interpolated kpoints along three directions
 
 # Return
@@ -33,19 +33,20 @@ function fermi_surface(
     T<:Real,RV<:Union{RVectors{T},RVectorsMDRS{T}},KT<:Union{AbstractVector{Int},Integer}
 }
     n_wann, _, n_rvecs = size(H)
-    n_rvecs == Rvectors.n_rvecs || error("n_rvecs of H != Rvectors.n_rvecs")
+    if Rvectors isa RVectorsMDRS
+        n_rvecs == Rvectors.n_r̃vecs || error("n_r̃vecs of H != Rvectors.n_r̃vecs")
+    else
+        n_rvecs == Rvectors.n_rvecs || error("n_rvecs of H != Rvectors.n_rvecs")
+    end
 
     n_kx, n_ky, n_kz = _expand_nk(n_k)
+    @printf("Interpolation grid: %d %d %d\n", n_kx, n_ky, n_kz)
+
     # kpoints are in fractional coordinates
     kpoints = get_kpoints([n_kx, n_ky, n_kz]; endpoint=true)
     n_kpts = n_kx * n_ky * n_kz
 
     E = zeros(T, n_wann, n_kpts)
-
-    # By default I use the MDRSv2 for MDRS interpolation, so I expand it here
-    if Rvectors isa RVectorsMDRS
-        H = mdrs_v1tov2(Rvectors, H)
-    end
 
     println("n_threads: ", Threads.nthreads())
 
