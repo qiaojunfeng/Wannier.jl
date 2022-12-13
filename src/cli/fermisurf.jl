@@ -34,7 +34,7 @@ Interpolate Fermi surface.
     amn::String="",
     tb::Bool=false,
 )
-    @printf("* Fermi surface interpolation started on %s", string(now()))
+    @printf("* Fermi surface interpolation started on %s\n", string(now()))
 
     if tb
         model = read_w90_tb(seedname)
@@ -58,6 +58,6 @@ Interpolate Fermi surface.
     origin = zeros(Float64, 3)
     write_bxsf("$out.bxsf", ef, origin, recip_latt, E)
 
-    @printf("* Fermi surface interpolation finished on %s", string(now()))
+    @printf("* Fermi surface interpolation finished on %s\n", string(now()))
     return nothing
 end
