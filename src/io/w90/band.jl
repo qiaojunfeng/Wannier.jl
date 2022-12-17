@@ -87,7 +87,7 @@ function get_symm_idx_label(kpi::KPathInterpolant)
             push!(symm_idx, ik + ik0)
             push!(symm_label, String(l))
         end
-        ik0 = maximum(keys(lab))
+        ik0 += maximum(keys(lab))
     end
 
     perm = sortperm(symm_idx)
