@@ -22,3 +22,4 @@ include("truncate.jl")
 
 include("volume/xsf.jl")
 include("volume/cube.jl")
+include("volume/bxsf.jl")

@@ -70,6 +70,7 @@ makedocs(;
             "Parallel transport" => "tutorials/5-parallel_transport.md",
             "Split valence/conduction" => "tutorials/6-split.md",
             "Constrain WF center" => "tutorials/7-constrain_center.md",
+            "Fermi surface" => "tutorials/8-fermisurf.md",
         ],
         "Theory" => [
             "Algorithm" => "theory/algorithm.md",

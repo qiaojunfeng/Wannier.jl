@@ -127,18 +127,16 @@ end
 """
     InterpModel(model::Model; mdrs::Bool=true)
 
-Construct a `InterpModel` from a Wannierization [`Model`](@ref Model).
-
-The `kpath` will be auto generated from the lattice by using
-[`get_kpath`](@ref get_kpath).
+Construct a `InterpModel` from a Wannierization [`Model`](@ref).
 
 # Arguments
-- `model`: the Wannierization [`Model`](@ref Model)
+- `model`: the Wannierization [`Model`](@ref)
 
 # Keyword Arguments
 - `mdrs`: whether to use MDRS interpolation
+- `kpath`: if not given, use [`get_kpath`](@ref) to auto generate a kpath.
 """
-function InterpModel(model::Model; mdrs::Bool=true)
+function InterpModel(model::Model; mdrs::Bool=true, kpath::Union{KPath,Nothing}=nothing)
     if mdrs
         centers = center(model)
         # from cartesian to fractional
@@ -149,7 +147,9 @@ function InterpModel(model::Model; mdrs::Bool=true)
     end
     kRvecs = KRVectors(model.lattice, model.kgrid, model.kpoints, Rvecs)
 
-    kpath = get_kpath(model.lattice, model.atom_positions, model.atom_labels)
+    if kpath === nothing
+        kpath = get_kpath(model.lattice, model.atom_positions, model.atom_labels)
+    end
 
     Hᵏ = get_Hk(model.E, model.U)
     Hᴿ = fourier(kRvecs, Hᵏ)

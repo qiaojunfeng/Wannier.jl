@@ -56,7 +56,7 @@ Interpolate Fermi surface.
     kpoints, E = fermi_surface(Rvecs, model.H; n_k=nk)
 
     origin = zeros(Float64, 3)
-    write_bxsf("$out.bxsf", ef, origin, recip_latt, E)
+    WannierIO.write_bxsf("$out.bxsf", ef, origin, recip_latt, E)
 
     @printf("* Fermi surface interpolation finished on %s\n", string(now()))
     return nothing
