@@ -254,7 +254,7 @@ Return projectability of each kpoint.
 """
 function get_projectability(U::AbstractArray{T,3}) where {T<:Number}
     n_bands, n_wann, n_kpts = size(U)
-    P = zeros(T, n_bands, n_kpts)
+    P = zeros(real(T), n_bands, n_kpts)
     for ik in 1:n_kpts
         p = U[:, :, ik] * U[:, :, ik]'
         P[:, ik] = real(diag(p))
