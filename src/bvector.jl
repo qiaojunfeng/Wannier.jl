@@ -709,3 +709,49 @@ end
 function index_bvector(bvectors::BVectors, k1, k2, b)
     return index_bvector(bvectors.kpb_k, bvectors.kpb_b, k1, k2, b)
 end
+
+"""
+    get_bvectors_nearest(kpoints, recip_lattice; kmesh_tol=1e-6)
+
+Generate and sort bvectors for all the kpoints.
+
+# Arguments
+- `kpoints`: `3 * n_kpts`, kpoints in fractional coordinates
+- `recip_lattice`: `3 * 3`, columns are reciprocal lattice vectors
+
+# Keyword Arguments
+- `kmesh_tol`: equivalent to `Wannier90` input parameter `kmesh_tol`
+"""
+function get_bvectors_nearest(kpoints::Matrix{T}, recip_lattice::Mat3{T}) where {T<:Real}
+    n_kx, n_ky, n_kz = get_kgrid(kpoints)
+    δx, δy, δz = 1 / n_kx, 1 / n_ky, 1 / n_kz
+
+    # only 6 nearest neighbors
+    n_bvecs = 6
+    bvecs_frac = zeros(T, 3, n_bvecs)
+    bvecs_frac[:, 1] = [δx, 0, 0]
+    bvecs_frac[:, 2] = [-δx, 0, 0]
+    bvecs_frac[:, 3] = [0, δy, 0]
+    bvecs_frac[:, 4] = [0, -δy, 0]
+    bvecs_frac[:, 5] = [0, 0, δz]
+    bvecs_frac[:, 6] = [0, 0, -δz]
+
+    # just a fake weight
+    bvecs_weight = ones(T, n_bvecs)
+
+    # generate bvectors for each kpoint
+    n_kpts = size(kpoints, 2)
+    kpb_k = zeros(Int, n_bvecs, n_kpts)
+    kpb_b = zeros(Int, 3, n_bvecs, n_kpts)
+
+    for ik in 1:n_kpts
+        k = @view kpoints[:, ik]
+        # use fractional coordinates to compare
+        k_equiv, b_equiv = _bvec_to_kb(bvecs_frac, k, kpoints)
+        kpb_k[:, ik] = k_equiv
+        kpb_b[:, :, ik] = b_equiv
+    end
+
+    bvecs = recip_lattice * bvecs_frac
+    return BVectors(recip_lattice, kpoints, bvecs, bvecs_weight, kpb_k, kpb_b)
+end

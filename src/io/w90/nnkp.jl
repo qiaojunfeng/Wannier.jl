@@ -41,7 +41,12 @@ Write nnkp that can be used by `pw2wannier90`.
 
     This is a wrapper of `WannierIO.write_nnkp`.
 """
-function write_nnkp(filename::AbstractString, bvectors::BVectors, n_wann::Integer)
+function write_nnkp(
+    filename::AbstractString,
+    bvectors::BVectors,
+    n_wann::Integer,
+    exclude_bands::Union{Nothing,AbstractVector{<:Integer}}=nothing,
+)
     return WannierIO.write_nnkp(
         filename,
         bvectors.recip_lattice,
@@ -49,5 +54,6 @@ function write_nnkp(filename::AbstractString, bvectors::BVectors, n_wann::Intege
         bvectors.kpb_k,
         bvectors.kpb_b,
         n_wann,
+        exclude_bands,
     )
 end

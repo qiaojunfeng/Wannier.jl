@@ -113,3 +113,35 @@ function write_w90_band(seedname::AbstractString, kpi::KPathInterpolant, E::Abst
     symm_idx, symm_label = get_symm_idx_label(kpi)
     return WannierIO.write_w90_band(seedname, kpoints, E, x, symm_idx, symm_label)
 end
+
+"""
+    write_w90_kpt_label(seedname::AbstractString, kpi::KPathInterpolant)
+
+Write `SEEDNAME_band.kpt` and `SEEDNAME_band.labelinfo.dat`.
+
+This allows generating the high-symmetry kpoints and labels from crystal
+structure, and use the generated kpoints in `pw.x` `bands` calculation
+or in the `win` input file for `Wannier90`.
+
+# Example
+```julia
+win = read_win("si2.win")
+kp = get_kpath(win.unit_cell, win.atoms_frac, win.atom_labels)
+kpi = Wannier.interpolate_w90(kp, 100)
+Wannier.write_w90_kpt_label("si2", kpi)
+```
+"""
+function write_w90_kpt_label(seedname::AbstractString, kpi::KPathInterpolant)
+    kpoints = get_kpoints(kpi::KPathInterpolant)
+    x = get_x(kpi)
+    symm_idx, symm_label = get_symm_idx_label(kpi)
+
+    filename = "$(seedname)_band.kpt"
+    WannierIO.write_w90_band_kpt(filename, kpoints)
+
+    filename = "$(seedname)_band.labelinfo.dat"
+    WannierIO.write_w90_band_labelinfo(filename, symm_idx, symm_label, x, kpoints)
+
+    println()
+    return nothing
+end
