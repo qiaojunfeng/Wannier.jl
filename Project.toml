@@ -38,4 +38,7 @@ Reexport = "1.2.2"
 Spglib = "0.6.0"
 StaticArrays = "1.5.6"
 WannierIO = "0.1.0"
-julia = "1"
+# julia v1.8.3 crash due to
+# https://github.com/JuliaLang/julia/issues/47685
+# this is fixed >= 1.8.4
+julia = ">= 1.8.4"
