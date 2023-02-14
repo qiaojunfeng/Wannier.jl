@@ -96,6 +96,15 @@ For a much more detailed overview, please see
   test               # run tests
   ```
 
+### Documentation
+
+The docs are maintained in a dedicated repo [WannierDocs.jl](https://github.com/qiaojunfeng/WannierDocs.jl).
+This allows us to add large tutorial files (e.g. `amn`, `mmn`) without bloating the main repo.
+Furthermore, it also contains the docs for another two packages:
+
+- [WannierIO.jl](https://github.com/qiaojunfeng/WannierIO.jl) for reading and writing files
+- [WannierPlots.jl](https://github.com/qiaojunfeng/WannierPlots.jl) for plotting band structure, etc.
+
 ## Contributing
 
 The code initially started with Antoine Levitt's repo
