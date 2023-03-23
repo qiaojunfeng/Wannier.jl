@@ -133,7 +133,7 @@ function read_w90_interp(
 
     if chk
         model = read_w90(seedname; amn=false)
-        chkfmt = read_chk("$seedname.chk.fmt")
+        chkfmt = read_chk("$seedname.chk")
         model.U .= get_U(chkfmt)
         centers = chkfmt.r
     else

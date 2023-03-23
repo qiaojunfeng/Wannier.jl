@@ -346,7 +346,7 @@ For each kpoint,
 - `(X, Y)`: `size(X) = (n_wann, n_wann)`, `size(Y) = (n_bands, n_wann)`, intermediate format
 - `XY`: this is the format used in the optimizer
 """
-function X_Y_to_U(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
+function X_Y_to_U(X::AbstractArray{T,3}, Y::AbstractArray{T,3}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(Y)
 
     U = zeros(T, n_bands, n_wann, n_kpts)
@@ -380,7 +380,7 @@ See also [`X_Y_to_U`](@ref).
 - `U`: `n_bands * n_wann * n_kpts`
 - `frozen`: `n_bands * n_kpts`
 """
-function U_to_X_Y(U::Array{T,3}, frozen::BitMatrix) where {T<:Complex}
+function U_to_X_Y(U::AbstractArray{T,3}, frozen::BitMatrix) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(U)
 
     X = zeros(T, n_wann, n_wann, n_kpts)
@@ -431,7 +431,7 @@ See also [`X_Y_to_U`](@ref).
 - `n_bands`: number of bands, to be used to reshape `XY`
 - `n_wann`: number of wannier functions, to be used to reshape `XY`
 """
-function XY_to_X_Y(XY::Matrix{T}, n_bands::Int, n_wann::Int) where {T<:Complex}
+function XY_to_X_Y(XY::AbstractMatrix{T}, n_bands::Int, n_wann::Int) where {T<:Complex}
     n_kpts = size(XY, 2)
 
     X = zeros(T, n_wann, n_wann, n_kpts)
@@ -455,7 +455,7 @@ Convert the `(X, Y)` layout to the `XY` layout.
 
 See also [`X_Y_to_U`](@ref).
 """
-function X_Y_to_XY(X::Array{T,3}, Y::Array{T,3}) where {T<:Complex}
+function X_Y_to_XY(X::AbstractArray{T,3}, Y::AbstractArray{T,3}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(Y)
     # n_wann, n_wann, n_kpts = size(X)
 
