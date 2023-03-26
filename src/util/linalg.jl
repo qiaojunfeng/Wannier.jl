@@ -286,13 +286,12 @@ end
 Generate a random (semi-)unitary matrix using Lowdin orthonormalization.
 
 # Arguments
-- `T`: the type of the matrix
+- `T`: the type of the matrix, e.g., `ComplexF64`, `Float64`
 - `m`: number of rows
 - `n`: number of columns
 """
 function rand_unitary(T::Type, m::Int, n::Int)
-    T <: Complex || error("T must be Complex")
-    M = randn(T, m, n) + im * randn(T, m, n)
+    M = randn(T, m, n)
     N = orthonorm_lowdin(M)
     return N
 end
