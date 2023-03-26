@@ -1,3 +1,5 @@
+using TOML: parsefile
+
 """
 Split valence and conduction Wannier functions.
 
@@ -13,6 +15,12 @@ Then this command split WFs into two independent groups.
 - `--nval`: number of valence WFs. Default is `n_wann ÷ 2`
 - `--outdir-val`: dirname for output valence `amn`/`mmn`/`eig`. Default is `val`
 - `--outdir-cond`: dirname for output conduction `amn`/`mmn`/`eig`. Default is `cond`
+- `--config`: config file for `splitvc` command, e.g.
+    ```toml
+    [groups]
+    indices = [ [ 1, 2,], [ 3, 4, 5, 6,], [ 7, 8,], ]
+    outdirs = [ "val_1", "val_2", "cond_3",]
+    ```
 
 # Flags
 
@@ -30,6 +38,7 @@ Then this command split WFs into two independent groups.
     nval::Int=0,
     outdir_val::String="val",
     outdir_cond::String="cond",
+    config::String="",
     run_disentangle::Bool=false,
     run_optrot::Bool=false,
     run_maxloc::Bool=false,
@@ -54,61 +63,63 @@ Then this command split WFs into two independent groups.
         model.U .= get_U(chk)
     end
 
-    @info "Valence + conduction initial spread"
+    if config == ""
+        (nval == 0) && (nval = model.n_wann ÷ 2)
+        @info "number of valence WFs = $nval"
+        indices = [1:nval, (nval + 1):(model.n_wann)]
+        outdirs = [outdir_val, outdir_cond]
+    else
+        @info "reading config file: $config"
+        groups = parsefile(config)["groups"]
+        indices = groups["indices"]
+        outdirs = groups["outdirs"]
+    end
+    println("Model will be split into $(length(indices)) groups")
+    for (i, idxs) in enumerate(indices)
+        println("  Group $i:")
+        println("    indices: $(idxs)")
+        println("    outdir : $(outdirs[i])")
+    end
+
+    @info "Original model initial spread"
     show(omega(model))
     println("\n")
 
-    (nval == 0) && (nval = model.n_wann ÷ 2)
-    @info "number of valence WFs = $nval"
+    models_Us = split_wannierize(model, indices)
 
-    (model_val, Uv), (model_cond, Uc) = split_wannierize(model, nval)
+    for (i, (m, U)) in enumerate(models_Us)
+        @info "Group $i after parallel transport:"
+        show(omega(m))
+        println("\n")
 
-    @info "Valence after parallel transport:"
-    show(omega(model_val))
-    println("\n")
-    @info "Conduction after parallel transport:"
-    show(omega(model_cond))
-    println("\n")
+        if run_optrot
+            @info "Run optimal rotation"
+            println()
+            W = opt_rotate(m)
+            m.U .= rotate_U(m.U, W)
+        end
 
-    if run_optrot
-        @info "Run optimal rotation"
-        println()
-        Wv = opt_rotate(model_val)
-        model_val.U .= rotate_U(model_val.U, Wv)
-        Wc = opt_rotate(model_cond)
-        model_cond.U .= rotate_U(model_cond.U, Wc)
+        if run_maxloc
+            @info "Run max localization"
+            println()
+            m.U .= max_localize(m)
+        end
+
+        # Write files
+        outdir = joinpath(dirname(seedname), outdirs[i])
+        !isdir(outdir) && mkdir(outdir)
+        seedname_i = joinpath(outdir, basename(seedname))
+        write_w90(seedname_i, m; binary=binary)
     end
-
-    if run_maxloc
-        @info "Run max localization"
-        println()
-        model_val.U .= max_localize(model_val)
-        model_cond.U .= max_localize(model_cond)
-    end
-
-    # Write files
-    seedname_val = new_seedname(seedname, outdir_val)
-    write_w90(seedname_val, model_val; binary=binary)
-
-    seedname_cond = new_seedname(seedname, outdir_cond)
-    write_w90(seedname_cond, model_cond; binary=binary)
 
     # UNK files for plotting WFs
     if rotate_unk
         dir = dirname(seedname)
-        if dir == ""
-            dir = "."
-        end
-        outdir_val = dirname(seedname_val)
-        outdir_cond = dirname(seedname_cond)
-        split_unk(dir, Uv, Uc, outdir_val, outdir_cond; binary=binary)
+        dir == "" && (dir = ".")
+
+        outdirs = [joinpath(dir, odir) for odir in outdirs]
+        split_unk(dir, [mU[2] for mU in models_Us], outdirs; binary=binary)
     end
 
     return nothing
-end
-
-function new_seedname(seedname::String, subdir::String)
-    outdir = joinpath(dirname(seedname), subdir)
-    !isdir(outdir) && mkdir(outdir)
-    return joinpath(outdir, basename(seedname))
 end
