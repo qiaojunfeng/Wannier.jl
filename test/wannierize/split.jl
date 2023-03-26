@@ -6,7 +6,7 @@
 
     U = get_U(chk)
 
-    Ev, Ec, _, _ = Wannier.split_eig(E, U, n_val)
+    (Ev, _), (Ec, _) = Wannier.split_eig(E, U, n_val)
 
     Ev_ref = read_eig(joinpath(FIXTURE_PATH, "valence", "silicon.eig"))
     Ec_ref = read_eig(joinpath(FIXTURE_PATH, "conduction", "silicon.eig"))
@@ -21,7 +21,7 @@ end
     n_val = 4
 
     U = get_U(chk)
-    Ev, Ec, _, _ = Wannier.split_eig(E, U, n_val)
+    (Ev, _), (Ec, _) = Wannier.split_eig(E, U, n_val)
 
     M, kpb_k, kpb_b = read_mmn(joinpath(FIXTURE_PATH, "silicon/silicon.mmn"))
 
@@ -78,7 +78,7 @@ end
 
     n_val = 4
 
-    model_v, model_c = split_model(model, n_val)
+    (model_v, _), (model_c, _) = split_model(model, n_val)
 
     Ev_ref = read_eig(joinpath(FIXTURE_PATH, "valence", "silicon.eig"))
     Ec_ref = read_eig(joinpath(FIXTURE_PATH, "conduction", "silicon.eig"))

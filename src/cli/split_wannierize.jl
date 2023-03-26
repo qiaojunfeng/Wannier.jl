@@ -61,7 +61,7 @@ Then this command split WFs into two independent groups.
     (nval == 0) && (nval = model.n_wann ÷ 2)
     @info "number of valence WFs = $nval"
 
-    model_val, model_cond, Uv, Uc = split_wannierize(model, nval)
+    (model_val, Uv), (model_cond, Uc) = split_wannierize(model, nval)
 
     @info "Valence after parallel transport:"
     show(omega(model_val))
