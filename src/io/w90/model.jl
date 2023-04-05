@@ -107,7 +107,7 @@ end
 Return an `InterpModel` for Wannier interpolation.
 
 # Keyword arguments
-- chk: if `true`, read `chk` file to get the unitary matrices,
+- chk: if `true`, read `chk` or `chk.fmt` file to get the unitary matrices,
     otherwise read `amn` file for unitary matrices.
 - amn: filename for `amn`, read this `amn` file for unitary matrices.
     Only used if not reading `chk` and `amn` is given.
@@ -133,9 +133,13 @@ function read_w90_interp(
 
     if chk
         model = read_w90(seedname; amn=false)
-        chkfmt = read_chk("$seedname.chk")
-        model.U .= get_U(chkfmt)
-        centers = chkfmt.r
+        if isfile("$seedname.chk.fmt")
+            fchk = read_chk("$seedname.chk.fmt")
+        else
+            fchk = read_chk("$seedname.chk")
+        end
+        model.U .= get_U(fchk)
+        centers = fchk.r
     else
         if isnothing(amn)
             model = read_w90(seedname)
