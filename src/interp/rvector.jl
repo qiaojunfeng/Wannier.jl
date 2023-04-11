@@ -142,8 +142,8 @@ function get_Rvectors_ws(
         end
         push!(R_idxs, ir)
         degen = count(x -> abs(x - d) < atol, dists[ir])
-        if degen == max_neighbors
-            error("degeneracy is too large?")
+        if degen > max_neighbors
+            error("degeneracy is too large? $degen")
         end
         push!(R_degen, degen)
     end
@@ -348,8 +348,8 @@ function get_Rvectors_mdrs(
                     push!(T_idxs, it)
                 end
                 degen = length(T_idxs)
-                if degen == max_neighbors
-                    error("degeneracy of T vectors is too large?")
+                if degen > max_neighbors
+                    error("degeneracy of T vectors is too large? $degen")
                 end
                 # fractional coordinates
                 T_vecs[m, n, ir] = supercell[:, T_idxs]
