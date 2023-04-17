@@ -37,7 +37,7 @@ end
     G_ref = NLSolversBase.gradient!(d, XY)
 
     # The gradient for frozen bands need to be set as 0 explicitly
-    Wannier.zero_froz_grad!(G_ref, model)
+    Wannier.zero_froz_grad!(G_ref, model.frozen_bands)
     @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
@@ -48,7 +48,7 @@ end
     g!(G, XY)
     d = OnceDifferentiable(f, XY, zero(eltype(real(XY))))
     G_ref = NLSolversBase.gradient!(d, XY)
-    Wannier.zero_froz_grad!(G_ref, model)
+    Wannier.zero_froz_grad!(G_ref, model.frozen_bands)
     @test isapprox(G, G_ref; atol=1e-6)
 end
 

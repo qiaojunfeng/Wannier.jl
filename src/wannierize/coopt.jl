@@ -1,3 +1,10 @@
+"""
+Model for spin polarized system with constraint.
+
+Traditionally, we run two independent Wannierizations for spin up and spin down.
+Here we add a constraint to maximally overlap the spin-up and spin-down WFs,
+so that they map one-by-one to each other.
+"""
 struct MagModel{T<:Real}
     # submodel for spin up
     up::Model{T}
@@ -6,7 +13,20 @@ struct MagModel{T<:Real}
     dn::Model{T}
 
     # < u_nk^↑ | u_mk^↓ >, size: (n_bands, n_bands, n_kpts)
-    O::Array{Complex{T},3}
+    M::Array{Complex{T},3}
+end
+
+function Base.show(io::IO, model::MagModel)
+    # TODO not sure why but this breaks REPL
+    # every time I run any command, it will show this info message?
+    # @info "spin up:"
+    println(io, "spin up:")
+    show(io, model.up)
+    println(io, "\n")
+
+    # @info "spin down:"
+    println(io, "spin down:")
+    return show(io, model.dn)
 end
 
 # function MagModel(up::Model{T}, dn::Model{T}) where {T<:Real}
@@ -22,55 +42,162 @@ end
 #     MagModel(up, dn)
 # end
 
-function updn_overlap(
+struct SpreadMag{T} <: AbstractSpread
+    # up spread
+    up::Spread{T}
+
+    # dn spread
+    dn::Spread{T}
+
+    # unit Å²
+    Ωupdn::T
+
+    # Total spread Ωt = up.Ω + dn.Ω + Ω↑↓
+    Ωt::T
+
+    # overlap matrix between up and down WFs, unit Å², size = (n_wann, n_wann)
+    M::Matrix{T}
+end
+
+function SpreadMag(
+    model::MagModel, Uup::AbstractArray3{T}, Udn::AbstractArray3{T}
+) where {T<:Complex}
+    up = omega(model.up, Uup)
+    dn = omega(model.dn, Udn)
+    M = overlap_updn(model, Uup, Udn)
+    Ωupdn = omega_updn(M)
+    Ωt = up.Ω + dn.Ω + Ωupdn
+    return SpreadMag(up, dn, Ωupdn, Ωt, M)
+end
+
+function SpreadMag(model::MagModel)
+    return SpreadMag(model, model.up.U, model.dn.U)
+end
+
+function Base.show(io::IO, Ω::SpreadMag)
+    @info "spin up:"
+    show(io, Ω.up)
+    println(io, "\n")
+
+    @info "spin down:"
+    show(io, Ω.dn)
+    println(io, "\n")
+
+    n_wann = size(Ω.M, 1)
+    @info "overlap between up and down WFs:"
+    @printf(io, "  WF     <↑|↓>/Å²\n")
+    for i in 1:n_wann
+        @printf(io, "%4d %11.5f\n", i, Ω.M[i, i])
+    end
+    println(io, "")
+
+    @info "Sum spread: Ωt = Ω↑ + Ω↓ + Ω↑↓"
+    @printf(io, "   Ω↑  = %11.5f\n", Ω.up.Ω)
+    @printf(io, "   Ω↑  = %11.5f\n", Ω.dn.Ω)
+    @printf(io, "   Ω↑↓ = %11.5f\n", Ω.Ωupdn)
+    @printf(io, "   Ωt  = %11.5f\n", Ω.Ωt)
+end
+
+"""
+    overlap_updn(up::Model{T}, dn::Model{T}, M::Array{Complex{T},3}) where {T<:Real}
+
+Compute the overlap between up and down WFs.
+
+Actually N - Ω↑↓, according to QPPM Eq. 8, where N = n_wann.
+
+# Arguments
+- `model`: the `MagModel`
+- `Uup`: the up gauge matrices, size: (n_bands, n_wann, n_kpts)
+- `Udn`: the down gauge matrices, size: (n_bands, n_wann, n_kpts)
+"""
+function overlap_updn(
     model::MagModel{T}, Uup::Array{Complex{T},3}, Udn::Array{Complex{T},3}
 ) where {T<:Real}
     n_bands, n_wann, n_kpts = size(Uup)
-    O = zeros(real(eltype(model.O)), n_wann, n_wann)
+    M = zeros(real(eltype(model.M)), n_wann, n_wann)
 
     for ik in 1:n_kpts
         Uupk = @view Uup[:, :, ik]
         Udnk = @view Udn[:, :, ik]
-        Ok = @view model.O[:, :, ik]
-        upOkdn = Uupk' * Ok * Udnk
-        O += abs2.(upOkdn)
+        Mk = @view model.M[:, :, ik]
+        upOkdn = Uupk' * Mk * Udnk
+        M += abs2.(upOkdn)
     end
-    return O / n_kpts
+    return M / n_kpts
 end
 
-function updn_overlap(model::MagModel)
-    return updn_overlap(model, model.up.U, model.dn.U)
+function overlap_updn(model::MagModel)
+    return overlap_updn(model, model.up.U, model.dn.U)
 end
 
-function updn_overlap_grad(model::MagModel, Xup, Yup, Xdn, Ydn)
-    n_bands, n_wann, n_kpts = size(Yup)
+"""
+    omega_updn(M)
 
-    T = eltype(Xup)
-    S = zeros(T, n_wann, n_wann)
-    GXup = zeros(T, size(Xup))
-    GXdn = zeros(T, size(Xdn))
-    GYup = zeros(T, size(Yup))
-    GYdn = zeros(T, size(Ydn))
+Compute QPPM Eq. 8.
+
+# Arguments
+- `M`: the overlap matrix between up and down WFs, size: (n_wann, n_wann),
+    should be the matrix returned from [`overlap_updn`](@ref).
+"""
+function omega_updn(M::Matrix)
+    n_wann = size(M, 1)
+    # I am using minus sign here because the optimizer is minimizing total,
+    # thus maximizing the ↑↓ overlap.
+    return n_wann - sum(diag(M))
+end
+
+@doc raw"""
+    overlap_updn_grad(model::MagModel, Uup, Udn)
+
+Compute gradients of [`overlap_updn`](@ref overlap_updn).
+
+``\frac{d \Omega}{d U^{\uparrow}}`` and ``\frac{d \Omega}{d U^{\downarrow}}``.
+"""
+function overlap_updn_grad(model::MagModel, Uup, Udn)
+    n_bands, n_wann, n_kpts = size(Uup)
+
+    T = eltype(Uup)
+    M = zeros(T, n_wann, n_wann)
+    GUup = zeros(T, size(Uup))
+    GUdn = zeros(T, size(Udn))
 
     for ik in 1:n_kpts
-        Uupk = Yup[:, :, ik] * Xup[:, :, ik]
-        Udnk = Ydn[:, :, ik] * Xdn[:, :, ik]
-        Ok = @view model.O[:, :, ik]
-        upOkdn = Uupk' * Ok * Udnk
-        S += upOkdn
+        Uupk = @view Uup[:, :, ik]
+        Udnk = @view Udn[:, :, ik]
+        Mk = @view model.M[:, :, ik]
+        MUdn = Mk * Udnk
+        upOkdn = Uupk' * MUdn
+        M += upOkdn
 
-        GXup[:, :, ik] = Yup[:, :, ik]' * Ok * Udnk
-        GYup[:, :, ik] = Ok * Udnk * Xup[:, :, ik]'
-        GXdn[:, :, ik] = Ydn[:, :, ik]' * Ok' * Uupk
-        GYdn[:, :, ik] = Ok' * Uupk * Xdn[:, :, ik]'
+        GUup[:, :, ik] = MUdn
+        GUdn[:, :, ik] = Mk' * Uupk
     end
+
+    diagM = diagm(diag(M))
     for ik in 1:n_kpts
-        GXup[:, :, ik] .= GXup[:, :, ik] * S'
-        GYup[:, :, ik] .= GYup[:, :, ik] * S'
-        GXdn[:, :, ik] .= GXdn[:, :, ik] * S
-        GYdn[:, :, ik] .= GYdn[:, :, ik] * S
+        GUup[:, :, ik] .= GUup[:, :, ik] * diagM'
+        GUdn[:, :, ik] .= GUdn[:, :, ik] * diagM
     end
-    return GXup / n_kpts^2, GYup / n_kpts^2, GXdn / n_kpts^2, GYdn / n_kpts^2
+    return GUup / n_kpts^2, GUdn / n_kpts^2
+end
+
+@doc raw"""
+    overlap_updn_grad(model::MagModel, Xup, Yup, Xdn, Ydn)
+
+Compute gradient of [`overlap_updn`](@ref overlap_updn).
+
+``\frac{d \Omega}{d X^{\uparrow}}``, ``\frac{d \Omega}{d Y^{\uparrow}}``,
+``\frac{d \Omega}{d X^{\downarrow}}``, ``\frac{d \Omega}{d Y^{\downarrow}}``.
+"""
+function overlap_updn_grad(model::MagModel, Xup, Yup, Xdn, Ydn)
+    Uup = X_Y_to_U(Xup, Yup)
+    Udn = X_Y_to_U(Xdn, Ydn)
+    GUup, GUdn = overlap_updn_grad(model, Uup, Udn)
+
+    GXup, GYup = GU_to_GX_GY(GUup, Xup, Yup, model.up.frozen_bands)
+    GXdn, GYdn = GU_to_GX_GY(GUdn, Xdn, Ydn, model.dn.frozen_bands)
+
+    return GXup, GYup, GXdn, GYdn
 end
 
 """
@@ -78,9 +205,13 @@ end
 
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
-function get_fg!_disentangle(model::MagModel, n_bands, n_wann, n_kpts, λ::Real=1.0)
+function get_fg!_disentangle(model::MagModel, λ::Real=1.0)
+    n_bands = model.up.n_bands
+    n_wann = model.up.n_wann
+    n_kpts = model.up.n_kpts
+    n_inner = n_bands * n_wann + n_wann^2  # size of XY at each k-point
+
     function f(XY)
-        n_inner = n_bands * n_wann + n_wann^2  # size of XY at each k-point
         XY = reshape(XY, (2 * n_inner, n_kpts))  # *2 for spin up and down
         XYup = @view XY[1:n_inner, :]
         XYdn = @view XY[(n_inner + 1):end, :]
@@ -88,15 +219,17 @@ function get_fg!_disentangle(model::MagModel, n_bands, n_wann, n_kpts, λ::Real=
         Xdn, Ydn = XY_to_X_Y(XYdn, n_bands, n_wann)
         Ωup = omega(model.up.bvectors, model.up.M, Xup, Yup).Ω
         Ωdn = omega(model.dn.bvectors, model.dn.M, Xdn, Ydn).Ω
-        Oupdn = updn_overlap(model, X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn))
-        # I am using minus sign here because the optimizer is minimizing total,
-        # thus maximizing the ↑↓ overlap.
-        return Ωup + Ωdn - λ * sum(diag(Oupdn))
+        if λ == 0
+            Ωupdn = 0
+        else
+            M = overlap_updn(model, X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn))
+            Ωupdn = omega_updn(M)
+        end
+        return Ωup + Ωdn + λ * Ωupdn
     end
 
     """size(G) == size(XY)"""
     function g!(G, XY)
-        n_inner = n_bands * n_wann + n_wann^2  # size of XY at each k-point
         XY = reshape(XY, (2 * n_inner, n_kpts))  # *2 for spin up and down
         XYup = @view XY[1:n_inner, :]
         XYdn = @view XY[(n_inner + 1):end, :]
@@ -110,15 +243,17 @@ function get_fg!_disentangle(model::MagModel, n_bands, n_wann, n_kpts, λ::Real=
         )
 
         # gradient of ↑↓ overlap term
-        GOXup, GOYup, GOXdn, GOYdn = updn_overlap_grad(model, Xup, Yup, Xdn, Ydn)
-        GXup -= λ * GOXup
-        GYup -= λ * GOYup
-        GXdn -= λ * GOXdn
-        GYdn -= λ * GOYdn
+        if λ != 0
+            GOXup, GOYup, GOXdn, GOYdn = overlap_updn_grad(model, Xup, Yup, Xdn, Ydn)
+            GXup -= λ * GOXup
+            GYup -= λ * GOYup
+            GXdn -= λ * GOXdn
+            GYdn -= λ * GOYdn
+        end
 
         n = n_wann^2
 
-        for ik in 1:(model.up.n_kpts)
+        for ik in 1:n_kpts
             G[1:n, ik] = vec(GXup[:, :, ik])
             G[(n + 1):n_inner, ik] = vec(GYup[:, :, ik])
             G[(n_inner + 1):(n_inner + n), ik] = vec(GXdn[:, :, ik])
@@ -163,7 +298,6 @@ function disentangle(
     @assert model.dn.n_wann == n_wann
     @assert model.dn.n_kpts == n_kpts
 
-    # TODO need QR orthogonalization rather than SVD to preserve the sparsity structure of Y?
     XYk_up_Manif = Optim.ProductManifold(
         Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (n_wann, n_wann), (n_bands, n_wann)
     )
@@ -179,40 +313,22 @@ function disentangle(
     # compact storage
     XYup0 = X_Y_to_XY(Xup0, Yup0)
     XYdn0 = X_Y_to_XY(Xdn0, Ydn0)
-    XY0 = zeros(eltype(XYup0), (2 * n_inner, n_kpts))
-    XY0[1:n_inner, :] = XYup0
-    XY0[(n_inner + 1):end, :] = XYdn0
+    XY0 = vcat(XYup0, XYdn0)
 
     # We have three storage formats:
     # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
     # U: n_bands * n_wann * n_kpts
     # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
-    f, g! = get_fg!_disentangle(model, n_bands, n_wann, n_kpts, λ)
+    f, g! = get_fg!_disentangle(model, λ)
 
-    Ωup = omega(model.up)
-    Ωdn = omega(model.dn)
     @info "Initial spread"
-    show(Ωup)
-    println("")
-    show(Ωdn)
+    Ω = SpreadMag(model)
+    show(Ω)
     println("\n")
 
-    Oupdn = updn_overlap(model, model.up.U, model.dn.U)
-    @info "Initial ↑↓ overlap"
-    display(Oupdn)
-    println("\n")
-
-    Ωup = omega(model.up, Xup0, Yup0)
-    Ωdn = omega(model.dn, Xdn0, Ydn0)
     @info "Initial spread (with states freezed)"
-    show(Ωup)
-    println("")
-    show(Ωdn)
-    println("\n")
-
-    Oupdn = updn_overlap(model, X_Y_to_U(Xup0, Yup0), X_Y_to_U(Xdn0, Ydn0))
-    @info "Initial ↑↓ overlap"
-    display(Oupdn)
+    Ω = SpreadMag(model, X_Y_to_U(Xup0, Yup0), X_Y_to_U(Xdn0, Ydn0))
+    show(Ω)
     println("\n")
 
     # stepsize_mult = 1
@@ -249,18 +365,9 @@ function disentangle(
     Uupmin = X_Y_to_U(Xupmin, Yupmin)
     Udnmin = X_Y_to_U(Xdnmin, Ydnmin)
 
-    Ωup = omega(model.up, Uupmin)
-    Ωdn = omega(model.dn, Udnmin)
     @info "Final spread"
-    show(Ωup)
-    println("")
-    show(Ωdn)
-    println("\n")
-
-    Oupdn = updn_overlap(model, Uupmin, Udnmin)
-    @info "Final ↑↓ overlap"
-    display(Oupdn)
-    println("\n")
+    Ω = SpreadMag(model, Uupmin, Udnmin)
+    show(Ω)
 
     return Uupmin, Udnmin
 end

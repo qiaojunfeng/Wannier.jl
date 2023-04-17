@@ -527,17 +527,33 @@ function omega_grad(
     Y::Array{Complex{FT},3},
     frozen::BitMatrix,
 ) where {FT<:Real}
-    n_kpts = size(Y, 3)
-
     U = X_Y_to_U(X, Y)
-
     G = omega_grad(bvectors, M, U)
+    return GU_to_GX_GY(G, X, Y, frozen)
+end
 
+@doc raw"""
+    GU_to_GX_GY(G, X, Y, frozen)
+
+Compute dΩ/dX and dΩ/dY from dΩ/dU.
+
+Acutally they are the conjugate gradients, e.g., ``\frac{d \Omega}{d U^*}``.
+
+# Arguments
+- `G`: `n_bands * n_wann * n_kpts` array for gradient dΩ/dU
+- `X`: `n_wann * n_wann * n_kpts` array for X
+- `Y`: `n_bands * n_wann * n_kpts` array for Y
+- `frozen`: `n_bands * n_kpts` BitMatrix for frozen bands
+"""
+function GU_to_GX_GY(
+    G::AbstractArray3, X::AbstractArray3, Y::AbstractArray3, frozen::BitMatrix
+)
+    n_kpts = size(G, 3)
     GX = zero(X)
     GY = zero(Y)
 
     for ik in 1:n_kpts
-        idx_f = frozen[:, ik]
+        idx_f = @view frozen[:, ik]
         n_froz = count(idx_f)
 
         GX[:, :, ik] = Y[:, :, ik]' * G[:, :, ik]
@@ -545,20 +561,13 @@ function omega_grad(
 
         GY[idx_f, :, ik] .= 0
         GY[:, 1:n_froz, ik] .= 0
-
-        # to compute the projected gradient: redundant, taken care of by the optimizer
-        # function proj_stiefel(G,X)
-        #     G .- X*((X'G .+ G'X)./2)
-        # end
-        # GX[:,:,ik] = proj_stiefel(GX[:,:,ik], X[:,:,ik])
-        # GY[:,:,ik] = proj_stiefel(GY[:,:,ik], Y[:,:,ik])
     end
 
     return GX, GY
 end
 
 """
-    zero_froz_grad!(G, model)
+    zero_froz_grad!(G, frozen)
 
 Set gradient of frozen bands to 0.
 
@@ -566,12 +575,19 @@ This is used in test.
 
 # Arguments
 - `G`: gradient of the spread, in `XY` layout
-- `model`: model
+- `frozen`: `BitMatrix` for frozen bands, `n_bands * n_kpts`
 """
-function zero_froz_grad!(G::Matrix, model::Model)
-    GX, GY = Wannier.XY_to_X_Y(G, model.n_bands, model.n_wann)
-    for ik in 1:size(G, 2)
-        idx_f = model.frozen_bands[:, ik]
+function zero_froz_grad!(G::AbstractMatrix, frozen::BitMatrix)
+    n_bands, n_kpts = size(frozen)
+    size(G, 2) == n_kpts || error("size(G, 2) != n_kpts")
+    # I need to find n_wann, solving the following polynomial equation:
+    # size(G, 1) = n_wann * n_wann + n_bands * n_wann
+    # just use quadratic formula
+    n_wann = round(Int, (-n_bands + sqrt(n_bands^2 + 4 * size(G, 1))) / 2)
+
+    GX, GY = Wannier.XY_to_X_Y(G, n_bands, n_wann)
+    for ik in 1:n_kpts
+        idx_f = @view frozen[:, ik]
         n_froz = count(idx_f)
         GY[idx_f, :, ik] .= 0
         GY[:, 1:n_froz, ik] .= 0
