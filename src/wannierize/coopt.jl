@@ -106,24 +106,26 @@ Compute the overlap between up and down WFs.
 Actually N - Ω↑↓, according to QPPM Eq. 8, where N = n_wann.
 
 # Arguments
-- `model`: the `MagModel`
+- `M`: the `MagModel.M` matrices, size (n_bands, n_bands, n_kpts)
 - `Uup`: the up gauge matrices, size: (n_bands, n_wann, n_kpts)
 - `Udn`: the down gauge matrices, size: (n_bands, n_wann, n_kpts)
 """
-function overlap_updn(
-    model::MagModel{T}, Uup::Array{Complex{T},3}, Udn::Array{Complex{T},3}
-) where {T<:Real}
+function overlap_updn(M::AbstractArray3, Uup::AbstractArray3, Udn::AbstractArray3)
     n_bands, n_wann, n_kpts = size(Uup)
-    M = zeros(real(eltype(model.M)), n_wann, n_wann)
+    Mᵂ = zeros(eltype(M), n_wann, n_wann)
 
     for ik in 1:n_kpts
         Uupk = @view Uup[:, :, ik]
         Udnk = @view Udn[:, :, ik]
-        Mk = @view model.M[:, :, ik]
-        upOkdn = Uupk' * Mk * Udnk
-        M += abs2.(upOkdn)
+        Mk = @view M[:, :, ik]
+        Mᵂ += Uupk' * Mk * Udnk
     end
-    return M / n_kpts
+
+    return abs2.(Mᵂ) / n_kpts^2
+end
+
+function overlap_updn(model::MagModel, Uup::AbstractArray3, Udn::AbstractArray3)
+    return overlap_updn(model.M, Uup, Udn)
 end
 
 function overlap_updn(model::MagModel)
@@ -139,11 +141,19 @@ Compute QPPM Eq. 8.
 - `M`: the overlap matrix between up and down WFs, size: (n_wann, n_wann),
     should be the matrix returned from [`overlap_updn`](@ref).
 """
-function omega_updn(M::Matrix)
+function omega_updn(M::AbstractMatrix)
     n_wann = size(M, 1)
-    # I am using minus sign here because the optimizer is minimizing total,
+    # I am using minus sign here because the optimizer is minimizing total spread,
     # thus maximizing the ↑↓ overlap.
     return n_wann - sum(diag(M))
+end
+
+function omega_updn(model::MagModel, Uup::AbstractArray3, Udn::AbstractArray3)
+    return omega_updn(overlap_updn(model, Uup, Udn))
+end
+
+function omega_updn(model::MagModel)
+    return omega_updn(overlap_updn(model))
 end
 
 @doc raw"""
@@ -152,33 +162,41 @@ end
 Compute gradients of [`overlap_updn`](@ref overlap_updn).
 
 ``\frac{d \Omega}{d U^{\uparrow}}`` and ``\frac{d \Omega}{d U^{\downarrow}}``.
+
+# Arguments
+- `M`: the `MagModel.M` matrices, size (n_bands, n_bands, n_kpts)
+- `Uup`: the up gauge matrices, size: (n_bands, n_wann, n_kpts)
+- `Udn`: the down gauge matrices, size: (n_bands, n_wann, n_kpts)
 """
-function overlap_updn_grad(model::MagModel, Uup, Udn)
+function overlap_updn_grad(M::AbstractArray3, Uup::AbstractArray3, Udn::AbstractArray3)
     n_bands, n_wann, n_kpts = size(Uup)
 
     T = eltype(Uup)
-    M = zeros(T, n_wann, n_wann)
+    Mᵂ = zeros(T, n_wann, n_wann)
     GUup = zeros(T, size(Uup))
     GUdn = zeros(T, size(Udn))
 
     for ik in 1:n_kpts
         Uupk = @view Uup[:, :, ik]
         Udnk = @view Udn[:, :, ik]
-        Mk = @view model.M[:, :, ik]
+        Mk = @view M[:, :, ik]
         MUdn = Mk * Udnk
-        upOkdn = Uupk' * MUdn
-        M += upOkdn
+        Mᵂ += Uupk' * MUdn
 
         GUup[:, :, ik] = MUdn
         GUdn[:, :, ik] = Mk' * Uupk
     end
 
-    diagM = diagm(diag(M))
+    diagM = diagm(diag(Mᵂ))
     for ik in 1:n_kpts
         GUup[:, :, ik] .= GUup[:, :, ik] * diagM'
         GUdn[:, :, ik] .= GUdn[:, :, ik] * diagM
     end
     return GUup / n_kpts^2, GUdn / n_kpts^2
+end
+
+function overlap_updn_grad(model::MagModel, Uup::AbstractArray3, Udn::AbstractArray3)
+    return overlap_updn_grad(model.M, Uup, Udn)
 end
 
 @doc raw"""
@@ -189,7 +207,13 @@ Compute gradient of [`overlap_updn`](@ref overlap_updn).
 ``\frac{d \Omega}{d X^{\uparrow}}``, ``\frac{d \Omega}{d Y^{\uparrow}}``,
 ``\frac{d \Omega}{d X^{\downarrow}}``, ``\frac{d \Omega}{d Y^{\downarrow}}``.
 """
-function overlap_updn_grad(model::MagModel, Xup, Yup, Xdn, Ydn)
+function overlap_updn_grad(
+    model::MagModel,
+    Xup::AbstractArray3,
+    Yup::AbstractArray3,
+    Xdn::AbstractArray3,
+    Ydn::AbstractArray3,
+)
     Uup = X_Y_to_U(Xup, Yup)
     Udn = X_Y_to_U(Xdn, Ydn)
     GUup, GUdn = overlap_updn_grad(model, Uup, Udn)
@@ -198,6 +222,33 @@ function overlap_updn_grad(model::MagModel, Xup, Yup, Xdn, Ydn)
     GXdn, GYdn = GU_to_GX_GY(GUdn, Xdn, Ydn, model.dn.frozen_bands)
 
     return GXup, GYup, GXdn, GYdn
+end
+
+function omega_updn_grad(model::MagModel, Uup::AbstractArray3, Udn::AbstractArray3)
+    GUup, GUdn = overlap_updn_grad(model, Uup, Udn)
+    # Note since both Optim.jl (used in the actual minimization) and
+    # NLSolversBase.jl (used in test for finite difference check) are adopting
+    # the convention of
+    #   df(x) = Re<∇f, dx>
+    # for the complex differentials, I need to multiply by 2 here, since
+    # I am using the convention of
+    #   df(x) = 2 Re<∇f, dx>
+    # when deriving the gradient by hand, this allows me to reuse existing
+    # derivative rules but I need to multiply by 2 here.
+    # The minus sign is due to the definition of `omega_updn`.
+    return -2 * GUup, -2 * GUdn
+end
+
+function omega_updn_grad(
+    model::MagModel,
+    Xup::AbstractArray3,
+    Yup::AbstractArray3,
+    Xdn::AbstractArray3,
+    Ydn::AbstractArray3,
+)
+    GXup, GYup, GXdn, GYdn = overlap_updn_grad(model, Xup, Yup, Xdn, Ydn)
+    # see previous function for the reason of the factor of -2
+    return -2 * GXup, -2 * GYup, -2 * GXdn, -2 * GYdn
 end
 
 """
@@ -222,8 +273,7 @@ function get_fg!_disentangle(model::MagModel, λ::Real=1.0)
         if λ == 0
             Ωupdn = 0
         else
-            M = overlap_updn(model, X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn))
-            Ωupdn = omega_updn(M)
+            Ωupdn = omega_updn(model, X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn))
         end
         return Ωup + Ωdn + λ * Ωupdn
     end
@@ -244,11 +294,11 @@ function get_fg!_disentangle(model::MagModel, λ::Real=1.0)
 
         # gradient of ↑↓ overlap term
         if λ != 0
-            GOXup, GOYup, GOXdn, GOYdn = overlap_updn_grad(model, Xup, Yup, Xdn, Ydn)
-            GXup -= λ * GOXup
-            GYup -= λ * GOYup
-            GXdn -= λ * GOXdn
-            GYdn -= λ * GOYdn
+            GOXup, GOYup, GOXdn, GOYdn = omega_updn_grad(model, Xup, Yup, Xdn, Ydn)
+            GXup += λ * GOXup
+            GYup += λ * GOYup
+            GXdn += λ * GOXdn
+            GYdn += λ * GOYdn
         end
 
         n = n_wann^2
