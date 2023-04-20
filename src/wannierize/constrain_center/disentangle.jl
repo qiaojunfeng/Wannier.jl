@@ -73,26 +73,9 @@ function omega_center_grad(
     r₀::Matrix{FT},
     λ::FT,
 ) where {FT<:Real}
-    n_kpts = size(Y, 3)
-
     U = X_Y_to_U(X, Y)
     G = omega_center_grad(bvectors, M, U, r₀, λ)
-
-    GX = zero(X)
-    GY = zero(Y)
-
-    for ik in 1:n_kpts
-        idx_f = frozen[:, ik]
-        n_froz = count(idx_f)
-
-        GX[:, :, ik] = Y[:, :, ik]' * G[:, :, ik]
-        GY[:, :, ik] = G[:, :, ik] * X[:, :, ik]'
-
-        GY[idx_f, :, ik] .= 0
-        GY[:, 1:n_froz, ik] .= 0
-    end
-
-    return GX, GY
+    return GU_to_GX_GY(G, X, Y, frozen)
 end
 
 """
