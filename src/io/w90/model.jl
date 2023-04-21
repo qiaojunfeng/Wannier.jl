@@ -167,7 +167,7 @@ function read_w90_interp(
         setting = Ref(Brillouin.LATTICE)
         kpath = KPath{3}(points, paths, basis, setting)
     else
-        kpath = KPath(win.unit_cell, win.kpoint_path)
+        kpath = get_kpath(win.unit_cell, win.kpoint_path)
     end
 
     Hᵏ = get_Hk(model.E, model.U)

@@ -1,5 +1,5 @@
 
-@testset "KPath" begin
+@testset "get_kpath" begin
     test_data = YAML.load_file(String(@__DIR__) * "/test_data/kpath.yaml")
 
     win = read_win(joinpath(FIXTURE_PATH, "silicon/silicon.win"))
@@ -15,7 +15,7 @@
     # YAML.write_file(String(@__DIR__) * "/test_data/kpath.yaml", yaml_dict)
 
     test_kpath = test_data["kpoint_path"]
-    win_kpath = KPath(win.unit_cell, win.kpoint_path)
+    win_kpath = Wannier.get_kpath(win.unit_cell, win.kpoint_path)
     t_points = Dict(Symbol(k) => v for (k, v) in test_kpath["points"])
     @test t_points == win_kpath.points
     t_paths = [[Symbol(i) for i in l] for l in test_kpath["paths"]]
@@ -34,7 +34,7 @@ end
 
     # num points of 1st segment
     n_points = 100
-    kpath = Wannier.KPath(lattice, win.kpoint_path)
+    kpath = Wannier.get_kpath(lattice, win.kpoint_path)
     test_kpi = Wannier.interpolate_w90(kpath, n_points)
 
     @test all(isapprox.(test_kpi.kpaths, kpi.kpaths; atol=1e-5))
@@ -67,7 +67,7 @@ end
 
     band = WannierIO.read_w90_band(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
 
-    kpoint_path = Wannier.KPath(lattice, win.kpoint_path)
+    kpoint_path = Wannier.get_kpath(lattice, win.kpoint_path)
     kpi = Wannier.interpolate_w90(kpoint_path, 100)
 
     @test all(isapprox.(band.x, Wannier.get_x(kpi); atol=1e-5))

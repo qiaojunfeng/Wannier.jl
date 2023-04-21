@@ -20,7 +20,7 @@ function _new_kpath_label(
 end
 
 """
-    KPath(lattice, kpoint_path)
+    get_kpath(lattice, kpoint_path)
 
 Construct a `Brillouin.KPath` from the returned `kpoint_path` of `WannierIO.read_win`.
 
@@ -32,7 +32,7 @@ Construct a `Brillouin.KPath` from the returned `kpoint_path` of `WannierIO.read
                    [:M => [0.5, 0.5, 0.0], :R => [0.5, 0.5, 0.5]]]
     ```
 """
-function KPath(
+function get_kpath(
     lattice::AbstractMatrix, kpoint_path::Vector{Vector{Pair{Symbol,T}}}
 ) where {T<:AbstractVector{<:Real}}
     points = Dict{Symbol,Vec3{eltype(T)}}()
@@ -77,7 +77,7 @@ end
 """
     interpolate_w90(kpath::KPath, n_points::Int)
 
-Get kpoint coordinates from a `KPath`.
+Get kpoint coordinates from a `Brillouin.KPath`.
 
 Use the kpath density of first segment to generate the following kpaths,
 also need to take care of high symmetry kpoints at the start and end of each segment.
@@ -85,7 +85,7 @@ also need to take care of high symmetry kpoints at the start and end of each seg
 Return a `KPathInterpolant`.
 
 # Arguments
-- `kpath`: a `KPath`
+- `kpath`: a `Brillouin.KPath`
 - `n_points`: number of kpoints in the first segment, remaining segments
     have the same density as the 1st segment.
 
@@ -206,7 +206,7 @@ end
 """
     get_kpath(lattice, atom_positions, atom_numbers)
 
-Get a `KPath` for arbitrary cell (can be non-standard).
+Get a `Brillouin.KPath` for arbitrary cell (can be non-standard).
 
 Internally use `Brillouin.jl`.
 
@@ -230,7 +230,7 @@ end
 """
     get_kpath(lattice, atom_positions, atom_labels)
 
-Get a `KPath` for arbitrary cell (can be non-standard).
+Get a `Brillouin.KPath` for arbitrary cell (can be non-standard).
 
 Internally use `Brillouin.jl`.
 
