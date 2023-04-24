@@ -42,7 +42,7 @@ end
 #     MagModel(up, dn)
 # end
 
-struct SpreadMag{T} <: AbstractSpread
+struct SpreadMag{T<:Real} <: AbstractSpread
     # up spread
     up::Spread{T}
 
@@ -52,26 +52,29 @@ struct SpreadMag{T} <: AbstractSpread
     # unit Å²
     Ωupdn::T
 
-    # Total spread Ωt = up.Ω + dn.Ω + Ω↑↓
+    # Total spread Ωt = up.Ω + dn.Ω + λ * Ω↑↓
     Ωt::T
 
     # overlap matrix between up and down WFs, unit Å², size = (n_wann, n_wann)
-    M::Matrix{T}
+    M::Matrix{Complex{T}}
+
+    # λ
+    λ::T
 end
 
 function SpreadMag(
-    model::MagModel, Uup::AbstractArray3{T}, Udn::AbstractArray3{T}
+    model::MagModel, Uup::AbstractArray3{T}, Udn::AbstractArray3{T}, λ::Real
 ) where {T<:Complex}
     up = omega(model.up, Uup)
     dn = omega(model.dn, Udn)
     M = overlap_updn(model, Uup, Udn)
     Ωupdn = omega_updn(M)
-    Ωt = up.Ω + dn.Ω + Ωupdn
-    return SpreadMag(up, dn, Ωupdn, Ωt, M)
+    Ωt = up.Ω + dn.Ω + λ * Ωupdn
+    return SpreadMag(up, dn, Ωupdn, Ωt, M, λ)
 end
 
-function SpreadMag(model::MagModel)
-    return SpreadMag(model, model.up.U, model.dn.U)
+function SpreadMag(model::MagModel, λ::Real)
+    return SpreadMag(model, model.up.U, model.dn.U, λ)
 end
 
 function Base.show(io::IO, Ω::SpreadMag)
@@ -91,7 +94,7 @@ function Base.show(io::IO, Ω::SpreadMag)
     end
     println(io, "")
 
-    @info "Sum spread: Ωt = Ω↑ + Ω↓ + Ω↑↓"
+    @info "Sum spread: Ωt = Ω↑ + Ω↓ + λ * Ω↑↓"
     @printf(io, "   Ω↑  = %11.5f\n", Ω.up.Ω)
     @printf(io, "   Ω↑  = %11.5f\n", Ω.dn.Ω)
     @printf(io, "   Ω↑↓ = %11.5f\n", Ω.Ωupdn)
@@ -372,12 +375,12 @@ function disentangle(
     f, g! = get_fg!_disentangle(model, λ)
 
     @info "Initial spread"
-    Ω = SpreadMag(model)
+    Ω = SpreadMag(model, λ)
     show(Ω)
     println("\n")
 
     @info "Initial spread (with states freezed)"
-    Ω = SpreadMag(model, X_Y_to_U(Xup0, Yup0), X_Y_to_U(Xdn0, Ydn0))
+    Ω = SpreadMag(model, X_Y_to_U(Xup0, Yup0), X_Y_to_U(Xdn0, Ydn0), λ)
     show(Ω)
     println("\n")
 
@@ -416,7 +419,7 @@ function disentangle(
     Udnmin = X_Y_to_U(Xdnmin, Ydnmin)
 
     @info "Final spread"
-    Ω = SpreadMag(model, Uupmin, Udnmin)
+    Ω = SpreadMag(model, Uupmin, Udnmin, λ)
     show(Ω)
 
     return Uupmin, Udnmin
