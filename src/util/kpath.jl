@@ -91,7 +91,8 @@ Return a `KPathInterpolant`.
 
 !!! note
 
-    This reproduce exactly the `Wannier90` input parameter `kpoint_path` block.
+    This reproduce exactly the `Wannier90` input parameter `kpoint_path` block
+    and the input parameter `bands_num_points`.
 """
 function interpolate_w90(kpath::KPath, n_points::Int)
     # cartesian

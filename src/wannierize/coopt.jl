@@ -42,12 +42,12 @@ end
 #     MagModel(up, dn)
 # end
 
-struct SpreadMag{T<:Real} <: AbstractSpread
+struct SpreadMag{T<:Real,S<:AbstractSpread} <: AbstractSpread
     # up spread
-    up::Spread{T}
+    up::S
 
     # dn spread
-    dn::Spread{T}
+    dn::S
 
     # unit Å²
     Ωupdn::T
@@ -56,13 +56,13 @@ struct SpreadMag{T<:Real} <: AbstractSpread
     Ωt::T
 
     # overlap matrix between up and down WFs, unit Å², size = (n_wann, n_wann)
-    M::Matrix{Complex{T}}
+    M::Matrix{T}
 
     # λ
     λ::T
 end
 
-function SpreadMag(
+function omega(
     model::MagModel, Uup::AbstractArray3{T}, Udn::AbstractArray3{T}, λ::Real
 ) where {T<:Complex}
     up = omega(model.up, Uup)
@@ -73,8 +73,8 @@ function SpreadMag(
     return SpreadMag(up, dn, Ωupdn, Ωt, M, λ)
 end
 
-function SpreadMag(model::MagModel, λ::Real)
-    return SpreadMag(model, model.up.U, model.dn.U, λ)
+function omega(model::MagModel, λ::Real)
+    return omega(model, model.up.U, model.dn.U, λ)
 end
 
 function Base.show(io::IO, Ω::SpreadMag)
@@ -165,6 +165,8 @@ end
 Compute gradients of [`overlap_updn`](@ref overlap_updn).
 
 ``\frac{d \Omega}{d U^{\uparrow}}`` and ``\frac{d \Omega}{d U^{\downarrow}}``.
+
+TODO: this is actually the gradient of Tr[overlap_updn]
 
 # Arguments
 - `M`: the `MagModel.M` matrices, size (n_bands, n_bands, n_kpts)
@@ -324,10 +326,9 @@ end
 
 Run disentangle on a `MagModel`.
 
-Wannierize the up and down spin channels using the same `U` matrix.
-
 # Arguments
 - `model`: MagModel
+- `λ`: Lagrange multiplier of the ↑↓ overlap term
 
 # Keyword arguments
 - `f_tol`: tolerance for spread convergence
@@ -336,8 +337,8 @@ Wannierize the up and down spin channels using the same `U` matrix.
 - `history_size`: history size of LBFGS
 """
 function disentangle(
-    model::MagModel{T};
-    λ::T=1.0,
+    model::MagModel{T},
+    λ::T=1.0;
     f_tol::T=1e-7,
     g_tol::T=1e-5,
     max_iter::Int=200,
@@ -375,12 +376,12 @@ function disentangle(
     f, g! = get_fg!_disentangle(model, λ)
 
     @info "Initial spread"
-    Ω = SpreadMag(model, λ)
+    Ω = omega(model, λ)
     show(Ω)
     println("\n")
 
     @info "Initial spread (with states freezed)"
-    Ω = SpreadMag(model, X_Y_to_U(Xup0, Yup0), X_Y_to_U(Xdn0, Ydn0), λ)
+    Ω = omega(model, X_Y_to_U(Xup0, Yup0), X_Y_to_U(Xdn0, Ydn0), λ)
     show(Ω)
     println("\n")
 
@@ -419,7 +420,7 @@ function disentangle(
     Udnmin = X_Y_to_U(Xdnmin, Ydnmin)
 
     @info "Final spread"
-    Ω = SpreadMag(model, Uupmin, Udnmin, λ)
+    Ω = omega(model, Uupmin, Udnmin, λ)
     show(Ω)
 
     return Uupmin, Udnmin
