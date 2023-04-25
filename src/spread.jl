@@ -184,11 +184,11 @@ function Base.show(io::IO, Ω::Spread)
     end
 
     @printf(io, "Sum spread: Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n")
-    @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
     @printf(io, "   ΩI  = %11.5f\n", Ω.ΩI)
+    @printf(io, "   Ω̃   = %11.5f\n", Ω.Ω̃)
     @printf(io, "   ΩOD = %11.5f\n", Ω.ΩOD)
     @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
-    @printf(io, "   Ω̃   = %11.5f", Ω.Ω̃)
+    @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
 end
 
 """
