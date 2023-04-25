@@ -96,7 +96,7 @@ function Base.show(io::IO, Ω::SpreadMag)
 
     @info "Sum spread: Ωt = Ω↑ + Ω↓ + λ * Ω↑↓"
     @printf(io, "   Ω↑  = %11.5f\n", Ω.up.Ω)
-    @printf(io, "   Ω↑  = %11.5f\n", Ω.dn.Ω)
+    @printf(io, "   Ω↓  = %11.5f\n", Ω.dn.Ω)
     @printf(io, "   Ω↑↓ = %11.5f\n", Ω.Ωupdn)
     @printf(io, "   Ωt  = %11.5f\n", Ω.Ωt)
 end
