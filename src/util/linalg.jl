@@ -1,6 +1,5 @@
 using LinearAlgebra
 
-export get_recip_lattice, get_lattice
 export orthonorm_lowdin, eyes_U, rotate_M
 export isunitary
 
@@ -10,20 +9,6 @@ export isunitary
 Return the imaginary part of the logarithm of `z`.
 """
 imaglog(z::T) where {T<:Complex} = atan(imag(z), real(z))
-
-"""
-    get_recip_lattice(lattice::Mat3)
-
-Return reciprocal lattice.
-"""
-get_recip_lattice(lattice::Mat3) = 2π * inv(lattice)'
-
-"""
-    get_lattice(recip_lattice::Mat3)
-
-Return lattice.
-"""
-get_lattice(recip_lattice::Mat3) = inv(recip_lattice / (2π))'
 
 """
     orthonorm_lowdin(U::Matrix{T})

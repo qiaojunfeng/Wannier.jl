@@ -27,10 +27,12 @@ Construct a `Brillouin.KPath` from the returned `kpoint_path` of `WannierIO.read
 # Arguments
 - `lattice`: each column is a lattice vector
 - `kpoint_path`: the returned `kpoint_path` of `WannierIO.read_win`, e.g.,
-    ```julia
-    kpoint_path = [[:Γ => [0.0, 0.0, 0.0], :M => [0.5, 0.5, 0.0]],
-                   [:M => [0.5, 0.5, 0.0], :R => [0.5, 0.5, 0.5]]]
-    ```
+```julia
+kpoint_path = [
+    [:Γ => [0.0, 0.0, 0.0], :M => [0.5, 0.5, 0.0]],
+    [:M => [0.5, 0.5, 0.0], :R => [0.5, 0.5, 0.5]],
+]
+```
 """
 function get_kpath(
     lattice::AbstractMatrix, kpoint_path::Vector{Vector{Pair{Symbol,T}}}
