@@ -67,10 +67,10 @@ Read `seedname_tb.dat` and `seedname_wsvec.dat`, return an [`InterpModel`](@ref)
 
 !!! warning
 
-    Since no atomic positions and labels are provided, the auto-generated `KPath`
-    is probably wrong.
-    It is recommended that you pass the `atom_positions` and `atom_labels` arguments
-    so that this function can auto generate the correct [`KPath`](@ref).
+    Since no atomic positions and labels are provided, the auto-generated
+    `Brillouin.KPath` is probably wrong. It is recommended that you pass the
+    `atom_positions` and `atom_labels` arguments so that this function can
+    auto generate the correct `Brillouin.KPath`.
 """
 function read_w90_tb(
     seedname::AbstractString;

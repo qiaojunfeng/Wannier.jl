@@ -1,7 +1,7 @@
 using ProgressBars: ProgressBar
 
 @doc raw"""
-    fermi_surface(Rvectors::RV, H::AbstractArray{Complex{T},3}; n_k::KT) where {T<:Real, RV<:Union{RVectors{T},RVectorsMDRS{T}},KT<:Union{AbstractVector{Int},Integer}}
+    fermi_surface(Rvectors, H; n_k)
 
 Interpolate Fermi surface.
 
@@ -95,8 +95,6 @@ Interpolate Fermi surface.
 
 # Arguments
 - `model`: [`InterpModel`](@ref)
-
-See also [`fermi_surface`](@ref fermi_surface(Rvectors::RV, H::AbstractArray{Complex{T},3}; n_k::KT)).
 """
 function fermi_surface(model::InterpModel; n_k)
     return fermi_surface(model.kRvectors.Rvectors, model.H; n_k=n_k)
