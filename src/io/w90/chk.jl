@@ -4,21 +4,24 @@ using Dates: now
 export write_chk
 
 """
-    write_chk(filename, model; exclude_bands=nothing)
+    write_chk(filename, model, U; exclude_bands=nothing, binary=false)
 
-Write the `model` to a Wannier90 `.chk` file.
+Write the `model` to a Wannier90 `.chk` file, using the gauge `U`.
 
 # Arguments
 - `filename`: filename of the `.chk` file
 - `model`: a `Model` struct
+- `U`: `n_bands * n_wann * n_kpts` array for the gauge transformation
 
 # Keyword Arguments
 - `exclude_bands`: a list of band indices to exclude.
     This is irrelevant to the `model`, but `chk` file has this entry.
+- `binary`: whether to write the `.chk` file in binary format.
 """
 function write_chk(
     filename::AbstractString,
-    model::Model;
+    model::Model,
+    U::AbstractArray3;
     exclude_bands::Union{AbstractVector{Int},Nothing}=nothing,
     binary::Bool=false,
 )
@@ -32,9 +35,8 @@ function write_chk(
     have_disentangled = true
     Ω = omega(model)
     dis_bands = trues(model.n_bands, model.n_kpts)
-    Uᵈ = model.U
-    U = eyes_U(eltype(Uᵈ), model.n_wann, model.n_kpts)
-    M = rotate_M(model.M, model.bvectors.kpb_k, model.U)
+    U1 = eyes_U(eltype(U), model.n_wann, model.n_kpts)
+    M = rotate_M(model.M, model.bvectors.kpb_k, U)
 
     chk = WannierIO.Chk(
         header,
@@ -47,15 +49,37 @@ function write_chk(
         have_disentangled,
         Ω.ΩI,
         dis_bands,
-        Uᵈ,
         U,
+        U1,
         M,
         Ω.r,
         Ω.ω,
     )
 
-    WannierIO.write_chk(filename, chk; binary=binary)
-    return nothing
+    return WannierIO.write_chk(filename, chk; binary=binary)
+end
+
+"""
+    write_chk(filename, model; exclude_bands=nothing, binary=false)
+
+Write the `model` to a Wannier90 `.chk` file.
+
+# Arguments
+- `filename`: filename of the `.chk` file
+- `model`: a `Model` struct
+
+# Keyword Arguments
+- `exclude_bands`: a list of band indices to exclude.
+    This is irrelevant to the `model`, but `chk` file has this entry.
+- `binary`: whether to write the `.chk` file in binary format.
+"""
+function write_chk(
+    filename::AbstractString,
+    model::Model;
+    exclude_bands::Union{AbstractVector{Int},Nothing}=nothing,
+    binary::Bool=false,
+)
+    return write_chk(filename, model, model.U; exclude_bands, binary)
 end
 
 """

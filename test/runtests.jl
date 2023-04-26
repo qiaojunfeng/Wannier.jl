@@ -17,6 +17,7 @@ mat2vec(A::AbstractMatrix) = [v for v in eachcol(A)]
 @testset "Wannier.jl" begin
     include("io/w90.jl")
     include("io/model.jl")
+    include("io/chk.jl")
     include("bvector.jl")
     include("spread.jl")
 
