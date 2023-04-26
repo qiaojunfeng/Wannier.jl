@@ -35,7 +35,37 @@ function write_chk(
     have_disentangled = true
     Ω = omega(model)
     dis_bands = trues(model.n_bands, model.n_kpts)
-    U1 = eyes_U(eltype(U), model.n_wann, model.n_kpts)
+
+    # W90 has a special convention that the rotated Hamiltonian by the Uᵈ,
+    # i.e., the Hamiltonian rotated by the gauge matrix from disentanglement,
+    # needs to be diagonal. If I just store the whole unitary matrices Uᵈ*U
+    # into the Uᵈ of chk, W90 will interpolate wrongly the band structure from
+    # the written chk file.
+    # Here, I first diagonalize the Hamiltonian Uᵈ'*E*Uᵈ, and store the
+    # corresponding rotations into the U part of chk, to satisfy such convention.
+    iszero(model.E) && error("E is all zero, cannot write chk file")
+
+    H = get_Hk(model.E, U)
+    if all(isdiag(H[:, :, ik]) for ik in axes(H, 3))
+        Uᵈ = U
+        V = eyes_U(eltype(U), model.n_wann, model.n_kpts)
+    else
+        E, V = diag_Hk(H)
+        # It seems that I cannot use permutedims here or conjugate transpose,
+        # because it results in V * Vt being not identity!
+        # Vt = permutedims(conj(V), [2, 1, 3])
+        Vt = similar(V, size(V, 2), size(V, 1), size(V, 3))
+        for ik in axes(V, 3)
+            # Vt[:, :, ik] = V[:, :, ik]'
+            # I must use inv here to ensure
+            # norm(rotate_U(Vt, V) - eyes_U(eltype(V), model.n_wann, model.n_kpts)) ≈ 1e-15
+            # then
+            # norm(rotate_U(Uᵈ, V) - U) ≈ 1e-15
+            Vt[:, :, ik] = inv(V[:, :, ik])
+        end
+        Uᵈ = rotate_U(U, Vt)
+    end
+
     M = rotate_M(model.M, model.bvectors.kpb_k, U)
 
     chk = WannierIO.Chk(
@@ -49,14 +79,14 @@ function write_chk(
         have_disentangled,
         Ω.ΩI,
         dis_bands,
-        U,
-        U1,
+        Uᵈ,
+        V,
         M,
         Ω.r,
         Ω.ω,
     )
 
-    return WannierIO.write_chk(filename, chk; binary=binary)
+    return WannierIO.write_chk(filename, chk; binary)
 end
 
 """
@@ -86,8 +116,36 @@ end
     Model(chk::Chk)
 
 Construct a model from a `WannierIO.Chk` struct.
+
+# Arguments
+- `chk`: a `WannierIO.Chk` struct
+
+# Keyword Arguments
+- `E`: a `n_wann * n_kpts` array for the eigenvalues of the Hamiltonian.
+    If not provided, it will be set to zero.
+- `U`: a `n_wann * n_wann * n_kpts` array for the gauge transformation.
+
+!!! warning
+
+    The `Chk` struct does not contain eigenvalues, thus if `E` is not
+    provided, it will be set to zero.
+
+    Moreover, the `M` matrix in `Chk` is already rotated by the gauge
+    transformation, thus by default, the `U` matrix is set to identity.
+    Note that although maximal localization, or disentanglement (after
+    frozen states are chosen), do not require eigenvalues (so the user
+    can still Wannierize the `Model`), it is required when writing the
+    `Model` to a `.chk` file, in [`write_chk`](@ref).
+
+    Additionally, be careful that the `M` matrix is rotated, and this
+    rotation needs to make sure that the rotated Hamiltonian is diagonal
+    so that `E` stores the diagonal eigenvalues of the Hamiltonian.
 """
-function Model(chk::WannierIO.Chk)
+function Model(
+    chk::WannierIO.Chk;
+    E::Union{AbstractMatrix{Real},Nothing}=nothing,
+    U::Union{AbstractArray3{Complex},Nothing}=nothing,
+)
     atom_positions = zeros(Float64, 3, 0)
     atom_labels = Vector{String}()
 
@@ -104,11 +162,15 @@ function Model(chk::WannierIO.Chk)
 
     # the M in chk is already rotated by the U matrix
     M = chk.M
-    # so I set U matrix as identity
-    U = eyes_U(eltype(M), chk.n_wann, chk.n_kpts)
+    # if nothing provided, I set U matrix as identity
+    if isnothing(U)
+        U = eyes_U(eltype(M), chk.n_wann, chk.n_kpts)
+    end
 
     # no eig in chk file
-    E = zeros(Float64, chk.n_wann, chk.n_kpts)
+    if isnothing(E)
+        E = zeros(real(eltype(M)), chk.n_wann, chk.n_kpts)
+    end
 
     model = Model(
         chk.lattice,

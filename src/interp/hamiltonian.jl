@@ -45,10 +45,14 @@ function interpolate(model::InterpModel{T}, kpoints::Matrix{T}) where {T<:Real}
     return Eᵏ
 end
 
-"""
+@doc raw"""
     diag_Hk(Hᵏ:: AbstractArray{T, 3}) where {T<:Complex}
 
 Diagonalize k space Hamiltonian `H`.
+
+```math
+H = V^{*} E V
+```
 
 # Arguments
 - `H`: `n_wann * n_wann * n_kpts`, k space Hamiltonian

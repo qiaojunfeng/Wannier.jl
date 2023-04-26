@@ -20,9 +20,9 @@
     @test chk.have_disentangled == chk2.have_disentangled
     @test chk.ΩI ≈ chk2.ΩI
     # the dis_bands are all true when writing from a model
-    # @test chk.dis_bands == chk2.dis_bands
-    @test WannierIO.get_U(chk) ≈ chk2.Uᵈ
-    @test chk2.U ≈ eyes_U(eltype(chk2.U), chk2.n_wann, chk2.n_kpts)
+    @test chk2.dis_bands == trues(chk2.n_bands, chk2.n_kpts)
+    @test model.U ≈ WannierIO.get_U(chk2)
+
     @test chk.M ≈ chk2.M
     @test chk.r ≈ chk2.r
     @test chk.ω ≈ chk2.ω
