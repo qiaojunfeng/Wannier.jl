@@ -47,23 +47,23 @@ function write_chk(
 
     H = get_Hk(model.E, U)
     if all(isdiag(H[:, :, ik]) for ik in axes(H, 3))
+        # Uᵈ saved as disentanglement matrix, Uᵐ saved as max loc matrix
         Uᵈ = U
-        V = eyes_U(eltype(U), model.n_wann, model.n_kpts)
+        Uᵐ = eyes_U(eltype(U), model.n_wann, model.n_kpts)
     else
         E, V = diag_Hk(H)
-        # It seems that I cannot use permutedims here or conjugate transpose,
-        # because it results in V * Vt being not identity!
-        # Vt = permutedims(conj(V), [2, 1, 3])
-        Vt = similar(V, size(V, 2), size(V, 1), size(V, 3))
+        Uᵈ = rotate_U(U, V)
+        # I can use conjugate transpose here,
+        #   Uᵐ = permutedims(conj(V), [2, 1, 3])
+        # but it seems that if using inv, the error computed by
+        #   norm(rotate_U(Uᵐ, V) - eyes_U(eltype(V), model.n_wann, model.n_kpts))
+        # decreases from 1e-8 to 1e-14. So the final error,
+        #   norm(rotate_U(Uᵈ, Uᵐ) - U) ≈ 1e-14
+        # Not sure if this is really needed, but I will keep it for safety.
+        Uᵐ = similar(V, size(V, 2), size(V, 1), size(V, 3))
         for ik in axes(V, 3)
-            # Vt[:, :, ik] = V[:, :, ik]'
-            # I must use inv here to ensure
-            # norm(rotate_U(Vt, V) - eyes_U(eltype(V), model.n_wann, model.n_kpts)) ≈ 1e-15
-            # then
-            # norm(rotate_U(Uᵈ, V) - U) ≈ 1e-15
-            Vt[:, :, ik] = inv(V[:, :, ik])
+            Uᵐ[:, :, ik] = inv(V[:, :, ik])
         end
-        Uᵈ = rotate_U(U, Vt)
     end
 
     M = rotate_M(model.M, model.bvectors.kpb_k, U)
@@ -80,7 +80,7 @@ function write_chk(
         Ω.ΩI,
         dis_bands,
         Uᵈ,
-        V,
+        Uᵐ,
         M,
         Ω.r,
         Ω.ω,

@@ -51,7 +51,7 @@ end
 Diagonalize k space Hamiltonian `H`.
 
 ```math
-H = V^{*} E V
+H = V E V^{-1}
 ```
 
 # Arguments

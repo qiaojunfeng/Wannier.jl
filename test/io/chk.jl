@@ -1,13 +1,13 @@
 
 @testset "write chk from Model" begin
-    chk = WannierIO.read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
+    chk = Wannier.read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
     model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
-    model.U .= WannierIO.get_U(chk)
+    model.U .= Wannier.get_U(chk)
 
     tmpfile = tempname(; cleanup=true)
     write_chk(tmpfile, model)
 
-    chk2 = WannierIO.read_chk(tmpfile)
+    chk2 = Wannier.read_chk(tmpfile)
 
     # header contains date, always different
     # @test chk.header == chk2.header
@@ -21,7 +21,17 @@
     @test chk.ΩI ≈ chk2.ΩI
     # the dis_bands are all true when writing from a model
     @test chk2.dis_bands == trues(chk2.n_bands, chk2.n_kpts)
-    @test model.U ≈ WannierIO.get_U(chk2)
+    # the Hamiltonian rotated by Uᵈ must be diagonal, according to W90 convention
+    Hᵈ = Wannier.get_Hk(model.E, Wannier.get_Udis(chk2))
+    Hdiag = similar(Hᵈ)
+    for ik in axes(Hᵈ, 3)
+        Hdiag[:, :, ik] = Diagonal(Hᵈ[:, :, ik])
+        println("ik = ", norm(Hᵈ[:, :, ik] - Hdiag[:, :, ik]))
+    end
+    println("norm(Hᵈ - Hdiag) = ", norm(Hᵈ - Hdiag))
+    @test Hᵈ ≈ Hdiag
+    # the unitary matrix should be the same
+    @test model.U ≈ Wannier.get_U(chk2)
 
     @test chk.M ≈ chk2.M
     @test chk.r ≈ chk2.r
