@@ -1,3 +1,4 @@
+using YAML
 
 @testset "get_kpath" begin
     test_data = YAML.load_file(String(@__DIR__) * "/test_data/kpath.yaml")

@@ -74,7 +74,9 @@ end
     @test Rvecs.R[:, 1] == R1
     @test Rvecs.T[1, 1, 1] == [0 4 4 4; 0 -4 0 0; 0 0 -4 0]
     @test Rvecs.Nᵀ[1, 1, 1] == 4
+    H111 = 0.0012973340069440233 - 0.0007429069229594317im
     @test model.H[1, 1, 1] ≈ H111
+    P111end = 0.0 + 0.0im
     @test model.r[1, 1, 1, end] ≈ P111end
 end
 

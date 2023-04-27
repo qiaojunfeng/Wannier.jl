@@ -24,13 +24,13 @@ end
 @testset "fourier MDRS v1" begin
     Hᵏ = Wannier.get_Hk(model.E, model.U)
     Hᴿ = Wannier.fourier(model_mdrs.kRvectors, Hᵏ; version=:v1)
-    ref_Hᴿ = model_mdrs.H
+    ref_Hᴿ = model_ws.H
     @test all(isapprox.(Hᴿ, ref_Hᴿ; atol=1e-7))
 end
 
 @testset "invfourier MDRS v1" begin
     ref_Hᵏ = Wannier.get_Hk(model.E, model.U)
-    Hᴿ = model_mdrs.H
+    Hᴿ = model_ws.H
     Hᵏ = Wannier.invfourier(model_mdrs.kRvectors, Hᴿ, model.kpoints; version=:v1)
     @test all(isapprox.(Hᵏ, ref_Hᵏ; atol=1e-7))
 end

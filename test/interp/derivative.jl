@@ -1,6 +1,6 @@
 model = read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
 Rvecs = model.kRvectors.Rvectors
-H = Wannier.mdrs_v1tov2(Rvecs, model.H)
+H = model.H
 # choose a random k-point such that there is no degeneracy
 k = reshape([0.1, 0.2, 0.3], (3, 1))
 

@@ -13,7 +13,7 @@ model = Wannier.MagModel(model_up, model_dn, Mupdn)
 f, g! = Wannier.get_fg!_disentangle(model, λ)
 
 @testset "coopt spread" begin
-    Ω = Wannier.SpreadMag(model)
+    Ω = Wannier.omega(model, λ)
     @test isapprox(Ω.up.Ω, 5.926926709743369; atol=1e-10)
     @test isapprox(Ω.dn.Ω, 5.857837078056738; atol=1e-10)
     @test isapprox(Ω.Ωupdn, 0.025659557291223933; atol=1e-10)
@@ -81,7 +81,7 @@ end
     @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
-    Uup, Udn = Wannier.disentangle(model; λ=λ, max_iter=1)
+    Uup, Udn = Wannier.disentangle(model, λ; max_iter=1)
 
     Xup0, Yup0 = Wannier.U_to_X_Y(Uup, model.up.frozen_bands)
     Xdn0, Ydn0 = Wannier.U_to_X_Y(Udn, model.dn.frozen_bands)
