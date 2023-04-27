@@ -21,7 +21,21 @@ function get_Hk(E::Matrix{T}, U::Array{S,3}) where {T<:Number,S<:Number}
 
     Hᵏ = zeros(S, n_wann, n_wann, n_kpts)
     for ik in 1:n_kpts
-        Hᵏ[:, :, ik] = U[:, :, ik]' * Diagonal(E[:, ik]) * U[:, :, ik]
+        # I need to force Hermiticity here, otherwise in some cases,
+        # especially degenerate eigenvalues, the eigenvectors of Hᵏ,
+        #   F = eigen(Hᵏ)
+        # does not satisfy unitarity,
+        #   F.vectors' ≈ F.vectors
+        # and this leads to
+        #   norm(F.vectors * diagm(F.values) * F.vectors' - Hᵏ) ≈ 1e-1
+        # If I compute explicitly its inverse,
+        #   norm(F.vectors * diagm(F.values) * inv(F.vectors) - Hᵏ) ≈ 1e-14
+        # However, replacing all the `'` by `inv` is not a good idea,
+        # since gauge rotation is used a lot throughout the code;
+        # so I enforce Hermiticity here.
+        # See also
+        # https://discourse.julialang.org/t/a-b-a-is-not-hermitian-even-when-b-is/70611
+        Hᵏ[:, :, ik] = Hermitian(U[:, :, ik]' * Diagonal(E[:, ik]) * U[:, :, ik])
     end
 
     return Hᵏ
@@ -73,8 +87,8 @@ function diag_Hk(H::AbstractArray{T,3}) where {T<:Complex}
         # @assert ishermitian(Hᵏ) norm(Hᵏ - Hᵏ')
         @assert norm(Hᵏ - Hᵏ') < 1e-10
         # Hᵏ = 0.5 * (Hᵏ + Hᵏ')
-        ϵ, v = eigen(Hᵏ)
-        E[:, ik] = real.(ϵ)
+        ϵ, v = eigen(Hermitian(Hᵏ))
+        E[:, ik] = ϵ
         V[:, :, ik] = v
     end
 

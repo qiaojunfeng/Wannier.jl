@@ -157,25 +157,29 @@ function eyes_U(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
     return U
 end
 
-"""
-    rotate_U(U::Array{T,3}, V::Array{T,3})
+@doc raw"""
+    rotate_U(U, V)
 
 Rotate the gauge matrices `U` by `V`.
 
-I.e., for each kpoint ``\\bm{k}``, ``U_{\\bm{k}} V_{\\bm{k}}``.
+For each kpoint ``\bm{k}``, return ``U_{\bm{k}} V_{\bm{k}}``.
+
+# Arguments
+- `U`: a series of gauge matrices, usually `size(U) = n_bands * n_wann * n_kpts`
+- `V`: a series of gauge matrices, usually `size(V) = n_wann * n_wann * n_kpts`
 """
-function rotate_U(U::Array{T,3}, V::Array{T,3}) where {T<:Complex}
+function rotate_U(U::AbstractArray3{T}, V::AbstractArray3{T}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(U)
     size(V)[[1, 3]] != (n_wann, n_kpts) && error("V must be a n_wann * ? * n_kpts matrix")
     m = size(V, 2)
 
-    U1 = similar(U, n_bands, m, n_kpts)
+    UV = similar(U, n_bands, m, n_kpts)
 
     for ik in 1:n_kpts
-        U1[:, :, ik] .= U[:, :, ik] * V[:, :, ik]
+        UV[:, :, ik] .= U[:, :, ik] * V[:, :, ik]
     end
 
-    return U1
+    return UV
 end
 
 """

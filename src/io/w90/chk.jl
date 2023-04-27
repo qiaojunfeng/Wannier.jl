@@ -51,19 +51,9 @@ function write_chk(
         Uᵈ = U
         Uᵐ = eyes_U(eltype(U), model.n_wann, model.n_kpts)
     else
-        E, V = diag_Hk(H)
+        _, V = diag_Hk(H)
         Uᵈ = rotate_U(U, V)
-        # I can use conjugate transpose here,
-        #   Uᵐ = permutedims(conj(V), [2, 1, 3])
-        # but it seems that if using inv, the error computed by
-        #   norm(rotate_U(Uᵐ, V) - eyes_U(eltype(V), model.n_wann, model.n_kpts))
-        # decreases from 1e-8 to 1e-14. So the final error,
-        #   norm(rotate_U(Uᵈ, Uᵐ) - U) ≈ 1e-14
-        # Not sure if this is really needed, but I will keep it for safety.
-        Uᵐ = similar(V, size(V, 2), size(V, 1), size(V, 3))
-        for ik in axes(V, 3)
-            Uᵐ[:, :, ik] = inv(V[:, :, ik])
-        end
+        Uᵐ = permutedims(conj(V), [2, 1, 3])
     end
 
     M = rotate_M(model.M, model.bvectors.kpb_k, U)

@@ -23,12 +23,14 @@
     @test chk2.dis_bands == trues(chk2.n_bands, chk2.n_kpts)
     # the Hamiltonian rotated by Uᵈ must be diagonal, according to W90 convention
     Hᵈ = Wannier.get_Hk(model.E, Wannier.get_Udis(chk2))
+    # this is too strict, even
+    #   norm(Hᵈ[:, :, ik] - Hdiag[:, :, ik]) ≈ 1e-14
+    # is still false
+    # @test all(isdiag(Hᵈ[:, :, ik]) for ik in axes(Hᵈ, 3))
     Hdiag = similar(Hᵈ)
     for ik in axes(Hᵈ, 3)
         Hdiag[:, :, ik] = Diagonal(Hᵈ[:, :, ik])
-        println("ik = ", norm(Hᵈ[:, :, ik] - Hdiag[:, :, ik]))
     end
-    println("norm(Hᵈ - Hdiag) = ", norm(Hᵈ - Hdiag))
     @test Hᵈ ≈ Hdiag
     # the unitary matrix should be the same
     @test model.U ≈ Wannier.get_U(chk2)
