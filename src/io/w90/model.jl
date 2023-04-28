@@ -28,13 +28,13 @@ function read_w90(
     kgrid = Vec3{Int}(win.mp_grid)
     n_kpts = prod(kgrid)
 
-    lattice = win.unit_cell
+    lattice = win.unit_cell_cart
     recip_lattice = get_recip_lattice(lattice)
 
-    if ismissing(win.kmesh_tol)
-        bvectors = get_bvectors(kpoints, recip_lattice)
-    else
+    if haskey(win, :kmesh_tol)
         bvectors = get_bvectors(kpoints, recip_lattice; kmesh_tol=win.kmesh_tol)
+    else
+        bvectors = get_bvectors(kpoints, recip_lattice)
     end
     n_bvecs = bvectors.n_bvecs
 
@@ -73,15 +73,12 @@ function read_w90(
     end
 
     if eig && n_bands != n_wann
-        dis_froz_max = win.dis_froz_max
-        dis_froz_min = win.dis_froz_min
-        if dis_froz_max !== missing
-            if dis_froz_min === missing
-                dis_froz_min = -Inf
-            end
-            frozen_bands = get_frozen_bands(E, dis_froz_max, dis_froz_min)
-        else
+        dis_froz_max = get(win, :dis_froz_max, nothing)
+        dis_froz_min = get(win, :dis_froz_min, -Inf)
+        if isnothing(dis_froz_max)
             frozen_bands = falses(n_bands, n_kpts)
+        else
+            frozen_bands = get_frozen_bands(E, dis_froz_max, dis_froz_min)
         end
     else
         frozen_bands = falses(n_bands, n_kpts)
@@ -124,11 +121,7 @@ function read_w90_interp(
     # read for kpoint_path, use_ws_distance
     win = read_win("$seedname.win")
     if isnothing(mdrs)
-        if !ismissing(win.use_ws_distance)
-            mdrs = win.use_ws_distance
-        else
-            mdrs = true
-        end
+        mdrs = get(win, :use_ws_distance, true)
     end
 
     if chk
@@ -159,15 +152,15 @@ function read_w90_interp(
     end
     kRvecs = KRVectors(model.lattice, model.kgrid, model.kpoints, Rvecs)
 
-    if ismissing(win.kpoint_path)
+    if haskey(win, :kpoint_path)
+        kpath = get_kpath(win.unit_cell_cart, win.kpoint_path)
+    else
         # an empty kpath
         points = Dict{Symbol,Vec3{Float64}}()
         paths = Vector{Vector{Symbol}}()
         basis = ReciprocalBasis([v for v in eachcol(model.recip_lattice)])
         setting = Ref(Brillouin.LATTICE)
         kpath = KPath{3}(points, paths, basis, setting)
-    else
-        kpath = get_kpath(win.unit_cell, win.kpoint_path)
     end
 
     Hᵏ = get_Hk(model.E, model.U)

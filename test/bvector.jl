@@ -3,7 +3,7 @@
     _, kpb_k, kpb_b = read_mmn(joinpath(FIXTURE_PATH, "silicon/silicon.mmn"))
 
     kpoints = win.kpoints
-    recip_lattice = get_recip_lattice(win.unit_cell)
+    recip_lattice = get_recip_lattice(win.unit_cell_cart)
 
     bvectors = get_bvectors(kpoints, recip_lattice)
 
@@ -45,7 +45,7 @@ end
     nnkp = read_nnkp(joinpath(FIXTURE_PATH, "graphene", "graphene.nnkp"))
 
     kpoints = win.kpoints
-    recip_lattice = get_recip_lattice(win.unit_cell)
+    recip_lattice = get_recip_lattice(win.unit_cell_cart)
 
     bvectors = get_bvectors(kpoints, recip_lattice)
 
@@ -101,7 +101,7 @@ end
     nnkp = read_nnkp(joinpath(FIXTURE_PATH, "kmesh_tol", "Se2Sn.nnkp"))
 
     kpoints = win.kpoints
-    recip_lattice = get_recip_lattice(win.unit_cell)
+    recip_lattice = get_recip_lattice(win.unit_cell_cart)
 
     bvectors = get_bvectors(kpoints, recip_lattice; win.kmesh_tol)
 

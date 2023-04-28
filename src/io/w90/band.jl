@@ -126,7 +126,7 @@ or in the `win` input file for `Wannier90`.
 # Example
 ```julia
 win = read_win("si2.win")
-kp = get_kpath(win.unit_cell, win.atoms_frac, win.atom_labels)
+kp = get_kpath(win.unit_cell_cart, win.atoms_frac, win.atom_labels)
 kpi = Wannier.interpolate_w90(kp, 100)
 Wannier.write_w90_kpt_label("si2", kpi)
 ```

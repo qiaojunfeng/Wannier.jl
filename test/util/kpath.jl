@@ -16,7 +16,7 @@ using YAML
     # YAML.write_file(String(@__DIR__) * "/test_data/kpath.yaml", yaml_dict)
 
     test_kpath = test_data["kpoint_path"]
-    win_kpath = Wannier.get_kpath(win.unit_cell, win.kpoint_path)
+    win_kpath = Wannier.get_kpath(win.unit_cell_cart, win.kpoint_path)
     t_points = Dict(Symbol(k) => v for (k, v) in test_kpath["points"])
     @test t_points == win_kpath.points
     t_paths = [[Symbol(i) for i in l] for l in test_kpath["paths"]]
@@ -27,7 +27,7 @@ end
 
 @testset "interpolate w90 kpath" begin
     win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
-    lattice = win.unit_cell
+    lattice = win.unit_cell_cart
     recip_lattice = Wannier.get_recip_lattice(lattice)
     kpi, E = read_w90_band(
         joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"), recip_lattice
@@ -64,7 +64,7 @@ end
 
 @testset "get_x kpath" begin
     win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
-    lattice = win.unit_cell
+    lattice = win.unit_cell_cart
 
     band = WannierIO.read_w90_band(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
 

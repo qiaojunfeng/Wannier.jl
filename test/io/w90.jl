@@ -39,7 +39,7 @@ end
 
 @testset "read/write w90 band" begin
     win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
-    recip_lattice = Wannier.get_recip_lattice(win.unit_cell)
+    recip_lattice = Wannier.get_recip_lattice(win.unit_cell_cart)
     kpi, E = read_w90_band(
         joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"), recip_lattice
     )
