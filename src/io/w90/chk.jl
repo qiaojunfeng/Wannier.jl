@@ -33,7 +33,7 @@ function write_chk(
 
     checkpoint = "postwann"
     have_disentangled = true
-    Ω = omega(model)
+    Ω = omega(model, U)
     dis_bands = trues(model.n_bands, model.n_kpts)
 
     # W90 has a special convention that the rotated Hamiltonian by the Uᵈ,
