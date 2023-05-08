@@ -57,9 +57,9 @@ This should be used instead of directly constructing `BVectorShells`.
 """
 function BVectorShells(
     recip_lattice::Mat3{T},
-    kpoints::Matrix{T},
-    bvectors::Vector{Matrix{T}},
-    weights::Vector{T},
+    kpoints::AbstractMatrix{T},
+    bvectors::AbstractVector{<:AbstractMatrix{T}},
+    weights::AbstractVector{T},
 ) where {T<:Real}
     n_shells = length(bvectors)
     multiplicities = [size(bvectors[i], 2) for i in 1:n_shells]
@@ -168,7 +168,7 @@ Search bvector shells satisfing B1 condition.
     equivalent to `Wannier90` input parameter `search_shells`.
 """
 function search_shells(
-    kpoints::Matrix{T}, recip_lattice::Mat3{T}; atol::T=1e-6, max_shells::Int=36
+    kpoints::AbstractMatrix{T}, recip_lattice::Mat3{T}; atol::T=1e-6, max_shells::Int=36
 ) where {T<:Real}
     # Usually these "magic" numbers work well for normal recip_lattice.
     # Number of nearest-neighbors to be returned
@@ -410,7 +410,7 @@ Check completeness (B1 condition) of `BVectorShells`.
 # Keyword Arguments
 - `atol`: tolerance, equivalent to `Wannier90` input parameter `kmesh_tol`
 """
-function check_b1(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
+function check_b1(shells::BVectorShells{T}; atol::Real=1e-6) where {T}
     M = zeros(T, 3, 3)
 
     for ish in 1:(shells.n_shells)
@@ -661,8 +661,8 @@ Generate and sort bvectors for all the kpoints.
 - `kmesh_tol`: equivalent to `Wannier90` input parameter `kmesh_tol`
 """
 function get_bvectors(
-    kpoints::Matrix{T}, recip_lattice::Mat3{T}; kmesh_tol::T=1e-6
-) where {T<:Real}
+    kpoints::AbstractMatrix{<:Real}, recip_lattice::Mat3{<:Real}; kmesh_tol::Real=1e-6
+)
     # find shells
     shells = search_shells(kpoints, recip_lattice; atol=kmesh_tol)
     shells = delete_parallel(shells)
@@ -693,7 +693,11 @@ the connecting displacement vector `b`.
 - `b`: vector of 3 integer, displacement vector from `k1` to `k2`
 """
 function index_bvector(
-    kpb_k::Matrix{Int}, kpb_b::Array{Int,3}, k1::Int, k2::Int, b::AbstractVector{Int}
+    kpb_k::Matrix{<:Integer},
+    kpb_b::Array{<:Integer,3},
+    k1::Integer,
+    k2::Integer,
+    b::AbstractVector{<:Integer},
 )
     n_bvecs = size(kpb_k, 1)
 
