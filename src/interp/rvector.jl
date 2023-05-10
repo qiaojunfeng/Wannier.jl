@@ -360,3 +360,132 @@ function get_Rvectors_mdrs(
 
     return RVectorsMDRS(Rvec, T_vecs, T_degen)
 end
+
+# TODO: decide whether we keep NearestNeighbors or look at this here
+function metric(lattice)
+    recip_lattice = 2π * inv(lattice)'
+    
+    real  = zeros(3, 3)
+    recip = zeros(3, 3)
+    for j in 1:3, i in 1:j
+        for l in 1:3
+            real[i, j]  += lattice[i, l] * lattice[j, l]
+            recip[i, j] += recip_lattice[i, l] * recip_lattice[j, l]
+        end
+        if i < j
+            real[j, i]  = real[i, j]
+            recip[j, i] = recip[j, i]
+        end
+    end
+    return (real = real, recip = recip)
+end
+
+# This is a straight translation from the function in W90, this give the wigner_seitz R points
+# The point of this is to determine the R_cryst but also the degeneracies i.e. the periodic images that have
+# the exact same distance and will thus have exactly the same TB hamiltonian block.
+# This means that if one would be interpolating kpoings without dividing by the degeneracies, the periodic images
+# would be "Double counted", which is why we divide by degen. In the actual tb hamiltonian this is fine though, no division needed.
+function wigner_seitz_points(lattice, rgrid; atol=1e-7)
+    real_metric = metric(lattice).real 
+    nrpts = 0
+    r_degens = Int[]
+    r = Vec3{Int}[]
+    for n1 in -rgrid[1]:rgrid[1], n2 in -rgrid[2]:rgrid[2],
+        n3 in -rgrid[3]:rgrid[3]
+
+        R        = Vec3(n1, n2, n3)
+        dist_R0  = 0.0
+        min_dist = typemax(Float64)
+        ndegen   = 1
+        best_R   = copy(R)
+        for i1 in -2:2, i2 in -2:2, i3 in -2:2
+            ndiff = R .- Vec3(i1, i2, i3) .* rgrid
+            dist = ndiff' * real_metric * ndiff
+            if abs(dist - min_dist) < atol
+                ndegen += 1
+            elseif dist < min_dist
+                min_dist = dist
+                ndegen   = 1
+            end
+            if i1 == i2 == i3 == 0
+                dist_R0 = dist
+            end
+        end
+        # Only if R is actually the smallest distance it gets added to the R_cryst.
+        if abs(min_dist - dist_R0) < atol
+            push!(r, R)
+            push!(r_degens, ndegen)
+        end
+    end
+    return r, r_degens
+end
+
+function wigner_seitz_shifts(R_cryst, wannier_centers, lattice, rgrid; atol = 1e-5, max_cell=3)
+    
+    nwann           = size(wannier_centers, 2)
+    ws_shifts_cryst = [[Vec3{Int}[zero(Vec3{Int})] for i in 1:nwann, j in 1:nwann] for iR in 1:length(R_cryst)]
+    ws_nshifts      = [zeros(Int, nwann, nwann) for iR in 1:length(R_cryst)]
+    c               = lattice
+    ic              = inv(c)
+    for (iR, R) in enumerate(R_cryst)
+        r_cart = c * R
+        for i in 1:nwann, j in 1:nwann
+            @views best_r_cart = -wannier_centers[:, i] .+ r_cart .+ wannier_centers[:, j]
+            nr = norm(best_r_cart)
+
+            r_cryst = ic * best_r_cart
+
+            for l in -max_cell:max_cell, m in -max_cell:max_cell, n in -max_cell:max_cell
+                lmn          = Vec3(l, m, n)
+                test_r_cryst = r_cryst + lmn .* rgrid
+                test_r_cart  = c * test_r_cryst
+                if norm(test_r_cart) < nr
+                    best_r_cart = test_r_cart
+                    nr = norm(test_r_cart)
+                    ws_shifts_cryst[iR][i, j][1] = lmn .* rgrid
+                end
+            end
+
+            if nr < atol
+                ws_nshifts[iR][i, j] = 1
+                ws_shifts_cryst[iR][i, j][1] = Vec3(0, 0, 0)
+            else
+                best_r_cryst = ic * best_r_cart
+                orig_shift = ws_shifts_cryst[iR][i, j][1]
+                for l in -max_cell:max_cell, m in -max_cell:max_cell, n in -max_cell:max_cell
+                    lmn          = Vec3(l, m, n)
+                    test_r_cryst = best_r_cryst + lmn .* rgrid
+                    test_r_cart  = c * test_r_cryst
+                    if abs(norm(test_r_cart) - nr) < atol
+                        ws_nshifts[iR][i, j] += 1
+                        if ws_nshifts[iR][i, j] == 1
+                            ws_shifts_cryst[iR][i, j][ws_nshifts[iR][i, j]] = orig_shift +
+                                                                              lmn .* rgrid
+                        else
+                            push!(ws_shifts_cryst[iR][i, j], orig_shift + lmn .* rgrid)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return ws_shifts_cryst, ws_nshifts
+end
+
+function wigner_seitz_R(lattice, wannier_centers, rgrid; atol = 1e-5, max_cell=3)
+    R_cryst, R_degen = wigner_seitz_points(lattice, rgrid; atol=atol)
+    R_shifts, R_nshifts = wigner_seitz_shifts(R_cryst, wannier_centers, lattice, rgrid; atol=atol, max_cell=max_cell)
+
+    return (cryst = R_cryst, degen=R_degen, shifts=R_shifts, nshifts = R_nshifts)
+end
+
+function wigner_seitz_R(model::Model)
+    # from cartesian to fractional
+    wannier_centers = inv(model.lattice) * center(model)
+    
+    return wigner_seitz_R(model.lattice, wannier_centers, model.kgrid)
+end
+
+
+
+
