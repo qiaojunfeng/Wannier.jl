@@ -132,7 +132,6 @@ function read_w90_interp(
             fchk = read_chk("$seedname.chk")
         end
         model.U .= get_U(fchk)
-        centers = fchk.r
     else
         if isnothing(amn)
             model = read_w90(seedname)
@@ -140,18 +139,15 @@ function read_w90_interp(
             model = read_w90(seedname; amn=false)
             model.U .= read_orthonorm_amn(amn)
         end
-        centers = center(model)
     end
-    # from cartesian to fractional
-    centers = inv(model.lattice) * centers
-
-    if mdrs
-        Rvecs = get_Rvectors_mdrs(model.lattice, model.kgrid, centers)
-    else
-        Rvecs = get_Rvectors_ws(model.lattice, model.kgrid)
-    end
-    kRvecs = KRVectors(model.lattice, model.kgrid, model.kpoints, Rvecs)
-
+    # if mdrs
+    #     Rvecs = get_Rvectors_mdrs(model.lattice, model.kgrid, centers)
+    # else
+    #     Rvecs = get_Rvectors_ws(model.lattice, model.kgrid)
+    # end
+    # kRvecs = KRVectors(model.lattice, model.kgrid, model.kpoints, Rvecs)
+    hami = TBHamiltonian(model; mdrs=mdrs)
+        
     if haskey(win, :kpoint_path)
         kpath = get_kpath(win.unit_cell_cart, win.kpoint_path)
     else
@@ -163,10 +159,7 @@ function read_w90_interp(
         kpath = KPath{3}(points, paths, basis, setting)
     end
 
-    Hᵏ = get_Hk(model.E, model.U)
-    Hᴿ = fourier(kRvecs, Hᵏ)
-
-    return InterpModel(kRvecs, kpath, Hᴿ)
+    return hami, kpath 
 end
 
 """

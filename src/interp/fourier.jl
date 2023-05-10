@@ -19,13 +19,14 @@ where `N_{\bm{k}}` is the total number of kpoints.
 - `Oᵏ`: `n_wann * n_wann * n_kpts`, operator matrix in k space
 """
 function fourier(
-    kRvectors::KRVectors{T,RVectors{T}}, Oᵏ::Array{Complex{T},3}
+    kRvectors::KRVectors{T,RVectors{T}}, Oᵏ::Vector{Matrix{Complex{T}}}
 ) where {T<:Real}
-    n_wann = size(Oᵏ, 1)
+    n_wann = size(Oᵏ[1], 1)
     n_kpts = kRvectors.n_kpts
     n_rvecs = kRvectors.n_rvecs
-    @assert size(Oᵏ, 1) == size(Oᵏ, 2)
-    @assert size(Oᵏ, 3) == n_kpts
+    
+    @assert size(Oᵏ[1], 1) == size(Oᵏ[1], 2)
+    @assert length(Oᵏ) == n_kpts
 
     Oᴿ = zeros(Complex{T}, n_wann, n_wann, n_rvecs)
 
@@ -34,7 +35,7 @@ function fourier(
         for ik in 1:n_kpts
             k = kRvectors.kpoints[:, ik]
             fac = exp(-im * 2π * dot(k, R))
-            Oᴿ[:, :, ir] += fac * Oᵏ[:, :, ik]
+            Oᴿ[:, :, ir] += fac * Oᵏ[ik]
         end
     end
 
@@ -147,7 +148,7 @@ See also [`_invfourier_mdrs_v1`](@ref _invfourier_mdrs_v1).
 - `Oᵏ`: `n_wann * n_wann * n_kpts`, operator matrix in k space
 """
 function _fourier_mdrs_v1(
-    kRvectors::KRVectors{T,RVectorsMDRS{T}}, Oᵏ::Array{Complex{T},3}
+    kRvectors::KRVectors{T,RVectorsMDRS{T}}, Oᵏ
 ) where {T<:Real}
     # this is the same as Wigner-Seitz fourier
     kR = KRVectors{T,RVectors{T}}(
@@ -194,7 +195,7 @@ See also [`_invfourier_mdrs_v2`](@ref _invfourier_mdrs_v2).
     in `Wannier90` output `seeedname_tb.dat`.
 """
 function _fourier_mdrs_v2(
-    kRvectors::KRVectors{T,RVectorsMDRS{T}}, Oᵏ::Array{Complex{T},3}
+    kRvectors::KRVectors{T,RVectorsMDRS{T}}, Oᵏ
 ) where {T<:Real}
     # first generate O(R) where R is just the WS interpolation R vectors
     Oᴿ = _fourier_mdrs_v1(kRvectors, Oᵏ)
@@ -252,7 +253,7 @@ Wrapper function for Fourier transform for both MDRS v1 and v2.
 See also [`_fourier_mdrs_v1`](@ref _fourier_mdrs_v1) and [`_fourier_mdrs_v2`](@ref _fourier_mdrs_v2).
 """
 function fourier(
-    kRvectors::KRVectors{T,RVectorsMDRS{T}}, Oᵏ::Array{Complex{T},3}; version::Symbol=:v2
+    kRvectors::KRVectors{T,RVectorsMDRS{T}}, Oᵏ::Vector{Matrix{Complex{T}}}; version::Symbol=:v2
 ) where {T<:Real}
     version ∈ [:v1, :v2] || error("version must be v1 or v2")
     if version == :v1
@@ -496,3 +497,35 @@ function invfourier!(
 ) where {T<:Real}
     return invfourier!(Oᵏ, kRvectors.Rvectors, Oᴿ, kpoints; version)
 end
+
+## NEW
+k_cryst(k) = k
+
+"""
+    fourier(f::Function, q_vectors, R_vectors)
+
+Performs a fourier transform from the ab-initio kpoints to the wigner seitz unit cells.
+The function will be executed inside the fourier transform loop, being called like
+`f(iR, ik, phase)`
+"""
+function fourier(f::Function, q_vectors, R_vectors)
+    for iR in 1:length(R_vectors)
+        for ik in 1:size(q_vectors, 2)
+            phase = exp(-2im * π * (k_cryst(view(q_vectors, :, ik)) ⋅ R_vectors[iR]))
+            f(iR, ik, phase)
+        end
+    end
+end
+    
+#TODO Make a nice Fourier struct holding ik, iR, tbblock and factor
+"Fourier transforms the tight binding hamiltonian and calls the R_function with the current index and the phase."
+function invfourier(R_function::Function, tb_hami::TBHamiltonian{T}, kpoint::Vec3) where {T}
+    
+    for (iR, b) in enumerate(tb_hami)
+        fac = ℯ^(2im * π * (b.R_cryst ⋅ kpoint))
+        for i in eachindex(block(b))
+            R_function(i, iR, b.R_cart, b, fac)
+        end
+    end
+end
+
