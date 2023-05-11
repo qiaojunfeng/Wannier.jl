@@ -36,11 +36,7 @@ PackageCompiler = "2.0.9"
 PeriodicTable = "1.1.2"
 ProgressBars = "1.4.1"
 Reexport = "1.2.2"
-# to be compatible with DFTK v0.5.3
 Spglib = ">= 0.5.0"
 StaticArrays = "1.5.6"
 WannierIO = "0.1.0"
-# julia v1.8.3 crash due to
-# https://github.com/JuliaLang/julia/issues/47685
-# this is fixed >= 1.8.4
 julia = ">= 1.8.4"
