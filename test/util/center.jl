@@ -1,8 +1,8 @@
-
+using Wannier:Vec3
 @testset "find_nearest_atom" begin
     wout = read_wout(joinpath(FIXTURE_PATH, "valence/band/silicon.wout"))
 
-    points = inv(wout.lattice) * wout.centers  # to fractional
+    points = map(c -> inv(wout.lattice) * c, wout.centers)  # to fractional
     distances, indexes, translations = Wannier.find_nearest_atom(
         points, wout.lattice, wout.atom_positions
     )
@@ -14,6 +14,7 @@
         0 0 -1 -1
         0 0 0 0
     ]
+    ref_translations = [Vec3(ref_translations[:, i]) for i = 1:size(ref_translations,2)]
 
     @test all(isapprox.(distances, ref_distances; atol=2e-5))
     @test indexes == ref_indexes
@@ -30,6 +31,7 @@ end
         3.35704 3.39463 4.71376 4.74103
         4.71664 3.36561 4.71388 3.40255
     ]
+    ref_centers = [Vec3(ref_centers[:, i]) for i = 1:size(ref_centers,2)]
 
     @test all(isapprox.(centers, ref_centers; atol=2e-5))
 end

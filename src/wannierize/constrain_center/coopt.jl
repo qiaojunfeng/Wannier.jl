@@ -25,7 +25,7 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_center_disentangle(
-    model::MagModel{T}, r₀::Matrix{T}, λc::T, λs::T
+    model::MagModel{T}, r₀::Vector{Vec3{T}}, λc::T, λs::T
 ) where {T<:Real}
     n_bands = model.up.n_bands
     n_wann = model.up.n_wann
@@ -55,6 +55,7 @@ function get_fg!_center_disentangle(
         XYdn = @view XY[(n_inner + 1):end, :]
         Xup, Yup = XY_to_X_Y(XYup, n_bands, n_wann)
         Xdn, Ydn = XY_to_X_Y(XYdn, n_bands, n_wann)
+        @show size(G)
         GXup, GYup = omega_center_grad(
             model.up.bvectors, model.up.M, Xup, Yup, model.up.frozen_bands, r₀, λc
         )
@@ -105,7 +106,7 @@ Run disentangle on a `MagModel`, with center constraints.
 """
 function disentangle_center(
     model::MagModel{T},
-    r₀::Matrix{T},
+    r₀::Vector{Vec3{T}},
     λc::T=1.0,
     λs::T=1.0;
     f_tol::T=1e-7,

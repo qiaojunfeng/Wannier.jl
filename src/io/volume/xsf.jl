@@ -51,7 +51,7 @@ See also [`WannierIO.write_xsf`](@ref)
 function write_xsf(
     filename::AbstractString,
     lattice::AbstractMatrix{T},
-    atom_positions::AbstractMatrix{T},
+    atom_positions::Vector{Vec3{T}},
     atom_numbers::AbstractVector{Int},
     rgrid::RGrid,
     W::AbstractArray{T,3},

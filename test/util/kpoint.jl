@@ -35,6 +35,7 @@ end
         0.0 0.0 0.5 0.5 0.0 0.0 0.5 0.5
         0.0 0.5 0.0 0.5 0.0 0.5 0.0 0.5
     ]
+    ref_kpoints = map(x->Vec3(ref_kpoints[:, x]), axes(ref_kpoints, 2))
     @test kpoints == ref_kpoints
 end
 
@@ -46,6 +47,7 @@ end
         0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0
         0.0 1.0 0.0 1.0 0.0 1.0 0.0 1.0
     ]
+    ref_kpoints = map(x->Vec3(ref_kpoints[:, x]), axes(ref_kpoints, 2))
     @test kpoints == ref_kpoints
 end
 
@@ -55,9 +57,10 @@ end
         0.0 0.0 0.5 0.5 0.0 0.0 0.5 0.5
         0.0 0.5 0.0 0.5 0.0 0.5 0.0 0.5
     ]
+    ref_kpoints = map(x->Vec3(ref_kpoints[:, x]), axes(ref_kpoints, 2))
     unsorted_kpoints = deepcopy(ref_kpoints)
-    unsorted_kpoints[:, 1] = [0.5, 0.5, 0.0]
-    unsorted_kpoints[:, end - 1] = [0, 0, 0]
+    unsorted_kpoints[1] = Vec3(0.5, 0.5, 0.0)
+    unsorted_kpoints[end - 1] = Vec3(0, 0, 0)
     sorted_kpoints = Wannier.sort_kpoints(unsorted_kpoints)
     @test sorted_kpoints ≈ ref_kpoints
 end
@@ -65,7 +68,7 @@ end
 @testset "get_kgrid" begin
     kgrid = [2, 2, 2]
     kpoints = Wannier.get_kpoints(kgrid)
-    kpoints[:, 1] = [0.5, 0.5, 0.0]
-    kpoints[:, end - 1] = [0, 0, 0]
+    kpoints[1] = Vec3(0.5, 0.5, 0.0)
+    kpoints[end - 1] = Vec3(0, 0, 0)
     @test Wannier.get_kgrid(kpoints) == kgrid
 end

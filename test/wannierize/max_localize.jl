@@ -6,7 +6,7 @@ model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
 f, g! = Wannier.get_fg!_maxloc(model)
 
 @testset "maxloc spread gradient" begin
-    U0 = deepcopy(model.U)
+    U0 = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
 
     # analytical gradient
     G = similar(U0)

@@ -34,53 +34,53 @@ YWVS Eq. 27.
     also include non-diagonal part, see [`get_dH_da`](@ref).
 """
 function velocity(
-    Rvectors::RVectorsMDRS{T},
-    Hᴿ::Array{Complex{T},3},
-    kpoints::AbstractMatrix{T};
+    Hᴿ::TBHamiltonian,
+    kpoints::AbstractVector{Vec3{T}};
     use_degen_pert::Bool=false,
     degen::T=1e-4,
 ) where {T<:Real}
-    n_wann = size(Hᴿ, 1)
-    n_kpts = size(kpoints, 2)
-    n_r̃vecs = Rvectors.n_r̃vecs  # only MDRSv2 is implemented for the moment
-    size(Hᴿ, 1) == size(Hᴿ, 2) || error("Hᴿ is not square")
-    size(Hᴿ, 3) == n_r̃vecs || error("Hᴿ has wrong size")
+    n_wann = size(Hᴿ[1].block, 1)
+    n_kpts = length(kpoints)
+    size(Hᴿ[1], 1) == size(Hᴿ[1], 2) || error("Hᴿ is not square")
 
     # first I need Hamiltonian eigenvalues and eigenvectors
-    H = invfourier(Rvectors, Hᴿ, kpoints)
-    E, U = diag_Hk(H)
+    H = HamiltonianKGrid(Hᴿ, kpoints) 
+    E, U = H.eigvals, H.eigvecs
     # now size(E) = (n_wann, n_kpts), size(U) = (n_wann, n_wann, n_kpts)
 
     # velocity V = dH / dk
     # Wannier gauge V
-    Vᵂ = zeros(Complex{T}, n_wann, n_wann, n_kpts)
+    Vᵂ = zeros(Complex{T}, n_wann, n_wann)
     # Hamiltonian gauge V
     Vᴴ = zeros(Complex{T}, n_wann, n_wann)
     # diagonal part of Vᴴ, and is real, last index is cartesian direction
     vᴴ = zeros(T, n_wann, n_kpts, 3)
 
-    # to cartesian in angstrom
-    Rᶜ = Rvectors.lattice * Rvectors.R̃vectors.R
-
     for a in 1:3  # three Cartesian directions, a ∈ {x, y, z}
-        Ra = reshape(Rᶜ[a, :], 1, 1, n_r̃vecs)
-        RH = im * Ra .* Hᴿ
-        invfourier!(Vᵂ, Rvectors, RH, kpoints)
+        
+        RH = map(x->TBBlock(x.R_cryst, x.R_cart, im .* x.R_cart[a] .* x.block, x.tb_block), Hᴿ)
+        
 
         for ik in 1:n_kpts
+            fill!(Vᵂ, 0)
             # for diagonal part, U† Vᵂ U = Vᴴ
-            Uᵏ = @view U[:, :, ik]
-            Vᴴ .= Uᵏ' * Vᵂ[:, :, ik] * Uᵏ
+            invfourier(RH, kpoints[ik]) do i, iR, Rcart, b, fac
+                Vᵂ[i] += fac * b.block[i]
+            end
+            
+            Uᵏ = U[ik]
+            Vᴴ .= Uᵏ' * Vᵂ * Uᵏ
             vᴴ[:, ik, a] = real(diag(Vᴴ))  # YWVS Eq.27
 
             use_degen_pert || continue
 
             # now considering possible degeneracies
             mask = trues(n_wann)  # E[mask, ik] are eigenvalues to be checked
+            
             while any(mask)
-                e = E[mask, ik][1]
+                e = E[ik][mask][1]
                 # indexes of degenerate eigenvalues
-                idx = abs.(E[:, ik] .- e) .< degen
+                idx = abs.(E[ik] .- e) .< degen
                 if count(idx) > 1
                     # diagonalize the submatrix
                     vᴴ[idx, ik, a] .= real(eigen(Vᴴ[idx, idx]).values)
@@ -123,26 +123,23 @@ Compute the matrix D in YWVS Eq. 25 (or Eq. 32 if `use_degen_pert = true`).
     I cannot diagonalize simultaneously all the three directions.
 """
 function _get_D(
-    Rvectors::RVectorsMDRS{T},
-    Hᴿ::Array{Complex{T},3},
-    kpoints::AbstractMatrix{T};
+    Hᴿ::TBHamiltonian,
+    kpoints::AbstractVector{Vec3{T}};
     use_degen_pert::Bool=false,
     degen::T=1e-4,
 ) where {T<:Real}
-    n_wann = size(Hᴿ, 1)
-    n_kpts = size(kpoints, 2)
-    n_r̃vecs = Rvectors.n_r̃vecs  # only MDRSv2 is implemented for the moment
-    size(Hᴿ, 1) == size(Hᴿ, 2) || error("Hᴿ is not square")
-    size(Hᴿ, 3) == n_r̃vecs || error("Hᴿ has wrong size")
+    n_wann = size(Hᴿ[1].block, 1)
+    n_kpts = length(kpoints)
+    size(Hᴿ[1], 1) == size(Hᴿ[1], 2) || error("Hᴿ is not square")
 
     # first I need Hamiltonian eigenvalues and eigenvectors
-    H = invfourier(Rvectors, Hᴿ, kpoints)
-    E, U = diag_Hk(H)
+    H = HamiltonianKGrid(Hᴿ, kpoints) 
+    E, U = H.eigvals, H.eigvecs
     # now size(E) = (n_wann, n_kpts), size(U) = (n_wann, n_wann, n_kpts)
 
     # velocity Ha = dH / dk_a
     # Wannier gauge Ha
-    Haᵂ = zeros(Complex{T}, n_wann, n_wann, n_kpts)
+    Haᵂ = zeros(Complex{T}, n_wann, n_wann)
     # the covariant part of Hamiltonian gauge Ha, i.e., Haᴴ = U† Haᵂ U
     # also the ``\bar{H}_{\alpha}^{(H)}`` in YWVS Eq. 26
     # last index for the three Cartesian directions
@@ -151,20 +148,20 @@ function _get_D(
     D = zeros(Complex{T}, n_wann, n_wann, n_kpts, 3)
 
     # to cartesian in angstrom
-    Rᶜ = Rvectors.lattice * Rvectors.R̃vectors.R
-
     for a in 1:3  # three Cartesian directions, a ∈ {x, y, z}
-        Ra = reshape(Rᶜ[a, :], 1, 1, n_r̃vecs)
-        RH = im * Ra .* Hᴿ
-        invfourier!(Haᵂ, Rvectors, RH, kpoints)
+        RH = map(x->TBBlock(x.R_cryst, x.R_cart, im .* x.R_cart[a] .* x.block, x.tb_block), Hᴿ)
 
         for ik in 1:n_kpts
+            fill!(Haᵂ, 0)
+            invfourier(RH, kpoints[ik]) do i, iR, Rcart, b, fac
+                Haᵂ[i] += fac * b.block[i]
+            end
             # Haᴴ = U† Haᵂ U
-            Uᵏ = @view U[:, :, ik]
-            Haᴴ[:, :, ik, a] .= Uᵏ' * Haᵂ[:, :, ik] * Uᵏ
+            Uᵏ = U[ik]
+            Haᴴ[:, :, ik, a] .= Uᵏ' * Haᵂ * Uᵏ
 
             # the D matrix
-            ΔE = E[:, ik] .- E[:, ik]'
+            ΔE = E[ik] .- E[ik]'
             # assign a nonzero number to the diagonal elements for inversion
             ΔE[diagind(ΔE)] .= 1
             Dka = @view D[:, :, ik, a]
@@ -178,9 +175,9 @@ function _get_D(
             # now considering possible degeneracies
             mask = trues(n_wann)  # E[mask, ik] are eigenvalues to be checked
             while any(mask)
-                e = E[mask, ik][1]
+                e = E[ik][mask][1]
                 # indexes of degenerate eigenvalues
-                idx = abs.(E[:, ik] .- e) .< degen
+                idx = abs.(E[ik] .- e) .< degen
                 if count(idx) > 1
                     # I can only run once the diagonalization for only one Cartesian
                     # direction, and update the U matrix. The following directions
@@ -193,7 +190,7 @@ function _get_D(
                         diag(Haᴴ[idx, idx, ik, a]) .= v
                         # update U such that in Hamiltonain gauge both H and Ha
                         # are diagonal in the degenerate subspace
-                        U[idx, idx, ik] *= u
+                        U[ik][idx, idx] *= u
                     end
                     # the D matrix
                     D[idx, idx, ik, a] .= 0
@@ -211,32 +208,28 @@ end
     get_dH_da(Rvectors, Hᴿ, kpoints)
 
 Compute the derivative of the Hamiltonian ``H`` with respect to three Cartesian
-directions.
 
+directions.
 YWVS Eq. 26.
 """
 function get_dH_da(
-    Rvectors::RVectorsMDRS{T}, Hᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
+    Hᴿ::TBHamiltonian, kpoints::AbstractVector{Vec3{T}}
 ) where {T<:Real}
-    n_wann = size(Hᴿ, 1)
-    n_kpts = size(kpoints, 2)
-    n_r̃vecs = Rvectors.n_r̃vecs  # only MDRSv2 is implemented for the moment
-    size(Hᴿ, 1) == size(Hᴿ, 2) || error("Hᴿ is not square")
-    size(Hᴿ, 3) == n_r̃vecs || error("Hᴿ has wrong size")
-
-    E, U, Haᴴ, D = _get_D(Rvectors, Hᴿ, kpoints; use_degen_pert=false)
+    E, U, Haᴴ, D = _get_D(Hᴿ, kpoints; use_degen_pert=false)
     # size(E) = (n_wann, n_kpts)
     # size(U) = (n_wann, n_wann, n_kpts)
     # size(Haᴴ) = size(D) = (n_wann, n_wann, n_kpts, 3)
 
     # also including non-diagonal part
+    n_kpts = length(kpoints)
+    n_wann = length(E[1])
     dH_da = zeros(Complex{T}, n_wann, n_wann, n_kpts, 3)
 
     HDa = zeros(Complex{T}, n_wann, n_wann)
 
     for a in 1:3
         for ik in 1:n_kpts
-            HDa .= Diagonal(E[:, ik]) * D[:, :, ik, a]
+            HDa .= Diagonal(E[ik]) * D[:, :, ik, a]
             dH_da[:, :, ik, a] = Haᴴ[:, :, ik, a] + HDa + HDa'
         end
     end
@@ -253,39 +246,40 @@ Cartesian directions.
 YWVS Eq. 28.
 """
 function get_d2H_dadb(
-    Rvectors::RVectorsMDRS{T}, Hᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}
+    Hᴿ::TBHamiltonian, kpoints::AbstractVector{Vec3{T}}
 ) where {T<:Real}
-    n_wann = size(Hᴿ, 1)
-    n_kpts = size(kpoints, 2)
-    n_r̃vecs = Rvectors.n_r̃vecs  # only MDRSv2 is implemented for the moment
-    size(Hᴿ, 1) == size(Hᴿ, 2) || error("Hᴿ is not square")
-    size(Hᴿ, 3) == n_r̃vecs || error("Hᴿ has wrong size")
+    n_wann = size(Hᴿ[1], 1)
+    n_kpts = length(kpoints)
+    size(Hᴿ[1], 1) == size(Hᴿ[1], 2) || error("Hᴿ is not square")
 
-    E, U, Haᴴ, D = _get_D(Rvectors, Hᴿ, kpoints; use_degen_pert=false)
+    E, U, Haᴴ, D = _get_D(Hᴿ, kpoints; use_degen_pert=false)
     # size(E) = (n_wann, n_kpts)
     # size(U) = (n_wann, n_wann, n_kpts)
     # size(Haᴴ) = size(D) = (n_wann, n_wann, n_kpts, 3)
 
     # 2nd order derivative Hab = dv / dk = d²H / dk²
     # Wannier gauge Hab, last two indexes are Cartesian directions
-    Habᵂ = zeros(Complex{T}, n_wann, n_wann, n_kpts)
+    Habᵂ = zeros(Complex{T}, n_wann, n_wann)
     # Hamiltonian gauge Hab, actually the covariant part of Hab
     # i.e., the ``\bar{H}_{\alpha\beta}^{(H)}`` in YWVS Eq. 28
     Habᴴ = zeros(Complex{T}, n_wann, n_wann, n_kpts, 3, 3)
 
     # to cartesian in angstrom
-    Rᶜ = Rvectors.lattice * Rvectors.R̃vectors.R
-
     for a in 1:3  # three Cartesian directions, a ∈ {x, y, z}
-        Ra = reshape(Rᶜ[a, :], 1, 1, n_r̃vecs)
+       
         for b in 1:3
-            Rb = reshape(Rᶜ[b, :], 1, 1, n_r̃vecs)
-            RaRbH = -Ra .* Rb .* Hᴿ  # YWVS Eq. 30
-            invfourier!(Habᵂ, Rvectors, RaRbH, kpoints)
+            
+            RaRbH = map(x->TBBlock(x.R_cryst, x.R_cart, -x.R_cart[a] * x.R_cart[b] .* x.block, x.tb_block), Hᴿ)
 
             for ik in 1:n_kpts
-                Uᵏ = @view U[:, :, ik]
-                Habᴴ[:, :, ik, a, b] .= Uᵏ' * Habᵂ[:, :, ik] * Uᵏ
+                fill!(Habᵂ, 0)
+
+                invfourier(RaRbH, kpoints[ik]) do i, iR, Rcart, b, fac
+                    Habᵂ[i] += fac * b.block[i]
+                end
+                
+                Uᵏ = U[ik]
+                Habᴴ[:, :, ik, a, b] .= Uᵏ' * Habᵂ * Uᵏ
 
                 HaDb = Haᴴ[:, :, ik, a] * D[:, :, ik, b]
                 Habᴴ[:, :, ik, a, b] += HaDb + HaDb'  # YWVS Eq. 28
@@ -304,33 +298,35 @@ Compute the velocity using finite differences of 2nd order.
 PRB 93, 205147 (2016)  Eq. 80.
 """
 function velocity_fd(
-    Rvectors::RVectorsMDRS{T}, Hᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}; dk=1e-3
+    Rvectors::RVectors{T}, Hᴿ::TBHamiltonian, kpoints::AbstractVector{Vec3{T}}; dk=1e-3
 ) where {T<:Real}
-    n_wann = size(Hᴿ, 1)
-    n_kpts = size(kpoints, 2)
-    n_r̃vecs = Rvectors.n_r̃vecs  # only MDRSv2 is implemented for the moment
-    size(Hᴿ, 1) == size(Hᴿ, 2) || error("Hᴿ is not square")
-    size(Hᴿ, 3) == n_r̃vecs || error("Hᴿ has wrong size")
+    n_wann = size(Hᴿ[1], 1)
+    n_kpts = length(kpoints)
+    size(Hᴿ[1], 1) == size(Hᴿ[1], 2) || error("Hᴿ is not square")
 
     # the final velocity along 3 Cartesian directions
     V = zeros(T, n_wann, n_kpts, 3)
     # the 6 interpolated kpoints, each column is a fractional coordinates
-    Δk = [
-        -dk dk 0 0 0 0
-        0 0 -dk dk 0 0
-        0 0 0 0 -dk dk
-    ]
+    Δk = [Vec3(-dk, 0, 0),Vec3(dk, 0, 0),Vec3(0, -dk, 0), Vec3(0, dk, 0), Vec3(0, 0, -dk), Vec3(0, 0, dk)]
+    
     # the interpolated Hamiltonain
-    Hᵏ = zeros(Complex{T}, n_wann, n_wann, 6)
+    Hᵏ = zeros(Complex{T}, n_wann, n_wann)
     # the interpolated eigenvalues
     E = zeros(T, n_wann, 6)
     # to fractional
     recip_latt = get_recip_lattice(Rvectors.lattice)
-    Δkᶠ = inv(recip_latt) * Δk
+    Δkᶠ = map(k -> inv(recip_latt) * k, Δk)
 
     for ik in 1:n_kpts
-        invfourier!(Hᵏ, Rvectors, Hᴿ, kpoints[:, ik] .+ Δkᶠ)
-        E .= diag_Hk(Hᵏ)[1]  # only eigenvalues are needed
+        for id = 1:6
+            fill!(Hᵏ, 0)
+            
+            invfourier(Hᴿ, kpoints[ik] .+ Δkᶠ[id]) do i, iR, Rcart, b, fac
+                Hᵏ[i] += fac * b.block[i]
+            end
+            
+            E[:, id] .= real(eigen(Hᵏ).values)  # only eigenvalues are needed
+        end
 
         V[:, ik, 1] = (E[:, 2] - E[:, 1]) / (2dk)
         V[:, ik, 2] = (E[:, 4] - E[:, 3]) / (2dk)
@@ -348,7 +344,7 @@ Compute the inverse of effective mass using finite differences of 2nd order.
 Apply twice PRB 93, 205147 (2016)  Eq. 80.
 """
 function effmass_fd(
-    Rvectors::RVectorsMDRS{T}, Hᴿ::Array{Complex{T},3}, kpoints::AbstractMatrix{T}; dk=1e-3
+    Rvectors::RVectorsMDRS{T}, Hᴿ::TBHamiltonian, kpoints::AbstractVector{Vec3{T}}; dk=1e-3
 ) where {T<:Real}
     n_wann = size(Hᴿ, 1)
     n_kpts = size(kpoints, 2)

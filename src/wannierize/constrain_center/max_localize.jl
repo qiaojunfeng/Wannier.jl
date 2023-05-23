@@ -28,7 +28,7 @@ struct SpreadCenter{T} <: AbstractSpread
     ω::Vector{T}
 
     # WF center, Cartesian! coordinates, unit Å, 3 * n_wann
-    r::Matrix{T}
+    r::Vector{Vec3{T}}
 
     # additional variables for penalty term
     # Penalty, unit Å²
@@ -55,7 +55,7 @@ function Base.show(io::IO, Ω::SpreadCenter)
             io,
             "%4d %11.5f %11.5f %11.5f %11.5f %11.5f %11.5f\n",
             i,
-            Ω.r[:, i]...,
+            Ω.r[i]...,
             Ω.ω[i],
             Ω.ωc[i],
             Ω.ωt[i]
@@ -84,15 +84,15 @@ Compute WF spread with center penalty, for maximal localization.
 - `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
-@views function omega_center(
+function omega_center(
     bvectors::BVectors{T},
-    M::Array{Complex{T},4},
-    U::Array{Complex{T},3},
-    r₀::Matrix{T},
+    M::Vector{Array{Complex{T},3}},
+    U,
+    r₀::Vector{Vec3{T}},
     λ::T,
 ) where {T<:Real}
     Ω = omega(bvectors, M, U)
-    ωc = λ * dropdims(sum(abs2, Ω.r - r₀; dims=1); dims=1)
+    ωc = λ .* map(i -> (t = Ω.r[i] - r₀[i]; t⋅t), 1:length(r₀))
     ωt = Ω.ω + ωc
     Ωc = sum(ωc)
     Ωt = Ω.Ω + Ωc
@@ -111,7 +111,7 @@ Compute WF spread with center penalty, for maximal localization.
 - `λ`: penalty strength
 """
 function omega_center(
-    model::Model{T}, U::Array{Complex{T},3}, r₀::Matrix{T}, λ::T
+    model::Model{T}, U, r₀::Vector{Vec3{T}}, λ::T
 ) where {T<:Real}
     return omega_center(model.bvectors, model.M, U, r₀, λ)
 end
@@ -126,7 +126,7 @@ Compute WF spread with center penalty, for maximal localization.
 - `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
-function omega_center(model::Model{T}, r₀::Matrix{T}, λ::T) where {T<:Real}
+function omega_center(model::Model{T}, r₀, λ::T) where {T<:Real}
     return omega_center(model, model.U, r₀, λ)
 end
 
@@ -145,14 +145,14 @@ Compute gradient of WF spread with center penalty, for maximal localization.
 """
 @views function omega_center_grad(
     bvectors::BVectors{FT},
-    M::Array{Complex{FT},4},
-    U::Array{Complex{FT},3},
-    r::Matrix{FT},
-    r₀::Matrix{FT},
+    M::Vector{Array{Complex{FT},3}},
+    U::Array{Complex{FT}, 3},
+    r::Vector{Vec3{FT}},
+    r₀::Vector{Vec3{FT}},
     λ::FT,
 ) where {FT<:Real}
     n_bands, n_wann, n_kpts = size(U)
-    n_bvecs = size(M, 3)
+    n_bvecs = size(M[1], 3)
 
     kpb_k = bvectors.kpb_k
     kpb_b = bvectors.kpb_b
@@ -165,24 +165,25 @@ Compute gradient of WF spread with center penalty, for maximal localization.
     R = zeros(Complex{FT}, n_bands, n_wann)
     T = zeros(Complex{FT}, n_bands, n_wann)
 
-    b = zeros(FT, 3)
 
     Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
     MUᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
 
     for ik in 1:n_kpts
         for ib in 1:n_bvecs
-            ikpb = kpb_k[ib, ik]
-
-            MUᵏᵇ .= M[:, :, ib, ik] * U[:, :, ikpb]
-            Nᵏᵇ .= U[:, :, ik]' * MUᵏᵇ
-            b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
+            ikpb = kpb_k[ik][ib]
+            #TODO optimize
+            MUᵏᵇ .= M[ik][:, :, ib] * U[:,:,ikpb]
+            Nᵏᵇ .= U[:,:,ik]' * MUᵏᵇ
+            b = recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - kpoints[ik])
             wᵇ = wb[ib]
 
             q = imaglog.(diag(Nᵏᵇ))
-            q += r' * b
+            for ir = 1:n_wann
+                q[ir] += r[ir] ⋅ b
             # center constraint
-            q -= λ * (r - r₀)' * b
+                q[ir] -= λ * (r[ir] - r₀[ir]) ⋅ b
+            end
 
             for n in 1:n_wann
                 # error if division by zero. Should not happen if the initial gauge is not too bad
@@ -205,7 +206,86 @@ Compute gradient of WF spread with center penalty, for maximal localization.
     end
 
     G /= n_kpts
+    return G
+end
 
+"""
+    omega_center_grad(bvectors, M, U, r, r₀, λ)
+
+Compute gradient of WF spread with center penalty, for maximal localization.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `U`: `n_wann * n_wann * n_kpts` array
+- `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
+- `r₀`: `3 * n_wann`, the target WF centers in cartesian coordinates
+- `λ`: penalty strength
+"""
+@views function omega_center_grad(
+    bvectors::BVectors{FT},
+    M::Vector{Array{Complex{FT},3}},
+    U::Vector{Matrix{Complex{FT}}},
+    r::Vector{Vec3{FT}},
+    r₀::Vector{Vec3{FT}},
+    λ::FT,
+) where {FT<:Real}
+    n_bands, n_wann = size(U[1])
+    n_kpts = length(U)
+    n_bvecs = size(M[1], 3)
+
+    kpb_k = bvectors.kpb_k
+    kpb_b = bvectors.kpb_b
+    wb = bvectors.weights
+    recip_lattice = bvectors.recip_lattice
+    kpoints = bvectors.kpoints
+
+    G = [zeros(Complex{FT}, n_bands, n_wann) for i = 1:n_kpts]
+
+    R = zeros(Complex{FT}, n_bands, n_wann)
+    T = zeros(Complex{FT}, n_bands, n_wann)
+
+
+    Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
+    MUᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
+
+    for ik in 1:n_kpts
+        for ib in 1:n_bvecs
+            ikpb = kpb_k[ik][ib]
+            #TODO optimize
+            MUᵏᵇ .= M[ik][:, :, ib] * U[ikpb]
+            Nᵏᵇ .= U[ik]' * MUᵏᵇ
+            b = recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - kpoints[ik])
+            wᵇ = wb[ib]
+
+            q = imaglog.(diag(Nᵏᵇ))
+            for ir = 1:n_wann
+                q[ir] += r[ir] ⋅ b
+            # center constraint
+                q[ir] -= λ * (r[ir] - r₀[ir]) ⋅ b
+            end
+
+            for n in 1:n_wann
+                # error if division by zero. Should not happen if the initial gauge is not too bad
+                if abs(Nᵏᵇ[n, n]) < 1e-10
+                    display(Nᵏᵇ)
+                    println()
+                    error("Nᵏᵇ too small! $ik -> $ikpb")
+                end
+
+                t = -im * q[n] / Nᵏᵇ[n, n]
+
+                for m in 1:n_bands
+                    R[m, n] = -MUᵏᵇ[m, n] * conj(Nᵏᵇ[n, n])
+                    T[m, n] = t * MUᵏᵇ[m, n]
+                end
+            end
+
+            G[ik] .+= 4 * wᵇ .* (R .+ T)
+        end
+    end
+
+    G ./= n_kpts
     return G
 end
 
@@ -223,9 +303,9 @@ Compute gradient of WF spread with center penalty, for maximal localization.
 """
 function omega_center_grad(
     bvectors::BVectors{FT},
-    M::Array{Complex{FT},4},
-    U::Array{Complex{FT},3},
-    r₀::Matrix{FT},
+    M::Vector,
+    U,
+    r₀::Vector,
     λ::FT,
 ) where {FT<:Real}
     r = center(bvectors, M, U)
@@ -237,7 +317,7 @@ end
 
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
-function get_fg!_center_maxloc(model::Model{T}, r₀::Matrix{T}, λ::T=1.0) where {T<:Real}
+function get_fg!_center_maxloc(model::Model{T}, r₀::Vector{Vec3{T}}, λ::T=1.0) where {T<:Real}
     f(U) = omega_center(model.bvectors, model.M, U, r₀, λ).Ωt
 
     function g!(G, U)
@@ -267,7 +347,7 @@ Maximally localize spread functional with center constraint on a unitary matrix 
 """
 function max_localize_center(
     model::Model{T},
-    r₀::Matrix{T},
+    r₀::Vector,
     λ::T=1.0;
     f_tol::T=1e-7,
     g_tol::T=1e-5,
@@ -276,7 +356,7 @@ function max_localize_center(
 ) where {T<:Real}
     model.n_bands != model.n_wann &&
         error("n_bands != n_wann, run instead disentanglement?")
-    size(r₀) != (3, model.n_wann) && error("size(r₀) != (3, n_wann)")
+    length(r₀) !=  model.n_wann && error("length(r₀) !=  n_wann")
 
     f, g! = get_fg!_center_maxloc(model, r₀, λ)
 
@@ -291,7 +371,7 @@ function max_localize_center(
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
-    Uinit = deepcopy(model.U)
+    Uinit = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
 
     opt = Optim.optimize(
         f,

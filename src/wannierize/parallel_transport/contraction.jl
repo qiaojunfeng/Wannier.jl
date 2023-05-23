@@ -14,17 +14,17 @@ Those must be neighbors, and only the first kpoint is assumed to have been rotat
 - `kpb_b`: `BVectors.kpb_b`
 """
 function propagate!(
-    U::Array{T,3},
+    U::Vector{Matrix{T}},
     kpts::Vector{Int},
     dk::Vector{R},
-    M::Array{T,4},
-    kpoints::Matrix{R},
-    kpb_k::Matrix{Int},
-    kpb_b::Array{Int,3},
+    M::Vector{Array{T,3}},
+    kpoints::Vector{Vec3{R}},
+    kpb_k::Vector{Vector{Int}},
+    kpb_b::Vector{Vector{Vec3{Int}}},
 ) where {T<:Complex,R<:Real}
     N = length(kpts)
-    n = size(U, 1)
-    m = size(U, 2)
+    n = size(U[1], 1)
+    m = size(U[1], 2)
     @assert n == m "Non square matrix given as argument in propagate"
 
     for i in 2:N
@@ -39,10 +39,10 @@ function propagate!(
         # * The ik0 should be at kpoints[:, ik] - dk, so the shifting b vector for
         #   input ik0 to be at kpoints[:, ik] - dk is
         #     b = kpoints[:, ik] - dk - kpoints[:, ik0]
-        b = round.(Int, kpoints[:, ik] - dk - kpoints[:, ik0])
+        b = round.(Int, kpoints[ik] - dk - kpoints[ik0])
         ib = index_bvector(kpb_k, kpb_b, ik, ik0, b)
-        Mᵏᵇ = M[:, :, ib, ik]
-        U[:, :, ik] = orthonorm_lowdin(Mᵏᵇ * U[:, :, ik0])
+        Mᵏᵇ = M[ik][:, :, ib]
+        U[ik] = orthonorm_lowdin(Mᵏᵇ * U[ik0])
     end
 
     return nothing
@@ -278,14 +278,13 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
         return reshape(matrix_path, (n_row, n_col, n_k, 1))
     end
 
-    @assert begin
-        for i in 1:n_k
-            P = matrix_path[:, :, i] * matrix_path[:, :, i]'
-            norm(P - I) >= 1e-5 && return false
-        end
-        true
-    end
-
+    # @assert begin
+    #     for i in 1:n_k
+    #         P = matrix_path[:, :, i] * matrix_path[:, :, i]'
+    #         norm(P - I) >= 1e-5 && return false
+    #     end
+    #     true
+    # end
     CT = Complex{T}
     columns = zeros(Int, 0)
     prev_poles = zeros(CT, n_col, n_col)

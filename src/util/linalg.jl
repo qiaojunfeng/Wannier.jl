@@ -29,17 +29,7 @@ end
 
 Lowdin orthonormalize a series of matrices `M`.
 """
-function orthonorm_lowdin(U::Array{T,3}) where {T<:Union{Complex,Real}}
-    n_kpts = size(U, 3)
-
-    A = similar(U)
-
-    for ik in 1:n_kpts
-        A[:, :, ik] .= orthonorm_lowdin(U[:, :, ik])
-    end
-
-    return A
-end
+orthonorm_lowdin(U::Vector{Matrix{T}}) where {T<:Union{Complex,Real}} = orthonorm_lowdin.(U)
 
 function orthonorm_cholesky(U)
     return U / chol(U'U)
@@ -110,18 +100,15 @@ Rotate the gauge of the operator `O`.
 
 I.e., ``U^{\\dagger} O U``.
 """
-function rotate_gauge(O::Array{T,3}, U::Array{T,3}) where {T<:Number}
-    n_bands, n_wann, n_kpts = size(U)
-    size(O) != (n_bands, n_bands, n_kpts) &&
+function rotate_gauge(O::Vector{Matrix{T}}, U::Vector{Matrix{T}}) where {T<:Number}
+    n_bands, n_wann = size(U[1])
+    n_kpts = length(U)
+    size(O[1], 1), size(O[1], 2), length(O) != (n_bands, n_bands, n_kpts) &&
         error("O must have size (n_bands, n_bands, n_kpts)")
 
-    O1 = similar(O, n_wann, n_wann, n_kpts)
-
-    for ik in 1:n_kpts
-        O1[:, :, ik] .= U[:, :, ik]' * O[:, :, ik] * U[:, :, ik]
+    return map(zip(O, U)) do (o, u)
+        u' * o * u
     end
-
-    return O1
 end
 
 """
@@ -129,16 +116,8 @@ end
 
 Return a series of indentity matrices of type `T` and size `n_wann * n_wann * n_kpts`.
 """
-function eyes_U(T::Type, n_wann::Int, n_kpts::Int)
-    U = zeros(T, n_wann, n_wann, n_kpts)
-    Iₖ = diagm(0 => ones(n_wann))
-
-    for ik in 1:n_kpts
-        U[:, :, ik] = Iₖ
-    end
-
-    return U
-end
+eyes_U(::Type{T}, n_wann::Int, n_kpts::Int) where T = 
+    [diagm(0 => ones(T, n_wann)) for i = 1:n_kpts]
 
 """
     eyes_U(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
@@ -146,15 +125,12 @@ end
 Return a series of indentity matrices of type `T` and size `n_bands * n_wann * n_kpts`.
 """
 function eyes_U(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
-    U = zeros(T, n_bands, n_wann, n_kpts)
-    n = min(n_bands, n_wann)
-    Iₖ = diagm(0 => ones(n))
-
-    for ik in 1:n_kpts
-        U[1:n, 1:n, ik] = Iₖ
+    map(1:n_kpts) do
+        U = zeros(T, n_bands, n_wann)
+        n = min(n_bands, n_wann)
+        U[1:n, 1:n] .= 1
+        return U
     end
-
-    return U
 end
 
 @doc raw"""
@@ -168,18 +144,13 @@ For each kpoint ``\bm{k}``, return ``U_{\bm{k}} V_{\bm{k}}``.
 - `U`: a series of gauge matrices, usually `size(U) = n_bands * n_wann * n_kpts`
 - `V`: a series of gauge matrices, usually `size(V) = n_wann * n_wann * n_kpts`
 """
-function rotate_U(U::AbstractArray3{T}, V::AbstractArray3{T}) where {T<:Complex}
-    n_bands, n_wann, n_kpts = size(U)
-    size(V)[[1, 3]] != (n_wann, n_kpts) && error("V must be a n_wann * ? * n_kpts matrix")
-    m = size(V, 2)
-
-    UV = similar(U, n_bands, m, n_kpts)
-
-    for ik in 1:n_kpts
-        UV[:, :, ik] .= U[:, :, ik] * V[:, :, ik]
+function rotate_U(U::AbstractVector, V::AbstractVector)
+    n_kpts = length(U)
+    n_bands, n_wann = size(U[1])
+    
+    return map(zip(U, V)) do (u, v)
+        u * v
     end
-
-    return UV
 end
 
 """
@@ -191,25 +162,25 @@ i.e., for each kpoint ``\\bm{k}``,
 ``U_{\\bm{k}+\\bm{b}}^{\\dagger} M_{\\bm{k},\\bm{b}} U_{\\bm{k}}``.
 """
 @views function rotate_M(
-    M::Array{T,4}, kpb_k::Matrix{Int}, U::Array{T,3}
+    M::Vector{Array{T,3}}, kpb_k, U::Vector{Matrix{T}}
 ) where {T<:Complex}
-    n_bands, n_wann = size(U)
-    n_kpts = size(M, 4)
-    n_bvecs = size(M, 3)
 
-    n_bands != size(M, 1) && error("incompatible n_bands")
+    n_bands, n_wann = size(U[1])
+    n_kpts = length(M)
+    n_bvecs = size(M[1], 3)
+
+    n_bands != size(M[1], 1) && error("incompatible n_bands")
 
     # Fill MMN
-    N = similar(M, n_wann, n_wann, n_bvecs, n_kpts)
+    N = [similar(M[1], n_wann, n_wann, n_bvecs) for i = 1:n_kpts]
 
-    for ik in 1:n_kpts
+    @views @inbounds for ik in 1:n_kpts
         for ib in 1:n_bvecs
-            ik2 = kpb_k[ib, ik]
+            ik2 = kpb_k[ik][ib]
+            U₁ = U[ik]
+            U₂ = U[ik2]
 
-            U₁ = U[:, :, ik]
-            U₂ = U[:, :, ik2]
-
-            N[:, :, ib, ik] = U₁' * M[:, :, ib, ik] * U₂
+            N[ik][:, :, ib] .= U₁' * M[ik][:, :, ib] * U₂
         end
     end
 
@@ -217,17 +188,17 @@ i.e., for each kpoint ``\\bm{k}``,
 end
 
 """
-    isunitary(U::AbstractArray{T,3}; atol=1e-10)
+    isunitary(U::AbstractVector{AbstractMatrix{T}}; atol=1e-10)
 
 Check if matrix is unitary or semi-unitary for all the kpoints?
 
 I.e. does it have orthogonal columns?
 """
-function isunitary(U::AbstractArray{T,3}; atol::Real=1e-10) where {T<:Number}
+function isunitary(U::AbstractVector{AbstractMatrix{T}}; atol::Real=1e-10) where {T<:Number}
     n_bands, n_wann, n_kpts = size(U)
 
     for ik in 1:n_kpts
-        Uₖ = @view U[:, :, ik]
+        Uₖ = U[ik]
         if norm(Uₖ' * Uₖ - I) > atol
             @debug "not unitary" ik norm(Uₖ' * Uₖ - I)
             return false
@@ -237,18 +208,16 @@ function isunitary(U::AbstractArray{T,3}; atol::Real=1e-10) where {T<:Number}
 end
 
 """
-    get_projectability(U::AbstractArray{T,3})
+    get_projectability(U::AbstractVector{Abs = size(U[1])
+    actMatrix{T}})
 
 Return projectability of each kpoint.
 """
-function get_projectability(U::AbstractArray{T,3}) where {T<:Number}
-    n_bands, n_wann, n_kpts = size(U)
-    P = zeros(real(T), n_bands, n_kpts)
-    for ik in 1:n_kpts
-        p = U[:, :, ik] * U[:, :, ik]'
-        P[:, ik] = real(diag(p))
+function get_projectability(U::AbstractVector{AbstractMatrix{T}}) where {T<:Number}
+    map(U) do u
+        p = u * u'
+        return real(diag(p))
     end
-    return P
 end
 
 """
@@ -309,10 +278,4 @@ The returned `M[:, :, ik]` is (semi-)unitary for all `ik = 1:k`.
 - `n`: number of columns
 - `k`: number of matrices
 """
-function rand_unitary(T::Type, m::Int, n::Int, k::Int)
-    M = zeros(T, m, n, k)
-    for ik in 1:k
-        M[:, :, ik] = rand_unitary(T, m, n)
-    end
-    return M
-end
+rand_unitary(T::Type, m::Int, n::Int, k::Int) = [rand_unitary(T, m, n) for i = 1:k]

@@ -52,20 +52,21 @@ function occupation_matrix(model::Model, ϵF::Real, T::Real)
     return dropdims(sum(P; dims=3); dims=3) / model.n_kpts
 end
 
-@doc raw"""
-    occupation_matrix(model, ϵF, T)
+# TODO: how
+# @doc raw"""
+#     occupation_matrix(model, ϵF, T)
 
-Occupation matrix in R-space.
+# Occupation matrix in R-space.
 
-```math
-\langle w_{n \mathbf{0}} | \hat{P} | w_{m \mathbf{R}} \rangle
-```
-where ``\hat{P}`` is the occupation operator.
-"""
-function occupation_matrix(model::InterpModel, P::AbstractArray3)
-    Pᴿ = fourier(model.kRvectors, P)
-    return Pᴿ
-end
+# ```math
+# \langle w_{n \mathbf{0}} | \hat{P} | w_{m \mathbf{R}} \rangle
+# ```
+# where ``\hat{P}`` is the occupation operator.
+# """
+# function occupation_matrix(model::InterpModel, P::AbstractArray3)
+#     Pᴿ = fourier(model.kRvectors, P)
+#     return Pᴿ
+# end
 
 @doc raw"""
     charge(model, ϵF, T)

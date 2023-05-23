@@ -34,11 +34,9 @@ end
 
 function moment(rgrid::RGrid, W::AbstractArray{T,4}, n::U) where {T<:Complex,U<:Integer}
     n_wann = size(W, 4)
-    r = Matrix{real(T)}(undef, 3, n_wann)
-    for i in 1:n_wann
-        r[:, i] = moment(rgrid, W[:, :, :, i], n)
+    return map(1:n_wann) do i
+        moment(rgrid, W[:, :, :, i], n)
     end
-    return r
 end
 
 """
@@ -62,7 +60,7 @@ Returned value in Å^2 unit.
 See also [`moment`](@ref moment).
 """
 function omega(rgrid::RGrid, W::AbstractArray)
-    return sum(moment(rgrid, W, 2) - center(rgrid, W) .^ 2; dims=1)
+    return map(x-> sqrt(x ⋅ x), moment(rgrid, W, 2) .- center(rgrid, W))
 end
 
 """

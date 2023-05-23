@@ -18,7 +18,7 @@ function get_fg!_rotate(model::Model)
     function g!(G, W)
         n_wann = size(W, 1)
         M = model.M
-        n_bvecs = size(M, 3)
+        n_bvecs = size(M[1], 3)
         n_kpts = model.n_kpts
 
         bvectors = model.bvectors
@@ -30,7 +30,6 @@ function get_fg!_rotate(model::Model)
 
         fill!(G, 0.0)
         T = zeros(eltype(W), n_wann, n_wann)
-        b = zeros(eltype(real(W)), 3)
         MWᵏᵇ = zeros(eltype(W), n_wann, n_wann)
         Nᵏᵇ = zeros(eltype(W), n_wann, n_wann)
 
@@ -44,14 +43,17 @@ function get_fg!_rotate(model::Model)
 
         for ik in 1:n_kpts
             for ib in 1:n_bvecs
-                ikpb = kpb_k[ib, ik]
+                ikpb = kpb_k[ik][ib]
 
                 # need to use UW[:, :, ik] instead of W, if model.U is not identity
-                MWᵏᵇ .= M[:, :, ib, ik] * W
+                MWᵏᵇ .= M[ik][:, :, ib] * W
                 Nᵏᵇ .= W' * MWᵏᵇ
-                b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
+                b = recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - kpoints[ik])
 
-                q = imaglog.(diag(Nᵏᵇ)) + r' * b
+                q = imaglog.(diag(Nᵏᵇ))
+                for ir = 1:n_wann
+                    q[ir] += r[ir] ⋅ b
+                end
 
                 for n in 1:n_wann
                     # error if division by zero. Should not happen if the initial gauge is not too bad
@@ -109,14 +111,14 @@ function opt_rotate(
     # might not be diagonal, however in this case I don't care about eigenvalues
     model2 = deepcopy(model)
     model2.M .= rotate_M(model2.M, model2.bvectors.kpb_k, model2.U)
-    model2.U .= eyes_U(eltype(model2.U), n_wann, model2.n_kpts)
+    model2.U .= eyes_U(eltype(model2.U[1]), n_wann, model2.n_kpts)
 
     wManif = Optim.Stiefel_SVD()
 
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
-    W0 = Matrix{eltype(model2.U)}(I, n_wann, n_wann)
+    W0 = Matrix{eltype(model2.U[1])}(I, n_wann, n_wann)
 
     f, g! = get_fg!_rotate(model2)
 
@@ -159,6 +161,13 @@ Rotate the `U` matrices at each kpoint by the same `W` matrix.
 Useful once we have the optimal rotation matrix `W`, then update the initial
 `U` matrices by rotating them by `W`.
 """
+function rotate_U(U::Vector, W::Matrix{T}) where {T<:Complex}
+    n_bands, n_wann = size(U[1])
+    
+    size(W) != (n_wann, n_wann) && error("W must be a n_wann x n_wann matrix")
+    return map(u -> u * W, U)
+end
+
 function rotate_U(U::Array{T,3}, W::Matrix{T}) where {T<:Complex}
     n_bands, n_wann, n_kpts = size(U)
     size(W) != (n_wann, n_wann) && error("W must be a n_wann x n_wann matrix")

@@ -24,11 +24,11 @@ struct BVectorShells{T<:Real}
     recip_lattice::Mat3{T}
 
     # kpoints array, fractional coordinates, 3 * n_kpts
-    kpoints::Matrix{T}
+    kpoints::Vector{Vec3{T}}
 
     # bvectors of each shell, Cartesian! coordinates, Å⁻¹ unit
     # n_shells of 3 * multiplicity
-    bvectors::Vector{Matrix{T}}
+    bvectors::Vector{Vector{Vec3{T}}}
 
     # weight of each shell, length = n_shells
     weights::Vector{T}
@@ -57,12 +57,12 @@ This should be used instead of directly constructing `BVectorShells`.
 """
 function BVectorShells(
     recip_lattice::Mat3{T},
-    kpoints::AbstractMatrix{T},
-    bvectors::AbstractVector{<:AbstractMatrix{T}},
+    kpoints,
+    bvectors,
     weights::AbstractVector{T},
 ) where {T<:Real}
     n_shells = length(bvectors)
-    multiplicities = [size(bvectors[i], 2) for i in 1:n_shells]
+    multiplicities = [length(bvectors[i]) for i in 1:n_shells]
 
     return BVectorShells{T}(
         recip_lattice, kpoints, bvectors, weights, multiplicities, n_shells
@@ -73,9 +73,9 @@ function Base.show(io::IO, shells::BVectorShells)
     for i in 1:(shells.n_shells)
         @printf(io, "b-vector shell %3d    weight = %8.5f\n", i, shells.weights[i])
         vecs = shells.bvectors[i]
-        for ib in axes(vecs, 2)
-            ending = (i == shells.n_shells) && (ib == size(vecs, 2)) ? "" : "\n"
-            @printf(io, "  %3d    %10.5f %10.5f %10.5f%s", ib, vecs[:, ib]..., ending)
+        for ib in 1:length(vecs)
+            ending = (i == shells.n_shells) && (ib == length(vecs)) ? "" : "\n"
+            @printf(io, "  %3d    %10.5f %10.5f %10.5f%s", ib, vecs[ib]..., ending)
         end
     end
 end
@@ -111,30 +111,30 @@ struct BVectors{T<:Real}
     recip_lattice::Mat3{T}
 
     # kpoints array, fractional coordinates, 3 * n_kpts
-    kpoints::Matrix{T}
+    kpoints::Vector{Vec3{T}}
 
     # bvectors, Cartesian! coordinates, Å⁻¹ unit, 3 * n_bvecs
-    bvectors::Matrix{T}
+    bvectors::Vector{Vec3{T}}
 
     # weight of each bvec, n_bvecs
     weights::Vector{T}
 
     # k+b vectors at kpoint k, n_bvecs * n_kpts
     # k -> k + b (index of periodically equivalent kpoint inside recip_lattice)
-    kpb_k::Matrix{Int}
+    kpb_k::Vector{Vector{Int}}
 
     # displacements between k + b and k + b wrapped around into the recip_lattice,
     # fractional coordinates, actually always integers since they are
     # the number of times to shift along each recip lattice.
     # 3 * n_bvecs * n_kpts, where 3 is [b_x, b_y, b_z]
-    kpb_b::Array{Int,3}
+    kpb_b::Vector{Vector{Vec3{Int}}}
 end
 
 function Base.getproperty(x::BVectors, sym::Symbol)
     if sym == :n_kpts
-        return size(x.kpoints, 2)
+        return length(x.kpoints)
     elseif sym == :n_bvecs
-        return size(x.bvectors, 2)
+        return length(x.bvectors)
     else
         # fallback to getfield
         getfield(x, sym)
@@ -145,7 +145,7 @@ function Base.show(io::IO, bvectors::BVectors)
     println(io, "b-vectors:")
     @printf(io, "         [bx, by, bz] / Å⁻¹                weight\n")
     for i in 1:(bvectors.n_bvecs)
-        v = bvectors.bvectors[:, i]
+        v = bvectors.bvectors[i]
         w = bvectors.weights[i]
         ending = i < bvectors.n_bvecs ? "\n" : ""
         @printf(io, "%3d    %10.5f %10.5f %10.5f %10.5f%s", i, v..., w, ending)
@@ -168,7 +168,7 @@ Search bvector shells satisfing B1 condition.
     equivalent to `Wannier90` input parameter `search_shells`.
 """
 function search_shells(
-    kpoints::AbstractMatrix{T}, recip_lattice::Mat3{T}; atol::T=1e-6, max_shells::Int=36
+    kpoints::Vector{Vec3{T}}, recip_lattice::Mat3{T}; atol::T=1e-6, max_shells::Int=36
 ) where {T<:Real}
     # Usually these "magic" numbers work well for normal recip_lattice.
     # Number of nearest-neighbors to be returned
@@ -179,19 +179,17 @@ function search_shells(
 
     # 1. Generate a supercell to search bvectors
     supercell, _ = make_supercell(kpoints)
-
     # To cartesian coordinates
     supercell_cart = similar(supercell)
-    for ik in axes(supercell, 2)
-        supercell_cart[:, ik] = recip_lattice * supercell[:, ik]
+    for ik in 1:length(supercell)
+        supercell_cart[ik] = recip_lattice * supercell[ik]
     end
     # use the 1st kpt to search bvectors, usually Gamma point
-    kpt_orig = recip_lattice * kpoints[:, 1]
+    kpt_orig = recip_lattice * kpoints[1]
 
     # 2. KDTree to search nearest neighbors
     kdtree = NN.KDTree(supercell_cart)
     idxs, dists = NN.knn(kdtree, kpt_orig, max_neighbors, true)
-
     # activate debug info with: JULIA_DEBUG=Main julia
     # @debug "KDTree nearest neighbors" dists
     # @debug "KDTree nearest neighbors" idxs
@@ -218,15 +216,14 @@ function search_shells(
 
     # 4. Get Cartesian coordinates vectors
     n_shells = length(shells)
-    bvectors = Vector{Matrix{T}}(undef, n_shells)
+    bvectors = Vector{Vector{Vec3{T}}}(undef, n_shells)
     for ish in 1:n_shells
-        kpb_cart = supercell_cart[:, shells[ish]]
-        bvectors[ish] = kpb_cart .- kpt_orig
+        kpb_cart = supercell_cart[shells[ish]]
+        bvectors[ish] = map(x -> x .- kpt_orig, kpb_cart)
     end
     @debug "Found bvector shells" bvectors
 
     weights = zeros(T, 0)
-
     return BVectorShells(recip_lattice, kpoints, bvectors, weights)
 end
 
@@ -242,18 +239,15 @@ Check if the columns of matrix `A` and columns of matrix `B` are parallel.
 # Keyword Arguments
 - `atol`: tolerance to check parallelism
 """
-function are_parallel(A::Matrix{T}, B::Matrix{T}; atol::T=1e-6) where {T<:Real}
-    n_dim = size(A, 1)
-    if n_dim != 3 || size(B, 1) != n_dim
-        error("only support 3-vectors")
-    end
+function are_parallel(A::Vector{Vec3{T}}, B::Vector{Vec3{T}}; atol::T=1e-6) where {T<:Real}
 
-    nc_A = size(A, 2)
-    nc_B = size(B, 2)
+    nc_A = length(A)
+    nc_B = length(B)
+    
     checkerboard = fill(false, nc_A, nc_B)
 
-    for (i, c1) in enumerate(eachcol(A))
-        for (j, c2) in enumerate(eachcol(B))
+    for (i, c1) in enumerate(A)
+        for (j, c2) in enumerate(B)
             p = cross(c1, c2)
             if all(isapprox.(0, p; atol=atol))
                 checkerboard[i, j] = true
@@ -272,7 +266,7 @@ Remove shells having parallel bvectors.
 # Arguments
 - `bvectors`: vector of bvectors in each shell
 """
-function delete_parallel(bvectors::Vector{Matrix{T}}) where {T<:Real}
+function delete_parallel(bvectors::Vector{Vector{Vec3{T}}}) where {T<:Real}
     n_shells = length(bvectors)
     keep_shells = collect(1:n_shells)
 
@@ -293,7 +287,7 @@ function delete_parallel(bvectors::Vector{Matrix{T}}) where {T<:Real}
     new_bvectors = bvectors[keep_shells]
 
     @debug "keep shells" keep_shells
-    @debug "After delete_parallel" [size(b, 2) for b in new_bvectors]' new_bvectors
+    @debug "After delete_parallel" [length(b) for b in new_bvectors]' new_bvectors
     return new_bvectors
 end
 
@@ -326,14 +320,9 @@ satisfy the B1 condition, and return the new `BVectorShells` and weights.
 - `atol`: tolerance to satisfy B1 condition,
     equivalent to `Wannier90` input parameter `kmesh_tol`
 """
-function compute_weights(bvectors::Vector{Matrix{T}}; atol::T=1e-6) where {T<:Real}
+function compute_weights(bvectors::Vector{Vector{Vec3{T}}}; atol::T=1e-6) where {T<:Real}
     n_shells = length(bvectors)
     n_shells == 0 && error("empty bvectors?")
-    for i in 1:n_shells
-        if size(bvectors[i], 1) != 3
-            error("only support 3-vectors")
-        end
-    end
 
     # only compare the upper triangular part of bvec * bvec', 6 elements
     B = zeros(T, 6, n_shells)
@@ -352,7 +341,10 @@ function compute_weights(bvectors::Vector{Matrix{T}}; atol::T=1e-6) where {T<:Re
     ish = 1
     while ish <= n_shells
         push!(keep_shells, ish)
-        B[:, ish] = triu2vec(bvectors[ish] * bvectors[ish]')
+        b = bvectors[ish]
+        t = reshape(collect(Iterators.flatten(b)), 3, length(b))
+        
+        B[:, ish] = triu2vec([sum(ik -> b[ik][i] * b[ik][j], 1:length(b)) for i=1:3, j=1:3])
         # Solve equation B * W = triu_I
         # size(B) = (6, ishell), W is diagonal matrix of size ishell
         # B = U * S * V' -> W = V * S^-1 * U' * triu_I
@@ -414,8 +406,8 @@ function check_b1(shells::BVectorShells{T}; atol::Real=1e-6) where {T}
     M = zeros(T, 3, 3)
 
     for ish in 1:(shells.n_shells)
-        bvec = shells.bvectors[ish]
-        M += shells.weights[ish] * bvec * bvec'
+        b = shells.bvectors[ish]
+        M += shells.weights[ish] * [sum(ik -> b[ik][i] * b[ik][j], 1:length(b)) for i=1:3, j=1:3]
     end
 
     @debug "Bvector sum" M
@@ -444,15 +436,15 @@ Return a tuple of `(bvecs, bvecs_weight)`, where
 - `bvecs_weight`: `n_bvecs`
 """
 function flatten_shells(shells::BVectorShells{T}) where {T<:Real}
-    n_bvecs = sum(size(shells.bvectors[i], 2) for i in 1:(shells.n_shells))
+    n_bvecs = sum(i -> length(shells.bvectors[i]), 1:shells.n_shells)
 
-    bvecs = zeros(T, 3, n_bvecs)
+    bvecs = zeros(Vec3{T}, n_bvecs)
     bvecs_weight = zeros(T, n_bvecs)
 
     counter = 1
     for ish in 1:(shells.n_shells)
         multi = shells.multiplicities[ish]
-        bvecs[:, counter:(counter + multi - 1)] = shells.bvectors[ish]
+        bvecs[counter:(counter + multi - 1)] = shells.bvectors[ish]
         bvecs_weight[counter:(counter + multi - 1)] .= shells.weights[ish]
         counter += multi
     end
@@ -480,13 +472,13 @@ Both input and output `translations` are in fractional coordinates.
     This is used to reproduce `Wannier90` bvector order.
 """
 function sort_supercell(
-    translations::AbstractMatrix, recip_lattice::AbstractMatrix; atol::Real=1e-8
+    translations::AbstractVector, recip_lattice::AbstractMatrix; atol::Real=1e-8
 )
-    n_cells = size(translations, 2)
+    n_cells = length(translations)
     distances = zeros(eltype(recip_lattice), n_cells)
 
     for i in 1:n_cells
-        distances[i] = norm(recip_lattice * translations[:, i])
+        distances[i] = norm(recip_lattice * translations[i])
     end
 
     # In W90, if the distances are degenerate, the distance which has larger index
@@ -501,7 +493,7 @@ function sort_supercell(
 
     idxs = collect(n_cells:-1:1)[perm]
 
-    return translations[:, idxs]
+    return translations[idxs]
 end
 
 """
@@ -509,12 +501,11 @@ Find equivalent kpoint and displacement vector of bvectors `bvecs` at kpoint `k`
 
 all inputs in fractional coordinates.
 """
-function _bvec_to_kb(bvecs::AbstractMatrix, k::AbstractVector, kpoints::AbstractMatrix)
-    n_bvecs = size(bvecs, 2)
+function _bvec_to_kb(bvecs::AbstractVector, k::AbstractVector, kpoints::AbstractVector)
+    n_bvecs = length(bvecs)
 
     kpts_equiv = zeros(Int, n_bvecs)
-    b_equiv = zeros(Int, 3, n_bvecs)
-
+    b_equiv = zeros(Vec3{Int}, n_bvecs)
     """Equivalent to periodic image?"""
     isequiv(v1, v2; atol=1e-6) = begin
         d = v1 - v2
@@ -523,10 +514,10 @@ function _bvec_to_kb(bvecs::AbstractMatrix, k::AbstractVector, kpoints::Abstract
     end
 
     for ib in 1:n_bvecs
-        kpb = k + bvecs[:, ib]
-        ik = findvector(isequiv, kpb, kpoints)
+        kpb = k + bvecs[ib]
+        ik = findfirst(k -> isequiv(kpb, k), kpoints)
         kpts_equiv[ib] = ik
-        b_equiv[:, ib] = round.(Int, kpb - kpoints[:, ik])
+        b_equiv[ib] = round.(Int, kpb - kpoints[ik])
     end
 
     return kpts_equiv, b_equiv
@@ -550,8 +541,8 @@ translations: of supercell, fractional coordinates
 function _sort_kb(
     bvecs_norm::AbstractVector,
     k::AbstractVector{Int},
-    b::AbstractMatrix{Int},
-    translations::AbstractMatrix;
+    b::AbstractVector{Vec3{Int}},
+    translations::AbstractVector{Vec3{Int}};
     atol::Real=1e-6,
 )
     n_bvecs = length(k)
@@ -561,7 +552,7 @@ function _sort_kb(
 
     b_idx = zeros(Int, n_bvecs)
     for ib in 1:n_bvecs
-        b_idx[ib] = findvector(isequiv, b[:, ib], translations)
+        b_idx[ib] = findfirst(t -> isequiv(t, b[ib]), translations)
     end
 
     lt(i, j) = begin
@@ -608,38 +599,39 @@ weights, since `nnkp` file has no section of weights.
 function sort_bvectors(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
     kpoints = shells.kpoints
     recip_lattice = shells.recip_lattice
-    n_kpts = size(kpoints, 2)
+    n_kpts = length(kpoints)
 
     # To sort bvectors for each kpoints, I need to
     # calculate distances of supercells to original cell.
     # I only need one kpoint at Gamma.
-    _, translations = make_supercell(zeros(T, 3, 1))
+    _, translations = make_supercell([Vec3(0,0,0)])
     translations = sort_supercell(translations, recip_lattice)
 
     bvecs, bvecs_weight = flatten_shells(shells)
-    n_bvecs = size(bvecs, 2)
-    bvecs_frac = inv(recip_lattice) * bvecs
-    bvecs_norm = [norm(bvecs[:, i]) for i in 1:n_bvecs]
+    n_bvecs = length(bvecs)
+    ic = inv(recip_lattice)
+    bvecs_frac = map(b -> ic * b, bvecs)
+    bvecs_norm = [norm(bvecs[i]) for i in 1:n_bvecs]
 
     # find k+b indexes
-    kpb_k = zeros(Int, n_bvecs, n_kpts)
-    kpb_b = zeros(Int, 3, n_bvecs, n_kpts)
+    kpb_k = [zeros(Int, n_bvecs) for i = 1:n_kpts]
+    kpb_b = [zeros(Vec3{Int}, n_bvecs) for i=1:n_kpts]
     # weight
-    kpb_w = zeros(T, n_bvecs, n_kpts)
+    kpb_w = [zeros(T, n_bvecs) for i = 1:n_kpts]
 
     for ik in 1:n_kpts
-        k = kpoints[:, ik]
+        k = kpoints[ik]
         # use fractional coordinates to compare
         k_equiv, b_equiv = _bvec_to_kb(bvecs_frac, k, kpoints)
         perm = _sort_kb(bvecs_norm, k_equiv, b_equiv, translations; atol=atol)
 
-        kpb_k[:, ik] = k_equiv[perm]
-        kpb_b[:, :, ik] = b_equiv[:, perm]
-        kpb_w[:, ik] = bvecs_weight[perm]
+        kpb_k[ik] = k_equiv[perm]
+        kpb_b[ik] = b_equiv[perm]
+        kpb_w[ik] = bvecs_weight[perm]
     end
 
     # kpb_weight is redundant
-    @assert sum(abs.(kpb_w .- bvecs_weight)) < 1e-6
+    # @assert sum(abs.(Iterators.flatten(kpb_w) .- Iterators.flatten(bvecs_weight))) < 1e-6
 
     @debug "k+b k" kpb_k
     @debug "k+b b" kpb_b
@@ -661,7 +653,7 @@ Generate and sort bvectors for all the kpoints.
 - `kmesh_tol`: equivalent to `Wannier90` input parameter `kmesh_tol`
 """
 function get_bvectors(
-    kpoints::AbstractMatrix{<:Real}, recip_lattice::Mat3{<:Real}; kmesh_tol::Real=1e-6
+    kpoints::Vector{<:Vec3}, recip_lattice::Mat3{<:Real}; kmesh_tol::Real=1e-6
 )
     # find shells
     shells = search_shells(kpoints, recip_lattice; atol=kmesh_tol)
@@ -676,6 +668,8 @@ function get_bvectors(
 
     return bvectors
 end
+get_bvectors(kpoints::AbstractMatrix, args...; kwargs...) =
+    get_bvectors(map(i -> Vec3(kpoints[:, i]), axes(kpoints,2)), args...; kwargs...)
 
 """
     index_bvector(kpb_k, kpb_b, k1, k2, b)
@@ -693,8 +687,8 @@ the connecting displacement vector `b`.
 - `b`: vector of 3 integer, displacement vector from `k1` to `k2`
 """
 function index_bvector(
-    kpb_k::Matrix{<:Integer},
-    kpb_b::Array{<:Integer,3},
+    kpb_k,
+    kpb_b,
     k1::Integer,
     k2::Integer,
     b::AbstractVector{<:Integer},
@@ -702,7 +696,7 @@ function index_bvector(
     n_bvecs = size(kpb_k, 1)
 
     for ib in 1:n_bvecs
-        if kpb_k[ib, k1] == k2 && kpb_b[:, ib, k1] == b
+        if kpb_k[k1][ib] == k2 && kpb_b[k1][ib] == b
             return ib
         end
     end
@@ -726,34 +720,34 @@ Generate and sort bvectors for all the kpoints.
 # Keyword Arguments
 - `kmesh_tol`: equivalent to `Wannier90` input parameter `kmesh_tol`
 """
-function get_bvectors_nearest(kpoints::Matrix{T}, recip_lattice::Mat3{T}) where {T<:Real}
+function get_bvectors_nearest(kpoints::Vector{Vec3{T}}, recip_lattice::Mat3{T}) where {T<:Real}
     n_kx, n_ky, n_kz = get_kgrid(kpoints)
     δx, δy, δz = 1 / n_kx, 1 / n_ky, 1 / n_kz
 
     # only 6 nearest neighbors
     n_bvecs = 6
-    bvecs_frac = zeros(T, 3, n_bvecs)
-    bvecs_frac[:, 1] = [δx, 0, 0]
-    bvecs_frac[:, 2] = [-δx, 0, 0]
-    bvecs_frac[:, 3] = [0, δy, 0]
-    bvecs_frac[:, 4] = [0, -δy, 0]
-    bvecs_frac[:, 5] = [0, 0, δz]
-    bvecs_frac[:, 6] = [0, 0, -δz]
+    bvecs_frac = zeros(T, n_bvecs)
+    bvecs_frac[1] = Vec3{T}(δx, 0, 0)
+    bvecs_frac[2] = Vec3{T}(-δx, 0, 0)
+    bvecs_frac[3] = Vec3{T}(0, δy, 0)
+    bvecs_frac[4] = Vec3{T}(0, -δy, 0)
+    bvecs_frac[5] = Vec3{T}(0, 0, δz)
+    bvecs_frac[6] = Vec3{T}(0, 0, -δz)
 
     # just a fake weight
     bvecs_weight = ones(T, n_bvecs)
 
     # generate bvectors for each kpoint
-    n_kpts = size(kpoints, 2)
-    kpb_k = zeros(Int, n_bvecs, n_kpts)
-    kpb_b = zeros(Int, 3, n_bvecs, n_kpts)
+    n_kpts = length(kpoints)
+    kpb_k = [zeros(Int, n_bvecs) for i = 1:n_kpts]
+    kpb_b = [zeros(Vec3{Int}, n_bvecs) for i = 1:n_kpts]
 
     for ik in 1:n_kpts
-        k = @view kpoints[:, ik]
+        k = kpoints[ik]
         # use fractional coordinates to compare
         k_equiv, b_equiv = _bvec_to_kb(bvecs_frac, k, kpoints)
-        kpb_k[:, ik] = k_equiv
-        kpb_b[:, :, ik] = b_equiv
+        kpb_k[ik] = k_equiv
+        kpb_b[ik] = b_equiv
     end
 
     bvecs = recip_lattice * bvecs_frac

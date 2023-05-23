@@ -15,12 +15,13 @@ where ``[\\epsilon_{n \\bm{k}}]`` is a diagonal matrix with
 - `E`: `n_bands * n_kpts`, energy eigenvalue
 - `U`: `n_bands * n_wann * n_kpts`, gauge matrices
 """
-function get_Hk(E::Matrix{T}, U::Array{S,3}) where {T<:Number,S<:Number}
-    n_bands, n_wann, n_kpts = size(U)
-    size(E) != (n_bands, n_kpts) && error("size(E) != (n_bands, n_kpts)")
+function get_Hk(E::Vector, U::Vector)
+    n_bands, n_wann = size(U[1])
+    n_kpts = length(U)
+    
+    (length(E[1]), length(E)) != (n_bands, n_kpts) && error("$((length(E[1]), length(E))) != ($(n_bands), $(n_kpts))")
 
-    Hᵏ = [zeros(S, n_wann, n_wann) for k = 1:n_kpts]
-    Threads.@threads for ik in 1:n_kpts
+    return map(zip(E, U)) do (e, u)
         # I need to force Hermiticity here, otherwise in some cases,
         # especially degenerate eigenvalues, the eigenvectors of Hᵏ,
         #   F = eigen(Hᵏ)
@@ -35,100 +36,22 @@ function get_Hk(E::Matrix{T}, U::Array{S,3}) where {T<:Number,S<:Number}
         # so I enforce Hermiticity here.
         # See also
         # https://discourse.julialang.org/t/a-b-a-is-not-hermitian-even-when-b-is/70611
-        Uk = @view U[:, :, ik]
-        Ek = @view E[:, ik]
-        Hᵏ[ik] .= Hermitian(Uk' * Diagonal(Ek) * Uk)
+        Hermitian(u' * Diagonal(e) * u)
     end
-
-    return Hᵏ
 end
 
 """
-    interpolate(model::InterpModel{T}, kpoints::Matrix{T}) where {T<:Real}
-
-Interpolate energy eigenvalues at `kpoints`.
-
-# Arguments
-- `model`: `InterpModel`
-- `kpoints`: `3 * n_kpts`, kpoints to be interpolated, in fractional coordinates,
-    can be nonuniform.
-"""
-function interpolate(model::InterpModel{T}, kpoints::Matrix{T}) where {T<:Real}
-    Hᵏ = invfourier(model.kRvectors, model.H, kpoints)
-    # diagonalize
-    Eᵏ, _ = diag_Hk(Hᵏ)
-
-    return Eᵏ
-end
-
-@doc raw"""
-    diag_Hk(Hᵏ:: AbstractArray{T, 3}) where {T<:Complex}
-
-Diagonalize k space Hamiltonian `H`.
-
-```math
-H = V E V^{-1}
-```
-
-# Arguments
-- `H`: `n_wann * n_wann * n_kpts`, k space Hamiltonian
-
-# Return
-- `E`: `n_wann * n_kpts`, energy eigen values
-- `V`: `n_wann * n_wann * n_kpts`, `V[:, i, ik]` is the i-th eigen vector at `ik`-th kpoint
-"""
-function diag_Hk(H::AbstractArray{T,3}) where {T<:Complex}
-    n_wann = size(H, 1)
-    n_kpts = size(H, 3)
-    size(H) == (n_wann, n_wann, n_kpts) || error("size(H) != (n_wann, n_wann, n_kpts)")
-
-    E = zeros(real(T), n_wann, n_kpts)
-    V = similar(H)
-    for ik in axes(H, 3)
-        Hᵏ = @view H[:, :, ik]
-        # @assert ishermitian(Hᵏ) norm(Hᵏ - Hᵏ')
-        @assert norm(Hᵏ - Hᵏ') < 1e-10
-        # Hᵏ = 0.5 * (Hᵏ + Hᵏ')
-        ϵ, v = eigen(Hermitian(Hᵏ))
-        E[:, ik] = ϵ
-        V[:, :, ik] = v
-    end
-
-    return E, V
-end
-
-"""
-    interpolate(model::InterpModel, kpi::KPathInterpolant)
+    interpolate(model::TBHamiltonian, kpi::KPathInterpolant)
 
 Interpolate band structure along the given kpath.
 
 # Arguments
-- `model`: `InterpModel`
+- `model`: `TBHamiltonian`
 - `kpi`: `KPathInterpolant`
 """
-function interpolate(model::InterpModel, kpi::KPathInterpolant)
+function interpolate(model::TBHamiltonian, kpi::KPathInterpolant)
     kpoints = get_kpoints(kpi)
     return interpolate(model, kpoints)
-end
-
-"""
-    interpolate(model::InterpModel)
-
-Interpolate band structure along kpath.
-
-The `model.kpath` will be used.
-
-# Arguments
-- `model`: `InterpModel`
-
-!!! note
-
-    The kpath has the same density as `Wannier90`'s default, i.e.,
-    `kpath_num_points = 100`.
-"""
-function interpolate(model::InterpModel)
-    kpi = interpolate_w90(model.kpath, 100)
-    return kpi, interpolate(model, kpi)
 end
 
 """
@@ -153,24 +76,15 @@ H1 = Wannier.mdrs_v1tov2(R, H)
 idx, normR, normH = sort_hamiltonian_by_norm(R, H1)
 ```
 """
-function sort_hamiltonian_by_norm(
-    Rvectors::RVectorsMDRS{T}, Hᴿ::Array{Complex{T},3}
-) where {T<:Real}
-    @assert size(Hᴿ, 3) == Rvectors.n_r̃vecs
-    # Use the mdrsv2 R̃ vectors
-    R = Rvectors.R̃vectors.R
-
-    normH = [norm(Hᴿ[:, :, i]) for i in axes(Hᴿ, 3)]
-    R_cart = Rvectors.lattice * R
-    normR = [norm(i) for i in eachcol(R_cart)]
-
+function sort_hamiltonian_by_norm(hami::TBHamiltonian)
+    normH = map(x -> norm(x.block), hami)
+    normR = map(x -> norm(x.R_cart), hami)
     idx = sortperm(normR)
 
     @printf("# idx    ||R||    ||H(R)||\n")
     for i in 1:20
         @printf("%2d    %.4f    %.4f\n", i - 1, normR[idx[i]], normH[idx[i]])
     end
-
     return idx, normR, normH
 end
 
@@ -269,7 +183,10 @@ function HamiltonianKGrid(hami::TBHamiltonian{T}, kpoints::Vector{<:Vec3},
         
         copy!(kgrid.Hk[i], copy(kgrid.eigvecs[i]))
         Hk_function(kgrid.Hk[i])
-        eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[tid])
+        e = eigen(Hermitian(kgrid.Hk[i]))
+        kgrid.eigvecs[i] .= e.vectors
+        kgrid.eigvals[i] .= e.values
+        # eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[tid])
         next!(p)
     end
     
@@ -304,12 +221,12 @@ eigvecs(g::HamiltonianKGrid) = g.eigvecs
 eigvals(g::HamiltonianKGrid) = g.eigvals
 
 """
-    interpolate(model::InterpModel{T}, kpoints::Matrix{T}) where {T<:Real}
+    interpolate(model::TBHamiltonian{T}, kpoints::Matrix{T}) where {T<:Real}
 
 Interpolate energy eigenvalues at `kpoints`.
 
 # Arguments
-- `model`: `InterpModel`
+- `model`: `TBHamiltonian`
 - `kpoints`: `3 * n_kpts`, kpoints to be interpolated, in fractional coordinates,
     can be nonuniform.
 """

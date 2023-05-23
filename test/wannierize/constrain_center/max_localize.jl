@@ -1,14 +1,16 @@
 using NLSolversBase
 
+using Wannier:Vec3
+
 # A reusable fixture for a model
 # no disentanglement
 model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
-r₀ = zeros(eltype(model.lattice), 3, model.n_wann)
+r₀ = [Vec3(0.0,0.0,0.0) for i = 1:model.n_wann]
 λ = 10.0
 f, g! = Wannier.get_fg!_center_maxloc(model, r₀, λ)
 
 @testset "constraint center maxloc spread gradient" begin
-    U0 = deepcopy(model.U)
+    U0 = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
 
     # analytical gradient
     G = similar(U0)
@@ -62,9 +64,10 @@ end
     @test isapprox(
         Ω.r,
         [
-            -0.0006371414769181565 -0.011666353819322479 0.0057784441053171055 0.00550194992572012
-            0.0006811595685799503 -0.0026638301666946987 -0.0036622860182758767 0.005763601542074829
-            0.0300072108960674 -0.04279486032530962 -0.03176818666470274 0.04839785532365684
+            Vec3(-0.0006371414769181565, 0.0006811595685799503,0.0300072108960674),
+            Vec3(-0.011666353819322479, -0.0026638301666946987,-0.04279486032530962),
+            Vec3(0.0057784441053171055, -0.0036622860182758767,-0.03176818666470274),
+            Vec3(0.00550194992572012, 0.005763601542074829, 0.04839785532365684)
         ];
         atol=1e-7,
     )

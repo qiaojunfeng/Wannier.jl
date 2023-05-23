@@ -1,6 +1,6 @@
 using YAML
 using Brillouin
-
+using Wannier: Vec3
 @testset "read nnkp" begin
     test_data = YAML.load_file(String(@__DIR__) * "/test_data/nnkp.yaml")
 
@@ -9,11 +9,11 @@ using Brillouin
     # Convert type so YAML can write it.
     kpb_b = bvectors.kpb_b
     dict = Dict(
-        "recip_lattice" => mat2vec(bvectors.recip_lattice),
-        "kpoints" => mat2vec(bvectors.kpoints),
-        "bvectors" => mat2vec(bvectors.bvectors),
-        "kpb_k" => mat2vec(bvectors.kpb_k),
-        "kpb_b" => [mat2vec(kpb_b[:, :, ik]) for ik in axes(kpb_b, 3)],
+        "recip_lattice" => [[bvectors.recip_lattice[i,j] for i = 1:3] for j = 1:3],
+        "kpoints" => bvectors.kpoints,
+        "bvectors" => bvectors.bvectors,
+        "kpb_k" => bvectors.kpb_k,
+        "kpb_b" => bvectors.kpb_b
     )
 
     # YAML.write_file(String(@__DIR__) * "/test_data/nnkp.yaml", dict)
@@ -60,34 +60,31 @@ end
 
 @testset "read tb" begin
     model = Wannier.read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/ws/silicon"))
-    Rvecs = model.kRvectors.Rvectors
+    Rvecs = model.R
     # just some simple tests
     R1 = [-3, 1, 1]
-    @test Rvecs.R[:, 1] == R1
+    @test Rvecs.R[1] == R1 == model.H[1].R_cryst
     H111 = 0.51893360E-02 + im * -0.29716277E-02
-    @test model.H[1, 1, 1] ≈ H111
+    @test model.H[1][1, 1] ≈ H111
     P111end = 0.24832468E-03 + im * -0.21054981E-03
-    @test model.r[1, 1, 1, end] ≈ P111end
+    @test model.Rx[end][1, 1] ≈ P111end
 
     model = Wannier.read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
-    Rvecs = model.kRvectors.Rvectors
-    @test Rvecs.R[:, 1] == R1
-    @test Rvecs.T[1, 1, 1] == [0 4 4 4; 0 -4 0 0; 0 0 -4 0]
-    @test Rvecs.Nᵀ[1, 1, 1] == 4
+    Rvecs = model.R
+    @test Rvecs.R[1] == R1
+    @test Rvecs.T[1][1, 1] == [Vec3(0, 0, 0), Vec3(4, -4, 0), Vec3(4,0,-4), Vec3(4, 0, 0)]
+    @test Rvecs.Nᵀ[1][1, 1] == 4
     H111 = 0.0012973340069440233 - 0.0007429069229594317im
-    @test model.H[1, 1, 1] ≈ H111
+    @test model.H[1][1, 1] ≈ H111
     P111end = 0.0 + 0.0im
-    @test model.r[1, 1, 1, end] ≈ P111end
+    @test model.Rx[end][1, 1] ≈ P111end
 end
 
 @testset "read tb kpoints/kpath" begin
     win = Wannier.read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
     interp_model = Wannier.read_w90_tb(
         joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon");
-        kpoints=win.kpoints,
-        atom_positions=win.atoms_frac,
-        atom_labels=win.atom_labels,
     )
 
-    @test interp_model isa Wannier.InterpModel
+    @test interp_model.H isa Wannier.TBHamiltonian
 end

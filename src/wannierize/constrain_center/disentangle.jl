@@ -18,10 +18,10 @@ Compute WF spread with center penalty, in the `(X, Y)` layout.
 """
 function omega_center(
     bvectors::BVectors{FT},
-    M::Array{Complex{FT},4},
-    X::Array{Complex{FT},3},
-    Y::Array{Complex{FT},3},
-    r₀::Matrix{FT},
+    M::Vector{Array{Complex{FT},3}},
+    X::Vector{Matrix{Complex{FT}}},
+    Y::Vector{Matrix{Complex{FT}}},
+    r₀::Vector{Vec3{FT}},
     λ::FT,
 ) where {FT<:Real}
     U = X_Y_to_U(X, Y)
@@ -42,9 +42,9 @@ Compute WF spread with center penalty, in the `(X, Y)` layout.
 """
 function omega_center(
     model::Model{FT},
-    X::Array{Complex{FT},3},
-    Y::Array{Complex{FT},3},
-    r₀::Matrix{FT},
+    X::Vector{Matrix{Complex{FT}}},
+    Y::Vector{Matrix{Complex{FT}}},
+    r₀::Vector{Vec3{FT}},
     λ::FT,
 ) where {FT<:Real}
     return omega_center(model.bvectors, model.M, X, Y, r₀, λ)
@@ -66,11 +66,11 @@ Compute gradient of WF spread with center penalty, in the `(X, Y)` layout.
 """
 function omega_center_grad(
     bvectors::BVectors{FT},
-    M::Array{Complex{FT},4},
-    X::Array{Complex{FT},3},
-    Y::Array{Complex{FT},3},
-    frozen::BitMatrix,
-    r₀::Matrix{FT},
+    M::Vector{Array{Complex{FT},3}},
+    X::Vector{Matrix{Complex{FT}}},
+    Y::Vector{Matrix{Complex{FT}}},
+    frozen::Vector{BitVector},
+    r₀::Vector{Vec3{FT}},
     λ::FT,
 ) where {FT<:Real}
     U = X_Y_to_U(X, Y)
@@ -84,7 +84,7 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_center_disentangle(
-    model::Model{T}, r₀::Matrix{T}, λ::T=1.0
+    model::Model{T}, r₀::Vector{Vec3{T}}, λ::T=1.0
 ) where {T<:Real}
     function f(XY)
         X, Y = XY_to_X_Y(XY, model.n_bands, model.n_wann)
@@ -98,9 +98,13 @@ function get_fg!_center_disentangle(
 
         n = model.n_wann^2
 
-        for ik in 1:(model.n_kpts)
-            G[1:n, ik] = vec(GX[:, :, ik])
-            G[(n + 1):end, ik] = vec(GY[:, :, ik])
+        @inbounds for ik in 1:(model.n_kpts)
+            for i in eachindex(GX[ik])
+                G[i, ik] = GX[ik][i]
+            end
+            for i in eachindex(GY[ik])
+                G[n + i, ik] = GY[ik][i]
+            end
         end
 
         return nothing
@@ -127,7 +131,7 @@ Run disentangle on the `Model` with center penalty.
 """
 function disentangle_center(
     model::Model{T},
-    r₀::Matrix{T},
+    r₀::Vector{Vec3{T}},
     λ::T=1.0;
     f_tol::T=1e-7,
     g_tol::T=1e-5,

@@ -12,7 +12,7 @@ Generate a `KPathInterpolant` from `kpoints` in `seedname_band.dat/kpt/labelinfo
 - kpoints: fractional coordinate, each column is a kpoint.
 """
 function KPathInterpolant(
-    kpoints::AbstractMatrix,
+    kpoints::AbstractVector,
     symm_idx::AbstractVector{T},
     symm_label::AbstractVector{R},
     recip_lattice::AbstractMatrix,
@@ -39,7 +39,7 @@ function KPathInterpolant(
         kp = Vector{Vec3{Float64}}()  # kpath of each line
         ik1 = minimum(keys(lab))
         ik2 = maximum(keys(lab))
-        append!(kp, [v for v in eachcol(kpoints[:, ik1:ik2])])
+        append!(kp, [v for v in kpoints[ik1:ik2]])
         push!(kpaths, kp)
     end
 

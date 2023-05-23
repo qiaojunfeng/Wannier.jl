@@ -18,10 +18,11 @@ Generate a `BitMatrix` of frozen bands by checking the two frozen windows.
     The `dis_froz_max` and `dis_froz_min` work similarly as `Wannier90`.
 """
 function get_frozen_bands(
-    E::AbstractMatrix{T}, dis_froz_max::T, dis_froz_min::T=-Inf
+    E::Vector, dis_froz_max::T, dis_froz_min::T=-Inf
 ) where {T<:Real}
-    n_bands, n_kpts = size(E)
-    frozen_bands = falses(n_bands, n_kpts)
+    n_bands = length(E[1])
+    n_kpts = length(E)
+    frozen_bands = [falses(n_bands) for i = 1:n_kpts]
 
     # For each kpoint
     frozen_k = falses(n_bands)
@@ -29,13 +30,14 @@ function get_frozen_bands(
     for ik in 1:n_kpts
         fill!(frozen_k, false)
 
-        frozen_k .= (E[:, ik] .>= dis_froz_min) .& (E[:, ik] .<= dis_froz_max)
-        frozen_bands[:, ik] = frozen_k
+        frozen_k .= (E[ik] .>= dis_froz_min) .& (E[ik] .<= dis_froz_max)
+        frozen_bands[ik] = frozen_k
     end
 
     return frozen_bands
 end
 
+#TODO I don't think this works
 """
     set_frozen_degen!(frozen_bands, E, atol=1e-4)
 
@@ -49,19 +51,21 @@ In some cases, we might want to freeze the whole set of degenerated eigen vector
 - `atol`: the tolerance of degeneracy
 """
 function set_frozen_degen!(
-    frozen_bands::AbstractMatrix{Bool}, E::AbstractMatrix{T}, atol::T=1e-4
+    frozen_bands::AbstractMatrix{Bool}, E::Vector, atol::T=1e-4
 ) where {T<:Real}
+    n_bands = length(E[1])
+    n_kpts = length(E)
     atol <= 0 && error("atol must be positive")
 
     for ik in 1:n_kpts
-        frozen_k = frozen_bands[:, ik]
+        frozen_k = frozen_bands[ik]
 
         # if cluster of eigenvalues and count(frozen_k) > 0, take them all
         if degen && count(frozen_k) > 0
             ib = findlast(frozen_k)
 
             while ib < n_bands
-                if E[ib + 1, ik] < E[ib, ik] + atol
+                if E[ik][ib + 1] < E[ik][ib] + atol
                     ib += 1
                     frozen_k[ib] .= true
                 else
@@ -70,7 +74,7 @@ function set_frozen_degen!(
             end
         end
 
-        frozen_bands[:, ik] .= frozen_k
+        frozen_bands[ik] .= frozen_k
     end
 
     return nothing
@@ -85,12 +89,13 @@ Sanity check that the number of frozen bands at each kpoint <= `n_wann`.
 - `frozen_bands`: the `BitMatrix` of frozen bands
 - `n_wann`: the number of wannier functions
 """
-function check_frozen_bands(frozen_bands::AbstractMatrix{Bool}, n_wann::Int)
-    n_bands, n_kpts = size(frozen_bands)
+function check_frozen_bands(frozen_bands::AbstractVector{AbstractVector{Bool}}, n_wann::Int)
+    n_bands = length(frozen_bands[1])
+    n_kpts = length(frozen_bands)
     n_wann > n_bands && error("n_wann > n_bands")
 
     for ik in 1:n_kpts
-        frozen_k = frozen_bands[:, ik]
+        frozen_k = frozen_bands[ik]
 
         if count(frozen_k) > n_wann
             error("Too many frozen bands")
@@ -152,10 +157,11 @@ Get frozen bands according to band projectability.
     freeze high-projectability bands.
 """
 function get_frozen_proj(
-    E::AbstractMatrix{T}, U::AbstractArray{Complex{T}}, dis_proj_max::T
+    E::AbstractVector{AbstractVector{T}}, U::AbstractVector{AbstractMatrix{Complex{T}}}, dis_proj_max::T
 ) where {T<:Real}
-    n_bands, n_kpts = size(E)
-    frozen_bands = falses(n_bands, n_kpts)
+    n_bands = length(E[1])
+    n_kpts = length(E)
+    frozen_bands = [falses(n_bands) for i = 1:n_kpts]
 
     # For each kpoint
     frozen_k = falses(n_bands)
@@ -164,13 +170,13 @@ function get_frozen_proj(
         fill!(frozen_k, false)
 
         # n_bands * n_wann
-        Uₖ = U[:, :, ik]
+        Uₖ = U[ik]
         # projectability
         p = dropdims(real(sum(Uₖ .* conj(Uₖ); dims=2)); dims=2)
         # @debug "projectability" ik p
 
         frozen_k[p .>= dis_proj_max] .= true
-        frozen_bands[:, ik] = frozen_k
+        frozen_bands[ik] = frozen_k
     end
 
     return frozen_bands
@@ -346,10 +352,11 @@ For each kpoint,
 - `(X, Y)`: `size(X) = (n_wann, n_wann)`, `size(Y) = (n_bands, n_wann)`, intermediate format
 - `XY`: this is the format used in the optimizer
 """
-function X_Y_to_U(X::AbstractArray{T,3}, Y::AbstractArray{T,3}) where {T<:Complex}
-    n_bands, n_wann, n_kpts = size(Y)
+function X_Y_to_U(X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:AbstractMatrix{T}}) where {T<:Complex}
+    n_bands, n_wann = size(Y[1])
+    n_kpts = length(Y)
 
-    U = zeros(T, n_bands, n_wann, n_kpts)
+    U = [zeros(T, n_bands, n_wann) for i = 1:n_kpts]
 
     for ik in 1:n_kpts
         # sanity check, should be true but comment out to be faster
@@ -362,7 +369,7 @@ function X_Y_to_U(X::AbstractArray{T,3}, Y::AbstractArray{T,3}) where {T<:Comple
         # @assert norm(Y[idx_nf, 1:n_froz, ik]) ≈ 0
         # @assert norm(Y[idx_f, n_froz+1:end, ik]) ≈ 0
 
-        U[:, :, ik] = Y[:, :, ik] * X[:, :, ik]
+        mul!(U[ik], Y[ik],  X[ik])
         # @assert orthonorm_freeze(U[:, :, ik], frozen_bands[:, ik]) ≈ U[:, :, ik] rtol=1e-4
     end
 
@@ -380,40 +387,41 @@ See also [`X_Y_to_U`](@ref).
 - `U`: `n_bands * n_wann * n_kpts`
 - `frozen`: `n_bands * n_kpts`
 """
-function U_to_X_Y(U::AbstractArray{T,3}, frozen::BitMatrix) where {T<:Complex}
-    n_bands, n_wann, n_kpts = size(U)
+function U_to_X_Y(U::AbstractVector{<:AbstractMatrix{T}}, frozen::Vector{BitVector}) where {T<:Complex}
+    n_bands, n_wann = size(U[1])
+    n_kpts = length(U)
 
-    X = zeros(T, n_wann, n_wann, n_kpts)
-    Y = zeros(T, n_bands, n_wann, n_kpts)
+    X = [zeros(T, n_wann, n_wann) for i = 1:n_kpts]
+    Y = [zeros(T, n_bands, n_wann) for i = 1:n_kpts]
 
-    for ik in 1:n_kpts
-        idx_f = frozen[:, ik]
+    @inbounds @views for ik in 1:n_kpts
+        idx_f = frozen[ik]
         idx_nf = .!idx_f
         n_froz = count(idx_f)
 
-        Af = orthonorm_freeze(U[:, :, ik], idx_f)
+        Af = orthonorm_freeze(U[ik], idx_f)
         Uf = Af[idx_f, :]
         Ur = Af[idx_nf, :]
 
         # determine Y
-        Y[idx_f, 1:n_froz, ik] = Matrix{T}(I, n_froz, n_froz)
+        Y[ik][idx_f, 1:n_froz] .= Matrix{T}(I, n_froz, n_froz)
 
         if n_froz != n_wann
             Pr = Ur * Ur'
             Pr = Hermitian((Pr + Pr') / 2)
             D, V = eigen(Pr) # sorted by increasing eigenvalue
-            Y[idx_nf, (n_froz + 1):end, ik] = V[:, (end - n_wann + n_froz + 1):end]
+            Y[ik][idx_nf, (n_froz + 1):end] .= V[:, (end - n_wann + n_froz + 1):end]
         end
 
         # determine X
-        X[:, :, ik] = orthonorm_lowdin(Y[:, :, ik]' * Af)
-
-        @assert Y[:, :, ik]' * Y[:, :, ik] ≈ I
-        @assert X[:, :, ik]' * X[:, :, ik] ≈ I
-        @assert Y[idx_f, 1:n_froz, ik] ≈ I
-        @assert norm(Y[idx_nf, 1:n_froz, ik]) ≈ 0
-        @assert norm(Y[idx_f, (n_froz + 1):end, ik]) ≈ 0
-        @assert Y[:, :, ik] * X[:, :, ik] ≈ Af
+        X[ik] = orthonorm_lowdin(Y[ik]' * Af)
+        # TODO: these guys might add quite some time
+        @assert Y[ik]' * Y[ik] ≈ I
+        @assert X[ik]' * X[ik] ≈ I
+        @assert Y[ik][idx_f, 1:n_froz] ≈ I
+        @assert norm(Y[ik][idx_nf, 1:n_froz]) ≈ 0
+        @assert norm(Y[ik][idx_f, (n_froz + 1):end]) ≈ 0
+        @assert Y[ik] * X[ik] ≈ Af
     end
 
     return X, Y
@@ -434,15 +442,15 @@ See also [`X_Y_to_U`](@ref).
 function XY_to_X_Y(XY::AbstractMatrix{T}, n_bands::Int, n_wann::Int) where {T<:Complex}
     n_kpts = size(XY, 2)
 
-    X = zeros(T, n_wann, n_wann, n_kpts)
-    Y = zeros(T, n_bands, n_wann, n_kpts)
+    X = [zeros(T, n_wann, n_wann) for i = 1:n_kpts]
+    Y = [zeros(T, n_bands, n_wann) for i = 1:n_kpts]
 
     n = n_wann^2
 
     for ik in 1:n_kpts
-        XYk = XY[:, ik]
-        X[:, :, ik] = reshape(XYk[1:n], (n_wann, n_wann))
-        Y[:, :, ik] = reshape(XYk[(n + 1):end], (n_bands, n_wann))
+        XYk = @view XY[:, ik]
+        X[ik] = reshape(XYk[1:n], (n_wann, n_wann))
+        Y[ik] = reshape(XYk[(n + 1):end], (n_bands, n_wann))
     end
 
     return X, Y
@@ -455,8 +463,9 @@ Convert the `(X, Y)` layout to the `XY` layout.
 
 See also [`X_Y_to_U`](@ref).
 """
-function X_Y_to_XY(X::AbstractArray{T,3}, Y::AbstractArray{T,3}) where {T<:Complex}
-    n_bands, n_wann, n_kpts = size(Y)
+function X_Y_to_XY(X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:AbstractMatrix{T}}) where {T<:Complex}
+    n_bands, n_wann = size(Y[1])
+    n_kpts = length(Y)
     # n_wann, n_wann, n_kpts = size(X)
 
     n = n_wann^2
@@ -464,8 +473,8 @@ function X_Y_to_XY(X::AbstractArray{T,3}, Y::AbstractArray{T,3}) where {T<:Compl
 
     for ik in 1:n_kpts
         # XY[:, ik] = vcat(vec(X[:, :, ik]), vec(Y[:, :, ik]))
-        XY[1:n, ik] = reshape(X[:, :, ik], n)
-        XY[(n + 1):end, ik] = reshape(Y[:, :, ik], n_bands * n_wann)
+        XY[1:n, ik] = reshape(X[ik], n)
+        XY[(n + 1):end, ik] = reshape(Y[ik], n_bands * n_wann)
     end
 
     return XY
@@ -484,9 +493,9 @@ Compute WF spread in the `(X, Y)` layout.
 """
 function omega(
     bvectors::BVectors{FT},
-    M::Array{Complex{FT},4},
-    X::Array{Complex{FT},3},
-    Y::Array{Complex{FT},3},
+    M,
+    X,
+    Y,
 ) where {FT<:Real}
     U = X_Y_to_U(X, Y)
     return omega(bvectors, M, U)
@@ -503,7 +512,7 @@ Compute WF spread in the `(X, Y)` layout.
 - `Y`: `n_bands * n_wann * n_kpts` array
 """
 function omega(
-    model::Model{FT}, X::Array{Complex{FT},3}, Y::Array{Complex{FT},3}
+    model::Model{FT}, X, Y
 ) where {FT<:Real}
     return omega(model.bvectors, model.M, X, Y)
 end
@@ -522,10 +531,10 @@ Compute gradient of WF spread in the `(X, Y)` layout.
 """
 function omega_grad(
     bvectors::BVectors{FT},
-    M::Array{Complex{FT},4},
-    X::Array{Complex{FT},3},
-    Y::Array{Complex{FT},3},
-    frozen::BitMatrix,
+    M,
+    X,
+    Y,
+    frozen::Vector{BitVector},
 ) where {FT<:Real}
     U = X_Y_to_U(X, Y)
     G = omega_grad(bvectors, M, U)
@@ -546,21 +555,42 @@ Acutally they are the conjugate gradients, e.g., ``\frac{d \Omega}{d U^*}``.
 - `frozen`: `n_bands * n_kpts` BitMatrix for frozen bands
 """
 function GU_to_GX_GY(
-    G::AbstractArray3, X::AbstractArray3, Y::AbstractArray3, frozen::BitMatrix
-)
-    n_kpts = size(G, 3)
-    GX = zero(X)
-    GY = zero(Y)
+    G::Array{T, 3}, X::Vector{Matrix{T}}, Y::Vector{Matrix{T}}, frozen::Vector
+) where {T}
+    n_kpts = length(X)
+    GX = [zeros(T, size(X[1])) for i = 1:n_kpts]
+    GY = [zeros(T, size(Y[1])) for i = 1:n_kpts]
 
-    for ik in 1:n_kpts
-        idx_f = @view frozen[:, ik]
+    @inbounds for ik in 1:n_kpts
+        idx_f = frozen[ik]
         n_froz = count(idx_f)
+        
+        mul!(GX[ik], Y[ik]', G[:, :, ik])
+        mul!(GY[ik], G[:, :, ik] , X[ik]')
 
-        GX[:, :, ik] = Y[:, :, ik]' * G[:, :, ik]
-        GY[:, :, ik] = G[:, :, ik] * X[:, :, ik]'
+        GY[ik][idx_f, :] .= 0
+        GY[ik][:, 1:n_froz] .= 0
+    end
 
-        GY[idx_f, :, ik] .= 0
-        GY[:, 1:n_froz, ik] .= 0
+    return GX, GY
+end
+
+function GU_to_GX_GY(
+    G::Vector, X::Vector{Matrix{T}}, Y::Vector{Matrix{T}}, frozen::Vector
+) where {T}
+    n_kpts = length(X)
+    GX = [zeros(T, size(X[1])) for i = 1:n_kpts]
+    GY = [zeros(T, size(Y[1])) for i = 1:n_kpts]
+
+    @inbounds for ik in 1:n_kpts
+        idx_f = frozen[ik]
+        n_froz = count(idx_f)
+        
+        mul!(GX[ik], Y[ik]', G[ik])
+        mul!(GY[ik], G[ik] , X[ik]')
+
+        GY[ik][idx_f, :] .= 0
+        GY[ik][:, 1:n_froz] .= 0
     end
 
     return GX, GY
@@ -577,20 +607,21 @@ This is used in test.
 - `G`: gradient of the spread, in `XY` layout
 - `frozen`: `BitMatrix` for frozen bands, `n_bands * n_kpts`
 """
-function zero_froz_grad!(G::AbstractMatrix, frozen::BitMatrix)
-    n_bands, n_kpts = size(frozen)
-    size(G, 2) == n_kpts || error("size(G, 2) != n_kpts")
+function zero_froz_grad!(G::AbstractMatrix, frozen::Vector)
+    n_bands = length(frozen[1])
+    n_kpts = length(frozen)
+    size(G,2) == n_kpts || error("length(G) != n_kpts")
     # I need to find n_wann, solving the following polynomial equation:
     # size(G, 1) = n_wann * n_wann + n_bands * n_wann
     # just use quadratic formula
     n_wann = round(Int, (-n_bands + sqrt(n_bands^2 + 4 * size(G, 1))) / 2)
 
     GX, GY = Wannier.XY_to_X_Y(G, n_bands, n_wann)
-    for ik in 1:n_kpts
-        idx_f = @view frozen[:, ik]
+    @inbounds @views for ik in 1:n_kpts
+        idx_f = frozen[ik]
         n_froz = count(idx_f)
-        GY[idx_f, :, ik] .= 0
-        GY[:, 1:n_froz, ik] .= 0
+        GY[ik][idx_f, :] .= 0
+        GY[ik][:, 1:n_froz] .= 0
     end
     G .= Wannier.X_Y_to_XY(GX, GY)
     return nothing
@@ -611,13 +642,15 @@ function get_fg!_disentangle(model::Model)
     function g!(G, XY)
         X, Y = XY_to_X_Y(XY, model.n_bands, model.n_wann)
         GX, GY = omega_grad(model.bvectors, model.M, X, Y, model.frozen_bands)
-
         n = model.n_wann^2
 
-        for ik in 1:(model.n_kpts)
-            # G[:, ik] .= vcat(vec(GX[:, :, ik]), vec(GY[:, :, ik]))
-            G[1:n, ik] = vec(GX[:, :, ik])
-            G[(n + 1):end, ik] = vec(GY[:, :, ik])
+        @inbounds for ik in 1:(model.n_kpts)
+            for i in eachindex(GX[ik])
+                G[i, ik] = GX[ik][i]
+            end
+            for i in eachindex(GY[ik])
+                G[n + i, ik] = GY[ik][i]
+            end
         end
 
         return nothing
@@ -626,6 +659,7 @@ function get_fg!_disentangle(model::Model)
     return f, g!
 end
 
+#TODO I don't think this works: lfrozen?
 """
     disentangle(model; random_gauge=false, f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
 
@@ -655,24 +689,24 @@ function disentangle(
 
     # initial X, Y
     if random_gauge
-        X0 = zeros(Complex{T}, n_wann, n_wann, n_kpts)
-        Y0 = zeros(Complex{T}, n_bands, n_wann, n_kpts)
+        X0 = [zeros(Complex{T}, n_wann, n_wann) for i = 1:n_kpts]
+        Y0 = [zeros(Complex{T}, n_bands, n_wann) for i = 1:n_kpts]
 
         for ik in 1:n_kpts
-            idx_f = model.frozen_bands[:, ik]
+            idx_f = model.frozen_bands[ik]
             idx_nf = .!idx_f
             n_froz = count(l_frozen)
 
             m = n_wann
             n = n_wann
             M = randn(T, m, n) + im * randn(T, m, n)
-            X0[:, :, ik] = orthonorm_lowdin(M)
+            X0[ik] = orthonorm_lowdin(M)
 
-            Y0[idx_f, 1:n_froz, ik] = I
+            Y0[ik][idx_f, 1:n_froz] = I
             m = n_bands - n_froz
             n = n_wann - n_froz
             N = randn(T, m, n) + im * randn(m, n)
-            Y0[idx_nf, (n_froz + 1):n_wann, ik] = orthonorm_lowdin(N)
+            Y0[ik][idx_nf, (n_froz + 1):n_wann] = orthonorm_lowdin(N)
         end
     else
         X0, Y0 = U_to_X_Y(model.U, model.frozen_bands)
@@ -733,7 +767,7 @@ function disentangle(
     Xmin, Ymin = XY_to_X_Y(XYmin, n_bands, n_wann)
     Umin = X_Y_to_U(Xmin, Ymin)
 
-    Ωᶠ = omega(model, Umin)
+    Ωᶠ = omega(model, Xmin, Ymin)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
