@@ -34,40 +34,39 @@ The separation is done by
     to smoothen the gauges.
 """
 function split_eig(
-    E::Matrix{T}, U::Array{Complex{T},3}, eig_groups::AbstractVector{R}
+    E::Vector{Vector{T}}, U::Vector{Matrix{Complex{T}}}, eig_groups::AbstractVector{R}
 ) where {T<:Real,R<:AbstractVector{Int}}
-    n_bands, n_wann, n_kpts = size(U)
-    size(E, 1) != n_bands && error("incompatible n_bands")
-    size(E, 2) != n_kpts && error("incompatible n_kpts")
+    n_bands, n_wann = size(U[1])
+    n_kpts = length(U)
+    length(E[1]) != n_bands && error("incompatible n_bands")
+    length(E) != n_kpts && error("incompatible n_kpts")
 
     n_groups = length(eig_groups)
     len_groups = [length(g) for g in eig_groups]
     n_wann == sum(len_groups) || error("incompatible eig_groups")
-
-    E_groups = [similar(E, len_groups[i], n_kpts) for i in 1:n_groups]
+    E_groups = [[similar(E[1], len_groups[i]) for j = 1:n_kpts] for i in 1:n_groups]
     # Eigenvectors from diagonalization of Wannier Hamiltonian
-    V_groups = [similar(U, n_wann, len_groups[i], n_kpts) for i in 1:n_groups]
+    V_groups = [[similar(U[1], n_wann, len_groups[i]) for j = 1:n_kpts] for i in 1:n_groups]
 
     # Since valence and conduction are split by a gap,
     # by diagonalizing the Wannier Hamiltonian and using the eigenvalues,
     # we can demix the WFs into two groups for valence and conduction, respectively.
     for ik in 1:n_kpts
-        Uₖ = @view U[:, :, ik]
         # Hamiltonian in WF basis
-        Hₖ = Hermitian(Uₖ' * diagm(0 => E[:, ik]) * Uₖ)
+        Hₖ = Hermitian(U[ik]' * diagm(0 => E[ik]) * U[ik])
 
         # Diagonalize
         Dₖ, Vₖ = eigen(Hₖ)
 
         for ig in 1:n_groups
-            E_groups[ig][:, ik] = Dₖ[eig_groups[ig]]
+            E_groups[ig][ik] .= Dₖ[eig_groups[ig]]
 
             # Although the diagonalization destroy the smoothness of gauge,
             # one can run max localization to smooth these random gauge, since
             # there is no disentanglement. However, this requires many iterations
             # of max localization.
             # I store the gauge rotation due to diagonalization.
-            V_groups[ig][:, :, ik] = Vₖ[:, eig_groups[ig]]
+            V_groups[ig][ik] .= Vₖ[:, eig_groups[ig]]
         end
     end
 
@@ -91,8 +90,8 @@ The separation is done by
 - `U`: (semi-)Unitary matrices gauge transformation
 - `n_val`: number of valence states
 """
-function split_eig(E::Matrix{T}, U::Array{Complex{T},3}, n_val::Int) where {T<:Real}
-    n_wann = size(U, 2)
+function split_eig(E::Vector{Vector{T}}, U::Vector{Matrix{Complex{T}}}, n_val::Int) where {T<:Real}
+    n_wann = size(U[1], 2)
 
     n_val < 1 && error("n_val < 0")
     n_val >= n_wann && error("n_val >= n_wann")
@@ -125,8 +124,8 @@ function split_unk(
 ) where {T<:AbstractArray{<:Complex,3},R<:AbstractString}
     length(Us) == length(outdirs) || error("incompatible Us and outdirs")
     n_kpts = size(Us[1], 3)
-    all(size(U, 3) == n_kpts for U in Us) || error("incompatible n_kpts")
-    len_groups = [size(U, 2) for U in Us]
+    all(length(U) == n_kpts for U in Us) || error("incompatible n_kpts")
+    len_groups = [size(U[1], 2) for U in Us]
 
     println("UNK files will be written in: ")
     for (i, odir) in enumerate(outdirs)
@@ -151,7 +150,7 @@ function split_unk(
         Ψ = reshape(Ψ, :, n_bands)
 
         for (i, U) in enumerate(Us)
-            Uₖ = @view U[:, :, ik]
+            Uₖ = U[ik]
             # rotate
             ΨU = Ψ * Uₖ
             # reshape back
@@ -187,8 +186,8 @@ inside the function.
 """
 function split_unk(
     dir::AbstractString,
-    Uv::AbstractArray{T,3},
-    Uc::AbstractArray{T,3},
+    Uv::Vector{Matrix{T}},
+    Uc::Vector{Matrix{T}},
     outdir_val::AbstractString="val",
     outdir_cond::AbstractString="cond";
     binary::Bool=false,

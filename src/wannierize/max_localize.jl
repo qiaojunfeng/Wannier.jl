@@ -51,7 +51,7 @@ function max_localize(
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
-    Uinit = deepcopy(model.U)
+    Uinit = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
 
     opt = Optim.optimize(
         f,

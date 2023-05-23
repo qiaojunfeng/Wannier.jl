@@ -29,14 +29,14 @@ end
     Vv = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.vmn"))
     Vc = read_amn(joinpath(FIXTURE_PATH, "conduction", "silicon.vmn"))
 
-    n_kpts = size(M, 4)
-    n_bands = size(M, 1)
-    n_wann = size(U, 2)
-    UVv = similar(U, n_bands, n_val, n_kpts)
-    UVc = similar(U, n_bands, n_wann - n_val, n_kpts)
+    n_kpts = length(M)
+    n_bands = size(M[1], 1)
+    n_wann = size(U[1], 2)
+    UVv = [similar(U[1], n_bands, n_val) for i = 1:n_kpts]
+    UVc = [similar(U[1], n_bands, n_wann - n_val) for i = 1:n_kpts]
     for ik in 1:n_kpts
-        UVv[:, :, ik] = U[:, :, ik] * Vv[:, :, ik]
-        UVc[:, :, ik] = U[:, :, ik] * Vc[:, :, ik]
+        UVv[ik] = U[ik] * Vv[ik]
+        UVc[ik] = U[ik] * Vc[ik]
     end
     Mv = rotate_M(M, kpb_k, UVv)
     Mc = rotate_M(M, kpb_k, UVc)

@@ -21,7 +21,7 @@ Write the `model` to a Wannier90 `.chk` file, using the gauge `U`.
 function write_chk(
     filename::AbstractString,
     model::Model,
-    U::AbstractArray3;
+    U::Vector;
     exclude_bands::Union{AbstractVector{Int},Nothing}=nothing,
     binary::Bool=false,
 )
@@ -34,7 +34,7 @@ function write_chk(
     checkpoint = "postwann"
     have_disentangled = true
     Ω = omega(model, U)
-    dis_bands = trues(model.n_bands, model.n_kpts)
+    dis_bands = [trues(model.n_bands) for i = 1:model.n_kpts]
 
     # W90 has a special convention that the rotated Hamiltonian by the Uᵈ,
     # i.e., the Hamiltonian rotated by the gauge matrix from disentanglement,
@@ -46,16 +46,17 @@ function write_chk(
     iszero(model.E) && error("E is all zero, cannot write chk file")
 
     H = get_Hk(model.E, U)
-    if all(isdiag(H[:, :, ik]) for ik in axes(H, 3))
+    if all(h -> isdiag(h), H)
         # Uᵈ saved as disentanglement matrix, Uᵐ saved as max loc matrix
         Uᵈ = U
         Uᵐ = eyes_U(eltype(U), model.n_wann, model.n_kpts)
     else
-        _, V = diag_Hk(H)
+        
+        V = map(h->eigen(h).vectors, H)
         Uᵈ = rotate_U(U, V)
-        Uᵐ = permutedims(conj(V), [2, 1, 3])
+        Uᵐ = map(v -> v', V)
     end
-
+    @show size(U[1])
     M = rotate_M(model.M, model.bvectors.kpb_k, U)
 
     chk = WannierIO.Chk(
@@ -134,9 +135,9 @@ Construct a model from a `WannierIO.Chk` struct.
 function Model(
     chk::WannierIO.Chk;
     E::Union{AbstractMatrix{Real},Nothing}=nothing,
-    U::Union{AbstractArray3{Complex},Nothing}=nothing,
+    U::Union{AbstractVector,Nothing}=nothing,
 )
-    atom_positions = zeros(Float64, 3, 0)
+    atom_positions = Vec3{Float64}[]
     atom_labels = Vector{String}()
 
     recip_lattice = get_recip_lattice(chk.lattice)
@@ -148,20 +149,19 @@ function Model(
         error("Number of bvectors is different from the number in the chk file")
     end
 
-    frozen_bands = falses(chk.n_bands, chk.n_kpts)
+    frozen_bands = [falses(chk.n_bands) for i =1:chk.n_kpts]
 
     # the M in chk is already rotated by the U matrix
     M = chk.M
     # if nothing provided, I set U matrix as identity
     if isnothing(U)
-        U = eyes_U(eltype(M), chk.n_wann, chk.n_kpts)
+        U = eyes_U(eltype(M[1]), chk.n_wann, chk.n_kpts)
     end
 
     # no eig in chk file
     if isnothing(E)
-        E = zeros(real(eltype(M)), chk.n_wann, chk.n_kpts)
+        E = [zeros(real(eltype(M[1])), chk.n_wann) for i = 1:chk.n_kpts]
     end
-
     model = Model(
         chk.lattice,
         atom_positions,

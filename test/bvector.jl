@@ -1,3 +1,5 @@
+using Wannier: Vec3
+
 @testset "get_bvectors" begin
     win = read_win(joinpath(FIXTURE_PATH, "silicon/silicon.win"))
     _, kpb_k, kpb_b = read_mmn(joinpath(FIXTURE_PATH, "silicon/silicon.mmn"))
@@ -7,12 +9,12 @@
 
     bvectors = get_bvectors(kpoints, recip_lattice)
 
-    ref_bvecs = zeros(Float64, 3, 8)
     ref_bvecs = [
         -0.291017 0.291017 -0.291017 0.291017 -0.291017 -0.291017 0.291017 0.291017
         -0.291017 -0.291017 0.291017 -0.291017 0.291017 -0.291017 0.291017 0.291017
         0.291017 -0.291017 -0.291017 0.291017 0.291017 -0.291017 0.291017 -0.291017
     ]
+    ref_bvecs = map(i -> Vec3(ref_bvecs[:, i]), axes(ref_bvecs,2))
 
     ref_weights = zeros(Float64, 8)
     fill!(ref_weights, 1.4759541565587924)
@@ -23,9 +25,9 @@
     @test begin
         # sometimes the bvectors are not ordered
         ret = true
-        bvecs = Vector([bvectors.bvectors[:, i] for i in axes(bvectors.bvectors, 2)])
-        for i in axes(ref_bvecs, 2)
-            b = ref_bvecs[:, i]
+        bvecs = bvectors.bvectors
+        for i in 1:length(ref_bvecs)
+            b = ref_bvecs[i]
             idx = findfirst(v -> isapprox(v, b; atol=1e-5), bvecs)
             if idx === nothing
                 ret = false
@@ -49,18 +51,17 @@ end
 
     bvectors = get_bvectors(kpoints, recip_lattice)
 
-    ref_bvecs = zeros(Float64, 3, 8)
     ref_bvecs =
         [
-            0.000000 0.070948 0.000000
-            0.061443 0.035474 0.000000
-            -0.061443 -0.035474 0.000000
-            -0.061443 0.035474 0.000000
-            0.000000 -0.070948 0.000000
-            0.061443 -0.035474 0.000000
-            0.000000 0.000000 0.209440
-            0.000000 0.000000 -0.209440
-        ]'
+            Vec3(0.000000, 0.070948, 0.000000),
+            Vec3(0.061443, 0.035474, 0.000000),
+            Vec3(-0.061443, -0.035474, 0.000000),
+            Vec3(-0.061443, 0.035474, 0.000000),
+            Vec3(0.000000, -0.070948, 0.000000),
+            Vec3(0.061443, -0.035474, 0.000000),
+            Vec3(0.000000, 0.000000, 0.209440),
+            Vec3(0.000000, 0.000000, -0.209440),
+        ]
 
     ref_weights = [
         66.220759
@@ -79,9 +80,9 @@ end
     @test begin
         # sometimes the bvectors are not ordered
         ret = true
-        bvecs = Vector([bvectors.bvectors[:, i] for i in axes(bvectors.bvectors, 2)])
-        for i in axes(ref_bvecs, 2)
-            b = ref_bvecs[:, i]
+        bvecs = [bvectors.bvectors[i] for i in 1:length(bvectors.bvectors)]
+        for i in 1:length(ref_bvecs)
+            b = ref_bvecs[i]
             idx = findfirst(v -> isapprox(v, b; atol=1e-5), bvecs)
             if idx === nothing
                 ret = false
@@ -105,20 +106,19 @@ end
 
     bvectors = get_bvectors(kpoints, recip_lattice; win.kmesh_tol)
 
-    ref_bvecs = zeros(Float64, 3, 8)
     ref_bvecs =
         [
-            0.000000 0.000000 0.180597
-            0.000000 0.000000 -0.180597
-            0.188176 0.000000 0.000001
-            -0.188176 0.000000 -0.000001
-            -0.094088 0.162971 -0.000000
-            0.094088 0.162971 0.000000
-            0.094088 -0.162971 0.000000
-            -0.094088 -0.162971 -0.000000
-            -0.188176 0.000000 0.180597
-            0.188176 0.000000 -0.180597
-        ]'
+            Vec3(0.000000, 0.000000, 0.180597),
+            Vec3(0.000000, 0.000000, -0.180597),
+            Vec3(0.188176, 0.000000, 0.000001),
+            Vec3(-0.188176, 0.000000, -0.000001),
+            Vec3(-0.094088, 0.162971, -0.000000),
+            Vec3(0.094088, 0.162971, 0.000000),
+            Vec3(0.094088, -0.162971, 0.000000),
+            Vec3(-0.094088, -0.162971, -0.000000),
+            Vec3(-0.188176, 0.000000, 0.180597),
+            Vec3(0.188176, 0.000000, -0.180597)
+        ]
 
     ref_weights = [
         15.330158
@@ -139,9 +139,9 @@ end
     @test begin
         # sometimes the bvectors are not ordered
         ret = true
-        bvecs = Vector([bvectors.bvectors[:, i] for i in axes(bvectors.bvectors, 2)])
-        for i in axes(ref_bvecs, 2)
-            b = ref_bvecs[:, i]
+        bvecs = [bvectors.bvectors[i] for i in 1:length(bvectors.bvectors)]
+        for i in 1:length(ref_bvecs)
+            b = ref_bvecs[i]
             idx = findfirst(v -> isapprox(v, b; atol=1e-5), bvecs)
             if idx === nothing
                 ret = false

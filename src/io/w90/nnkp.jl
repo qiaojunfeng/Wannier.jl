@@ -12,16 +12,16 @@ Read the `nnkp` file.
 """
 function read_nnkp(filename::AbstractString)
     nnkp = WannierIO.read_nnkp(filename)
-    n_bvecs = size(nnkp.kpb_k, 1)
+    n_bvecs = size(nnkp.kpb_k[1], 1)
 
     # Generate bvectors from 1st kpoint, in Cartesian coordinates
-    bvectors = zeros(Float64, 3, n_bvecs)
+    bvectors = zeros(Vec3{Float64}, n_bvecs)
     ik = 1
     for ib in 1:n_bvecs
-        ik2 = nnkp.kpb_k[ib, ik]
-        b = nnkp.kpb_b[:, ib, ik]
-        bvec = nnkp.kpoints[:, ik2] + b - nnkp.kpoints[:, ik]
-        bvectors[:, ib] = nnkp.recip_lattice * bvec
+        ik2 = nnkp.kpb_k[ik][ib]
+        b = nnkp.kpb_b[ik][ib]
+        bvec = nnkp.kpoints[ik2] + b - nnkp.kpoints[ik]
+        bvectors[ib] = nnkp.recip_lattice * bvec
     end
 
     weights = zeros(Float64, n_bvecs)

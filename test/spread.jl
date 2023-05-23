@@ -23,17 +23,19 @@ f, g! = Wannier.get_fg!_maxloc(model)
         1.349402 1.348821 1.348821 1.349402 -0.000000 0.000586 0.000576 0.000000
         1.349402 1.349402 1.348567 1.348564 0.000000 -0.000000 0.000834 0.000839
     ]
+    r_ref = [Vec3(r_ref[:, i]) for i = 1:size(r_ref, 2)]
     @test isapprox(Ω.r, r_ref; atol=1e-5)
 end
 
 @testset "spread gradient" begin
-    G = zero(model.U)
-    g!(G, model.U)
+    U = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
+    G = zero(U)
+    g!(G, U)
 
     # Use finite difference as reference
-    Uinit = model.U
+    Uinit = deepcopy(U)
     d = NLSolversBase.OnceDifferentiable(f, Uinit, real(zero(eltype(Uinit))))
-    G_ref = NLSolversBase.gradient!(d, model.U)
+    G_ref = NLSolversBase.gradient!(d, U)
 
     @test isapprox(G, G_ref; atol=1e-7)
 end
@@ -46,6 +48,7 @@ end
         1.349402 1.348821 1.348821 1.349402 -0.000000 0.000586 0.000576 0.000000
         1.349402 1.349402 1.348567 1.348564 0.000000 -0.000000 0.000834 0.000839
     ]
+    r_ref = [Vec3(r_ref[:, i]) for i = 1:size(r_ref, 2)]
 
     @test isapprox(r, r_ref; atol=1e-5)
 end

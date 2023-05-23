@@ -1,4 +1,3 @@
-
 @testset "read_w90" begin
     model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
 
@@ -29,7 +28,6 @@ end
 @testset "read_w90_interp" begin
     model = read_w90_interp(joinpath(FIXTURE_PATH, "valence/band/silicon"))
 
-    @test model isa Wannier.InterpModel
-    @test model.n_wann == 4
-    @test model.n_rvecs == 93
+    @test model[1] isa Wannier.TBHamiltonian
+    @test Wannier.n_wann(model[1]) == 4
 end

@@ -31,24 +31,20 @@ function read_w90(
     lattice = win.unit_cell_cart
     recip_lattice = get_recip_lattice(lattice)
 
-    if haskey(win, :kmesh_tol)
-        bvectors = get_bvectors(kpoints, recip_lattice; kmesh_tol=win.kmesh_tol)
-    else
-        bvectors = get_bvectors(kpoints, recip_lattice)
-    end
+    bvectors = get_bvectors(kpoints, recip_lattice; kmesh_tol=get(win, :kmesh_tol, 1e-6))
+    
     n_bvecs = bvectors.n_bvecs
-
     if mmn
         M, kpb_k_mmn, kpb_b_mmn = read_mmn("$seedname.mmn")
 
         # check consistency for mmn
-        n_bands != size(M)[1] && error("n_bands != size(M)[1]")
-        n_bvecs != size(M)[3] && error("n_bvecs != size(M)[3]")
-        n_kpts != size(M)[4] && error("n_kpts != size(M)[4]")
+        n_bands != size(M[1],1) && error("n_bands != size(M)[1]")
+        n_bvecs != size(M[1],3) && error("n_bvecs != size(M)[3]")
+        n_kpts != length(M) && error("n_kpts != length(M)")
         bvectors.kpb_k != kpb_k_mmn && error("kpb_k != kpb_k from mmn file")
         bvectors.kpb_b != kpb_b_mmn && error("kpb_b != kpb_b from mmn file")
     else
-        M = zeros(ComplexF64, n_bands, n_bands, n_bvecs, n_kpts)
+        M = [zeros(ComplexF64, n_bands, n_bands, n_bvecs) for i = 1:n_kpts]
     end
 
     if amn
@@ -57,31 +53,31 @@ function read_w90(
         else
             U = read_amn("$seedname.amn")
         end
-        n_bands != size(U)[1] && error("n_bands != size(U)[1]")
-        n_wann != size(U)[2] && error("n_wann != size(U)[2]")
-        n_kpts != size(U)[3] && error("n_kpts != size(U)[3]")
+        n_bands != size(U[1], 1) && error("n_bands != size(U[1], 1)")
+        n_wann != size(U[1], 2) && error("n_wann != size(U[1], 2)")
+        n_kpts != length(U) && error("n_kpts != length(U)")
     else
-        U = zeros(ComplexF64, n_bands, n_wann, n_kpts)
+        U = [zeros(ComplexF64, n_bands, n_wann) for i = 1:n_kpts]
     end
 
     if eig
         E = read_eig("$seedname.eig")
-        n_bands != size(E)[1] && error("n_bands != size(E)[1]")
-        n_kpts != size(E)[2] && error("n_kpts != size(E)[2]")
+        n_bands != length(E[1]) && error("n_bands != size(E,1)")
+        n_kpts != length(E) && error("n_kpts != size(E,2)")
     else
-        E = zeros(Float64, n_bands, n_kpts)
+        E = [zeros(Float64, n_bands) for i = 1:n_kpts]
     end
 
     if eig && n_bands != n_wann
         dis_froz_max = get(win, :dis_froz_max, nothing)
         dis_froz_min = get(win, :dis_froz_min, -Inf)
         if isnothing(dis_froz_max)
-            frozen_bands = falses(n_bands, n_kpts)
+            frozen_bands = [falses(n_bands) for i = 1:n_kpts]
         else
             frozen_bands = get_frozen_bands(E, dis_froz_max, dis_froz_min)
         end
     else
-        frozen_bands = falses(n_bands, n_kpts)
+        frozen_bands = [falses(n_bands) for i = 1:n_kpts]
     end
 
     return Model(
@@ -101,7 +97,7 @@ end
 """
     read_w90_interp(seedname::AbstractString; chk=true, amn=nothing, mdrs=nothing)
 
-Return an `InterpModel` for Wannier interpolation.
+Return an `TBHamiltonian` for Wannier interpolation.
 
 # Keyword arguments
 - chk: if `true`, read `chk` or `chk.fmt` file to get the unitary matrices,
@@ -117,6 +113,7 @@ function read_w90_interp(
     chk::Bool=true,
     amn::Union{Nothing,AbstractString}=nothing,
     mdrs::Union{Nothing,Bool}=nothing,
+    kwargs...
 )
     # read for kpoint_path, use_ws_distance
     win = read_win("$seedname.win")
@@ -132,6 +129,7 @@ function read_w90_interp(
             fchk = read_chk("$seedname.chk")
         end
         model.U .= get_U(fchk)
+        centers = fchk.r
     else
         if isnothing(amn)
             model = read_w90(seedname)
@@ -139,14 +137,17 @@ function read_w90_interp(
             model = read_w90(seedname; amn=false)
             model.U .= read_orthonorm_amn(amn)
         end
+        centers = center(model)
     end
-    # if mdrs
-    #     Rvecs = get_Rvectors_mdrs(model.lattice, model.kgrid, centers)
-    # else
-    #     Rvecs = get_Rvectors_ws(model.lattice, model.kgrid)
-    # end
-    # kRvecs = KRVectors(model.lattice, model.kgrid, model.kpoints, Rvecs)
-    hami = TBHamiltonian(model; mdrs=mdrs)
+    centers = map(c -> inv(model.lattice) * c, centers)
+
+    if mdrs
+        Rvecs = get_Rvectors_mdrs(model.lattice, model.kgrid, centers)
+    else
+        Rvecs = get_Rvectors_ws(model.lattice, model.kgrid)
+    end
+    
+    hami = TBHamiltonian(model, Rvecs; kwargs...)
         
     if haskey(win, :kpoint_path)
         kpath = get_kpath(win.unit_cell_cart, win.kpoint_path)

@@ -27,11 +27,11 @@ function truncate_mmn_eig(
     seedname_base = basename(seedname)
 
     E = read_eig("$seedname.eig")
-    E1 = E[keep_bands, :]
+    E1 = map(e -> e[keep_bands], E)
     write_eig(joinpath(outdir, "$seedname_base.eig"), E1)
 
     M, kpb_k, kpb_b = read_mmn("$seedname.mmn")
-    M1 = M[keep_bands, keep_bands, :, :]
+    M1 = map(m-> m[keep_bands, keep_bands, :], M)
     write_mmn(joinpath(outdir, "$seedname_base.mmn"), M1, kpb_k, kpb_b)
 
     return nothing
@@ -140,17 +140,17 @@ function truncate(
         length(keep_wfs) <= length(keep_bands) || error("Number of WFs > number of bands")
     end
 
-    E = model.E[keep_bands, :]
-    M = model.M[keep_bands, keep_bands, :, :]
-    U = model.U[keep_bands, :, :]
+    E = map(e -> e[keep_bands], model.E)
+    M = map(m -> m[keep_bands, keep_bands, :], model.M)
+    U = map(u -> u[keep_bands, :], model.U)
 
     if !isnothing(keep_wfs)
-        U = U[:, keep_wfs, :]
+        U = map(u -> u[:, keep_wfs], U)
     end
     if orthonorm_U
         U = orthonorm_lowdin(U)
     end
-    frozen_bands = model.frozen_bands[keep_bands, :]
+    frozen_bands = map(f -> f[keep_bands], model.frozen_bands)
 
     model2 = Model(
         model.lattice,

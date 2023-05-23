@@ -1,4 +1,8 @@
 using Printf
+using Wannier:Vec3
+using Wannier
+
+const FIXTURE_PATH = joinpath(dirname(pathof(Wannier)), "..", "test", "fixtures")
 
 # A reusable fixture for a model
 model = read_w90(joinpath(FIXTURE_PATH, "graphene_unk/graphene"))
@@ -36,9 +40,10 @@ end
         -0.16137 0.942999 0.932522 0.0124036 0.939593
         -0.965406 -1.20803 0.410094 0.441045 0.439932
     ]
+    ref_r = map(i -> Vec3(ref_r[:, i]), axes(ref_r,2))
     @test isapprox(r, ref_r; atol=1e-4)
 
     ω = omega(rgrid, W)
-    ref_ω = [56.5538 52.5582 48.4909 58.0671 58.2983]
+    ref_ω = [56.5538 52.5582 48.4909 58.0671 58.2983]'
     @test isapprox(ω, ref_ω; atol=1e-3)
 end

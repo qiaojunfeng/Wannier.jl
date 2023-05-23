@@ -41,13 +41,14 @@ Read `UNK` files, rotate gauge, and generate real space WFs.
     See also the section [Normalization convention of WFs](@ref) for further explanation.
 """
 function read_realspace_wf(
-    U::AbstractArray{Complex{T},3},
-    kpoints::AbstractMatrix{T},
+    U::Vector{Matrix{Complex{T}}},
+    kpoints::Vector{Vec3{T}},
     n_supercells::AbstractVector{Int},
     unkdir::AbstractString;
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
-    n_bands, n_wann, n_kpts = size(U)
+    n_bands, n_wann = size(U[1])
+    n_kpts = length(U)
     length(n_supercells) == 3 || error("n_supercells must be 3-vector")
 
     supercells = Vector{UnitRange}()
@@ -73,7 +74,7 @@ function read_realspace_wf(
     size(Ψₖ, 4) == n_bands || error("incompatible n_bands")
 
     # WF in realspace
-    W = zeros(eltype(U), n_gx * n_sx, n_gy * n_sy, n_gz * n_sz, n_wann)
+    W = zeros(eltype(U[1]), n_gx * n_sx, n_gy * n_sy, n_gz * n_sz, n_wann)
 
     # generate X, Y, Z fractional coordinates relative to lattice (here unknown)
     # actually X./n_gx, Y./n_gy, Z./n_gz are the fractional coordinates w.r.t lattice
@@ -91,11 +92,11 @@ function read_realspace_wf(
 
     """Modify W"""
     function add_k!(ik, Ψₖ)
-        k = kpoints[:, ik]
+        k = kpoints[ik]
         # rotate Ψ
         # * does not support high dimensional matrix multiplication,
         # I need to reshape it to 2D matrix
-        ΨUₖ = reshape(reshape(Ψₖ, :, n_bands) * U[:, :, ik], n_gx, n_gy, n_gz, n_wann)
+        ΨUₖ = reshape(reshape(Ψₖ, :, n_bands) * U[ik], n_gx, n_gy, n_gz, n_wann)
         # make sure Ψ is normalized to 1 in unit cell
         # the QE output UNK needs this factor to be normalized
         # Note in QE, the r->G FFT has a factor 1/N,
@@ -138,8 +139,8 @@ function read_realspace_wf(
 end
 
 function read_realspace_wf(
-    U::AbstractArray{Complex{T},3},
-    kpoints::AbstractMatrix{T},
+    U::Vector{Matrix{Complex{T}}},
+    kpoints::Vector{Vec3{T}},
     n_supercells::Int,
     unkdir::AbstractString;
     R::AbstractVector{Int}=[0, 0, 0],
@@ -163,8 +164,8 @@ where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data fo
 """
 function read_realspace_wf(
     lattice::AbstractMatrix{T},
-    U::AbstractArray{Complex{T},3},
-    kpoints::AbstractMatrix{T},
+    U::Vector{Matrix{Complex{T}}},
+    kpoints::Vector{Vec3{T}},
     n_supercells::Union{AbstractArray{Int},Int}=2,
     unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
@@ -189,7 +190,7 @@ where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data fo
 """
 function read_realspace_wf(
     model::Model{T},
-    U::AbstractArray{Complex{T},3},
+    U::Vector{Matrix{Complex{T}}},
     n_supercells::Union{AbstractArray{Int},Int}=2,
     unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
@@ -252,9 +253,9 @@ Write real space WFs to `xsf` or `cube` files.
 function write_realspace_wf(
     seedname::AbstractString,
     U::AbstractArray,
-    kpoints::AbstractMatrix,
+    kpoints::Vector,
     lattice::AbstractMatrix,
-    atom_positions::AbstractMatrix,
+    atom_positions::AbstractVector,
     atom_labels::AbstractVector{String};
     n_supercells::Union{AbstractArray{Int},Int}=2,
     unkdir::AbstractString=".",
@@ -268,7 +269,7 @@ function write_realspace_wf(
     n_wann = size(W, 4)
     if format == :cube && wf_center === nothing
         # if not given, compute in realspace, lower accuracy. in fractional coordinates
-        wf_center = inv(lattice) * center(rgrid, W)
+        wf_center = map(c -> inv(lattice) * c, center(rgrid, W))
     end
 
     # In principle, since we normalize Bloch wavefunction inside one unit cell,
@@ -311,7 +312,7 @@ function write_realspace_wf(
                 lattice,
                 atom_positions,
                 atom_numbers,
-                wf_center[:, i],
+                wf_center[i],
                 rgrid,
                 W2[:, :, :, i],
             )
@@ -339,7 +340,7 @@ function write_realspace_wf(
     wf_center = nothing
     if format == :cube
         # compute in recip space, more accurate than realspace
-        wf_center = inv(model.lattice) * center(model)
+        wf_center = map(c-> inv(model.lattice) * c, center(model))
     end
     return write_realspace_wf(
         seedname,

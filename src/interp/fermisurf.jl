@@ -27,18 +27,13 @@ Interpolate Fermi surface.
     to ``H(\tilde{\bm{R}})`` is done internally. This means that if you read the
     `seedname_tb.dat` file, then you can directly pass the `H` to this function.
 """
-function fermi_surface(
-    Rvectors::RV, H::AbstractArray{Complex{T},3}; n_k::KT
+function fermi_surface(hami::TBHamiltonian; n_k::KT
 ) where {
-    T<:Real,RV<:Union{RVectors{T},RVectorsMDRS{T}},KT<:Union{AbstractVector{Int},Integer}
+    KT<:Union{AbstractVector{Int},Integer}
 }
-    n_wann, _, n_rvecs = size(H)
-    if Rvectors isa RVectorsMDRS
-        n_rvecs == Rvectors.n_r̃vecs || error("n_r̃vecs of H != Rvectors.n_r̃vecs")
-    else
-        n_rvecs == Rvectors.n_rvecs || error("n_rvecs of H != Rvectors.n_rvecs")
-    end
-
+    nwann = n_wann(hami)
+    n_rvecs = length(hami)
+    
     n_kx, n_ky, n_kz = _expand_nk(n_k)
     @printf("Interpolation grid: %d %d %d\n", n_kx, n_ky, n_kz)
 
@@ -46,58 +41,21 @@ function fermi_surface(
     kpoints = get_kpoints([n_kx, n_ky, n_kz]; endpoint=true)
     n_kpts = n_kx * n_ky * n_kz
 
-    E = zeros(T, n_wann, n_kpts)
-
     println("n_threads: ", Threads.nthreads())
 
-    # Actually doing this once is faster, but there's no multi-threading
-    Hwork = zeros(Complex{T}, n_wann, n_wann, n_kpts)
-    invfourier!(Hwork, Rvectors, H, kpoints)
-    # There are lots of FFTs, so I add a progress bar, although it slows down a bit
-    for ik in ProgressBar(1:n_kpts)
-        Hᵏ = @view Hwork[:, :, ik]
-        # check Hermiticity
-        @assert norm(Hᵏ - Hᵏ') < 1e-10
-        # diagonalize
-        ϵ = eigen(Hᵏ).values
-        E[:, ik] = real.(ϵ)
-    end
-
-    # # preallocate buffers
-    # Hwork = [zeros(Complex{T}, n_wann, n_wann, 1) for _ in 1:Threads.nthreads()]
-    # # There are lots of FFTs, so I add a progress bar, although it slows down a bit
-    # Threads.@threads for ik in ProgressBar(1:n_kpts)
-    #     k = kpoints[:, ik:ik]  # use range in last dimension to keep it 2D
-    #     # Hwork[ik] .= invfourier(Rvectors, H, k)
-    #     invfourier!(Hwork[Threads.threadid()], Rvectors, H, k)
-    #     Hᵏ = @view Hwork[Threads.threadid()][:, :, 1]
-    #     # check Hermiticity
-    #     @assert norm(Hᵏ - Hᵏ') < 1e-10
-    #     # diagonalize
-    #     ϵ = eigen(Hᵏ).values
     #     E[:, ik] = real.(ϵ)
     # end
+    hk = HamiltonianKGrid(hami, kpoints)
 
+    # TODO Don't forget to redo the correct order in bsxf
     # The kz increase the fastest in kpoints, reshape them to (n_kx, n_ky, n_kz)
-    kpoints = reshape(kpoints, 3, n_kz, n_ky, n_kx)
-    E = reshape(E, n_wann, n_kz, n_ky, n_kx)
-    # and permutedims
-    kpoints = permutedims(kpoints, (1, 4, 3, 2))
-    E = permutedims(E, (1, 4, 3, 2))
+    # kpoints = reshape(kpoints, 3, n_kz, n_ky, n_kx)
+    # E = reshape(E, nwann, n_kz, n_ky, n_kx)
+    # # and permutedims
+    # kpoints = permutedims(kpoints, (1, 4, 3, 2))
+    # E = permutedims(E, (1, 4, 3, 2))
 
-    return kpoints, E
-end
-
-"""
-    fermi_surface(model; n_k)
-
-Interpolate Fermi surface.
-
-# Arguments
-- `model`: [`InterpModel`](@ref)
-"""
-function fermi_surface(model::InterpModel; n_k)
-    return fermi_surface(model.kRvectors.Rvectors, model.H; n_k=n_k)
+    return kpoints, hk.eigvals
 end
 
 function _expand_nk(n_k::T) where {T<:Union{AbstractVector{Int},Integer}}

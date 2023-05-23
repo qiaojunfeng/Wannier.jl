@@ -1,59 +1,19 @@
 export read_w90_tb
 
 """
-    _read_w90_tb(seedname::AbstractString)
+    read_w90_tb(seedname;els)
 
-Read `seedname_tb.dat` and `seedname_wsvec.dat`.
-
-# Return
-- R vectors
-- Hamiltonian
-- position operator
-"""
-function _read_w90_tb(seedname::AbstractString)
-    mdrs, wsvec = read_w90_wsvec(seedname * "_wsvec.dat")
-    R = wsvec.R
-    if mdrs
-        T = wsvec.T
-        Nᵀ = wsvec.Nᵀ
-    end
-
-    tbdat = read_w90_tbdat(seedname * "_tb.dat")
-    lattice = tbdat.lattice
-    R == tbdat.R || @error "R vecs in tb.dat and wsvec.dat are not identical"
-    N = tbdat.N
-
-    # grid is still unknown
-    grid = [-1, -1, -1]  # no grid in wsvec.dat
-    Rvecs = RVectors(lattice, grid, R, N)
-    if !mdrs
-        return Rvecs, tbdat.H, tbdat.r
-    end
-
-    Rvecs_mdrs = RVectorsMDRS(Rvecs, T, Nᵀ)
-    H = mdrs_v1tov2(Rvecs_mdrs, tbdat.H)
-    r = similar(tbdat.r, 3, size(H)...)  # 3 * n_wann * n_wann * n_r̃vecs
-    r[1, :, :, :] .= mdrs_v1tov2(Rvecs_mdrs, tbdat.r[1, :, :, :])
-    r[2, :, :, :] .= mdrs_v1tov2(Rvecs_mdrs, tbdat.r[2, :, :, :])
-    r[3, :, :, :] .= mdrs_v1tov2(Rvecs_mdrs, tbdat.r[3, :, :, :])
-    return Rvecs_mdrs, H, r
-end
-
-"""
-    read_w90_tb(seedname; kpoints, atom_positions, atom_labels)
-
-Read `seedname_tb.dat` and `seedname_wsvec.dat`, return an [`InterpModel`](@ref).
+Read `seedname_tb.dat` and `seedname_wsvec.dat`, return [`TBHamiltonian`](@ref) and [`TBPosition`](@ref) operators.
 
 # Arguments
 - `seedname`: the seedname of `seedname_tb.dat` and `seedname_wsvec.dat`
 
-# Keyword Arguments
-- `kpoints`: the kpoints used in Wannierization, each column is a fractional coordinate.
-- `atom_positions`: columns are the fractional coordinates of atoms
-- `atom_labels`: labels of atoms
-
 # Return
-- An [`InterpModel`](@ref).
+- A [`RVectors`](@ref).
+- A [`TBHamiltonian`](@ref).
+- A `Rx` [`TBPosition`](@ref).
+- A `Ry` [`TBPosition`](@ref).
+- A `Rz` [`TBPosition`](@ref).
 
 !!! note
 
@@ -74,29 +34,49 @@ Read `seedname_tb.dat` and `seedname_wsvec.dat`, return an [`InterpModel`](@ref)
 """
 function read_w90_tb(
     seedname::AbstractString;
-    kpoints::Union{Nothing,AbstractMatrix}=nothing,
-    atom_positions::Union{Nothing,AbstractMatrix}=nothing,
-    atom_labels::Union{Nothing,AbstractVector{String}}=nothing,
+    force_mdrs = false
 )
-    Rvecs, H, r = _read_w90_tb(seedname)
-    if kpoints === nothing
-        kRvecs = KRVectors(Rvecs)
-    else
-        size(kpoints, 1) == 3 || error("kpoints should be 3 * n_kpts")
-        kgrid = Vec3{Int}(get_kgrid(kpoints))
-        kRvecs = KRVectors(Rvecs.lattice, kgrid, kpoints, Rvecs)
+
+    mdrs, wsvec = read_w90_wsvec(seedname * "_wsvec.dat")
+    mdrs |= force_mdrs 
+    R = wsvec.R
+    if mdrs
+        T = wsvec.T
+        Nᵀ = wsvec.Nᵀ
     end
 
-    if atom_positions === nothing || atom_labels === nothing
-        # generate a fake atom
-        atom_positions = zeros(3, 1)
-        atom_labels = ["H"]
+    tbdat = read_w90_tbdat(seedname * "_tb.dat")
+    
+    lattice = tbdat.lattice
+    
+    R == tbdat.R || @error "R vecs in tb.dat and wsvec.dat are not identical"
+    N = tbdat.N
+
+    # grid is still unknown
+    grid = Vec3(-1, -1, -1)  # no grid in wsvec.dat
+    Rvecs = RVectors(lattice, grid, R, N)
+
+    function generate_TBBlocks(O)
+        map(enumerate(O)) do (iR, o)
+            rcryst = R[iR]
+            rcart  = lattice * rcryst
+            return TBBlock(rcryst, rcart, o, o)
+        end
     end
-    kpath = get_kpath(Rvecs.lattice, atom_positions, atom_labels)
+    
+    if !mdrs
+        return (R  = Rvecs,
+                H  = generate_TBBlocks(tbdat.H),
+                Rx = generate_TBBlocks(tbdat.Rx),
+                Ry = generate_TBBlocks(tbdat.Ry),
+                Rz = generate_TBBlocks(tbdat.Rz))
+    end
 
-    n_wann = size(H, 1)
-    n_rvecs = size(H, 3)
-    S = Array{ComplexF64,4}(undef, n_wann, n_wann, n_rvecs, 3)
+    Rvecs_mdrs = RVectorsMDRS(Rvecs, T, Nᵀ)
 
-    return InterpModel(kRvecs, kpath, H, r, S)
+    return (R = Rvecs_mdrs,
+            H = mdrs_v1tov2(tbdat.H, Rvecs_mdrs),
+            Rx = mdrs_v1tov2(tbdat.Rx, Rvecs_mdrs),
+            Ry = mdrs_v1tov2(tbdat.Ry, Rvecs_mdrs),
+            Rz = mdrs_v1tov2(tbdat.Rz, Rvecs_mdrs))
 end

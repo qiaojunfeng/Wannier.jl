@@ -1,5 +1,5 @@
-using LinearAlgebra
 using NLSolversBase
+using LinearAlgebra
 
 # A reusable fixture for a model
 # no disentanglement
@@ -31,10 +31,11 @@ f, g! = Wannier.get_fg!_disentangle(model, λ)
 end
 
 @testset "coopt overlap gradient" begin
-    n_bands, n_wann, n_kpts = size(model.up.U)
+    n_bands, n_wann = size(model.up.U[1])
+    n_kpts = length(model.up.U)
 
-    fup(Uup) = Wannier.omega_updn(model, Uup, model.dn.U)
-    fdn(Udn) = Wannier.omega_updn(model, model.up.U, Udn)
+    fup(Uup) = Wannier.omega_updn(model, [Uup[:,:,ik] for ik = 1:size(Uup, 3)], model.dn.U)
+    fdn(Udn) = Wannier.omega_updn(model, model.up.U, [Udn[:,:,ik] for ik = 1:size(Udn, 3)])
 
     # analytical gradient
     Gup, Gdn = Wannier.omega_updn_grad(model, model.up.U, model.dn.U)
@@ -42,18 +43,21 @@ end
     Gdn *= λ
 
     # finite diff gradient
-    d = OnceDifferentiable(fup, model.up.U, zero(real(eltype(model.up.U))))
-    Gup_ref = NLSolversBase.gradient!(d, model.up.U)
-    d = OnceDifferentiable(fdn, model.dn.U, zero(real(eltype(model.dn.U))))
-    Gdn_ref = NLSolversBase.gradient!(d, model.dn.U)
+    u_up0 = [model.up.U[ik][ib, ic] for ib=1:size(model.up.U[1],1), ic = 1:size(model.up.U[1],2), ik = 1:length(model.up.U)]
+    d = OnceDifferentiable(fup, u_up0)
+    Gup_ref = NLSolversBase.gradient!(d, u_up0)
+    u_dn0 = [model.dn.U[ik][ib, ic] for ib=1:size(model.dn.U[1],1), ic = 1:size(model.dn.U[1],2), ik = 1:length(model.dn.U)]
+    d = OnceDifferentiable(fdn, u_dn0)
+    Gdn_ref = NLSolversBase.gradient!(d, u_dn0)
 
     # I am using a looser tolerance here
-    @test isapprox(Gup, Gup_ref; atol=1e-6)
-    @test isapprox(Gdn, Gdn_ref; atol=1e-6)
+    @test isapprox([Gup[ik][ib, ic] for ib=1:size(Gup[1],1), ic = 1:size(Gup[1],2), ik = 1:length(Gup)], Gup_ref; atol=1e-6)
+    @test isapprox([Gdn[ik][ib, ic] for ib=1:size(Gdn[1],1), ic = 1:size(Gdn[1],2), ik = 1:length(Gdn)], Gdn_ref; atol=1e-6)
 end
 
 @testset "coopt spread gradient" begin
-    n_bands, n_wann, n_kpts = size(model.up.U)
+    n_bands, n_wann = size(model.up.U[1])
+    n_kpts = length(model.up.U)
     n_inner = n_bands * n_wann + n_wann^2  # size of XY at each k-point
 
     Xup0, Yup0 = Wannier.U_to_X_Y(model.up.U, model.up.frozen_bands)
