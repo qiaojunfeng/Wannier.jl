@@ -12,7 +12,7 @@ mp_grid = win.mp_grid
 
 wout = read_wout(joinpath(FIXTURE_PATH, "valence/band/silicon.wout"))
 # to fractional coordinates
-centers = inv(lattice) * wout.centers
+centers = map(c -> inv(lattice) * c, wout.centers)
 
 SUITE["get_Rvectors_ws"] = @benchmarkable Wannier.get_Rvectors_ws($lattice, $mp_grid)
 SUITE["get_Rvectors_mdrs"] = @benchmarkable Wannier.get_Rvectors_mdrs(

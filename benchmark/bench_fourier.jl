@@ -9,36 +9,32 @@ SUITE = BenchmarkGroup()
 model = read_w90(joinpath(FIXTURE_PATH, "valence/band/silicon"); amn=false)
 model.U .= get_U(read_chk(joinpath(FIXTURE_PATH, "valence/band/silicon.chk.fmt")))
 model_ws = read_w90_tb(
-    joinpath(FIXTURE_PATH, "valence/band/ws/silicon"); kpoints=model.kpoints
+    joinpath(FIXTURE_PATH, "valence/band/ws/silicon")
 )
 model_mdrs = read_w90_tb(
-    joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"); kpoints=model.kpoints
+    joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon")
 )
 
 Hᵏ = Wannier.get_Hk(model.E, model.U)
-kRvectors_ws = model_ws.kRvectors
-kRvectors_mdrs = model_mdrs.kRvectors
+kRvectors_ws = model_ws.R
+kRvectors_mdrs = model_mdrs.R
 
 SUITE["get_Hk"] = @benchmarkable Wannier.get_Hk($(model.E), $(model.U))
 
-SUITE["fourier WS"] = @benchmarkable Wannier.fourier($kRvectors_ws, $Hᵏ)
+tbhami = model_ws.H
 
-SUITE["invfourier WS"] = @benchmarkable Wannier.invfourier(
-    $kRvectors_ws, $(model_ws.H), $(model.kpoints)
-)
 
-SUITE["fourier MDRS v1"] = @benchmarkable Wannier.fourier($kRvectors_mdrs, $Hᵏ; version=:v1)
+SUITE["fourier WS"] = @benchmarkable Wannier.HR_ws($Hᵏ, $(model.kpoints), $(kRvectors_ws.R), $(length(model.E[1])))
 
-SUITE["invfourier MDRS v1"] = @benchmarkable Wannier.invfourier(
-    $kRvectors_mdrs, $(model_ws.H), $(model.kpoints); version=:v1
-)
+SUITE["fourier MDRS v2"] = @benchmarkable (HR = Wannier.HR_ws($Hᵏ, $(model.kpoints), $(kRvectors_ws.R), $(length(model.E[1]))); Wannier.mdrs_v1tov2(HR, $(kRvectors_mdrs)))
 
-SUITE["fourier MDRS v2"] = @benchmarkable Wannier.fourier($kRvectors_mdrs, $Hᵏ; version=:v2)
+out = [Wannier.zeros_block(tbhami) for i = 1:length(model.kpoints)]
+SUITE["invfourier MDRS v2"] = @benchmarkable map(enumerate($(model.kpoints))) do (i, k)
+    Wannier.invfourier($tbhami, k) do ib, iR, R_cart, b, fac
+        @inbounds $(out)[i][ib] += fac * b.block[ib]
+    end
+end
 
-Hᴿ = Wannier.fourier(kRvectors_mdrs, Hᵏ; version=:v2)
-SUITE["invfourier MDRS v2"] = @benchmarkable Wannier.invfourier(
-    $kRvectors_mdrs, $Hᴿ, $(model.kpoints); version=:v2
-)
 
 end  # module
 
