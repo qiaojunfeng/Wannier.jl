@@ -92,7 +92,7 @@ function omega_center(
     λ::T,
 ) where {T<:Real}
     Ω = omega(bvectors, M, U)
-    ωc = λ .* map(i -> (t = Ω.r[i] - r₀[i]; t⋅t), 1:length(r₀))
+    ωc = λ .* map(i -> (t = Ω.r[i] - r₀[i]; sum(t.^2)), 1:length(r₀))
     ωt = Ω.ω + ωc
     Ωc = sum(ωc)
     Ωt = Ω.Ω + Ωc

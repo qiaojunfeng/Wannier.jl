@@ -56,7 +56,6 @@ function write_chk(
         Uᵈ = rotate_U(U, V)
         Uᵐ = map(v -> v', V)
     end
-    @show size(U[1])
     M = rotate_M(model.M, model.bvectors.kpb_k, U)
 
     chk = WannierIO.Chk(

@@ -1,11 +1,10 @@
 using NLSolversBase
 
-using Wannier:Vec3
 
 # A reusable fixture for a model
 # no disentanglement
 model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
-r₀ = [Vec3(1.34940, 1.34940, 1.34940) for i = 1:model.n_wann]
+r₀ = [[Vec3(1.34940, 1.34940, 1.34940) for i = 1:model.n_wann/2]; [Vec3(0.0,0.0,0.0) for i = 1:model.n_wann/2]]
 λ = 10.0
 f, g! = Wannier.get_fg!_center_disentangle(model, r₀, λ)
 
@@ -39,7 +38,7 @@ f, g! = Wannier.get_fg!_center_disentangle(model, r₀, λ)
 end
 
 @testset "constraint center disentangle" begin
-    Umin = Wannier.disentangle_center(model, r₀, λ; max_iter=4)
+    Umin = Wannier.disentangle_center(model, r₀, λ; max_iter=4);
     Ω = Wannier.omega_center(model.bvectors, model.M, Umin, r₀, λ)
 
     display(Ω)
