@@ -146,7 +146,6 @@ function disentangle_center(
 
     # compact storage
     XY0 = X_Y_to_XY(X0, Y0)
-
     # We have three storage formats:
     # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
     # U: n_bands * n_wann * n_kpts

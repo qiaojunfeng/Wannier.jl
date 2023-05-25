@@ -120,9 +120,9 @@ function overlap_updn(M::Vector, Uup::Vector, Udn::Vector)
         Uupk = Uup[ik]
         Udnk = Udn[ik]
         Mk = M[ik]
-        Mᵂ += Uupk' * Mk * Udnk
+        Mᵂ .+= Uupk' * Mk * Udnk
     end
-
+ 
     return abs2.(Mᵂ) ./ n_kpts^2
 end
 

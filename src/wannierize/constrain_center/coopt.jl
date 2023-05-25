@@ -55,7 +55,6 @@ function get_fg!_center_disentangle(
         XYdn = @view XY[(n_inner + 1):end, :]
         Xup, Yup = XY_to_X_Y(XYup, n_bands, n_wann)
         Xdn, Ydn = XY_to_X_Y(XYdn, n_bands, n_wann)
-        @show size(G)
         GXup, GYup = omega_center_grad(
             model.up.bvectors, model.up.M, Xup, Yup, model.up.frozen_bands, r₀, λc
         )

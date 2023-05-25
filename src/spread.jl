@@ -122,7 +122,7 @@ Compute WF spread.
         end
     end
 
-    r /= n_kpts
+    r = map(x -> x./n_kpts, r)
     r² /= n_kpts
     ΩI /= n_kpts
     ΩOD /= n_kpts
@@ -229,7 +229,7 @@ Compute WF spread.
         end
     end
 
-    r /= n_kpts
+    r = map(x -> x./n_kpts, r)
     r² /= n_kpts
     ΩI /= n_kpts
     ΩOD /= n_kpts

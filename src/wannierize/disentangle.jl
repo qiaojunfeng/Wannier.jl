@@ -17,27 +17,9 @@ Generate a `BitMatrix` of frozen bands by checking the two frozen windows.
 
     The `dis_froz_max` and `dis_froz_min` work similarly as `Wannier90`.
 """
-function get_frozen_bands(
-    E::Vector, dis_froz_max::T, dis_froz_min::T=-Inf
-) where {T<:Real}
-    n_bands = length(E[1])
-    n_kpts = length(E)
-    frozen_bands = [falses(n_bands) for i = 1:n_kpts]
+get_frozen_bands(E::Vector, dis_froz_max, dis_froz_min=-Inf) = map(e -> (e .>= dis_froz_min) .& (e .<= dis_froz_max), E)
 
-    # For each kpoint
-    frozen_k = falses(n_bands)
-
-    for ik in 1:n_kpts
-        fill!(frozen_k, false)
-
-        frozen_k .= (E[ik] .>= dis_froz_min) .& (E[ik] .<= dis_froz_max)
-        frozen_bands[ik] = frozen_k
-    end
-
-    return frozen_bands
-end
-
-#TODO I don't think this works
+#TODO I don't think this works; degen not defined
 """
     set_frozen_degen!(frozen_bands, E, atol=1e-4)
 
@@ -394,7 +376,7 @@ function U_to_X_Y(U::AbstractVector{<:AbstractMatrix{T}}, frozen::Vector{BitVect
     X = [zeros(T, n_wann, n_wann) for i = 1:n_kpts]
     Y = [zeros(T, n_bands, n_wann) for i = 1:n_kpts]
 
-    @inbounds @views for ik in 1:n_kpts
+    @inbounds for ik in 1:n_kpts
         idx_f = frozen[ik]
         idx_nf = .!idx_f
         n_froz = count(idx_f)

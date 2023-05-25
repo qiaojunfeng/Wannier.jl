@@ -67,6 +67,7 @@ function parallel_transport(
     # so our Vₒ is actually the inverse of the Vₒ in the paper.
     k1 = xyz_k[end, 1, 1]
     k2 = xyz_k[1, 1, 1]
+
     # Compute shifting b vector, for regular MP grid, b = [1, 0, 0].
     # However, for grids having negative cooridnates (i.e, -0.25 instead of 0.75),
     # we need to recompute b vector.
@@ -147,7 +148,7 @@ function parallel_transport(
         ib = index_bvector(bvectors, k1, k2, b)
         Nᵏᵇ = U[k1]' * M[k1][:, :, ib] * U[k2]
         Oxy[:,:,i] = orthonorm_lowdin(Nᵏᵇ)
-        detO3[i] = det(Oxy[i])
+        detO3[i] = det(Oxy[:, :, i])
     end
 
     # find a continuous log of the determinant
@@ -157,10 +158,8 @@ function parallel_transport(
         logD[i] += (kmin - 2) * 2π
     end
     for i in 1:n_kx
-        Oxy[i] = exp(-im * logD[i] / n_wann) * Oxy[i]
-        # eigs[:, i] = eigvals(Oxy[:, :, i])
+        Oxy[:, :, i] = exp(-im * logD[i] / n_wann) * Oxy[:, :, i]
     end
-
     # Interpolate the line obstruction
     Uxy = zeros(Complex{T}, n_wann, n_wann, n_kx, n_ky)
 
