@@ -230,12 +230,7 @@ Interpolate energy eigenvalues at `kpoints`.
 - `kpoints`: `3 * n_kpts`, kpoints to be interpolated, in fractional coordinates,
     can be nonuniform.
 """
-function interpolate(hami::TBHamiltonian{T}, kpoints) where {T<:Real}
-    grid = HamiltonianKGrid(hami, kpoints)
-    # diagonalize
-    Eᵏ = [grid.eigvals[ik][iw] for iw in 1:n_wann(grid), ik in 1:length(grid)]
-    return Eᵏ
-end
+interpolate(hami::TBHamiltonian, kpoints) = HamiltonianKGrid(hami, kpoints).eigvals
 
 @inline function LinearAlgebra.eigen!(vecs::AbstractMatrix, ws::HermitianEigenWs)
     return Eigen(decompose!(ws, 'V', 'A', 'U', vecs, 0., 0., 0, 0, 1e-16)...)
