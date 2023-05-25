@@ -3,6 +3,7 @@ module BenchDerivative
 import Main.FIXTURE_PATH
 using BenchmarkTools
 using Wannier
+using Wannier:Vec3
 
 SUITE = BenchmarkGroup()
 
@@ -13,10 +14,10 @@ H = model.H
 k = [Vec3(0.1, 0.2, 0.3)]
 
 SUITE["velocity_fd"] = @benchmarkable Wannier.velocity_fd(Rvecs.Rvectors, H, k)
-SUITE["velocity"] = @benchmarkable Wannier.velocity(Rvecs, H, k)
-SUITE["get_dH_da"] = @benchmarkable Wannier.get_dH_da(Rvecs, H, k)
+SUITE["velocity"] = @benchmarkable Wannier.velocity(H, k)
+SUITE["get_dH_da"] = @benchmarkable Wannier.get_dH_da(H, k)
 SUITE["effmass_fd"] = @benchmarkable Wannier.effmass_fd(Rvecs, H, k)
-SUITE["get_d2H_dadb"] = @benchmarkable Wannier.get_d2H_dadb(Rvecs, H, k)
+SUITE["get_d2H_dadb"] = @benchmarkable Wannier.get_d2H_dadb(H, k)
 
 end  # module
 
