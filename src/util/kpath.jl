@@ -198,9 +198,9 @@ Get the kpoints coordinates from a `KPathInterpolant`.
 function get_kpoints(kpi::KPathInterpolant)
     kpiᶠ = latticize(kpi)
     # to Matrix
-    kpoints = zeros(Float64, 3, length(kpi))
-    for i in axes(kpoints, 2)
-        kpoints[:, i] = kpiᶠ[i]
+    kpoints = zeros(Vec3{Float64}, length(kpi))
+    for i in 1:length(kpoints)
+        kpoints[i] = kpiᶠ[i]
     end
 
     return kpoints
@@ -220,12 +220,11 @@ Internally use `Brillouin.jl`.
 """
 function get_kpath(
     lattice::AbstractMatrix{T},
-    atom_positions::AbstractMatrix{T},
+    atom_positions::AbstractVector,
     atom_numbers::AbstractVector{R},
 ) where {T<:Real,R<:Integer}
     vecs = [v for v in eachcol(lattice)]
-    pos = [v for v in eachcol(atom_positions)]
-    cell = Spglib.Cell(vecs, pos, atom_numbers)
+    cell = Spglib.Cell(vecs, Vector.(atom_positions), atom_numbers)
     kpath = irrfbz_path(cell)
     return kpath
 end
@@ -244,7 +243,7 @@ Internally use `Brillouin.jl`.
 """
 function get_kpath(
     lattice::AbstractMatrix{T},
-    atom_positions::AbstractMatrix{T},
+    atom_positions::AbstractVector,
     atom_labels::AbstractVector{R},
 ) where {T<:Real,R<:AbstractString}
     atom_numbers = get_atom_number(atom_labels)

@@ -107,7 +107,7 @@ This is a more user-friendly version.
 See also [`write_w90_band(seedname, kpoints, E, x, symm_idx, symm_label)`]
 (@ref write_w90_band(seedname, kpoints, E, x, symm_idx, symm_label)).
 """
-function write_w90_band(seedname::AbstractString, kpi::KPathInterpolant, E::AbstractMatrix)
+function write_w90_band(seedname::AbstractString, kpi::KPathInterpolant, E::Vector)
     kpoints = get_kpoints(kpi::KPathInterpolant)
     x = get_x(kpi)
     symm_idx, symm_label = get_symm_idx_label(kpi)
