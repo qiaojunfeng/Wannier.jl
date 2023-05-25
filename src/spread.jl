@@ -582,8 +582,10 @@ function center(
     @inbounds @views for ik in 1:n_kpts
         for ib in 1:n_bvecs
             ikpb = kpb_k[ik][ib]
+            
             mul!(cache, M[ik][:, :, ib], U[ikpb])
             mul!(Nᵏᵇ, U[ik]', cache)
+            
             b = recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - kpoints[ik])
 
             w = wb[ib]
