@@ -346,11 +346,11 @@ Apply twice PRB 93, 205147 (2016)  Eq. 80.
 function effmass_fd(
     Rvectors::RVectorsMDRS{T}, Hᴿ::TBHamiltonian, kpoints::AbstractVector{Vec3{T}}; dk=1e-3
 ) where {T<:Real}
-    n_wann = size(Hᴿ, 1)
-    n_kpts = size(kpoints, 2)
+    n_wann = size(Hᴿ[1].block, 1)
+    n_kpts = length(kpoints)
     n_r̃vecs = Rvectors.n_r̃vecs  # only MDRSv2 is implemented for the moment
-    size(Hᴿ, 1) == size(Hᴿ, 2) || error("Hᴿ is not square")
-    size(Hᴿ, 3) == n_r̃vecs || error("Hᴿ has wrong size")
+    size(Hᴿ[1].block, 1) == size(Hᴿ[1].block, 2) || error("Hᴿ is not square")
+    length(Hᴿ) == n_r̃vecs || error("Hᴿ has wrong size")
 
     # the final velocity along 3 x 3 Cartesian directions
     μ = zeros(T, n_wann, n_kpts, 3, 3)
@@ -358,46 +358,52 @@ function effmass_fd(
     # note the original kpoint is included
     # 6 points at k ± dk, for computing dϵ/dk at k ± dk/2, along the same direction as dk
     # 12 points at k ± dk/2, for computing dϵ/dk at k ± dk/2, but along other 2 directions
-    Δk = [
+    Δk_ = [
         0 -dk dk 0 0 0 0 -dk/2 -dk/2 -dk/2 -dk/2 dk/2 dk/2 dk/2 dk/2 0 0 0 0
         0 0 0 -dk dk 0 0 -dk/2 dk/2 0 0 -dk/2 dk/2 0 0 -dk/2 -dk/2 dk/2 dk/2
         0 0 0 0 0 -dk dk 0 0 -dk/2 dk/2 0 0 -dk/2 dk/2 -dk/2 dk/2 -dk/2 dk/2
     ]
+    Δk = [Vec3(Δk_[:, ik]) for ik = 1:size(Δk_, 2)]
     # the interpolated Hamiltonain
-    Hᵏ = zeros(Complex{T}, n_wann, n_wann, 19)
+    Hᵏ = zeros(Complex{T}, n_wann, n_wann)
     # the interpolated eigenvalues
-    E = zeros(T, n_wann, 19)
+    E = [zeros(T, n_wann) for i = 1:19]
     # dϵ/dk at 6 points: k ± dk/2, along 3 Cartesian directions
     dEdk = zeros(T, n_wann, 6, 3)
     # to fractional
     recip_latt = get_recip_lattice(Rvectors.lattice)
-    Δkᶠ = inv(recip_latt) * Δk
-
+    Δkᶠ = map(k -> inv(recip_latt) * k, Δk)
     for ik in 1:n_kpts
-        invfourier!(Hᵏ, Rvectors, Hᴿ, kpoints[:, ik] .+ Δkᶠ)
-        E .= diag_Hk(Hᵏ)[1]  # only eigenvalues are needed
+        @show ik
+        for i2 = 1:19
+            fill!(Hᵏ, 0)
+            invfourier(Hᴿ, kpoints[ik] .+ Δkᶠ[i2]) do i, iR, Rcart, b, fac
+                Hᵏ[i] += fac * b.block[i]
+            end
+            E[i2] .= real(eigen(Hᵏ).values)  # only eigenvalues are needed
 
+        end
         # dϵ/dk at k ± dk/2, along the same direction as dk
-        dEdk[:, 1, 1] .= (E[:, 2] - E[:, 1]) / -dk
-        dEdk[:, 2, 1] .= (E[:, 3] - E[:, 1]) / dk
-        dEdk[:, 3, 2] .= (E[:, 4] - E[:, 1]) / -dk
-        dEdk[:, 4, 2] .= (E[:, 5] - E[:, 1]) / dk
-        dEdk[:, 5, 3] .= (E[:, 6] - E[:, 1]) / -dk
-        dEdk[:, 6, 3] .= (E[:, 7] - E[:, 1]) / dk
+        dEdk[:, 1, 1] .= (E[2] - E[1]) / -dk
+        dEdk[:, 2, 1] .= (E[3] - E[1]) / dk
+        dEdk[:, 3, 2] .= (E[4] - E[1]) / -dk
+        dEdk[:, 4, 2] .= (E[5] - E[1]) / dk
+        dEdk[:, 5, 3] .= (E[6] - E[1]) / -dk
+        dEdk[:, 6, 3] .= (E[7] - E[1]) / dk
 
         # dϵ/dk at k ± dk/2, but along other 2 directions
-        dEdk[:, 1, 2] .= (E[:, 9] - E[:, 8]) / dk
-        dEdk[:, 1, 3] .= (E[:, 11] - E[:, 10]) / dk
-        dEdk[:, 2, 2] .= (E[:, 13] - E[:, 12]) / dk
-        dEdk[:, 2, 3] .= (E[:, 15] - E[:, 14]) / dk
-        dEdk[:, 3, 1] .= (E[:, 12] - E[:, 8]) / dk
-        dEdk[:, 3, 3] .= (E[:, 17] - E[:, 16]) / dk
-        dEdk[:, 4, 1] .= (E[:, 13] - E[:, 9]) / dk
-        dEdk[:, 4, 3] .= (E[:, 19] - E[:, 18]) / dk
-        dEdk[:, 5, 1] .= (E[:, 14] - E[:, 10]) / dk
-        dEdk[:, 5, 2] .= (E[:, 18] - E[:, 16]) / dk
-        dEdk[:, 6, 1] .= (E[:, 15] - E[:, 11]) / dk
-        dEdk[:, 6, 2] .= (E[:, 19] - E[:, 17]) / dk
+        dEdk[:, 1, 2] .= (E[9] -  E[8]) / dk
+        dEdk[:, 1, 3] .= (E[11] - E[10]) / dk
+        dEdk[:, 2, 2] .= (E[13] - E[12]) / dk
+        dEdk[:, 2, 3] .= (E[15] - E[14]) / dk
+        dEdk[:, 3, 1] .= (E[12] - E[8]) / dk
+        dEdk[:, 3, 3] .= (E[17] - E[16]) / dk
+        dEdk[:, 4, 1] .= (E[13] - E[9]) / dk
+        dEdk[:, 4, 3] .= (E[19] - E[18]) / dk
+        dEdk[:, 5, 1] .= (E[14] - E[10]) / dk
+        dEdk[:, 5, 2] .= (E[18] - E[16]) / dk
+        dEdk[:, 6, 1] .= (E[15] - E[11]) / dk
+        dEdk[:, 6, 2] .= (E[19] - E[17]) / dk
 
         # d²ϵ/dk² at k
         μ[:, ik, 1, 1] .= (dEdk[:, 2, 1] - dEdk[:, 1, 1]) / dk
