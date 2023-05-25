@@ -123,7 +123,7 @@ function overlap_updn(M::Vector, Uup::Vector, Udn::Vector)
         Mᵂ += Uupk' * Mk * Udnk
     end
 
-    return abs2.(Mᵂ) / n_kpts^2
+    return abs2.(Mᵂ) ./ n_kpts^2
 end
 
 function overlap_updn(model::MagModel, Uup, Udn)

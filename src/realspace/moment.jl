@@ -60,7 +60,7 @@ Returned value in Å^2 unit.
 See also [`moment`](@ref moment).
 """
 function omega(rgrid::RGrid, W::AbstractArray)
-    return map(x-> sqrt(x ⋅ x), moment(rgrid, W, 2) .- center(rgrid, W))
+    return map(x-> sum(x[1] .- x[2].^2), zip(moment(rgrid, W, 2), center(rgrid, W)))
 end
 
 """
@@ -78,8 +78,8 @@ function position_op(rgrid::RGrid, W::AbstractArray{T,4}) where {T<:Complex}
     # last index is x,y,z
     r = zeros(T, n_wann, n_wann, 3)
     for i in 1:n_wann
+        Wᵢ = W[:, :, :, i]
         for j in 1:n_wann
-            Wᵢ = W[:, :, :, i]
             Wⱼ = W[:, :, :, j]
             r[i, j, 1] = sum(conj(Wᵢ) .* Xᶜ .* Wⱼ)
             r[i, j, 2] = sum(conj(Wᵢ) .* Yᶜ .* Wⱼ)
