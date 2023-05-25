@@ -374,7 +374,6 @@ function effmass_fd(
     recip_latt = get_recip_lattice(Rvectors.lattice)
     Δkᶠ = map(k -> inv(recip_latt) * k, Δk)
     for ik in 1:n_kpts
-        @show ik
         for i2 = 1:19
             fill!(Hᵏ, 0)
             invfourier(Hᴿ, kpoints[ik] .+ Δkᶠ[i2]) do i, iR, Rcart, b, fac
