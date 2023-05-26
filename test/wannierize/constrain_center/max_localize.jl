@@ -45,7 +45,7 @@ end
     model.U .= read_orthonorm_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
 
     Umin = Wannier.max_localize_center(model, r₀, λ; max_iter=4)
-    Ω = Wannier.omega_center(model.bvectors, model.M, Umin, r₀, λ)
+    Ω = Wannier.omega_center(model.bvectors, model.M, Umin; r₀, λ)
 
     # display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
