@@ -52,7 +52,8 @@ struct Spread{T<:Real} <: AbstractSpread
     # fix_centers :: Array{Float64,2} #3 x nwannier
 end
 
-struct DisentangleCache{T}
+#TODO a bit generic
+mutable struct Cache{T}
     X::Vector{Matrix{Complex{T}}}
     Y::Vector{Matrix{Complex{T}}}
     U::Vector{Matrix{Complex{T}}}
@@ -62,9 +63,9 @@ struct DisentangleCache{T}
     MUᵏᵇ::Vector{Vector{Matrix{Complex{T}}}}
 end
 
-function DisentangleCache(bvectors::BVectors{FT}, M::Vector{Array{Complex{FT},3}}, U::Vector{Matrix{Complex{FT}}}) where {FT}
-    nk = length(U)
-    nb, nw = size(U[1])
+function Cache(bvectors::BVectors{FT}, M::Vector{Array{Complex{FT},3}}, U) where {FT}
+    nk = length(M)
+    nb, nw = U isa Vector ? size(U[1]) : size.((U,), (1, 2))
     nbvecs = size(M[1], 3)
     
     X = [zeros(Complex{FT}, nw, nw) for i = 1:nk]
@@ -76,12 +77,16 @@ function DisentangleCache(bvectors::BVectors{FT}, M::Vector{Array{Complex{FT},3}
     Nᵏᵇ  = [[zeros(Complex{FT}, nw, nw) for ib=1:nbvecs] for i = 1:nk]
     MUᵏᵇ = [[zeros(Complex{FT}, nb, nw) for ib=1:nbvecs] for i = 1:nk]
     
-    return DisentangleCache(X, Y, U, G, r, Nᵏᵇ, MUᵏᵇ)
+    return Cache(X, Y, U, G, r, Nᵏᵇ, MUᵏᵇ)
 end
 
-DisentangleCache(model::Model) = DisentangleCache(model.bvectors, model.M, model.U) 
+Cache(model::Model) = Cache(model.bvectors, model.M, model.U)
 
-function compute_MUᵏᵇ_Nᵏᵇ!(MUᵏᵇ, Nᵏᵇ, bvectors, M, U)
+n_bands(c::Cache) = size(c.G, 1)
+n_wann(c::Cache) = size(c.G, 2)
+n_kpts(c::Cache) = size(c.G, 3)
+
+function compute_MUᵏᵇ_Nᵏᵇ!(MUᵏᵇ, Nᵏᵇ, bvectors, M, U::Vector)
     kpb_k = bvectors.kpb_k
     n_bvecs = length(kpb_k[1])
 
@@ -104,10 +109,34 @@ function compute_MUᵏᵇ_Nᵏᵇ!(MUᵏᵇ, Nᵏᵇ, bvectors, M, U)
     end
     return MUᵏᵇ, Nᵏᵇ
 end
-compute_MUᵏᵇ_Nᵏᵇ!(cache::DisentangleCache, bvectors, M, U) = compute_MUᵏᵇ_Nᵏᵇ!(cache.MUᵏᵇ, cache.Nᵏᵇ, bvectors, M, U)
 
-function omega!(cache::DisentangleCache,
-    bvectors::BVectors{FT}, M::Vector{Array{Complex{FT},3}}, U::Vector{Matrix{Complex{FT}}}
+function compute_MUᵏᵇ_Nᵏᵇ!(MUᵏᵇ, Nᵏᵇ, bvectors, M, U::Array)
+    kpb_k = bvectors.kpb_k
+    n_bvecs = length(kpb_k[1])
+
+    @inbounds for ik in axes(U, 3)
+        Ut = view(U, :, :, ik)'
+        Mk = M[ik]
+        MUk = MUᵏᵇ[ik]
+        Nk = Nᵏᵇ[ik]
+        
+        for ib in 1:n_bvecs
+            ikpb = kpb_k[ik][ib]
+            MUkb = MUk[ib]
+            Ukpb = view(U,:, :, ikpb)
+            Nkb = Nk[ib]
+
+            mul!(MUkb, view(Mk,:, :, ib), Ukpb)
+            
+            mul!(Nkb, Ut, MUkb)
+        end
+    end
+    return MUᵏᵇ, Nᵏᵇ
+end
+compute_MUᵏᵇ_Nᵏᵇ!(cache::Cache, bvectors, M, U) = compute_MUᵏᵇ_Nᵏᵇ!(cache.MUᵏᵇ, cache.Nᵏᵇ, bvectors, M, U)
+
+function omega!(cache::Cache,
+    bvectors::BVectors{FT}, M::Vector{Array{Complex{FT},3}}
 ) where {FT<:Real}
 
     r = cache.r
@@ -116,8 +145,9 @@ function omega!(cache::DisentangleCache,
     Nᵏᵇ  = cache.Nᵏᵇ
     MUᵏᵇ = cache.MUᵏᵇ
 
-    n_bands, n_wann = size(U[1])
-    n_kpts = length(U)
+    nw = n_wann(cache)
+    nk = n_kpts(cache)
+    
     n_bvecs = size(M[1], 3)
 
     kpb_k = bvectors.kpb_k
@@ -132,20 +162,18 @@ function omega!(cache::DisentangleCache,
     # # frozen weight
     # w_froz::FT = 0.0
 
-    r² = zeros(FT, n_wann)
+    r² = zeros(FT, nw)
 
     ΩI::FT = 0.0
     ΩOD::FT = 0.0
     ΩD::FT = 0.0
 
-    for ik in 1:n_kpts
+    for ik in 1:nk
         # w_froz -= μ * sum(abs2, U[1:n_froz, :, ik])
         MUk = MUᵏᵇ[ik]
         Nk = Nᵏᵇ[ik]
 
         for ib in 1:n_bvecs
-            ikpb = kpb_k[ik][ib]
-
             ikpb = kpb_k[ik][ib]
             MUkb = MUk[ib]
             Nkb  = Nk[ib] 
@@ -175,17 +203,17 @@ function omega!(cache::DisentangleCache,
                 end
             end
             
-            ΩI += wᵇ * (n_wann - ts)
+            ΩI += wᵇ * (nw - ts)
             
             ΩOD += wᵇ * ts2
             
         end
     end
 
-    r = map(x -> x./n_kpts, r)
-    r² /= n_kpts
-    ΩI /= n_kpts
-    ΩOD /= n_kpts
+    r = map(x -> x./nk, r)
+    r² /= nk
+    ΩI /= nk
+    ΩOD /= nk
     # w_froz /= n_kpts
 
     # ΩD requires r, so we need different loops
@@ -228,113 +256,17 @@ Compute WF spread for a [`Model`](@ref), potentially for a given gauge `U`, or b
 `bvectors` and `M`.
 In case of the first `bvectors = model.bvectors` and `M = model.M`.
 """
-omega(model::Model)                              = omega(model, model.U)
-omega(model::Model, U::Vector{<:AbstractMatrix}) = omega(model.bvectors, model.M, U)
-function omega(bvectors::BVectors, M, U)
-    cache = DisentangleCache(bvectors, M, U)
-    compute_MUᵏᵇ_Nᵏᵇ!(cache, bvectors, M, U)
-    return omega!(cache, bvectors, M, U)
-end
+omega(model::Model)    = omega(model, model.U)
+omega(model::Model, U) = omega(model.bvectors, model.M, U)
 function omega(bvectors::BVectors, M, X, Y)
     U = X_Y_to_U(X, Y)
     return omega(bvectors, M, U)
 end
 
-@views function omega(
-    bvectors::BVectors{FT}, M::Vector{Array{Complex{FT},3}}, U::Array{Complex{FT}, 3}
-) where {FT<:Real}
-    n_bands, n_wann, n_kpts = size(U)
-    n_bvecs = size(M[1], 3)
-
-    kpb_k = bvectors.kpb_k
-    kpb_b = bvectors.kpb_b
-    wb = bvectors.weights
-    recip_lattice = bvectors.recip_lattice
-    kpoints = bvectors.kpoints
-
-    # # keep in case we want to do this later on
-    # μ::FT = 0.0
-    # n_froz = 0
-    # # frozen weight
-    # w_froz::FT = 0.0
-
-    r = zeros(Vec3{FT}, n_wann)
-    r² = zeros(FT, n_wann)
-
-    ΩI::FT = 0.0
-    ΩOD::FT = 0.0
-    ΩD::FT = 0.0
-
-    b = zeros(FT, 3)
-
-    Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
-    MUᵏᵇ = zeros(Complex{FT}, n_bands, n_wann)
-
-    for ik in 1:n_kpts
-        # w_froz -= μ * sum(abs2, U[1:n_froz, :, ik])
-
-        for ib in 1:n_bvecs
-            ikpb = kpb_k[ik][ib]
-
-            MUᵏᵇ .= M[ik][:, :, ib] * U[:, :,ikpb]
-            # compute-intensive, but should be true
-            # ibm = index_bvector(bvectors, ikpb, ik, -kpb_b[:, ib, ik])
-            # @assert M[:, :, ib, ik]' ≈ M[:, :, ibm, ikpb]
-            Nᵏᵇ .= U[:, :, ik]' * MUᵏᵇ
-            b .= recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - kpoints[ik])
-
-            wᵇ = wb[ib]
-
-            ΩI += wᵇ * (n_wann - sum(abs2, Nᵏᵇ))
-            ΩOD += wᵇ * sum(abs2, Nᵏᵇ .- diagm(0 => diag(Nᵏᵇ)))
-
-            for n in 1:n_wann
-                imlogN = imaglog(Nᵏᵇ[n, n])
-
-                r[n] = r[n] - wᵇ * imlogN * b
-
-                r²[n] += wᵇ * (1 - abs2(Nᵏᵇ[n, n]) + imlogN^2)
-                # r²[n] += wᵇ * 2*(1 - real(Nᵏᵇ[n,n]))
-            end
-        end
-    end
-
-    r = map(x -> x./n_kpts, r)
-    r² /= n_kpts
-    ΩI /= n_kpts
-    ΩOD /= n_kpts
-    # w_froz /= n_kpts
-
-    # ΩD requires r, so we need different loops
-    # However, since ΩD = Ω - ΩI - ΩOD, we can skip these loops
-    # for ik in 1:n_kpts
-    #     for ib in 1:n_bvecs
-    #         ikpb = kpb_k[ib, ik]
-    #         Nᵏᵇ .= U[:, :, ik]' * M[:, :, ib, ik] * U[:, :, ikpb]
-    #         b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
-    #         wᵇ = wb[ib]
-
-    #         for n in 1:n_wann
-    #             ΩD += wᵇ * (-imaglog(Nᵏᵇ[n, n]) - b' * r[:, n])^2
-    #         end
-    #     end
-    # end
-    # ΩD /= n_kpts
-    # Ω̃ = ΩOD + ΩD
-
-    # @debug "Spread" r r²'
-    # @debug "Spread" ΩI ΩOD ΩD
-
-    # Ω of each WF
-    ω = r² - map(x -> sum(abs.(x.^2)), r)
-    # total Ω
-    Ω = sum(ω)
-    # Ω += w_froz
-    Ω̃ = Ω - ΩI
-    ΩD = Ω̃ - ΩOD
-
-    return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r)
-    # return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, w_froz)
+function omega(bvectors::BVectors, M, U)
+    cache = Cache(bvectors, M, U)
+    compute_MUᵏᵇ_Nᵏᵇ!(cache, bvectors, M, U)
+    return omega!(cache, bvectors, M)
 end
 
 function Base.show(io::IO, Ω::Spread)
@@ -353,7 +285,7 @@ function Base.show(io::IO, Ω::Spread)
     @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
 end
 
-function omega_grad!(cache::DisentangleCache{T}, bvectors, M, U) where {T}
+function omega_grad!(cache::Cache{T}, bvectors, M) where {T}
     # This mutates cache.G and cache.Mkb
     G = cache.G
     fill!(G, 0)
@@ -447,9 +379,9 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
 - `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
 """
 function omega_grad(bvectors::BVectors, M, U)
-    cache = DisentangleCache(bvectors, M, U)
+    cache = Cache(bvectors, M, U)
     compute_MUᵏᵇ_Nᵏᵇ!(cache, bvectors, M, U)
-    omega_grad!(cache, bvectors, M, U)
+    omega_grad!(cache, bvectors, M)
 end
 
 function omega_grad(bvectors::BVectors, M, X, Y,frozen)
@@ -606,7 +538,7 @@ Compute WF center in reciprocal space.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 function center(bvectors::BVectors, M, U)
-    cache = DisentangleCache(bvectors, M, U)
+    cache = Cache(bvectors, M, U)
     compute_MUᵏᵇ_Nᵏᵇ!(cache, bvectors, M, U)
     return center!(cache.r, cache.Nᵏᵇ, bvectors)
 end

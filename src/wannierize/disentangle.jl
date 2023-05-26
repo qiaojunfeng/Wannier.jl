@@ -577,14 +577,16 @@ Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_disentangle(model::Model{T}) where {T}
     
-    cache = DisentangleCache(model)
+    cache = Cache(model)
     
     function fg!(Ω, G, XY)
+        
         X, Y = XY_to_X_Y!(cache.X, cache.Y, XY)
         U = X_Y_to_U!(cache.U, X, Y)
         compute_MUᵏᵇ_Nᵏᵇ!(cache, model.bvectors, model.M, U)
+        
         if G !== nothing
-            G_ = omega_grad!(cache, model.bvectors, model.M, U)
+            G_ = omega_grad!(cache, model.bvectors, model.M)
             GX, GY = GU_to_GX_GY(G_, X, Y, model.frozen_bands)
             
             n = model.n_wann^2
@@ -599,7 +601,7 @@ function get_fg!_disentangle(model::Model{T}) where {T}
             end
         end
         if Ω !== nothing
-            return omega!(cache, model.bvectors, model.M, U).Ω
+            return omega!(cache, model.bvectors, model.M).Ω
         end
     end
     return fg!

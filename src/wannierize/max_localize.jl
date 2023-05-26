@@ -8,14 +8,21 @@ export max_localize
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_maxloc(model::Model)
-    f(U) = omega(model.bvectors, model.M, U).Ω
+    cache = Cache(model)
 
-    g!(G, U) = begin
-        G .= omega_grad(model.bvectors, model.M, U)
-        nothing
+    function fg!(F, G, U)
+        compute_MUᵏᵇ_Nᵏᵇ!(cache, model.bvectors, model.M, U)
+        
+        if G !== nothing
+            cache.G = G
+            omega_grad!(cache, model.bvectors, model.M)
+        end
+        if F !== nothing
+            return omega!(cache, model.bvectors, model.M).Ω
+        end
     end
 
-    return f, g!
+    return fg!
 end
 
 """
@@ -38,7 +45,7 @@ function max_localize(
     model.n_bands != model.n_wann &&
         error("n_bands != n_wann, run instead disentanglement?")
 
-    f, g! = get_fg!_maxloc(model)
+    fg! = get_fg!_maxloc(model)
 
     Ωⁱ = omega(model.bvectors, model.M, model.U)
     @info "Initial spread"
@@ -54,8 +61,7 @@ function max_localize(
     Uinit = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
 
     opt = Optim.optimize(
-        f,
-        g!,
+        Optim.only_fg!(fg!),
         Uinit,
         meth(; manifold=Manif, linesearch=ls, m=history_size),
         Optim.Options(;
