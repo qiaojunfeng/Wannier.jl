@@ -96,7 +96,9 @@ function get_fg!_center_disentangle(
 
         if G !== nothing
             # TODO Optimize this!
-            GX, GY = omega_center_grad(model.bvectors, model.M, X, Y, model.frozen_bands, r₀, λ)
+            G_ = omega_center_grad!(cache, model.bvectors, model.M; r₀, λ)
+            GX, GY = GU_to_GX_GY(G_, X, Y, model.frozen_bands)
+            # GX, GY = omega_center_grad(model.bvectors, model.M, X, Y, model.frozen_bands, r₀, λ)
 
             n = model.n_wann^2
 
