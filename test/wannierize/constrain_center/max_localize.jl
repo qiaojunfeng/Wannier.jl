@@ -7,17 +7,17 @@ using Wannier:Vec3
 model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
 r₀ = [Vec3(0.0,0.0,0.0) for i = 1:model.n_wann]
 λ = 10.0
-f, g! = Wannier.get_fg!_center_maxloc(model, r₀, λ)
+fg! = Wannier.get_fg!_center_maxloc(model, r₀, λ)
 
 @testset "constraint center maxloc spread gradient" begin
     U0 = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
 
     # analytical gradient
     G = similar(U0)
-    g!(G, U0)
+    fg!(nothing, G, U0)
 
     # finite diff gradient
-    d = OnceDifferentiable(f, U0, zero(eltype(real(U0))))
+    d = OnceDifferentiable(x -> fg!(1.0, nothing, x), U0, zero(eltype(real(U0))))
     G_ref = NLSolversBase.gradient!(d, U0)
 
     # I am using a looser tolerance here
@@ -34,8 +34,8 @@ f, g! = Wannier.get_fg!_center_maxloc(model, r₀, λ)
     ]
     U1 = rotate_U(U0, W1)
 
-    g!(G, U1)
-    d = OnceDifferentiable(f, U1, zero(eltype(real(U1))))
+    fg!(nothing, G, U1)
+    d = OnceDifferentiable(x -> fg!(1.0, nothing, x), U1, zero(eltype(real(U1))))
     G_ref = NLSolversBase.gradient!(d, U1)
     @test isapprox(G, G_ref; atol=1e-6)
 end

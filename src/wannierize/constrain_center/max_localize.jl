@@ -84,8 +84,12 @@ Compute WF spread with center penalty, for maximal localization.
 - `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
-function omega_center(args...; r₀::Vector{Vec3{T}}, λ::T) where {T<:Real}
+function omega_center(args...; kwargs...)
     Ω = omega(args...)
+    return omega_center(Ω; kwargs...)
+end
+
+function omega_center(Ω::Spread;  r₀::Vector{Vec3{T}}, λ::T) where {T<:Real}
     ωc = λ .* map(i -> (t = Ω.r[i] - r₀[i]; sum(t.^2)), 1:length(r₀))
     ωt = Ω.ω + ωc
     Ωc = sum(ωc)
@@ -281,15 +285,20 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_center_maxloc(model::Model{T}, r₀::Vector{Vec3{T}}, λ::T=1.0) where {T<:Real}
-    f(U) = omega_center(model.bvectors, model.M, U; r₀, λ).Ωt
+    cache = Cache(model)
 
-    function g!(G, U)
-        r = center(model.bvectors, model.M, U)
-        G .= omega_center_grad(model.bvectors, model.M, U, r, r₀, λ)
-        return nothing
+    function fg!(F, G, U)
+        compute_MUᵏᵇ_Nᵏᵇ!(cache, model.bvectors, model.M, U)
+        # TODO optimize this 
+        if G !== nothing
+            r = center(model.bvectors, model.M, U)
+            G .= omega_center_grad(model.bvectors, model.M, U, r, r₀, λ)
+        end
+        if F !== nothing
+            return omega_center(omega!(cache, model.bvectors, model.M); r₀, λ).Ωt
+        end
     end
-
-    return f, g!
+    return fg!
 end
 
 """
@@ -321,7 +330,7 @@ function max_localize_center(
         error("n_bands != n_wann, run instead disentanglement?")
     length(r₀) !=  model.n_wann && error("length(r₀) !=  n_wann")
 
-    f, g! = get_fg!_center_maxloc(model, r₀, λ)
+    fg! = get_fg!_center_maxloc(model, r₀, λ)
 
     Ωⁱ = omega_center(model.bvectors, model.M, model.U; r₀, λ)
     @info "Initial spread"
@@ -336,9 +345,7 @@ function max_localize_center(
 
     Uinit = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
 
-    opt = Optim.optimize(
-        f,
-        g!,
+    opt = Optim.optimize(Optim.only_fg!(fg!),
         Uinit,
         meth(; manifold=Manif, linesearch=ls, m=history_size),
         Optim.Options(;
