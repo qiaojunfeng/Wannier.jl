@@ -284,8 +284,8 @@ function Base.show(io::IO, Ω::Spread)
     @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
     @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
 end
-
-function omega_grad!(cache::Cache{T}, bvectors, M) where {T}
+omega_grad!(cache::Cache, bvectors, M) = omega_grad!((r, _) -> r, cache, bvectors, M) 
+function omega_grad!(penalty::Function, cache::Cache{T}, bvectors, M) where {T}
     # This mutates cache.G and cache.Mkb
     G = cache.G
     fill!(G, 0)
@@ -345,7 +345,7 @@ function omega_grad!(cache::Cache{T}, bvectors, M) where {T}
                 #     error("Nᵏᵇ too small! $ik -> $ikpb")
                 # end
 
-                q = imaglog(nn) + r[n] ⋅ b
+                q = imaglog(nn) + penalty(r[n], n) ⋅ b
 
                 t = -im * q / nn
 
