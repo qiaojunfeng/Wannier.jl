@@ -339,22 +339,13 @@ function X_Y_to_U(X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:Ab
     n_kpts = length(Y)
 
     U = [zeros(T, n_bands, n_wann) for i = 1:n_kpts]
+    X_Y_to_U!(U, X, Y)
+end
 
-    for ik in 1:n_kpts
-        # sanity check, should be true but comment out to be faster
-        # idx_f = model.frozen_bands[:, ik]
-        # idx_nf = .!idx_f
-        # n_froz = count(idx_f)
-        # @assert Y[:, :, ik]' * Y[:, :, ik] ≈ I
-        # @assert X[:, :, ik]' * X[:, :, ik] ≈ I
-        # @assert Y[idx_f, 1:n_froz, ik] ≈ I
-        # @assert norm(Y[idx_nf, 1:n_froz, ik]) ≈ 0
-        # @assert norm(Y[idx_f, n_froz+1:end, ik]) ≈ 0
-
-        mul!(U[ik], Y[ik],  X[ik])
-        # @assert orthonorm_freeze(U[:, :, ik], frozen_bands[:, ik]) ≈ U[:, :, ik] rtol=1e-4
+function X_Y_to_U!(U::AbstractVector, X::AbstractVector, Y::AbstractVector)
+    @inbounds for (u, y, x) in zip(U, Y, X)
+        mul!(u, y, x)
     end
-
     return U
 end
 
@@ -397,13 +388,6 @@ function U_to_X_Y(U::AbstractVector{<:AbstractMatrix{T}}, frozen::Vector{BitVect
 
         # determine X
         X[ik] = orthonorm_lowdin(Y[ik]' * Af)
-        # TODO: these guys might add quite some time
-        @assert Y[ik]' * Y[ik] ≈ I
-        @assert X[ik]' * X[ik] ≈ I
-        @assert Y[ik][idx_f, 1:n_froz] ≈ I
-        @assert norm(Y[ik][idx_nf, 1:n_froz]) ≈ 0
-        @assert norm(Y[ik][idx_f, (n_froz + 1):end]) ≈ 0
-        @assert Y[ik] * X[ik] ≈ Af
     end
 
     return X, Y
@@ -426,15 +410,19 @@ function XY_to_X_Y(XY::AbstractMatrix{T}, n_bands::Int, n_wann::Int) where {T<:C
 
     X = [zeros(T, n_wann, n_wann) for i = 1:n_kpts]
     Y = [zeros(T, n_bands, n_wann) for i = 1:n_kpts]
+    XY_to_X_Y!(X, Y, XY)
+end
 
-    n = n_wann^2
-
-    for ik in 1:n_kpts
-        XYk = @view XY[:, ik]
-        X[ik] = reshape(XYk[1:n], (n_wann, n_wann))
-        Y[ik] = reshape(XYk[(n + 1):end], (n_bands, n_wann))
+function XY_to_X_Y!(X::AbstractVector, Y::AbstractVector, XY::AbstractMatrix)
+    n_wann2 = size(X[1], 1)^2
+    @inbounds for (ik, (x, y)) in enumerate(zip(X, Y))
+        for i in eachindex(x)
+            x[i] =  XY[i, ik]
+        end
+        for i in eachindex(y)
+            y[i] = XY[n_wann2 + i, ik]
+        end
     end
-
     return X, Y
 end
 
@@ -448,80 +436,25 @@ See also [`X_Y_to_U`](@ref).
 function X_Y_to_XY(X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:AbstractMatrix{T}}) where {T<:Complex}
     n_bands, n_wann = size(Y[1])
     n_kpts = length(Y)
-    # n_wann, n_wann, n_kpts = size(X)
-
     n = n_wann^2
     XY = zeros(T, n + n_bands * n_wann, n_kpts)
+    return X_Y_to_XY!(XY, X, Y)
+end
 
-    for ik in 1:n_kpts
-        # XY[:, ik] = vcat(vec(X[:, :, ik]), vec(Y[:, :, ik]))
-        XY[1:n, ik] = reshape(X[ik], n)
-        XY[(n + 1):end, ik] = reshape(Y[ik], n_bands * n_wann)
+function X_Y_to_XY!(XY::AbstractMatrix, X::AbstractVector, Y::AbstractVector)
+    n = length(X[1])
+    @inbounds for (ik, (x, y)) in enumerate(zip(X, Y))
+        for i in eachindex(x)
+            XY[i, ik] = x[i]
+        end
+        
+        for i in eachindex(y)
+            XY[n + i, ik] = y[i]
+        end
     end
-
     return XY
 end
 
-"""
-    omega(bvectors, M, X, Y)
-
-Compute WF spread in the `(X, Y)` layout.
-
-# Arguments
-- `bvectors`: bvecoters
-- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `X`: `n_wann * n_wann * n_kpts` array
-- `Y`: `n_bands * n_wann * n_kpts` array
-"""
-function omega(
-    bvectors::BVectors{FT},
-    M,
-    X,
-    Y,
-) where {FT<:Real}
-    U = X_Y_to_U(X, Y)
-    return omega(bvectors, M, U)
-end
-
-"""
-    omega(model, X, Y)
-
-Compute WF spread in the `(X, Y)` layout.
-
-# Arguments
-- `model`: `Model`
-- `X`: `n_wann * n_wann * n_kpts` array
-- `Y`: `n_bands * n_wann * n_kpts` array
-"""
-function omega(
-    model::Model{FT}, X, Y
-) where {FT<:Real}
-    return omega(model.bvectors, model.M, X, Y)
-end
-
-"""
-    omega_grad(bvectors, M, X, Y, frozen)
-
-Compute gradient of WF spread in the `(X, Y)` layout.
-
-# Arguments
-- `bvectors`: bvecoters
-- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `X`: `n_wann * n_wann * n_kpts` array
-- `Y`: `n_bands * n_wann * n_kpts` array
-- `frozen`: `n_bands * n_kpts` array for frozen bands
-"""
-function omega_grad(
-    bvectors::BVectors{FT},
-    M,
-    X,
-    Y,
-    frozen::Vector{BitVector},
-) where {FT<:Real}
-    U = X_Y_to_U(X, Y)
-    G = omega_grad(bvectors, M, U)
-    return GU_to_GX_GY(G, X, Y, frozen)
-end
 
 @doc raw"""
     GU_to_GX_GY(G, X, Y, frozen)
@@ -552,9 +485,37 @@ function GU_to_GX_GY(
 
         GY[ik][idx_f, :] .= 0
         GY[ik][:, 1:n_froz] .= 0
+        # @show ik, GY[ik]
     end
 
     return GX, GY
+end
+
+# This leads to another 5% speedup but I don't know how
+function GU_to_G!(G, GU, X, Y, frozen)
+    n_kpts = length(X)
+    
+    nw = size(X[1], 1)
+    nb = size(Y[1], 1)
+    n = nw^2
+    
+    d = size(G, 1)
+    
+    @inbounds for ik in 1:n_kpts
+        idx_f = frozen[ik]
+        n_froz = count(idx_f)
+        
+        GX = reshape(view(G, 1:n, ik), (nw, nw))
+        GY = reshape(view(G, n+1:d, ik), (nb, nw))
+        
+        mul!(GX, Y[ik]', view(GU, :, :, ik))
+        mul!(GY, view(GU, :, :, ik) , X[ik]')
+
+        GY[idx_f, :] .= 0
+        GY[:, 1:n_froz] .= 0
+        # @show ik, GY
+    end
+    
 end
 
 function GU_to_GX_GY(
@@ -614,31 +575,34 @@ end
 
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
-function get_fg!_disentangle(model::Model)
-    function f(XY)
-        X, Y = XY_to_X_Y(XY, model.n_bands, model.n_wann)
-        return omega(model.bvectors, model.M, X, Y).Ω
-    end
+function get_fg!_disentangle(model::Model{T}) where {T}
+    
+    cache = DisentangleCache(model)
+    
+    function fg!(Ω, G, XY)
+        X, Y = XY_to_X_Y!(cache.X, cache.Y, XY)
+        U = X_Y_to_U!(cache.U, X, Y)
+        compute_MUᵏᵇ_Nᵏᵇ!(cache, model.bvectors, model.M, U)
+        if G !== nothing
+            G_ = omega_grad!(cache, model.bvectors, model.M, U)
+            GX, GY = GU_to_GX_GY(G_, X, Y, model.frozen_bands)
+            
+            n = model.n_wann^2
 
-    """size(G) == size(XY)"""
-    function g!(G, XY)
-        X, Y = XY_to_X_Y(XY, model.n_bands, model.n_wann)
-        GX, GY = omega_grad(model.bvectors, model.M, X, Y, model.frozen_bands)
-        n = model.n_wann^2
-
-        @inbounds for ik in 1:(model.n_kpts)
-            for i in eachindex(GX[ik])
-                G[i, ik] = GX[ik][i]
-            end
-            for i in eachindex(GY[ik])
-                G[n + i, ik] = GY[ik][i]
+            @inbounds for ik in 1:(model.n_kpts)
+                for i in eachindex(GX[ik])
+                    G[i, ik] = GX[ik][i]
+                end
+                for i in eachindex(GY[ik])
+                    G[n + i, ik] = GY[ik][i]
+                end
             end
         end
-
-        return nothing
+        if Ω !== nothing
+            return omega!(cache, model.bvectors, model.M, U).Ω
+        end
     end
-
-    return f, g!
+    return fg!
 end
 
 #TODO I don't think this works: lfrozen?
@@ -701,14 +665,14 @@ function disentangle(
     # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
     # U: n_bands * n_wann * n_kpts
     # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
-    f, g! = get_fg!_disentangle(model)
+    fg! = get_fg!_disentangle(model)
 
-    Ωⁱ = omega(model)
+    Ωⁱ = omega(model, model.U)
     @info "Initial spread"
     show(Ωⁱ)
     println("\n")
 
-    Ωⁱ = omega(model, X0, Y0)
+    Ωⁱ = omega(model, X_Y_to_U(X0, Y0))
     @info "Initial spread (with states freezed)"
     show(Ωⁱ)
     println("\n")
@@ -729,9 +693,7 @@ function disentangle(
     # meth = Optim.ConjugateGradient
     meth = Optim.LBFGS
 
-    opt = Optim.optimize(
-        f,
-        g!,
+    opt = Optim.optimize(Optim.only_fg!(fg!),
         XY0,
         meth(; manifold=XYManif, linesearch=ls, m=history_size),
         Optim.Options(;
@@ -749,7 +711,7 @@ function disentangle(
     Xmin, Ymin = XY_to_X_Y(XYmin, n_bands, n_wann)
     Umin = X_Y_to_U(Xmin, Ymin)
 
-    Ωᶠ = omega(model, Xmin, Ymin)
+    Ωᶠ = omega(model, Umin)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
