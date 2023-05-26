@@ -3,7 +3,7 @@ using NLSolversBase
 # A reusable fixture for a model
 model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
 
-f, g! = Wannier.get_fg!_maxloc(model)
+fg! = Wannier.get_fg!_maxloc(model)
 
 @testset "spread" begin
     # should be roughly the same as test/fixtures/silicon/silicon.wout
@@ -30,11 +30,11 @@ end
 @testset "spread gradient" begin
     U = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
     G = zero(U)
-    g!(G, U)
+    fg!(nothing, G, U)
 
     # Use finite difference as reference
     Uinit = deepcopy(U)
-    d = NLSolversBase.OnceDifferentiable(f, Uinit, real(zero(eltype(Uinit))))
+    d = NLSolversBase.OnceDifferentiable(x -> fg!(1.0, nothing, x), Uinit, real(zero(eltype(Uinit))))
     G_ref = NLSolversBase.gradient!(d, U)
 
     @test isapprox(G, G_ref; atol=1e-7)
