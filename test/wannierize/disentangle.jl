@@ -2,7 +2,7 @@ using NLSolversBase
 
 # A reusable fixture for a model
 model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
-f, g! = Wannier.get_fg!_disentangle(model)
+fg! = Wannier.get_fg!_disentangle(model);
 
 @testset "U_to_X_Y X_Y_to_U" begin
     X, Y = Wannier.U_to_X_Y(model.U, model.frozen_bands)
@@ -30,10 +30,10 @@ end
     X, Y = Wannier.U_to_X_Y(U0, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
     G = similar(XY)
-    g!(G, XY)
+    fg!(nothing, G, XY)
 
     # finite diff gradient
-    d = OnceDifferentiable(f, XY, zero(eltype(real(XY))))
+    d = OnceDifferentiable(x -> fg!(1.0, nothing, x), XY, zero(eltype(real(XY))))
     G_ref = NLSolversBase.gradient!(d, XY)
 
     # The gradient for frozen bands need to be set as 0 explicitly
@@ -41,12 +41,12 @@ end
     @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.disentangle(model; max_iter=1)
+    U1 = Wannier.disentangle(model; max_iter=1);
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
-    g!(G, XY)
-    d = OnceDifferentiable(f, XY, zero(eltype(real(XY))))
+    fg!(nothing, G, XY)
+    d = OnceDifferentiable(x -> fg!(1.0, nothing, x), XY, zero(eltype(real(XY))))
     G_ref = NLSolversBase.gradient!(d, XY)
     Wannier.zero_froz_grad!(G_ref, model.frozen_bands)
     @test isapprox(G, G_ref; atol=1e-6)

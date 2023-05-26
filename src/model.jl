@@ -139,6 +139,11 @@ function Model(
     )
 end
 
+n_wann(model) = isempty(model.U) ? 0 : size(model.U[1], 2)
+n_bands(model) = isempty(model.U) ? 0 : size(model.U[1], 1)
+n_kpts(model) = length(model.kpoints)
+n_bvecs(model) = isempty(model.M) ? 0 : size(model.M[1], 3)
+
 function Base.show(io::IO, model::Model)
     @printf(io, "lattice: Å\n")
     for i in 1:3
