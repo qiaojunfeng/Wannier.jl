@@ -84,50 +84,13 @@ Compute WF spread with center penalty, for maximal localization.
 - `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
-function omega_center(
-    bvectors::BVectors{T},
-    M::Vector{Array{Complex{T},3}},
-    U,
-    r₀::Vector{Vec3{T}},
-    λ::T,
-) where {T<:Real}
-    Ω = omega(bvectors, M, U)
+function omega_center(args...; r₀::Vector{Vec3{T}}, λ::T) where {T<:Real}
+    Ω = omega(args...)
     ωc = λ .* map(i -> (t = Ω.r[i] - r₀[i]; sum(t.^2)), 1:length(r₀))
     ωt = Ω.ω + ωc
     Ωc = sum(ωc)
     Ωt = Ω.Ω + Ωc
     return SpreadCenter(Ω.Ω, Ω.ΩI, Ω.ΩOD, Ω.ΩD, Ω.Ω̃, Ω.ω, Ω.r, Ωc, Ωt, ωc, ωt)
-end
-
-"""
-    omega_center(model, U, r₀, λ)
-
-Compute WF spread with center penalty, for maximal localization.
-
-# Arguments
-- `model`: `Model`
-- `U`: `n_wann * n_wann * n_kpts` array
-- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
-- `λ`: penalty strength
-"""
-function omega_center(
-    model::Model{T}, U, r₀::Vector{Vec3{T}}, λ::T
-) where {T<:Real}
-    return omega_center(model.bvectors, model.M, U, r₀, λ)
-end
-
-"""
-    omega_center(model, r₀, λ)
-
-Compute WF spread with center penalty, for maximal localization.
-
-# Arguments
-- `model`: `Model`
-- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
-- `λ`: penalty strength
-"""
-function omega_center(model::Model{T}, r₀, λ::T) where {T<:Real}
-    return omega_center(model, model.U, r₀, λ)
 end
 
 """
@@ -318,7 +281,7 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_center_maxloc(model::Model{T}, r₀::Vector{Vec3{T}}, λ::T=1.0) where {T<:Real}
-    f(U) = omega_center(model.bvectors, model.M, U, r₀, λ).Ωt
+    f(U) = omega_center(model.bvectors, model.M, U; r₀, λ).Ωt
 
     function g!(G, U)
         r = center(model.bvectors, model.M, U)
@@ -360,7 +323,7 @@ function max_localize_center(
 
     f, g! = get_fg!_center_maxloc(model, r₀, λ)
 
-    Ωⁱ = omega_center(model.bvectors, model.M, model.U, r₀, λ)
+    Ωⁱ = omega_center(model.bvectors, model.M, model.U; r₀, λ)
     @info "Initial spread"
     show(Ωⁱ)
     println("\n")
@@ -390,7 +353,7 @@ function max_localize_center(
 
     Umin = Optim.minimizer(opt)
 
-    Ωᶠ = omega_center(model.bvectors, model.M, Umin, r₀, λ)
+    Ωᶠ = omega_center(model.bvectors, model.M, Umin; r₀, λ)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
