@@ -6,7 +6,7 @@ using NLSolversBase
 model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
 r₀ = [[Vec3(1.34940, 1.34940, 1.34940) for i = 1:model.n_wann/2]; [Vec3(0.0,0.0,0.0) for i = 1:model.n_wann/2]]
 λ = 10.0
-f, g! = Wannier.get_fg!_center_disentangle(model, r₀, λ)
+fg! = Wannier.get_fg!_center_disentangle(model, r₀, λ)
 
 @testset "constraint center disentangle spread gradient" begin
     U0 = deepcopy(model.U)
@@ -15,10 +15,10 @@ f, g! = Wannier.get_fg!_center_disentangle(model, r₀, λ)
     X, Y = Wannier.U_to_X_Y(U0, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
     G = similar(XY)
-    g!(G, XY)
+    fg!(nothing, G, XY)
 
     # finite diff gradient
-    d = OnceDifferentiable(f, XY, zero(eltype(real(XY))))
+    d = OnceDifferentiable(x -> fg!(1.0, nothing, x), XY, zero(eltype(real(XY))))
     G_ref = NLSolversBase.gradient!(d, XY)
 
     # The gradient for frozen bands need to be set as 0 explicitly
@@ -30,8 +30,8 @@ f, g! = Wannier.get_fg!_center_disentangle(model, r₀, λ)
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
-    g!(G, XY)
-    d = OnceDifferentiable(f, XY, zero(eltype(real(XY))))
+    fg!(nothing, G, XY)
+    d = OnceDifferentiable(x -> fg!(1.0, nothing, x), XY, zero(eltype(real(XY))))
     G_ref = NLSolversBase.gradient!(d, XY)
     Wannier.zero_froz_grad!(G_ref, model.frozen_bands)
     @test isapprox(G, G_ref; atol=1e-6)

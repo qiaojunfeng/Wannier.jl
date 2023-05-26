@@ -86,31 +86,34 @@ Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 function get_fg!_center_disentangle(
     model::Model{T}, r₀::Vector{Vec3{T}}, λ::T=1.0
 ) where {T<:Real}
-    function f(XY)
-        X, Y = XY_to_X_Y(XY, model.n_bands, model.n_wann)
-        return omega_center(model.bvectors, model.M, X, Y, r₀, λ).Ωt
-    end
+    cache = Cache(model)
+    
+    function fg!(Ω, G, XY)
+        
+        X, Y = XY_to_X_Y!(cache.X, cache.Y, XY)
+        U = X_Y_to_U!(cache.U, X, Y)
+        compute_MUᵏᵇ_Nᵏᵇ!(cache, model.bvectors, model.M, U)
 
-    """size(G) == size(XY)"""
-    function g!(G, XY)
-        X, Y = XY_to_X_Y(XY, model.n_bands, model.n_wann)
-        GX, GY = omega_center_grad(model.bvectors, model.M, X, Y, model.frozen_bands, r₀, λ)
+        if G !== nothing
+            # TODO Optimize this!
+            GX, GY = omega_center_grad(model.bvectors, model.M, X, Y, model.frozen_bands, r₀, λ)
 
-        n = model.n_wann^2
+            n = model.n_wann^2
 
-        @inbounds for ik in 1:(model.n_kpts)
-            for i in eachindex(GX[ik])
-                G[i, ik] = GX[ik][i]
-            end
-            for i in eachindex(GY[ik])
-                G[n + i, ik] = GY[ik][i]
+            @inbounds for ik in 1:(model.n_kpts)
+                for i in eachindex(GX[ik])
+                    G[i, ik] = GX[ik][i]
+                end
+                for i in eachindex(GY[ik])
+                    G[n + i, ik] = GY[ik][i]
+                end
             end
         end
-
-        return nothing
+        if Ω !== nothing
+            return omega_center(omega!(cache, model.bvectors, model.M); r₀, λ).Ωt
+        end
     end
-
-    return f, g!
+    return fg!
 end
 
 """
@@ -150,7 +153,7 @@ function disentangle_center(
     # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
     # U: n_bands * n_wann * n_kpts
     # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
-    f, g! = get_fg!_center_disentangle(model, r₀, λ)
+    fg! = get_fg!_center_disentangle(model, r₀, λ)
 
     Ωⁱ = omega_center(model; r₀, λ)
     @info "Initial spread"
@@ -178,9 +181,7 @@ function disentangle_center(
     # meth = Optim.ConjugateGradient
     meth = Optim.LBFGS
 
-    opt = Optim.optimize(
-        f,
-        g!,
+    opt = Optim.optimize(Optim.only_fg!(fg!),
         XY0,
         meth(; manifold=XYManif, linesearch=ls, m=history_size),
         Optim.Options(;
