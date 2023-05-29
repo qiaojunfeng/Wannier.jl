@@ -212,12 +212,6 @@ Standard penalty for minimizing the total spread.
 """
 struct SpreadPenalty <: AbstractPenalty end
 
-get_fg!(::SpreadPenalty, model::Model) =
-    get_fg!_maxloc(model)
-    
-get_fg!_disentangle(::SpreadPenalty, model::Model) =
-    get_fg!_disentangle(model)
-
 omega!(::SpreadPenalty, args...) = omega!(args...)
 omega(::SpreadPenalty, args...)  = omega(args...)
 

@@ -6,7 +6,8 @@ using NLSolversBase
 model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
 r₀ = [[Vec3(1.34940, 1.34940, 1.34940) for i = 1:model.n_wann/2]; [Vec3(0.0,0.0,0.0) for i = 1:model.n_wann/2]]
 λ = 10.0
-fg! = Wannier.get_fg!_center_disentangle(model, r₀, λ)
+p = CenterSpreadPenalty(r₀, λ)
+fg! = Wannier.get_fg!_disentangle(model, r₀, λ)
 
 @testset "constraint center disentangle spread gradient" begin
     U0 = deepcopy(model.U)
@@ -26,7 +27,7 @@ fg! = Wannier.get_fg!_center_disentangle(model, r₀, λ)
     @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.disentangle_center(model, r₀, λ; max_iter=1)
+    U1 = Wannier.disentangle(p, model; max_iter=1)
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
@@ -38,8 +39,8 @@ fg! = Wannier.get_fg!_center_disentangle(model, r₀, λ)
 end
 
 @testset "constraint center disentangle" begin
-    Umin = Wannier.disentangle_center(model, r₀, λ; max_iter=4);
-    Ω = Wannier.omega_center(model.bvectors, model.M, Umin; r₀, λ)
+    Umin = Wannier.disentangle(p, model; max_iter=4);
+    Ω = Wannier.omega(p, model.bvectors, model.M, Umin)
 
     display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
