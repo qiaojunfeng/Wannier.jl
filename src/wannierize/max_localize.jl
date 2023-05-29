@@ -1,13 +1,13 @@
 using Optim: Optim
 
-export max_localize
+export max_localize 
 
 """
     get_fg!_maxloc(model::Model)
 
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
-function get_fg!_maxloc(model::Model)
+function get_fg!_maxloc(p::AbstractPenalty, model::Model)
     cache = Cache(model)
 
     function fg!(F, G, U)
@@ -15,10 +15,10 @@ function get_fg!_maxloc(model::Model)
         
         if G !== nothing
             cache.G = G
-            omega_grad!(cache, model.bvectors, model.M)
+            omega_grad!(p, cache, model.bvectors, model.M)
         end
         if F !== nothing
-            return omega!(cache, model.bvectors, model.M).Ω
+            return omega!(p, cache, model.bvectors, model.M).Ω
         end
     end
 
@@ -39,15 +39,15 @@ Maximally localize spread functional w.r.t. all kpoints on a unitary matrix mani
 - `max_iter`: maximum number of iterations
 - `history_size`: history size of LBFGS
 """
-function max_localize(
+function max_localize(p::AbstractPenalty,
     model::Model{T}; f_tol::T=1e-7, g_tol::T=1e-5, max_iter::Int=200, history_size::Int=3
 ) where {T<:Real}
     model.n_bands != model.n_wann &&
         error("n_bands != n_wann, run instead disentanglement?")
 
-    fg! = get_fg!_maxloc(model)
+    fg! = get_fg!_maxloc(p, model)
 
-    Ωⁱ = omega(model.bvectors, model.M, model.U)
+    Ωⁱ = omega(p, model.bvectors, model.M, model.U)
     @info "Initial spread"
     show(Ωⁱ)
     println("\n")
@@ -76,7 +76,7 @@ function max_localize(
 
     Umin = Optim.minimizer(opt)
 
-    Ωᶠ = omega(model.bvectors, model.M, Umin)
+    Ωᶠ = omega(p, model.bvectors, model.M, Umin)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")

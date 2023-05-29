@@ -1,8 +1,9 @@
 using LinearAlgebra
 
-export omega, omega_grad, center
+export omega, omega_grad, center, SpreadPenalty, CenterSpreadPenalty
 
 abstract type AbstractSpread end
+abstract type AbstractPenalty end
 
 @doc raw"""
     struct Spread
@@ -51,6 +52,77 @@ struct Spread{T<:Real} <: AbstractSpread
     # frozen_weight::T
     # fix_centers :: Array{Float64,2} #3 x nwannier
 end
+
+# TODO refactor, this is a copy-paste of `Spread` :-(
+"""
+    struct SpreadCenter
+
+A `struct` containing both `Spread` and WF center penalty.
+"""
+struct SpreadCenter{T} <: AbstractSpread
+    # Total spread, unit Å², Ω = ΩI + Ω̃
+    Ω::T
+
+    # gauge-invarient part, unit Å²
+    ΩI::T
+
+    # off-diagonal part, unit Å²
+    ΩOD::T
+
+    # diagonal part, unit Å²
+    ΩD::T
+
+    # Ω̃ = ΩOD + ΩD, unit Å²
+    Ω̃::T
+
+    # Ω of each WF, unit Å², length = n_wann
+    ω::Vector{T}
+
+    # WF center, Cartesian! coordinates, unit Å, 3 * n_wann
+    r::Vector{Vec3{T}}
+
+    # additional variables for penalty term
+    # Penalty, unit Å²
+    Ωc::T
+
+    # Total spread Ωt = Ω + Ωc
+    Ωt::T
+
+    # penalty of each WF, unit Å², length = n_wann
+    ωc::Vector{T}
+
+    # total spread of each WF, unit Å², length = n_wann
+    # ωt = ω + ωc
+    ωt::Vector{T}
+end
+
+function Base.show(io::IO, Ω::SpreadCenter)
+    println(io, "  WF     center [rx, ry, rz]/Å              spread/Å²  ω  ωc  ωt")
+
+    n_wann = length(Ω.ω)
+
+    for i in 1:n_wann
+        @printf(
+            io,
+            "%4d %11.5f %11.5f %11.5f %11.5f %11.5f %11.5f\n",
+            i,
+            Ω.r[i]...,
+            Ω.ω[i],
+            Ω.ωc[i],
+            Ω.ωt[i]
+        )
+    end
+
+    @printf(io, "Sum spread: Ωt = Ω + Ωc, Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n")
+    @printf(io, "   Ωt  = %11.5f\n", Ω.Ωt)
+    @printf(io, "   Ωc  = %11.5f\n", Ω.Ωc)
+    @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
+    @printf(io, "   ΩI  = %11.5f\n", Ω.ΩI)
+    @printf(io, "   ΩOD = %11.5f\n", Ω.ΩOD)
+    @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
+    @printf(io, "   Ω̃   = %11.5f", Ω.Ω̃)
+end
+
 
 #TODO a bit generic
 mutable struct Cache{T}
@@ -134,6 +206,64 @@ function compute_MUᵏᵇ_Nᵏᵇ!(MUᵏᵇ, Nᵏᵇ, bvectors, M, U::Array)
     return MUᵏᵇ, Nᵏᵇ
 end
 compute_MUᵏᵇ_Nᵏᵇ!(cache::Cache, bvectors, M, U) = compute_MUᵏᵇ_Nᵏᵇ!(cache.MUᵏᵇ, cache.Nᵏᵇ, bvectors, M, U)
+
+"""
+Standard penalty for minimizing the total spread.
+"""
+struct SpreadPenalty <: AbstractPenalty end
+
+get_fg!(::SpreadPenalty, model::Model) =
+    get_fg!_maxloc(model)
+    
+get_fg!_disentangle(::SpreadPenalty, model::Model) =
+    get_fg!_disentangle(model)
+
+omega!(::SpreadPenalty, args...) = omega!(args...)
+omega(::SpreadPenalty, args...)  = omega(args...)
+
+omega_grad!(::SpreadPenalty, args...) = omega_grad!(args...)
+omega_grad(::SpreadPenalty, args...)  = omega_grad(args...)
+
+"""
+Penalty for minimizing the spread as well as maximizing the "closeness" to the atoms.
+"""
+struct CenterSpreadPenalty{T} <: AbstractPenalty
+    r₀::Vector{Vec3{T}}
+    λ::T
+end
+
+# TODO probably omega should always just return a value not the spread struct 
+omega!(p::CenterSpreadPenalty, args...) = (Ω = omega_center(omega!(args...); p.r₀, p.λ).Ωt,)
+omega(p::CenterSpreadPenalty, args...)  = omega_center(omega(args...); p.r₀, p.λ)
+
+omega_grad!(p::CenterSpreadPenalty, args...) = omega_grad!(center_penalty(p.r₀, p.λ), args...)
+
+center_penalty(r₀, λ) = (r, n) -> (r - λ * (r - r₀[n]))
+
+"""
+    omega_center(bvectors, M, U, r₀, λ)
+
+Compute WF spread with center penalty, for maximal localization.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
+- `U`: `n_wann * n_wann * n_kpts` array
+- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
+- `λ`: penalty strength
+"""
+function omega_center(args...; kwargs...)
+    Ω = omega(args...)
+    return omega_center(Ω; kwargs...)
+end
+
+function omega_center(Ω::Spread;  r₀::Vector{Vec3{T}}, λ::T) where {T<:Real}
+    ωc = λ .* map(i -> (t = Ω.r[i] - r₀[i]; sum(t.^2)), 1:length(r₀))
+    ωt = Ω.ω + ωc
+    Ωc = sum(ωc)
+    Ωt = Ω.Ω + Ωc
+    return SpreadCenter(Ω.Ω, Ω.ΩI, Ω.ΩOD, Ω.ΩD, Ω.Ω̃, Ω.ω, Ω.r, Ωc, Ωt, ωc, ωt)
+end
 
 function omega!(cache::Cache,
     bvectors::BVectors{FT}, M::Vector{Array{Complex{FT},3}}
@@ -378,17 +508,19 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
 - `U`: `n_wann * n_wann * n_kpts` array
 - `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
 """
-function omega_grad(bvectors::BVectors, M, U)
+function omega_grad(penalty::Function, bvectors::BVectors, M, U)
     cache = Cache(bvectors, M, U)
     compute_MUᵏᵇ_Nᵏᵇ!(cache, bvectors, M, U)
-    omega_grad!(cache, bvectors, M)
+    omega_grad!(penalty, cache, bvectors, M)
 end
+omega_grad(bvectors::BVectors, M, U) = omega_grad((r, _) -> r, bvectors, M, U) 
 
-function omega_grad(bvectors::BVectors, M, X, Y,frozen)
+function omega_grad(penalty::Function, bvectors::BVectors, M, X, Y,frozen)
     U = X_Y_to_U(X, Y)
-    G = omega_grad(bvectors, M, U)
+    G = omega_grad(penalty, bvectors, M, U)
     return GU_to_GX_GY(G, X, Y, frozen)
 end
+omega_grad(bvectors::BVectors, M, U) = omega_grad((r, _) -> r, bvectors, M, X, Y,frozen) 
 
 """
     omega_local(bvectors, M, U)

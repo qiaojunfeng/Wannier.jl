@@ -29,28 +29,6 @@ function omega_center(
 end
 
 """
-    omega_center(mode, X, Y, r₀, λ)
-
-Compute WF spread with center penalty, in the `(X, Y)` layout.
-
-# Arguments
-- `model`: `Model`
-- `X`: `n_wann * n_wann * n_kpts` array
-- `Y`: `n_bands * n_wann * n_kpts` array
-- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
-- `λ`: penalty strength
-"""
-function omega_center(
-    model::Model{FT},
-    X::Vector{Matrix{Complex{FT}}},
-    Y::Vector{Matrix{Complex{FT}}},
-    r₀::Vector{Vec3{FT}},
-    λ::FT,
-) where {FT<:Real}
-    return omega_center(model.bvectors, model.M, X, Y, r₀, λ)
-end
-
-"""
     omega_center_grad(bvectors, M, X, Y, frozen, r₀, λ)
 
 Compute gradient of WF spread with center penalty, in the `(X, Y)` layout.
@@ -73,9 +51,7 @@ function omega_center_grad(
     r₀::Vector{Vec3{FT}},
     λ::FT,
 ) where {FT<:Real}
-    U = X_Y_to_U(X, Y)
-    G = omega_center_grad(bvectors, M, U, r₀, λ)
-    return GU_to_GX_GY(G, X, Y, frozen)
+    return omega_grad(center_penalty(r₀, λ), bvectors, M, X, Y, frozen)
 end
 
 """
@@ -98,7 +74,6 @@ function get_fg!_center_disentangle(
             # TODO Optimize this!
             G_ = omega_center_grad!(cache, model.bvectors, model.M; r₀, λ)
             GX, GY = GU_to_GX_GY(G_, X, Y, model.frozen_bands)
-            # GX, GY = omega_center_grad(model.bvectors, model.M, X, Y, model.frozen_bands, r₀, λ)
 
             n = model.n_wann^2
 
