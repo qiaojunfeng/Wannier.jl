@@ -7,7 +7,8 @@ using Wannier:Vec3
 model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
 r₀ = [Vec3(0.0,0.0,0.0) for i = 1:model.n_wann]
 λ = 10.0
-fg! = Wannier.get_fg!_center_maxloc(model, r₀, λ)
+p = CenterSpreadPenalty(r₀, λ)
+fg! = Wannier.get_fg!_maxloc(p, model)
 
 @testset "constraint center maxloc spread gradient" begin
     U0 = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
@@ -44,8 +45,8 @@ end
     # start from parallel transport gauge
     model.U .= read_orthonorm_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
 
-    Umin = Wannier.max_localize_center(model, r₀, λ; max_iter=4)
-    Ω = Wannier.omega_center(model.bvectors, model.M, Umin; r₀, λ)
+    Umin = Wannier.max_localize(p, model; max_iter=4)
+    Ω = Wannier.omega(p, model.bvectors, model.M, Umin)
 
     # display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃

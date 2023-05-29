@@ -3,7 +3,10 @@ using NLSolversBase
 # A reusable fixture for a model
 # no disentanglement
 model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
-fg! = Wannier.get_fg!_maxloc(model)
+
+p = SpreadPenalty()
+
+fg! = Wannier.get_fg!_maxloc(p, model)
 
 @testset "maxloc spread gradient" begin
     U0 = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
@@ -40,8 +43,8 @@ end
     # start from parallel transport gauge
     model.U .= read_orthonorm_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
 
-    Umin = max_localize(model)
-    Ω = omega(model.bvectors, model.M, Umin)
+    Umin = max_localize(p, model)
+    Ω = omega(p, model.bvectors, model.M, Umin)
 
     @test isapprox(Ω.Ω, 6.374823673444644; atol=1e-7)
     @test isapprox(Ω.ΩI, 5.812709709242578; atol=1e-7)
