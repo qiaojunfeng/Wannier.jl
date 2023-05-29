@@ -575,7 +575,7 @@ end
 
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
-function get_fg!_disentangle(model::Model{T}) where {T}
+function get_fg!_disentangle(p::AbstractPenalty, model::Model{T}) where {T}
     
     cache = Cache(model)
     
@@ -586,7 +586,7 @@ function get_fg!_disentangle(model::Model{T}) where {T}
         compute_MUᵏᵇ_Nᵏᵇ!(cache, model.bvectors, model.M, U)
         
         if G !== nothing
-            G_ = omega_grad!(cache, model.bvectors, model.M)
+            G_ = omega_grad!(p, cache, model.bvectors, model.M)
             GX, GY = GU_to_GX_GY(G_, X, Y, model.frozen_bands)
             
             n = model.n_wann^2
@@ -601,7 +601,7 @@ function get_fg!_disentangle(model::Model{T}) where {T}
             end
         end
         if Ω !== nothing
-            return omega!(cache, model.bvectors, model.M).Ω
+            return omega!(p, cache, model.bvectors, model.M).Ω
         end
     end
     return fg!
@@ -623,7 +623,7 @@ Run disentangle on the `Model`.
 - `max_iter`: maximum number of iterations
 - `history_size`: history size of LBFGS
 """
-function disentangle(
+function disentangle(p::AbstractPenalty,
     model::Model{T};
     random_gauge::Bool=false,
     f_tol::T=1e-7,
@@ -636,6 +636,7 @@ function disentangle(
     n_kpts = model.n_kpts
 
     # initial X, Y
+    # TODO l_frozen not defined, random gauge doesn't work
     if random_gauge
         X0 = [zeros(Complex{T}, n_wann, n_wann) for i = 1:n_kpts]
         Y0 = [zeros(Complex{T}, n_bands, n_wann) for i = 1:n_kpts]
@@ -667,15 +668,15 @@ function disentangle(
     # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
     # U: n_bands * n_wann * n_kpts
     # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
-    fg! = get_fg!_disentangle(model)
+    fg! = get_fg!_disentangle(p, model)
 
-    Ωⁱ = omega(model, model.U)
+    Ωⁱ = omega(p, model, model.U)
     @info "Initial spread"
     show(Ωⁱ)
     println("\n")
 
-    Ωⁱ = omega(model, X_Y_to_U(X0, Y0))
-    @info "Initial spread (with states freezed)"
+    Ωⁱ = omega(p, model, X_Y_to_U(X0, Y0))
+    @info "Initial spread (with states frozen)"
     show(Ωⁱ)
     println("\n")
 
@@ -713,7 +714,7 @@ function disentangle(
     Xmin, Ymin = XY_to_X_Y(XYmin, n_bands, n_wann)
     Umin = X_Y_to_U(Xmin, Ymin)
 
-    Ωᶠ = omega(model, Umin)
+    Ωᶠ = omega(p, model, Umin)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")

@@ -2,7 +2,8 @@ using NLSolversBase
 
 # A reusable fixture for a model
 model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
-fg! = Wannier.get_fg!_disentangle(model);
+p = SpreadPenalty()
+fg! = Wannier.get_fg!_disentangle(p, model);
 
 @testset "U_to_X_Y X_Y_to_U" begin
     X, Y = Wannier.U_to_X_Y(model.U, model.frozen_bands)
@@ -41,7 +42,7 @@ end
     @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.disentangle(model; max_iter=1);
+    U1 = Wannier.disentangle(p, model; max_iter=1);
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
@@ -53,8 +54,8 @@ end
 end
 
 @testset "disentangle" begin
-    Umin = Wannier.disentangle(model; max_iter=4)
-    Ω = Wannier.omega(model.bvectors, model.M, Umin)
+    Umin = Wannier.disentangle(p, model; max_iter=4)
+    Ω = Wannier.omega(p, model.bvectors, model.M, Umin)
 
     # display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
