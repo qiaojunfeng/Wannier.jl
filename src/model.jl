@@ -184,7 +184,6 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     return nothing
 end
 
-
 function Atoms(m::Model)
     r = center(m)
     atom2wanids = Dict([p => Int[] for p in m.atom_positions])
