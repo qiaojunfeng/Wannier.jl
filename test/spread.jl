@@ -3,7 +3,7 @@ using NLSolversBase
 # A reusable fixture for a model
 model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
 
-fg! = Wannier.get_fg!_maxloc(model)
+fg! = Wannier.get_fg!_maxloc(SpreadPenalty(), model)
 
 @testset "spread" begin
     # should be roughly the same as test/fixtures/silicon/silicon.wout

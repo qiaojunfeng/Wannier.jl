@@ -4,6 +4,7 @@ authors = ["Junfeng Qiao <qiaojunfeng@outlook.com>"]
 version = "0.3.2"
 
 [deps]
+AtomsBase = "a963bdd2-2df7-4f54-a1ee-49d51e6be12a"
 Bravais = "ada6cbde-b013-4edf-aa94-f6abe8bd6e6b"
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
 Comonicon = "863f3e99-da2a-4334-8734-de3dacbe5542"

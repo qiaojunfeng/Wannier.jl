@@ -514,7 +514,7 @@ function omega_grad(penalty::Function, bvectors::BVectors, M, X, Y,frozen)
     G = omega_grad(penalty, bvectors, M, U)
     return GU_to_GX_GY(G, X, Y, frozen)
 end
-omega_grad(bvectors::BVectors, M, U) = omega_grad((r, _) -> r, bvectors, M, X, Y,frozen) 
+omega_grad(bvectors::BVectors, M, X, Y,frozen) = omega_grad((r, _) -> r, bvectors, M, X, Y,frozen) 
 
 """
     omega_local(bvectors, M, U)

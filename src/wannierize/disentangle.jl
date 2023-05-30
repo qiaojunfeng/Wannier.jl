@@ -485,7 +485,6 @@ function GU_to_GX_GY(
 
         GY[ik][idx_f, :] .= 0
         GY[ik][:, 1:n_froz] .= 0
-        # @show ik, GY[ik]
     end
 
     return GX, GY
@@ -513,7 +512,6 @@ function GU_to_G!(G, GU, X, Y, frozen)
 
         GY[idx_f, :] .= 0
         GY[:, 1:n_froz] .= 0
-        # @show ik, GY
     end
     
 end

@@ -1,4 +1,5 @@
 using LinearAlgebra
+using LinearAlgebra.BLAS: libblas
 
 export orthonorm_lowdin, eyes_U, rotate_M
 export isunitary

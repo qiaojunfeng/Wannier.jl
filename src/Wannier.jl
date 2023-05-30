@@ -10,5 +10,6 @@ include("wannierize/include.jl")
 include("interp/include.jl")
 include("realspace/include.jl")
 include("cli/main.jl")
+include("exchanges.jl")
 
 end

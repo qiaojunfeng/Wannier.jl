@@ -1,5 +1,7 @@
 export interpolate
 
+phases(kpoints::Vector{<:Vec3}, R::Vec3) = exp.(-2im * π .* dot.(kpoints, (R,)))
+
 """
     get_Hk(E, U)
 
@@ -165,10 +167,10 @@ function HamiltonianKGrid(hami::TBHamiltonian{T}, kpoints::Vector{<:Vec3},
                           Hk_function::Function = x -> nothing) where {T}
                           
     n_eigvals = max(blocksize(hami)...)
-    eigvals = [zeros(T, n_eigvals) for k in kpoints]
-    # eigvals = hami[1].block isa AbstractMagneticMatrix ?
-    #           [MagneticVector(zeros(T, n_eigvals)) for k in kpoints] :
-    #           [zeros(T, n_eigvals) for k in kpoints]
+    # eigvals = [zeros(T, n_eigvals) for k in kpoints]
+    eigvals = hami[1].block isa AbstractMagneticMatrix ?
+              [MagneticVector(zeros(T, n_eigvals)) for k in kpoints] :
+              [zeros(T, n_eigvals) for k in kpoints]
               
     kgrid = HamiltonianKGrid(kpoints, [zeros_block(hami) for k in kpoints], eigvals,
                              [zeros_block(hami) for k in kpoints])
@@ -181,12 +183,10 @@ function HamiltonianKGrid(hami::TBHamiltonian{T}, kpoints::Vector{<:Vec3},
         
         Hk!(kgrid.eigvecs[i], hami, k_cryst(kgrid)[i])
         
-        copy!(kgrid.Hk[i], copy(kgrid.eigvecs[i]))
+        copy!(kgrid.Hk[i], kgrid.eigvecs[i])
         Hk_function(kgrid.Hk[i])
-        e = eigen(Hermitian(kgrid.Hk[i]))
-        kgrid.eigvecs[i] .= e.vectors
-        kgrid.eigvals[i] .= e.values
-        # eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[tid])
+        t = eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[tid])
+        copy!(kgrid.eigvecs[i], t.vectors)
         next!(p)
     end
     
@@ -235,6 +235,7 @@ interpolate(hami::TBHamiltonian, kpoints) = HamiltonianKGrid(hami, kpoints).eigv
 @inline function LinearAlgebra.eigen!(vecs::AbstractMatrix, ws::HermitianEigenWs)
     return Eigen(decompose!(ws, 'V', 'A', 'U', vecs, 0., 0., 0, 0, 1e-16)...)
 end
+
 @inline function LinearAlgebra.eigen!(vals, vecs::AbstractMatrix, ws::HermitianEigenWs)
     ws.w = vals
     te = Eigen(decompose!(ws, 'V', 'A', 'U', vecs, 0., 0., 0, 0, 1e-16)...)
