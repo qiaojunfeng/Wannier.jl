@@ -23,7 +23,7 @@ n_wann = model.n_wann
 SUITE["X_Y_to_XY"] = @benchmarkable Wannier.XY_to_X_Y($XY, $n_bands, $n_wann)
 
 # just run 10 iterations
-SUITE["disentangle"] = @benchmarkable disentangle($model, max_iter=10)
+SUITE["disentangle"] = @benchmarkable disentangle(SpreadPenalty(), $model, max_iter=10)
 
 end  # module
 

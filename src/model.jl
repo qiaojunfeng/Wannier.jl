@@ -183,3 +183,34 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     @printf(io, "  n_wannier   =  %d", n_wannier(model))
     return nothing
 end
+
+
+function Atoms(m::Model)
+    r = center(m)
+    atom2wanids = Dict([p => Int[] for p in m.atom_positions])
+    
+    for (iw, r_) in enumerate(r)
+        
+        minid = findmin(x->norm(m.lattice * x - r_), m.atom_positions)[2]
+        
+        push!(atom2wanids[m.atom_positions[minid]],
+              iw)
+    end
+    
+    map(zip(m.atom_positions, m.atom_labels)) do (p, l)
+
+        pos = m.lattice * p * 1AtomsBase.u"Å"
+
+        # Here we make sure that indices are sorted and contiguous
+        
+        ids = sort(atom2wanids[p])
+        @assert maximum(i -> ids[i+1] - ids[i], 1:length(ids)-1) == 1 "Wannier functions are not contiguous for atom $l"
+
+        range = UnitRange(minimum(ids), maximum(ids))
+
+        return Atom(Symbol(l), pos, indices=range)
+    end
+end
+
+Base.range(a::AtomsBase.Atom) = a[:indices]
+
