@@ -452,8 +452,8 @@ function setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset = 0.001)
                 range(offset + ωv * 1im, offset; length = n_ωv))
 end
 
-struct ExchangeKGrid{T,MT} <: AbstractKGrid{T}
-    hamiltonian_kgrid::HamiltonianKGrid{T,MT}
+struct ExchangeKGrid{T,MT, VT} <: AbstractKGrid{T}
+    hamiltonian_kgrid::HamiltonianKGrid{T,MT, VT}
     phases::Vector{Complex{T}}
     D::Matrix{Complex{T}}
 end
