@@ -44,4 +44,6 @@ mat2vec(A::AbstractMatrix) = [v for v in eachcol(A)]
     include("interp/hamiltonian.jl")
     include("interp/fermisurf.jl")
     include("interp/derivative.jl")
+
+    include("exchanges.jl")
 end

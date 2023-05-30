@@ -258,7 +258,6 @@ function rotate_gauge(model::Model, U::Vector{Matrix{T}}; diag_H::Bool=false) wh
     return model2
 end
 
-
 function Atoms(m::Model)
     r = center(m)
     atom2wanids = Dict([p => Int[] for p in m.atom_positions])
