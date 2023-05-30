@@ -7,7 +7,7 @@ model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
 r₀ = [[Vec3(1.34940, 1.34940, 1.34940) for i = 1:model.n_wann/2]; [Vec3(0.0,0.0,0.0) for i = 1:model.n_wann/2]]
 λ = 10.0
 p = CenterSpreadPenalty(r₀, λ)
-fg! = Wannier.get_fg!_disentangle(model, r₀, λ)
+fg! = Wannier.get_fg!_disentangle(p, model)
 
 @testset "constraint center disentangle spread gradient" begin
     U0 = deepcopy(model.U)
