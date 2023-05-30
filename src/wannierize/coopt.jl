@@ -29,6 +29,8 @@ function Base.show(io::IO, model::MagModel)
     return show(io, model.dn)
 end
 
+Atoms(m::MagModel) = Atoms(m.up)
+   
 # function MagModel(up::Model{T}, dn::Model{T}) where {T<:Real}
 #     @assert up.n_bands == dn.n_bands
 #     @assert up.n_wann == dn.n_wann

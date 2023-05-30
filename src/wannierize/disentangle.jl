@@ -642,7 +642,7 @@ function disentangle(p::AbstractPenalty,
         for ik in 1:n_kpts
             idx_f = model.frozen_bands[ik]
             idx_nf = .!idx_f
-            n_froz = count(l_frozen)
+            n_froz = count(idx_f)
 
             m = n_wann
             n = n_wann
