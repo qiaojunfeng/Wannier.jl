@@ -220,7 +220,7 @@ for (elty, cfunc) in zip((:ComplexF32, :ComplexF64), (:cgemm_, :zgemm_))
     @eval @inline function LinearAlgebra.mul!(C::ColinMatrix{$elty}, A::ColinMatrix{$elty}, B::ColinMatrix{$elty})
         dim = blockdim(C)
         dim2 = dim * dim
-        ccall((LinearAlgebra.LAPACK.@blasfunc($(cfunc)), libblas), Cvoid,
+        ccall((LinearAlgebra.LAPACK.@blasfunc($(cfunc)), liblapack), Cvoid,
                         (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt},
                          Ref{BlasInt}, Ref{$elty}, Ptr{$elty}, Ref{BlasInt},
                          Ptr{$elty}, Ref{BlasInt}, Ref{$elty}, Ptr{$elty},
@@ -228,7 +228,7 @@ for (elty, cfunc) in zip((:ComplexF32, :ComplexF64), (:cgemm_, :zgemm_))
                          'N', 'N', dim, dim,
                          dim, one($elty), A, dim,
                          B, dim, zero($elty), C, dim)
-        ccall((LinearAlgebra.LAPACK.@blasfunc($(cfunc)), libblas), Cvoid,
+        ccall((LinearAlgebra.LAPACK.@blasfunc($(cfunc)), liblapack), Cvoid,
                         (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt},
                          Ref{BlasInt}, Ref{$elty}, Ptr{$elty}, Ref{BlasInt},
                          Ptr{$elty}, Ref{BlasInt}, Ref{$elty}, Ptr{$elty},
@@ -311,7 +311,7 @@ for f in (:view, :getindex)
         $f(c, uprange(a1))
     
     @eval Base.$f(c::MagneticVector, a1::T, ::Down) where {T <: Atom} =
-        $f(c, range(a1), uprange(a2) + div(length(c), 2))
+        $f(c, range(a1), uprange(a1) + div(length(c), 2))
         
     @eval Base.$f(c::MagneticVector, ::Up) =
         $f(c, 1:div(length(c), 2))

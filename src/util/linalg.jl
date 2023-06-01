@@ -1,5 +1,12 @@
 using LinearAlgebra
-using LinearAlgebra.BLAS: libblas
+
+@static if VERSION < v"1.7"
+    using LinearAlgebra.LAPACK: liblapack
+elseif VERSION < v"1.9"
+    const liblapack = "libblastrampoline"
+else
+    const liblapack = LinearAlgebra.libblastrampoline
+end
 
 export orthonorm_lowdin, eyes_U, rotate_M
 export isunitary
