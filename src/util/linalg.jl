@@ -27,7 +27,7 @@ end
 """
     orthonorm_lowdin(U::Array{T,3})
 
-Lowdin orthonormalize a series of matrices `M`.
+Lowdin orthonormalize a series of matrices `U`.
 """
 orthonorm_lowdin(U::Vector{Matrix{T}}) where {T<:Union{Complex,Real}} = orthonorm_lowdin.(U)
 
@@ -103,7 +103,9 @@ I.e., ``U^{\\dagger} O U``.
 function rotate_gauge(O::Vector{Matrix{T}}, U::Vector{Matrix{T}}) where {T<:Number}
     n_bands, n_wann = size(U[1])
     n_kpts = length(U)
-    size(O[1], 1), size(O[1], 2), length(O) != (n_bands, n_bands, n_kpts) &&
+    size(O[1], 1),
+    size(O[1], 2),
+    length(O) != (n_bands, n_bands, n_kpts) &&
         error("O must have size (n_bands, n_bands, n_kpts)")
 
     return map(zip(O, U)) do (o, u)
@@ -116,8 +118,9 @@ end
 
 Return a series of indentity matrices of type `T` and size `n_wann * n_wann * n_kpts`.
 """
-eyes_U(::Type{T}, n_wann::Int, n_kpts::Int) where T = 
-    [diagm(0 => ones(T, n_wann)) for i = 1:n_kpts]
+function eyes_U(::Type{T}, n_wann::Int, n_kpts::Int) where {T}
+    return [diagm(0 => ones(T, n_wann)) for i in 1:n_kpts]
+end
 
 """
     eyes_U(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
@@ -125,9 +128,9 @@ eyes_U(::Type{T}, n_wann::Int, n_kpts::Int) where T =
 Return a series of indentity matrices of type `T` and size `n_bands * n_wann * n_kpts`.
 """
 function eyes_U(T::Type, n_bands::Int, n_wann::Int, n_kpts::Int)
+    n = min(n_bands, n_wann)
     map(1:n_kpts) do
         U = zeros(T, n_bands, n_wann)
-        n = min(n_bands, n_wann)
         U[1:n, 1:n] .= 1
         return U
     end
@@ -147,32 +150,29 @@ For each kpoint ``\bm{k}``, return ``U_{\bm{k}} V_{\bm{k}}``.
 function rotate_U(U::AbstractVector, V::AbstractVector)
     n_kpts = length(U)
     n_bands, n_wann = size(U[1])
-    
+
     return map(zip(U, V)) do (u, v)
         u * v
     end
 end
 
 """
-    rotate_M(M::Array{T,4}, kpb_k::Matrix{Int}, U::Array{T,3})
+    rotate_M(M, kpb_k, U)
 
 Rotate `mmn` matrices according to gauge `U`.
 
 i.e., for each kpoint ``\\bm{k}``,
 ``U_{\\bm{k}+\\bm{b}}^{\\dagger} M_{\\bm{k},\\bm{b}} U_{\\bm{k}}``.
 """
-@views function rotate_M(
-    M::Vector{Array{T,3}}, kpb_k, U::Vector{Matrix{T}}
-) where {T<:Complex}
-
+@views function rotate_M(M::AbstractVector, kpb_k::AbstractVector, U::AbstractVector)
     n_bands, n_wann = size(U[1])
     n_kpts = length(M)
-    n_bvecs = size(M[1], 3)
+    n_bvecs = length(M[1])
 
-    n_bands != size(M[1], 1) && error("incompatible n_bands")
+    n_bands != size(M[1][1], 1) && error("incompatible n_bands")
 
-    # Fill MMN
-    N = [similar(M[1], n_wann, n_wann, n_bvecs) for i = 1:n_kpts]
+    # Fill Mmn
+    N = [[similar(M[1][1], n_wann, n_wann) for ib in 1:n_bvecs] for ik in 1:n_kpts]
 
     @views @inbounds for ik in 1:n_kpts
         for ib in 1:n_bvecs
@@ -180,7 +180,7 @@ i.e., for each kpoint ``\\bm{k}``,
             U₁ = U[ik]
             U₂ = U[ik2]
 
-            N[ik][:, :, ib] .= U₁' * M[ik][:, :, ib] * U₂
+            N[ik][ib] .= U₁' * M[ik][ib] * U₂
         end
     end
 
@@ -188,14 +188,14 @@ i.e., for each kpoint ``\\bm{k}``,
 end
 
 """
-    isunitary(U::AbstractVector{AbstractMatrix{T}}; atol=1e-10)
+    isunitary(U; atol=1e-10)
 
 Check if matrix is unitary or semi-unitary for all the kpoints?
 
 I.e. does it have orthogonal columns?
 """
-function isunitary(U::AbstractVector{AbstractMatrix{T}}; atol::Real=1e-10) where {T<:Number}
-    n_bands, n_wann, n_kpts = size(U)
+function isunitary(U::AbstractVector{AbstractMatrix}; atol::Real=1e-10)
+    n_kpts = length(U)
 
     for ik in 1:n_kpts
         Uₖ = U[ik]
@@ -208,12 +208,11 @@ function isunitary(U::AbstractVector{AbstractMatrix{T}}; atol::Real=1e-10) where
 end
 
 """
-    get_projectability(U::AbstractVector{Abs = size(U[1])
-    actMatrix{T}})
+    get_projectability(U)
 
 Return projectability of each kpoint.
 """
-function get_projectability(U::AbstractVector{AbstractMatrix{T}}) where {T<:Number}
+function get_projectability(U::AbstractVector)
     map(U) do u
         p = u * u'
         return real(diag(p))
@@ -266,7 +265,7 @@ Generate a random unitary matrix using Lowdin orthonormalization.
 rand_unitary(T::Type, m::Int) = rand_unitary(T, m, m)
 
 """
-    rand_unitary(T::Type, m::Int, n::Int, k::Int)
+    rand_unitary(T::Type, m, n, k)
 
 Generate a series of random (semi-)unitary matrix using Lowdin orthonormalization.
 
@@ -278,4 +277,6 @@ The returned `M[:, :, ik]` is (semi-)unitary for all `ik = 1:k`.
 - `n`: number of columns
 - `k`: number of matrices
 """
-rand_unitary(T::Type, m::Int, n::Int, k::Int) = [rand_unitary(T, m, n) for i = 1:k]
+function rand_unitary(T::Type, m::Integer, n::Integer, k::Integer)
+    return [rand_unitary(T, m, n) for i in 1:k]
+end

@@ -13,19 +13,20 @@ Return a tuple of `(k_xyz, xyz_k)`:
 - `kpoints`: `3 * n_kpts`, in fractional coordinates
 - `kgrid`: `3`, number of kpoints along each reciprocal lattice vector
 """
-function get_kpoint_mappings(kpoints::Vector{Vec3{T}}, kgrid::AbstractVector{Int}) where {T<:Real}
+function get_kpoint_mappings(
+    kpoints::Vector{Vec3{T}}, kgrid::AbstractVector{Int}
+) where {T<:Real}
     n_kpts = prod(kgrid)
     n_kx, n_ky, n_kz = kgrid
     dkx, dky, dkz = 1 / n_kx, 1 / n_ky, 1 / n_kz
 
     kpts_int = map(kpoints) do k
-        t = round.(Int, k ./ Vec3(dkx,dky, dkz))
-        t = mod.(t, Vec3(kgrid)).+1
+        t = round.(Int, k ./ Vec3(dkx, dky, dkz))
+        t = mod.(t, Vec3(kgrid)) .+ 1
         return t
     end
-        
-        
-        # Vec3(mod1.(round.(Int, k./), kgrid)), kpoints)
+
+    # Vec3(mod1.(round.(Int, k./), kgrid)), kpoints)
 
     k_xyz = Vector{Vec3{Int}}(undef, n_kpts)
     xyz_k = Array{Int,3}(undef, n_kx, n_ky, n_kz)
@@ -133,7 +134,7 @@ function get_kpoints(
     if fractional
         if endpoint
             for i in 1:length(kpoints)
-                kpoints[i] = kpoints[i]./Vec3(nx - 1, ny - 1, nz - 1)
+                kpoints[i] = kpoints[i] ./ Vec3(nx - 1, ny - 1, nz - 1)
             end
         else
             for i in 1:length(kpoints)
@@ -153,8 +154,8 @@ Sort kpoints such that z increases the fastest, then y, then x.
 # Arguments
 - `kpoints`: `3 * n_kpts`
 """
-function sort_kpoints(kpoints::Vector{Vec3{T}}) where {T<:Real}
-    return sort(kpoints; by = k -> k[3] + 100k[2] + 1000k[1])
+function sort_kpoints(kpoints::Vector)
+    return sort(kpoints)
 end
 
 """

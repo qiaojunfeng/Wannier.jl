@@ -30,34 +30,46 @@ end
 @testset "get_kpoints" begin
     kpoints = Wannier.get_kpoints([2, 2, 2])
 
-    ref_kpoints = [
-        0.0 0.0 0.0 0.0 0.5 0.5 0.5 0.5
-        0.0 0.0 0.5 0.5 0.0 0.0 0.5 0.5
-        0.0 0.5 0.0 0.5 0.0 0.5 0.0 0.5
+    ref_kpoints = Vec3[
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.5],
+        [0.0, 0.5, 0.0],
+        [0.0, 0.5, 0.5],
+        [0.5, 0.0, 0.0],
+        [0.5, 0.0, 0.5],
+        [0.5, 0.5, 0.0],
+        [0.5, 0.5, 0.5],
     ]
-    ref_kpoints = map(x->Vec3(ref_kpoints[:, x]), axes(ref_kpoints, 2))
     @test kpoints == ref_kpoints
 end
 
 @testset "get_kpoints endpoint" begin
     kpoints = Wannier.get_kpoints([2, 2, 2]; endpoint=true)
 
-    ref_kpoints = [
-        0.0 0.0 0.0 0.0 1.0 1.0 1.0 1.0
-        0.0 0.0 1.0 1.0 0.0 0.0 1.0 1.0
-        0.0 1.0 0.0 1.0 0.0 1.0 0.0 1.0
+    ref_kpoints = Vec3[
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 1.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [1.0, 0.0, 1.0],
+        [1.0, 1.0, 0.0],
+        [1.0, 1.0, 1.0],
     ]
-    ref_kpoints = map(x->Vec3(ref_kpoints[:, x]), axes(ref_kpoints, 2))
     @test kpoints == ref_kpoints
 end
 
 @testset "sort_kpoints" begin
-    ref_kpoints = [
-        0.0 0.0 0.0 0.0 0.5 0.5 0.5 0.5
-        0.0 0.0 0.5 0.5 0.0 0.0 0.5 0.5
-        0.0 0.5 0.0 0.5 0.0 0.5 0.0 0.5
+    ref_kpoints = Vec3[
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.5],
+        [0.0, 0.5, 0.0],
+        [0.0, 0.5, 0.5],
+        [0.5, 0.0, 0.0],
+        [0.5, 0.0, 0.5],
+        [0.5, 0.5, 0.0],
+        [0.5, 0.5, 0.5],
     ]
-    ref_kpoints = map(x->Vec3(ref_kpoints[:, x]), axes(ref_kpoints, 2))
     unsorted_kpoints = deepcopy(ref_kpoints)
     unsorted_kpoints[1] = Vec3(0.5, 0.5, 0.0)
     unsorted_kpoints[end - 1] = Vec3(0, 0, 0)

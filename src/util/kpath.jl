@@ -2,6 +2,7 @@ using LinearAlgebra
 using Brillouin: KPath, LATTICE, KPathInterpolant
 using Spglib
 using Bravais: reciprocalbasis
+using WannierIO: SymbolVec3
 
 export get_kpath, get_kpoints
 
@@ -34,10 +35,8 @@ kpoint_path = [
 ]
 ```
 """
-function get_kpath(
-    lattice::AbstractMatrix, kpoint_path::Vector{Vector{Pair{Symbol,T}}}
-) where {T<:AbstractVector{<:Real}}
-    points = Dict{Symbol,Vec3{eltype(T)}}()
+function get_kpath(lattice::AbstractMatrix, kpoint_path::Vector{Vector{SymbolVec3}})
+    points = Dict{Symbol,Vec3{Float64}}()
     paths = Vector{Vector{Symbol}}()
 
     warn_str = "Two kpoints in kpoint_path have same label but different coordinates, I will append a number to the label"
@@ -47,7 +46,7 @@ function get_kpath(
         k2 = path[2]
         # start kpoint
         label1 = Symbol(k1.first)
-        v1 = Vec3{eltype(T)}(k1.second)
+        v1 = Vec3{Float64}(k1.second)
         if label1 ∈ keys(points) && points[label1] ≉ v1
             @warn warn_str label = label1 k1 = points[label1]' k2 = v1'
             label1 = _new_kpath_label(label1, keys(points))
@@ -55,7 +54,7 @@ function get_kpath(
         points[label1] = v1
         # end kpoint
         label2 = Symbol(k2.first)
-        v2 = Vec3{eltype(T)}(k2.second)
+        v2 = Vec3{Float64}(k2.second)
         if label2 ∈ keys(points) && points[label2] ≉ v2
             @warn warn_str label = label2 k1 = points[label2]' k2 = v2'
             label2 = _new_kpath_label(label2, keys(points))

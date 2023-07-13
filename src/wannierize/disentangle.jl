@@ -17,7 +17,9 @@ Generate a `BitMatrix` of frozen bands by checking the two frozen windows.
 
     The `dis_froz_max` and `dis_froz_min` work similarly as `Wannier90`.
 """
-get_frozen_bands(E::Vector, dis_froz_max, dis_froz_min=-Inf) = map(e -> (e .>= dis_froz_min) .& (e .<= dis_froz_max), E)
+function get_frozen_bands(E::Vector, dis_froz_max, dis_froz_min=-Inf)
+    return map(e -> (e .>= dis_froz_min) .& (e .<= dis_froz_max), E)
+end
 
 #TODO I don't think this works; degen not defined
 """
@@ -139,11 +141,13 @@ Get frozen bands according to band projectability.
     freeze high-projectability bands.
 """
 function get_frozen_proj(
-    E::AbstractVector{AbstractVector{T}}, U::AbstractVector{AbstractMatrix{Complex{T}}}, dis_proj_max::T
+    E::AbstractVector{AbstractVector{T}},
+    U::AbstractVector{AbstractMatrix{Complex{T}}},
+    dis_proj_max::T,
 ) where {T<:Real}
     n_bands = length(E[1])
     n_kpts = length(E)
-    frozen_bands = [falses(n_bands) for i = 1:n_kpts]
+    frozen_bands = [falses(n_bands) for i in 1:n_kpts]
 
     # For each kpoint
     frozen_k = falses(n_bands)
@@ -334,12 +338,14 @@ For each kpoint,
 - `(X, Y)`: `size(X) = (n_wann, n_wann)`, `size(Y) = (n_bands, n_wann)`, intermediate format
 - `XY`: this is the format used in the optimizer
 """
-function X_Y_to_U(X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:AbstractMatrix{T}}) where {T<:Complex}
+function X_Y_to_U(
+    X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:AbstractMatrix{T}}
+) where {T<:Complex}
     n_bands, n_wann = size(Y[1])
     n_kpts = length(Y)
 
-    U = [zeros(T, n_bands, n_wann) for i = 1:n_kpts]
-    X_Y_to_U!(U, X, Y)
+    U = [zeros(T, n_bands, n_wann) for i in 1:n_kpts]
+    return X_Y_to_U!(U, X, Y)
 end
 
 function X_Y_to_U!(U::AbstractVector, X::AbstractVector, Y::AbstractVector)
@@ -360,12 +366,14 @@ See also [`X_Y_to_U`](@ref).
 - `U`: `n_bands * n_wann * n_kpts`
 - `frozen`: `n_bands * n_kpts`
 """
-function U_to_X_Y(U::AbstractVector{<:AbstractMatrix{T}}, frozen::Vector{BitVector}) where {T<:Complex}
+function U_to_X_Y(
+    U::AbstractVector{<:AbstractMatrix{T}}, frozen::Vector{BitVector}
+) where {T<:Complex}
     n_bands, n_wann = size(U[1])
     n_kpts = length(U)
 
-    X = [zeros(T, n_wann, n_wann) for i = 1:n_kpts]
-    Y = [zeros(T, n_bands, n_wann) for i = 1:n_kpts]
+    X = [zeros(T, n_wann, n_wann) for i in 1:n_kpts]
+    Y = [zeros(T, n_bands, n_wann) for i in 1:n_kpts]
 
     @inbounds for ik in 1:n_kpts
         idx_f = frozen[ik]
@@ -408,16 +416,16 @@ See also [`X_Y_to_U`](@ref).
 function XY_to_X_Y(XY::AbstractMatrix{T}, n_bands::Int, n_wann::Int) where {T<:Complex}
     n_kpts = size(XY, 2)
 
-    X = [zeros(T, n_wann, n_wann) for i = 1:n_kpts]
-    Y = [zeros(T, n_bands, n_wann) for i = 1:n_kpts]
-    XY_to_X_Y!(X, Y, XY)
+    X = [zeros(T, n_wann, n_wann) for i in 1:n_kpts]
+    Y = [zeros(T, n_bands, n_wann) for i in 1:n_kpts]
+    return XY_to_X_Y!(X, Y, XY)
 end
 
 function XY_to_X_Y!(X::AbstractVector, Y::AbstractVector, XY::AbstractMatrix)
     n_wann2 = size(X[1], 1)^2
     @inbounds for (ik, (x, y)) in enumerate(zip(X, Y))
         for i in eachindex(x)
-            x[i] =  XY[i, ik]
+            x[i] = XY[i, ik]
         end
         for i in eachindex(y)
             y[i] = XY[n_wann2 + i, ik]
@@ -433,7 +441,9 @@ Convert the `(X, Y)` layout to the `XY` layout.
 
 See also [`X_Y_to_U`](@ref).
 """
-function X_Y_to_XY(X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:AbstractMatrix{T}}) where {T<:Complex}
+function X_Y_to_XY(
+    X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:AbstractMatrix{T}}
+) where {T<:Complex}
     n_bands, n_wann = size(Y[1])
     n_kpts = length(Y)
     n = n_wann^2
@@ -447,14 +457,13 @@ function X_Y_to_XY!(XY::AbstractMatrix, X::AbstractVector, Y::AbstractVector)
         for i in eachindex(x)
             XY[i, ik] = x[i]
         end
-        
+
         for i in eachindex(y)
             XY[n + i, ik] = y[i]
         end
     end
     return XY
 end
-
 
 @doc raw"""
     GU_to_GX_GY(G, X, Y, frozen)
@@ -470,18 +479,18 @@ Acutally they are the conjugate gradients, e.g., ``\frac{d \Omega}{d U^*}``.
 - `frozen`: `n_bands * n_kpts` BitMatrix for frozen bands
 """
 function GU_to_GX_GY(
-    G::Array{T, 3}, X::Vector{Matrix{T}}, Y::Vector{Matrix{T}}, frozen::Vector
+    G::Array{T,3}, X::Vector{Matrix{T}}, Y::Vector{Matrix{T}}, frozen::Vector
 ) where {T}
     n_kpts = length(X)
-    GX = [zeros(T, size(X[1])) for i = 1:n_kpts]
-    GY = [zeros(T, size(Y[1])) for i = 1:n_kpts]
+    GX = [zeros(T, size(X[1])) for i in 1:n_kpts]
+    GY = [zeros(T, size(Y[1])) for i in 1:n_kpts]
 
     @inbounds for ik in 1:n_kpts
         idx_f = frozen[ik]
         n_froz = count(idx_f)
-        
+
         mul!(GX[ik], Y[ik]', G[:, :, ik])
-        mul!(GY[ik], G[:, :, ik] , X[ik]')
+        mul!(GY[ik], G[:, :, ik], X[ik]')
 
         GY[ik][idx_f, :] .= 0
         GY[ik][:, 1:n_froz] .= 0
@@ -494,43 +503,42 @@ end
 # This leads to another 5% speedup but I don't know how
 function GU_to_G!(G, GU, X, Y, frozen)
     n_kpts = length(X)
-    
+
     nw = size(X[1], 1)
     nb = size(Y[1], 1)
     n = nw^2
-    
+
     d = size(G, 1)
-    
+
     @inbounds for ik in 1:n_kpts
         idx_f = frozen[ik]
         n_froz = count(idx_f)
-        
+
         GX = reshape(view(G, 1:n, ik), (nw, nw))
-        GY = reshape(view(G, n+1:d, ik), (nb, nw))
-        
+        GY = reshape(view(G, (n + 1):d, ik), (nb, nw))
+
         mul!(GX, Y[ik]', view(GU, :, :, ik))
-        mul!(GY, view(GU, :, :, ik) , X[ik]')
+        mul!(GY, view(GU, :, :, ik), X[ik]')
 
         GY[idx_f, :] .= 0
         GY[:, 1:n_froz] .= 0
         # @show ik, GY
     end
-    
 end
 
 function GU_to_GX_GY(
     G::Vector, X::Vector{Matrix{T}}, Y::Vector{Matrix{T}}, frozen::Vector
 ) where {T}
     n_kpts = length(X)
-    GX = [zeros(T, size(X[1])) for i = 1:n_kpts]
-    GY = [zeros(T, size(Y[1])) for i = 1:n_kpts]
+    GX = [zeros(T, size(X[1])) for i in 1:n_kpts]
+    GY = [zeros(T, size(Y[1])) for i in 1:n_kpts]
 
     @inbounds for ik in 1:n_kpts
         idx_f = frozen[ik]
         n_froz = count(idx_f)
-        
+
         mul!(GX[ik], Y[ik]', G[ik])
-        mul!(GY[ik], G[ik] , X[ik]')
+        mul!(GY[ik], G[ik], X[ik]')
 
         GY[ik][idx_f, :] .= 0
         GY[ik][:, 1:n_froz] .= 0
@@ -553,7 +561,7 @@ This is used in test.
 function zero_froz_grad!(G::AbstractMatrix, frozen::Vector)
     n_bands = length(frozen[1])
     n_kpts = length(frozen)
-    size(G,2) == n_kpts || error("length(G) != n_kpts")
+    size(G, 2) == n_kpts || error("length(G) != n_kpts")
     # I need to find n_wann, solving the following polynomial equation:
     # size(G, 1) = n_wann * n_wann + n_bands * n_wann
     # just use quadratic formula
@@ -576,19 +584,17 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_disentangle(p::AbstractPenalty, model::Model{T}) where {T}
-    
     cache = Cache(model)
-    
+
     function fg!(Ω, G, XY)
-        
         X, Y = XY_to_X_Y!(cache.X, cache.Y, XY)
         U = X_Y_to_U!(cache.U, X, Y)
-        compute_MUᵏᵇ_Nᵏᵇ!(cache, model.bvectors, model.M, U)
-        
+        compute_MU_UtMU!(cache, model.bvectors, model.M, U)
+
         if G !== nothing
             G_ = omega_grad!(p, cache, model.bvectors, model.M)
             GX, GY = GU_to_GX_GY(G_, X, Y, model.frozen_bands)
-            
+
             n = model.n_wann^2
 
             @inbounds for ik in 1:(model.n_kpts)
@@ -607,7 +613,6 @@ function get_fg!_disentangle(p::AbstractPenalty, model::Model{T}) where {T}
     return fg!
 end
 
-#TODO I don't think this works: lfrozen?
 """
     disentangle(model; random_gauge=false, f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
 
@@ -623,7 +628,8 @@ Run disentangle on the `Model`.
 - `max_iter`: maximum number of iterations
 - `history_size`: history size of LBFGS
 """
-function disentangle(p::AbstractPenalty,
+function disentangle(
+    p::AbstractPenalty,
     model::Model{T};
     random_gauge::Bool=false,
     f_tol::T=1e-7,
@@ -636,15 +642,14 @@ function disentangle(p::AbstractPenalty,
     n_kpts = model.n_kpts
 
     # initial X, Y
-    # TODO l_frozen not defined, random gauge doesn't work
     if random_gauge
-        X0 = [zeros(Complex{T}, n_wann, n_wann) for i = 1:n_kpts]
-        Y0 = [zeros(Complex{T}, n_bands, n_wann) for i = 1:n_kpts]
+        X0 = [zeros(Complex{T}, n_wann, n_wann) for i in 1:n_kpts]
+        Y0 = [zeros(Complex{T}, n_bands, n_wann) for i in 1:n_kpts]
 
         for ik in 1:n_kpts
             idx_f = model.frozen_bands[ik]
             idx_nf = .!idx_f
-            n_froz = count(l_frozen)
+            n_froz = count(idx_f)
 
             m = n_wann
             n = n_wann
@@ -696,7 +701,8 @@ function disentangle(p::AbstractPenalty,
     # meth = Optim.ConjugateGradient
     meth = Optim.LBFGS
 
-    opt = Optim.optimize(Optim.only_fg!(fg!),
+    opt = Optim.optimize(
+        Optim.only_fg!(fg!),
         XY0,
         meth(; manifold=XYManif, linesearch=ls, m=history_size),
         Optim.Options(;

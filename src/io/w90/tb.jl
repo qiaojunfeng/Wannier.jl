@@ -1,7 +1,7 @@
 export read_w90_tb
 
 """
-    read_w90_tb(seedname;els)
+    read_w90_tb(seedname; force_mdrs=false)
 
 Read `seedname_tb.dat` and `seedname_wsvec.dat`, return [`TBHamiltonian`](@ref) and [`TBPosition`](@ref) operators.
 
@@ -11,9 +11,9 @@ Read `seedname_tb.dat` and `seedname_wsvec.dat`, return [`TBHamiltonian`](@ref) 
 # Return
 - A [`RVectors`](@ref).
 - A [`TBHamiltonian`](@ref).
-- A `Rx` [`TBPosition`](@ref).
-- A `Ry` [`TBPosition`](@ref).
-- A `Rz` [`TBPosition`](@ref).
+- A `rx` [`TBPosition`](@ref).
+- A `ry` [`TBPosition`](@ref).
+- A `rz` [`TBPosition`](@ref).
 
 !!! note
 
@@ -32,13 +32,9 @@ Read `seedname_tb.dat` and `seedname_wsvec.dat`, return [`TBHamiltonian`](@ref) 
     `atom_positions` and `atom_labels` arguments so that this function can
     auto generate the correct `Brillouin.KPath`.
 """
-function read_w90_tb(
-    seedname::AbstractString;
-    force_mdrs = false
-)
-
+function read_w90_tb(seedname::AbstractString; force_mdrs=false)
     mdrs, wsvec = read_w90_wsvec(seedname * "_wsvec.dat")
-    mdrs |= force_mdrs 
+    mdrs |= force_mdrs
     R = wsvec.R
     if mdrs
         T = wsvec.T
@@ -46,9 +42,9 @@ function read_w90_tb(
     end
 
     tbdat = read_w90_tbdat(seedname * "_tb.dat")
-    
+
     lattice = tbdat.lattice
-    
+
     R == tbdat.R || @error "R vecs in tb.dat and wsvec.dat are not identical"
     N = tbdat.N
 
@@ -59,24 +55,28 @@ function read_w90_tb(
     function generate_TBBlocks(O)
         map(enumerate(O)) do (iR, o)
             rcryst = R[iR]
-            rcart  = lattice * rcryst
+            rcart = lattice * rcryst
             return TBBlock(rcryst, rcart, o, o)
         end
     end
-    
+
     if !mdrs
-        return (R  = Rvecs,
-                H  = generate_TBBlocks(tbdat.H),
-                Rx = generate_TBBlocks(tbdat.Rx),
-                Ry = generate_TBBlocks(tbdat.Ry),
-                Rz = generate_TBBlocks(tbdat.Rz))
+        return (;
+            R=Rvecs,
+            H=generate_TBBlocks(tbdat.H),
+            rx=generate_TBBlocks(tbdat.rx),
+            ry=generate_TBBlocks(tbdat.ry),
+            rz=generate_TBBlocks(tbdat.rz),
+        )
     end
 
     Rvecs_mdrs = RVectorsMDRS(Rvecs, T, Nᵀ)
 
-    return (R = Rvecs_mdrs,
-            H = mdrs_v1tov2(tbdat.H, Rvecs_mdrs),
-            Rx = mdrs_v1tov2(tbdat.Rx, Rvecs_mdrs),
-            Ry = mdrs_v1tov2(tbdat.Ry, Rvecs_mdrs),
-            Rz = mdrs_v1tov2(tbdat.Rz, Rvecs_mdrs))
+    return (;
+        R=Rvecs_mdrs,
+        H=mdrs_v1tov2(tbdat.H, Rvecs_mdrs),
+        rx=mdrs_v1tov2(tbdat.rx, Rvecs_mdrs),
+        ry=mdrs_v1tov2(tbdat.ry, Rvecs_mdrs),
+        rz=mdrs_v1tov2(tbdat.rz, Rvecs_mdrs),
+    )
 end

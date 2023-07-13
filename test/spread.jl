@@ -23,18 +23,23 @@ fg! = Wannier.get_fg!_maxloc(model)
         1.349402 1.348821 1.348821 1.349402 -0.000000 0.000586 0.000576 0.000000
         1.349402 1.349402 1.348567 1.348564 0.000000 -0.000000 0.000834 0.000839
     ]
-    r_ref = [Vec3(r_ref[:, i]) for i = 1:size(r_ref, 2)]
+    r_ref = [Vec3(r_ref[:, i]) for i in 1:size(r_ref, 2)]
     @test isapprox(Ω.r, r_ref; atol=1e-5)
 end
 
 @testset "spread gradient" begin
-    U = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
+    n_bands = size(model.U[1], 1)
+    n_wann = size(model.U[1], 2)
+    n_kpts = length(model.U)
+    U = [model.U[ik][ib, ic] for ib in 1:n_bands, ic in 1:n_wann, ik in 1:n_kpts]
     G = zero(U)
     fg!(nothing, G, U)
 
     # Use finite difference as reference
     Uinit = deepcopy(U)
-    d = NLSolversBase.OnceDifferentiable(x -> fg!(1.0, nothing, x), Uinit, real(zero(eltype(Uinit))))
+    d = NLSolversBase.OnceDifferentiable(
+        x -> fg!(1.0, nothing, x), Uinit, real(zero(eltype(Uinit)))
+    )
     G_ref = NLSolversBase.gradient!(d, U)
 
     @test isapprox(G, G_ref; atol=1e-7)
@@ -48,7 +53,7 @@ end
         1.349402 1.348821 1.348821 1.349402 -0.000000 0.000586 0.000576 0.000000
         1.349402 1.349402 1.348567 1.348564 0.000000 -0.000000 0.000834 0.000839
     ]
-    r_ref = [Vec3(r_ref[:, i]) for i = 1:size(r_ref, 2)]
+    r_ref = [Vec3(r_ref[:, i]) for i in 1:size(r_ref, 2)]
 
     @test isapprox(r, r_ref; atol=1e-5)
 end

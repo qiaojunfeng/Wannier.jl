@@ -1,13 +1,15 @@
 using NLSolversBase
 
-
 # A reusable fixture for a model
 # no disentanglement
 model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
-r₀ = [[Vec3(1.34940, 1.34940, 1.34940) for i = 1:model.n_wann/2]; [Vec3(0.0,0.0,0.0) for i = 1:model.n_wann/2]]
+r₀ = [
+    [Vec3(1.34940, 1.34940, 1.34940) for i in 1:(model.n_wann / 2)]
+    [Vec3(0.0, 0.0, 0.0) for i in 1:(model.n_wann / 2)]
+]
 λ = 10.0
 p = CenterSpreadPenalty(r₀, λ)
-fg! = Wannier.get_fg!_disentangle(model, r₀, λ)
+fg! = Wannier.get_fg!_disentangle(p, model)
 
 @testset "constraint center disentangle spread gradient" begin
     U0 = deepcopy(model.U)
@@ -39,7 +41,7 @@ fg! = Wannier.get_fg!_disentangle(model, r₀, λ)
 end
 
 @testset "constraint center disentangle" begin
-    Umin = Wannier.disentangle(p, model; max_iter=4);
+    Umin = Wannier.disentangle(p, model; max_iter=4)
     Ω = Wannier.omega(p, model.bvectors, model.M, Umin)
 
     display(Ω)
@@ -68,14 +70,14 @@ end
     @test isapprox(
         Ω.r,
         [
-            Vec3(1.3493218953976438, 1.3493613581763424,  1.3493454033039636),
-            Vec3(1.3487523304656146, 1.3491260454857306,  1.3493415966363236),
-            Vec3(1.349320637608541, 1.3491584356558521,  1.348968696047302),
-            Vec3(1.348788920937121, 1.349359045780774,  1.3489543861927666),
-            Vec3(8.250336965638709e-5, 3.423661589664105e-5,  5.730256938007102e-5),
-            Vec3(0.0006279664190044885, 0.00023781998769869842,  5.6624178504504735e-5),
-            Vec3(8.189201302412916e-5, 0.0002630773899438576,  0.0004277217819759191),
-            Vec3(0.0006247774390737991, 3.728918078729418e-5,  0.0004318068660840961)
+            Vec3(1.3493218953976438, 1.3493613581763424, 1.3493454033039636),
+            Vec3(1.3487523304656146, 1.3491260454857306, 1.3493415966363236),
+            Vec3(1.349320637608541, 1.3491584356558521, 1.348968696047302),
+            Vec3(1.348788920937121, 1.349359045780774, 1.3489543861927666),
+            Vec3(8.250336965638709e-5, 3.423661589664105e-5, 5.730256938007102e-5),
+            Vec3(0.0006279664190044885, 0.00023781998769869842, 5.6624178504504735e-5),
+            Vec3(8.189201302412916e-5, 0.0002630773899438576, 0.0004277217819759191),
+            Vec3(0.0006247774390737991, 3.728918078729418e-5, 0.0004318068660840961),
         ];
         atol=1e-7,
     )

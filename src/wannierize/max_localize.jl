@@ -1,6 +1,6 @@
 using Optim: Optim
 
-export max_localize 
+export max_localize
 
 """
     get_fg!_maxloc(model::Model)
@@ -11,8 +11,8 @@ function get_fg!_maxloc(p::AbstractPenalty, model::Model)
     cache = Cache(model)
 
     function fg!(F, G, U)
-        compute_MUᵏᵇ_Nᵏᵇ!(cache, model.bvectors, model.M, U)
-        
+        compute_MU_UtMU!(cache, model.bvectors, model.M, U)
+
         if G !== nothing
             cache.G = G
             omega_grad!(p, cache, model.bvectors, model.M)
@@ -24,6 +24,8 @@ function get_fg!_maxloc(p::AbstractPenalty, model::Model)
 
     return fg!
 end
+
+get_fg!_maxloc(model::Model) = get_fg!_maxloc(SpreadPenalty(), model)
 
 """
     max_localize(model; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
@@ -39,8 +41,13 @@ Maximally localize spread functional w.r.t. all kpoints on a unitary matrix mani
 - `max_iter`: maximum number of iterations
 - `history_size`: history size of LBFGS
 """
-function max_localize(p::AbstractPenalty,
-    model::Model{T}; f_tol::T=1e-7, g_tol::T=1e-5, max_iter::Int=200, history_size::Int=3
+function max_localize(
+    p::AbstractPenalty,
+    model::Model{T};
+    f_tol::T=1e-7,
+    g_tol::T=1e-5,
+    max_iter::Int=200,
+    history_size::Int=3,
 ) where {T<:Real}
     model.n_bands != model.n_wann &&
         error("n_bands != n_wann, run instead disentanglement?")
@@ -58,7 +65,10 @@ function max_localize(p::AbstractPenalty,
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
-    Uinit = [model.U[ik][ib, ic] for ib=1:size(model.U[1],1), ic = 1:size(model.U[1],2), ik = 1:length(model.U)]
+    Uinit = [
+        model.U[ik][ib, ic] for ib in 1:(model.n_bands), ic in 1:(model.n_wann),
+        ik in 1:length(model.U)
+    ]
 
     opt = Optim.optimize(
         Optim.only_fg!(fg!),

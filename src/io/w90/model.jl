@@ -32,19 +32,19 @@ function read_w90(
     recip_lattice = get_recip_lattice(lattice)
 
     bvectors = get_bvectors(kpoints, recip_lattice; kmesh_tol=get(win, :kmesh_tol, 1e-6))
-    
+
     n_bvecs = bvectors.n_bvecs
     if mmn
         M, kpb_k_mmn, kpb_b_mmn = read_mmn("$seedname.mmn")
 
         # check consistency for mmn
-        n_bands != size(M[1],1) && error("n_bands != size(M)[1]")
-        n_bvecs != size(M[1],3) && error("n_bvecs != size(M)[3]")
+        (n_bands, n_bands) != size(M[1][1]) && error("n_bands != size(M[1][1])")
+        n_bvecs != length(M[1]) && error("n_bvecs != length(M[1])")
         n_kpts != length(M) && error("n_kpts != length(M)")
         bvectors.kpb_k != kpb_k_mmn && error("kpb_k != kpb_k from mmn file")
         bvectors.kpb_b != kpb_b_mmn && error("kpb_b != kpb_b from mmn file")
     else
-        M = [zeros(ComplexF64, n_bands, n_bands, n_bvecs) for i = 1:n_kpts]
+        M = [[zeros(ComplexF64, n_bands, n_bands) for ib in 1:n_bvecs] for ik in 1:n_kpts]
     end
 
     if amn
@@ -57,33 +57,36 @@ function read_w90(
         n_wann != size(U[1], 2) && error("n_wann != size(U[1], 2)")
         n_kpts != length(U) && error("n_kpts != length(U)")
     else
-        U = [zeros(ComplexF64, n_bands, n_wann) for i = 1:n_kpts]
+        U = [zeros(ComplexF64, n_bands, n_wann) for i in 1:n_kpts]
     end
 
     if eig
         E = read_eig("$seedname.eig")
-        n_bands != length(E[1]) && error("n_bands != size(E,1)")
-        n_kpts != length(E) && error("n_kpts != size(E,2)")
+        n_bands != length(E[1]) && error("n_bands != length(E[1])")
+        n_kpts != length(E) && error("n_kpts != length(E)")
     else
-        E = [zeros(Float64, n_bands) for i = 1:n_kpts]
+        E = [zeros(Float64, n_bands) for i in 1:n_kpts]
     end
 
     if eig && n_bands != n_wann
         dis_froz_max = get(win, :dis_froz_max, nothing)
         dis_froz_min = get(win, :dis_froz_min, -Inf)
         if isnothing(dis_froz_max)
-            frozen_bands = [falses(n_bands) for i = 1:n_kpts]
+            frozen_bands = [falses(n_bands) for i in 1:n_kpts]
         else
             frozen_bands = get_frozen_bands(E, dis_froz_max, dis_froz_min)
         end
     else
-        frozen_bands = [falses(n_bands) for i = 1:n_kpts]
+        frozen_bands = [falses(n_bands) for i in 1:n_kpts]
     end
+
+    atom_labels = map(x -> string(x.first), win.atoms_frac)
+    atom_positions = map(x -> x.second, win.atoms_frac)
 
     return Model(
         lattice,
-        win.atoms_frac,
-        win.atom_labels,
+        atom_positions,
+        atom_labels,
         kgrid,
         kpoints,
         bvectors,
@@ -113,7 +116,7 @@ function read_w90_interp(
     chk::Bool=true,
     amn::Union{Nothing,AbstractString}=nothing,
     mdrs::Union{Nothing,Bool}=nothing,
-    kwargs...
+    kwargs...,
 )
     # read for kpoint_path, use_ws_distance
     win = read_win("$seedname.win")
@@ -139,6 +142,7 @@ function read_w90_interp(
         end
         centers = center(model)
     end
+    # from cartesian to fractional
     centers = map(c -> inv(model.lattice) * c, centers)
 
     if mdrs
@@ -146,9 +150,9 @@ function read_w90_interp(
     else
         Rvecs = get_Rvectors_ws(model.lattice, model.kgrid)
     end
-    
+
     hami = TBHamiltonian(model, Rvecs; kwargs...)
-        
+
     if haskey(win, :kpoint_path)
         kpath = get_kpath(win.unit_cell_cart, win.kpoint_path)
     else
@@ -160,7 +164,7 @@ function read_w90_interp(
         kpath = KPath{3}(points, paths, basis, setting)
     end
 
-    return hami, kpath 
+    return hami, kpath
 end
 
 """

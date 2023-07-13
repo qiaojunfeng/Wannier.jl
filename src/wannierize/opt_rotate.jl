@@ -18,7 +18,7 @@ function get_fg!_rotate(model::Model)
     function g!(G, W)
         n_wann = size(W, 1)
         M = model.M
-        n_bvecs = size(M[1], 3)
+        n_bvecs = length(M[1])
         n_kpts = model.n_kpts
 
         bvectors = model.bvectors
@@ -46,13 +46,13 @@ function get_fg!_rotate(model::Model)
                 ikpb = kpb_k[ik][ib]
 
                 # need to use UW[:, :, ik] instead of W, if model.U is not identity
-                MWᵏᵇ .= M[ik][:, :, ib] * W
+                MWᵏᵇ .= M[ik][ib] * W
                 Nᵏᵇ .= W' * MWᵏᵇ
                 b = recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - kpoints[ik])
 
                 q = imaglog.(diag(Nᵏᵇ))
-                for ir = 1:n_wann
-                    q[ir] += r[ir] ⋅ b
+                for iw in 1:n_wann
+                    q[iw] += r[iw] ⋅ b
                 end
 
                 for n in 1:n_wann
@@ -163,7 +163,7 @@ Useful once we have the optimal rotation matrix `W`, then update the initial
 """
 function rotate_U(U::Vector, W::Matrix{T}) where {T<:Complex}
     n_bands, n_wann = size(U[1])
-    
+
     size(W) != (n_wann, n_wann) && error("W must be a n_wann x n_wann matrix")
     return map(u -> u * W, U)
 end

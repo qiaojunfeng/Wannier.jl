@@ -17,7 +17,7 @@ function find_nearests(
     point::AbstractVector{T},
     search_neighbors::R,
     lattice::AbstractMatrix{T},
-    atom_positions::Vector{Vec3{T}},
+    atom_positions::Vector,
 ) where {T<:Real,R<:Integer}
     @assert length(point) == 3
     @assert search_neighbors > 0
@@ -60,9 +60,7 @@ find_nearest_atom(points, wout.lattice, wout.atom_positions)
 ```
 """
 function find_nearest_atom(
-    centers::Vector{Vec3{T}},
-    lattice::AbstractMatrix{T},
-    atom_positions::Vector{Vec3{T}},
+    centers::Vector, lattice::AbstractMatrix{T}, atom_positions::Vector{Vec3{T}}
 ) where {T<:Real}
     n_wann = length(centers)
     distances = zeros(T, n_wann)
@@ -87,8 +85,10 @@ Wrap around centers back to unit cell at origin.
 - `centers`:: `3 * n_wann`, in Cartesian coordiantes
 - `lattice`:: `3 * 3`, each column is a lattice vector
 """
-function wrap_centers(
-    centers::Vector{Vec3{T}}, lattice::AbstractMatrix{T}
-) where {T<:Real}
-    return map(c -> lattice * mod.(inv(lattice) * c, 1), centers)
+function wrap_centers(centers::Vector, lattice::AbstractMatrix)
+    inv_lattice = inv(lattice)
+    return map(centers) do c
+        # mod: back to home cell
+        lattice * mod.(inv_lattice * c, 1)
+    end
 end

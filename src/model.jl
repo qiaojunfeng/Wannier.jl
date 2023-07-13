@@ -34,8 +34,7 @@ struct Model{T<:Real}
     # unit cell, 3 * 3, Å unit, each column is a lattice vector
     lattice::Mat3{T}
 
-    # atomic positions, 3 * n_atoms, fractional coordinates,
-    # each column is a position
+    # atomic positions, n_atoms of Vec3, fractional coordinates,
     atom_positions::Vector{Vec3{T}}
 
     # atomic labels, n_atoms
@@ -44,23 +43,22 @@ struct Model{T<:Real}
     # number of kpoints along 3 directions
     kgrid::Vec3{Int}
 
-    # kpoints array, fractional coordinates, 3 * n_kpts
-    # n_kpts is the last index since julia array is column-major
+    # kpoints array, fractional coordinates, n_kpts of Vec3
     kpoints::Vector{Vec3{T}}
 
     # b vectors satisfying b1 condition
     bvectors::BVectors{T}
 
-    # is band frozen? n_bands * n_kpts
+    # is band frozen? n_kpts of length-n_bands BitVector
     frozen_bands::Vector{BitVector}
 
-    # Mmn matrix, n_bands * n_bands * n_bvecs * n_kpts
-    M::Vector{Array{Complex{T},3}}
+    # Mmn matrix, n_kpts of n_bvecs of n_bands * n_bands matrix
+    M::Vector{Vector{Matrix{Complex{T}}}}
 
-    # the unitary transformation matrix, n_bands * n_wann * n_kpts
+    # the unitary transformation matrix, n_kpts of n_bands * n_wann matrix
     U::Vector{Matrix{Complex{T}}}
 
-    # eigenvalues, n_bands * n_kpts
+    # eigenvalues, n_kpts of length-n_bands vector
     E::Vector{Vector{T}}
 
     # I put these frequently used variables in the last,
@@ -193,10 +191,13 @@ Rotate the gauge of a `Model`.
     if `diag_H = false`, this function only support rotations that keep the Hamiltonian
     in diagonal form.
 """
-function rotate_gauge(model::Model, U::Vector{Matrix{T}}; diag_H::Bool=false) where {T<:Number}
+function rotate_gauge(
+    model::Model, U::Vector{Matrix{T}}; diag_H::Bool=false
+) where {T<:Number}
     n_bands = model.n_bands
     n_kpts = model.n_kpts
-    (size(U[1], 1), length(U)) == (n_bands, n_kpts) || error("U must have size (n_bands, :, n_kpts)")
+    (size(U[1], 1), length(U)) == (n_bands, n_kpts) ||
+        error("U must have size (n_bands, :, n_kpts)")
     # The new n_wann
     n_wann = size(U[1], 2)
 
@@ -250,7 +251,7 @@ function rotate_gauge(model::Model, U::Vector{Matrix{T}}; diag_H::Bool=false) wh
         model.kgrid,
         model.kpoints,
         model.bvectors,
-        [falses(n_wann) for i = 1:n_kpts],
+        [falses(n_wann) for i in 1:n_kpts],
         M2,
         U2,
         E2,

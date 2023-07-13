@@ -34,7 +34,7 @@ function write_chk(
     checkpoint = "postwann"
     have_disentangled = true
     Ω = omega(model, U)
-    dis_bands = [trues(model.n_bands) for i = 1:model.n_kpts]
+    dis_bands = [trues(model.n_bands) for i in 1:(model.n_kpts)]
 
     # W90 has a special convention that the rotated Hamiltonian by the Uᵈ,
     # i.e., the Hamiltonian rotated by the gauge matrix from disentanglement,
@@ -51,8 +51,7 @@ function write_chk(
         Uᵈ = U
         Uᵐ = eyes_U(eltype(U), model.n_wann, model.n_kpts)
     else
-        
-        V = map(h->eigen(h).vectors, H)
+        V = map(h -> eigen(h).vectors, H)
         Uᵈ = rotate_U(U, V)
         Uᵐ = map(v -> v', V)
     end
@@ -148,18 +147,18 @@ function Model(
         error("Number of bvectors is different from the number in the chk file")
     end
 
-    frozen_bands = [falses(chk.n_bands) for i =1:chk.n_kpts]
+    frozen_bands = [falses(chk.n_bands) for i in 1:(chk.n_kpts)]
 
     # the M in chk is already rotated by the U matrix
     M = chk.M
     # if nothing provided, I set U matrix as identity
     if isnothing(U)
-        U = eyes_U(eltype(M[1]), chk.n_wann, chk.n_kpts)
+        U = eyes_U(eltype(M[1][1]), chk.n_wann, chk.n_kpts)
     end
 
     # no eig in chk file
     if isnothing(E)
-        E = [zeros(real(eltype(M[1])), chk.n_wann) for i = 1:chk.n_kpts]
+        E = [zeros(real(eltype(M[1][1])), chk.n_wann) for i in 1:(chk.n_kpts)]
     end
     model = Model(
         chk.lattice,

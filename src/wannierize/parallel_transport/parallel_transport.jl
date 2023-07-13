@@ -75,7 +75,7 @@ function parallel_transport(
     # For other grids, b = k1 + dk - k2.
     b = round.(Int, kpoints[k1] + dk - kpoints[k2])
     ib = index_bvector(bvectors, k1, k2, b)
-    Nᵏᵇ = U[k1]' * M[k1][:, :, ib] * U[k2]
+    Nᵏᵇ = U[k1]' * M[k1][ib] * U[k2]
     O1 = orthonorm_lowdin(Nᵏᵇ)
     @debug "Obstruction matrix =" V = O1
 
@@ -113,7 +113,7 @@ function parallel_transport(
     # For other grids,
     b = round.(Int, kpoints[k1] + dk - kpoints[k2])
     ib = index_bvector(bvectors, k1, k2, b)
-    Nᵏᵇ = U[k1]' * M[k1][:, :, ib] * U[k2]
+    Nᵏᵇ = U[k1]' * M[k1][ib] * U[k2]
     O2 = orthonorm_lowdin(Nᵏᵇ)
 
     d, V = eigen(O2)
@@ -136,7 +136,7 @@ function parallel_transport(
     end
 
     # pull back the line obstruction, at ky = 1 along kx = 0 -> 1
-    Oxy = zeros(Complex{T}, n_wann, n_wann,n_kx)
+    Oxy = zeros(Complex{T}, n_wann, n_wann, n_kx)
     detO3 = zeros(Complex{T}, n_kx)
     # eigs = zeros(Complex{T}, n_wann, n_kx)
     for i in 1:n_kx
@@ -146,8 +146,8 @@ function parallel_transport(
         # For other grids,
         b = round.(Int, kpoints[k1] + dk - kpoints[k2])
         ib = index_bvector(bvectors, k1, k2, b)
-        Nᵏᵇ = U[k1]' * M[k1][:, :, ib] * U[k2]
-        Oxy[:,:,i] = orthonorm_lowdin(Nᵏᵇ)
+        Nᵏᵇ = U[k1]' * M[k1][ib] * U[k2]
+        Oxy[:, :, i] = orthonorm_lowdin(Nᵏᵇ)
         detO3[i] = det(Oxy[:, :, i])
     end
 
@@ -167,7 +167,7 @@ function parallel_transport(
         Uxy = matrix_transport(Oxy, ty)
     end
     for i in 1:n_kx
-        O = Oxy[:,:,i]
+        O = Oxy[:, :, i]
         d, V = eigen(O)
 
         if log_interp
@@ -199,7 +199,7 @@ function parallel_transport(
     # For other grids,
     b = round.(Int, kpoints[k1] + dk - kpoints[k2])
     ib = index_bvector(bvectors, k1, k2, b)
-    Nᵏᵇ = U[k1]' * M[k1][:, :, ib] * U[k2]
+    Nᵏᵇ = U[k1]' * M[k1][ib] * U[k2]
     O4 = orthonorm_lowdin(Nᵏᵇ)
     d, V = eigen(O4)
     logd = log.(d)
@@ -232,8 +232,8 @@ function parallel_transport(
         # For other grids,
         b = round.(Int, kpoints[k1] + dk - kpoints[k2])
         ib = index_bvector(bvectors, k1, k2, b)
-        Nᵏᵇ = U[k1]' * M[k1][:, :, ib] * U[k2]
-        Oxz[:,:,i] = orthonorm_lowdin(Nᵏᵇ)
+        Nᵏᵇ = U[k1]' * M[k1][ib] * U[k2]
+        Oxz[:, :, i] = orthonorm_lowdin(Nᵏᵇ)
     end
 
     if !log_interp
@@ -243,7 +243,7 @@ function parallel_transport(
     for i in 1:n_kx
         for k in 1:n_kz
             if log_interp
-                W = powm(Oxz[i], tz[k])
+                W = powm(Oxz[:, :, i], tz[k])
 
                 for j in 1:n_ky
                     ik = xyz_k[i, j, k]
@@ -269,8 +269,8 @@ function parallel_transport(
         # For other grids,
         b = round.(Int, kpoints[k1] + dk - kpoints[k2])
         ib = index_bvector(bvectors, k1, k2, b)
-        Nᵏᵇ = U[k1]' * M[k1][:, :, ib] * U[k2]
-        Oyz[:,:,j] = orthonorm_lowdin(Nᵏᵇ)
+        Nᵏᵇ = U[k1]' * M[k1][ib] * U[k2]
+        Oyz[:, :, j] = orthonorm_lowdin(Nᵏᵇ)
     end
 
     if !log_interp
@@ -280,7 +280,7 @@ function parallel_transport(
     for j in 1:n_ky
         for k in 1:n_kz
             if log_interp
-                W = powm(Oyz[:,:,j], tz[k])
+                W = powm(Oyz[:, :, j], tz[k])
 
                 for i in 1:n_kx
                     ik = xyz_k[i, j, k]
@@ -303,7 +303,7 @@ function parallel_transport(
         # For other grids,
         b = round.(Int, kpoints[k1] + dk - kpoints[k2])
         ib = index_bvector(bvectors, k1, k2, b)
-        Nᵏᵇ = U[k1]' * M[k1][:, :, ib] * U[k2]
+        Nᵏᵇ = U[k1]' * M[k1][ib] * U[k2]
         O = orthonorm_lowdin(Nᵏᵇ)
 
         for k in 1:n_kz
@@ -338,7 +338,7 @@ function compute_error(model::Model{T}, U::Vector{Matrix{Complex{T}}}) where {T<
 
     epsilon(i, j, b, B) = begin
         ib = index_bvector(model.bvectors, i, j, b)
-        Nᵏᵇ = B[i]' * M[i][:, :, ib] * B[j]
+        Nᵏᵇ = B[i]' * M[i][ib] * B[j]
         norm(orthonorm_lowdin(Nᵏᵇ) - I)^2
     end
 
