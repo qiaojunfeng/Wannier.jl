@@ -31,7 +31,11 @@ function truncate_mmn_eig(
     write_eig(joinpath(outdir, "$seedname_base.eig"), E1)
 
     M, kpb_k, kpb_b = read_mmn("$seedname.mmn")
-    M1 = map(m-> m[keep_bands, keep_bands, :], M)
+    M1 = map(M) do Mk
+        map(Mk) do Mkb
+            Mkb[keep_bands, keep_bands]
+        end
+    end
     write_mmn(joinpath(outdir, "$seedname_base.mmn"), M1, kpb_k, kpb_b)
 
     return nothing
@@ -141,7 +145,11 @@ function truncate(
     end
 
     E = map(e -> e[keep_bands], model.E)
-    M = map(m -> m[keep_bands, keep_bands, :], model.M)
+    M = map(model.M) do Mk
+        map(Mk) do Mkb
+            Mkb[keep_bands, keep_bands]
+        end
+    end
     U = map(u -> u[keep_bands, :], model.U)
 
     if !isnothing(keep_wfs)

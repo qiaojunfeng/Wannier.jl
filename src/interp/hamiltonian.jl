@@ -18,8 +18,9 @@ where ``[\\epsilon_{n \\bm{k}}]`` is a diagonal matrix with
 function get_Hk(E::Vector, U::Vector)
     n_bands, n_wann = size(U[1])
     n_kpts = length(U)
-    
-    (length(E[1]), length(E)) != (n_bands, n_kpts) && error("$((length(E[1]), length(E))) != ($(n_bands), $(n_kpts))")
+
+    (length(E[1]), length(E)) != (n_bands, n_kpts) &&
+        error("$((length(E[1]), length(E))) != ($(n_bands), $(n_kpts))")
 
     return map(zip(E, U)) do (e, u)
         # I need to force Hermiticity here, otherwise in some cases,
@@ -88,6 +89,7 @@ function sort_hamiltonian_by_norm(hami::TBHamiltonian)
     return idx, normR, normH
 end
 
+# TODO: update this function
 """
     cut_hamiltonian(Rvectors::RVectorsMDRS{T}, Hᴿ::Array{Complex{T},3}, Rcut::T) where {T<:Real}
 
@@ -143,9 +145,8 @@ Base.length(x::CoreKGrid) = length(x.k_cryst)
 
 struct HamiltonianKGrid{T,MT<:AbstractMatrix{Complex{T}},VT<:AbstractVector{T}} <:
        AbstractKGrid{T}
-       
     core::CoreKGrid{T}
-    
+
     Hk::Vector{MT}
     eigvals::Vector{VT}
     eigvecs::Vector{MT}
@@ -159,28 +160,32 @@ end
 	HamiltonianKGrid(hami::TBHamiltonian{T}, k_grid, H_function_k::Function = x -> nothing) where T
 
 Takes a k grid, calculates Hk for each of them and diagonalizes. Only the eigenvectors and eigenvalues of Hk are stored,
-the `H_function_k` function is called on the intermediate Hk. 
+the `H_function_k` function is called on the intermediate Hk.
 """
-function HamiltonianKGrid(hami::TBHamiltonian{T}, kpoints::Vector{<:Vec3},
-                          Hk_function::Function = x -> nothing) where {T}
-                          
+function HamiltonianKGrid(
+    hami::TBHamiltonian{T}, kpoints::Vector{<:Vec3}, Hk_function::Function=x -> nothing
+) where {T}
     n_eigvals = max(blocksize(hami)...)
     eigvals = [zeros(T, n_eigvals) for k in kpoints]
     # eigvals = hami[1].block isa AbstractMagneticMatrix ?
     #           [MagneticVector(zeros(T, n_eigvals)) for k in kpoints] :
     #           [zeros(T, n_eigvals) for k in kpoints]
-              
-    kgrid = HamiltonianKGrid(kpoints, [zeros_block(hami) for k in kpoints], eigvals,
-                             [zeros_block(hami) for k in kpoints])
+
+    kgrid = HamiltonianKGrid(
+        kpoints,
+        [zeros_block(hami) for k in kpoints],
+        eigvals,
+        [zeros_block(hami) for k in kpoints],
+    )
     nk = length(kpoints)
     calc_caches = [HermitianEigenWs(block(hami[1])) for i in 1:Threads.nthreads()]
     p = Progress(nk, 1, "Calculating H(k)...")
-    
+
     Threads.@threads for i in 1:nk
         tid = Threads.threadid()
-        
+
         Hk!(kgrid.eigvecs[i], hami, k_cryst(kgrid)[i])
-        
+
         copy!(kgrid.Hk[i], copy(kgrid.eigvecs[i]))
         Hk_function(kgrid.Hk[i])
         e = eigen(Hermitian(kgrid.Hk[i]))
@@ -189,26 +194,25 @@ function HamiltonianKGrid(hami::TBHamiltonian{T}, kpoints::Vector{<:Vec3},
         # eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[tid])
         next!(p)
     end
-    
+
     return kgrid
 end
 
-n_wann(h::HamiltonianKGrid) = size(h.Hk[1],1)
+n_wann(h::HamiltonianKGrid) = size(h.Hk[1], 1)
 
 function Hk!(out::AbstractMatrix, tbhami::TBHamiltonian, kpoint::Vec3)
     fill!(out, zero(eltype(out)))
-    
+
     invfourier(tbhami, kpoint) do i, iR, R_cart, b, fac
         @inbounds out[i] += fac * b.block[i]
     end
-    
 end
 
 """
     Hk(hamiltonian::TBHamiltonian, kpoint::Vec3)
     Hk!(hk::AbstractMatrix, hamiltonian::TBHamiltonian, kpoint::Vec3)
 
-Constructs the reciprocal Hamiltonian at a given _k_-point.  
+Constructs the reciprocal Hamiltonian at a given _k_-point.
 """
 function Hk(tbhami::TBHamiltonian, kpoint::Vec3)
     out = similar(tbhami[1].block)
@@ -233,11 +237,10 @@ Interpolate energy eigenvalues at `kpoints`.
 interpolate(hami::TBHamiltonian, kpoints) = HamiltonianKGrid(hami, kpoints).eigvals
 
 @inline function LinearAlgebra.eigen!(vecs::AbstractMatrix, ws::HermitianEigenWs)
-    return Eigen(decompose!(ws, 'V', 'A', 'U', vecs, 0., 0., 0, 0, 1e-16)...)
+    return Eigen(decompose!(ws, 'V', 'A', 'U', vecs, 0.0, 0.0, 0, 0, 1e-16)...)
 end
 @inline function LinearAlgebra.eigen!(vals, vecs::AbstractMatrix, ws::HermitianEigenWs)
     ws.w = vals
-    te = Eigen(decompose!(ws, 'V', 'A', 'U', vecs, 0., 0., 0, 0, 1e-16)...)
+    te = Eigen(decompose!(ws, 'V', 'A', 'U', vecs, 0.0, 0.0, 0, 0, 1e-16)...)
     return te
 end
-

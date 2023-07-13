@@ -27,7 +27,7 @@ struct BVectorShells{T<:Real}
     kpoints::Vector{Vec3{T}}
 
     # bvectors of each shell, Cartesian! coordinates, Å⁻¹ unit
-    # n_shells of 3 * multiplicity
+    # n_shells of multiplicity of Vec3
     bvectors::Vector{Vector{Vec3{T}}}
 
     # weight of each shell, length = n_shells
@@ -56,10 +56,7 @@ This should be used instead of directly constructing `BVectorShells`.
 - `weights`: vector of float, weights of each shell
 """
 function BVectorShells(
-    recip_lattice::Mat3{T},
-    kpoints,
-    bvectors,
-    weights::AbstractVector{T},
+    recip_lattice::Mat3{T}, kpoints, bvectors, weights::AbstractVector{T}
 ) where {T<:Real}
     n_shells = length(bvectors)
     multiplicities = [length(bvectors[i]) for i in 1:n_shells]
@@ -240,10 +237,9 @@ Check if the columns of matrix `A` and columns of matrix `B` are parallel.
 - `atol`: tolerance to check parallelism
 """
 function are_parallel(A::Vector{Vec3{T}}, B::Vector{Vec3{T}}; atol::T=1e-6) where {T<:Real}
-
     nc_A = length(A)
     nc_B = length(B)
-    
+
     checkerboard = fill(false, nc_A, nc_B)
 
     for (i, c1) in enumerate(A)
@@ -341,10 +337,9 @@ function compute_weights(bvectors::Vector{Vector{Vec3{T}}}; atol::T=1e-6) where 
     ish = 1
     while ish <= n_shells
         push!(keep_shells, ish)
-        b = bvectors[ish]
-        t = reshape(collect(Iterators.flatten(b)), 3, length(b))
-        
-        B[:, ish] = triu2vec([sum(ik -> b[ik][i] * b[ik][j], 1:length(b)) for i=1:3, j=1:3])
+        # to 3 * n_multiplicity
+        b = reduce(hcat, bvectors[ish])
+        B[:, ish] = triu2vec(b * b')
         # Solve equation B * W = triu_I
         # size(B) = (6, ishell), W is diagonal matrix of size ishell
         # B = U * S * V' -> W = V * S^-1 * U' * triu_I
@@ -406,8 +401,8 @@ function check_b1(shells::BVectorShells{T}; atol::Real=1e-6) where {T}
     M = zeros(T, 3, 3)
 
     for ish in 1:(shells.n_shells)
-        b = shells.bvectors[ish]
-        M += shells.weights[ish] * [sum(ik -> b[ik][i] * b[ik][j], 1:length(b)) for i=1:3, j=1:3]
+        bvec = reduce(hcat, shells.bvectors[ish])
+        M += shells.weights[ish] * bvec * bvec'
     end
 
     @debug "Bvector sum" M
@@ -436,7 +431,7 @@ Return a tuple of `(bvecs, bvecs_weight)`, where
 - `bvecs_weight`: `n_bvecs`
 """
 function flatten_shells(shells::BVectorShells{T}) where {T<:Real}
-    n_bvecs = sum(i -> length(shells.bvectors[i]), 1:shells.n_shells)
+    n_bvecs = sum(i -> length(shells.bvectors[i]), 1:(shells.n_shells))
 
     bvecs = zeros(Vec3{T}, n_bvecs)
     bvecs_weight = zeros(T, n_bvecs)
@@ -604,20 +599,20 @@ function sort_bvectors(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
     # To sort bvectors for each kpoints, I need to
     # calculate distances of supercells to original cell.
     # I only need one kpoint at Gamma.
-    _, translations = make_supercell([Vec3(0,0,0)])
+    _, translations = make_supercell([Vec3{T}(0, 0, 0)])
     translations = sort_supercell(translations, recip_lattice)
 
     bvecs, bvecs_weight = flatten_shells(shells)
     n_bvecs = length(bvecs)
-    ic = inv(recip_lattice)
-    bvecs_frac = map(b -> ic * b, bvecs)
+    inv_recip = inv(recip_lattice)
+    bvecs_frac = map(b -> inv_recip * b, bvecs)
     bvecs_norm = [norm(bvecs[i]) for i in 1:n_bvecs]
 
     # find k+b indexes
-    kpb_k = [zeros(Int, n_bvecs) for i = 1:n_kpts]
-    kpb_b = [zeros(Vec3{Int}, n_bvecs) for i=1:n_kpts]
+    kpb_k = [zeros(Int, n_bvecs) for i in 1:n_kpts]
+    kpb_b = [zeros(Vec3{Int}, n_bvecs) for i in 1:n_kpts]
     # weight
-    kpb_w = [zeros(T, n_bvecs) for i = 1:n_kpts]
+    kpb_w = [zeros(T, n_bvecs) for i in 1:n_kpts]
 
     for ik in 1:n_kpts
         k = kpoints[ik]
@@ -668,8 +663,10 @@ function get_bvectors(
 
     return bvectors
 end
-get_bvectors(kpoints::AbstractMatrix, args...; kwargs...) =
-    get_bvectors(map(i -> Vec3(kpoints[:, i]), axes(kpoints,2)), args...; kwargs...)
+# TODO is this needed?
+function get_bvectors(kpoints::AbstractMatrix, args...; kwargs...)
+    return get_bvectors(map(i -> Vec3(kpoints[:, i]), axes(kpoints, 2)), args...; kwargs...)
+end
 
 """
     index_bvector(kpb_k, kpb_b, k1, k2, b)
@@ -687,8 +684,8 @@ the connecting displacement vector `b`.
 - `b`: vector of 3 integer, displacement vector from `k1` to `k2`
 """
 function index_bvector(
-    kpb_k,
-    kpb_b,
+    kpb_k::AbstractVector,
+    kpb_b::AbstractVector,
     k1::Integer,
     k2::Integer,
     b::AbstractVector{<:Integer},
@@ -720,13 +717,15 @@ Generate and sort bvectors for all the kpoints.
 # Keyword Arguments
 - `kmesh_tol`: equivalent to `Wannier90` input parameter `kmesh_tol`
 """
-function get_bvectors_nearest(kpoints::Vector{Vec3{T}}, recip_lattice::Mat3{T}) where {T<:Real}
+function get_bvectors_nearest(
+    kpoints::Vector{Vec3{T}}, recip_lattice::Mat3{T}
+) where {T<:Real}
     n_kx, n_ky, n_kz = get_kgrid(kpoints)
     δx, δy, δz = 1 / n_kx, 1 / n_ky, 1 / n_kz
 
     # only 6 nearest neighbors
     n_bvecs = 6
-    bvecs_frac = zeros(T, n_bvecs)
+    bvecs_frac = zeros(Vec3{T}, n_bvecs)
     bvecs_frac[1] = Vec3{T}(δx, 0, 0)
     bvecs_frac[2] = Vec3{T}(-δx, 0, 0)
     bvecs_frac[3] = Vec3{T}(0, δy, 0)
@@ -739,8 +738,8 @@ function get_bvectors_nearest(kpoints::Vector{Vec3{T}}, recip_lattice::Mat3{T}) 
 
     # generate bvectors for each kpoint
     n_kpts = length(kpoints)
-    kpb_k = [zeros(Int, n_bvecs) for i = 1:n_kpts]
-    kpb_b = [zeros(Vec3{Int}, n_bvecs) for i = 1:n_kpts]
+    kpb_k = [zeros(Int, n_bvecs) for i in 1:n_kpts]
+    kpb_b = [zeros(Vec3{Int}, n_bvecs) for i in 1:n_kpts]
 
     for ik in 1:n_kpts
         k = kpoints[ik]

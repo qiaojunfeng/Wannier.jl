@@ -12,7 +12,7 @@ Read the `nnkp` file.
 """
 function read_nnkp(filename::AbstractString)
     nnkp = WannierIO.read_nnkp(filename)
-    n_bvecs = size(nnkp.kpb_k[1], 1)
+    n_bvecs = length(nnkp.kpb_k[1])
 
     # Generate bvectors from 1st kpoint, in Cartesian coordinates
     bvectors = zeros(Vec3{Float64}, n_bvecs)

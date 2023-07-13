@@ -19,7 +19,7 @@
     @test chk.have_disentangled == chk2.have_disentangled
     @test chk.ΩI ≈ chk2.ΩI
     # the dis_bands are all true when writing from a model
-    @test chk2.dis_bands == [trues(chk2.n_bands) for i = 1:chk2.n_kpts]
+    @test chk2.dis_bands == [trues(chk2.n_bands) for i in 1:(chk2.n_kpts)]
     # the Hamiltonian rotated by Uᵈ must be diagonal, according to W90 convention
     Hᵈ = Wannier.get_Hk(model.E, Wannier.get_Udis(chk2))
     # this is too strict, even
@@ -28,7 +28,7 @@
     # @test all(isdiag(Hᵈ[:, :, ik]) for ik in axes(Hᵈ, 3))
     Hdiag = similar(Hᵈ)
     for ik in 1:length(Hᵈ)
-        Hdiag[ik] = Hermitian(Hᵈ[ik])
+        Hdiag[ik] = Hermitian(Diagonal(Hᵈ[ik]))
     end
     @test Hᵈ ≈ Hdiag
     # the unitary matrix should be the same

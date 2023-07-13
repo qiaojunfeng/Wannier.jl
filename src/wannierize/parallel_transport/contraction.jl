@@ -17,7 +17,7 @@ function propagate!(
     U::Vector{Matrix{T}},
     kpts::Vector{Int},
     dk::Vector{R},
-    M::Vector{Array{T,3}},
+    M::Vector{Vector{Matrix{T}}},
     kpoints::Vector{Vec3{R}},
     kpb_k::Vector{Vector{Int}},
     kpb_b::Vector{Vector{Vec3{Int}}},
@@ -41,7 +41,7 @@ function propagate!(
         #     b = kpoints[:, ik] - dk - kpoints[:, ik0]
         b = round.(Int, kpoints[ik] - dk - kpoints[ik0])
         ib = index_bvector(kpb_k, kpb_b, ik, ik0, b)
-        Mᵏᵇ = M[ik][:, :, ib]
+        Mᵏᵇ = M[ik][ib]
         U[ik] = orthonorm_lowdin(Mᵏᵇ * U[ik0])
     end
 
@@ -219,7 +219,7 @@ function matrix_parallel_transport(
             U[:, ic, ik, iit] /= norm(U[:, ic, ik, iit])
         end
 
-        not_columns = [j for j = 1:n_col if j ∉ columns]
+        not_columns = [j for j in 1:n_col if j ∉ columns]
 
         # Normalize the remaining columns
         if length(not_columns) > 0
@@ -278,13 +278,14 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
         return reshape(matrix_path, (n_row, n_col, n_k, 1))
     end
 
-    # @assert begin
-    #     for i in 1:n_k
-    #         P = matrix_path[:, :, i] * matrix_path[:, :, i]'
-    #         norm(P - I) >= 1e-5 && return false
-    #     end
-    #     true
-    # end
+    @assert begin
+        for i in 1:n_k
+            P = matrix_path[:, :, i] * matrix_path[:, :, i]'
+            norm(P - I) >= 1e-5 && return false
+        end
+        true
+    end
+
     CT = Complex{T}
     columns = zeros(Int, 0)
     prev_poles = zeros(CT, n_col, n_col)
