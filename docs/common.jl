@@ -12,7 +12,9 @@ end
 
 HTMLPlot(p) = HTMLPlot(p, 400)
 
+# the Documenter.jl build folder for storing the final HTML pages
 const ROOT_DIR = joinpath(@__DIR__, "build")
+# the folder for saving HTML plots, needs to be inside the Documenter.jl build folder
 const PLOT_DIR = joinpath(ROOT_DIR, "plots")
 
 function Base.show(io::IO, ::MIME"text/html", p::HTMLPlot)

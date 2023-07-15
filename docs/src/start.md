@@ -6,8 +6,8 @@
 
 First install [Julia](https://julialang.org/), you can,
 
-- download official release from <https://julialang.org/downloads/>
-- or use [`juliaup`](https://github.com/JuliaLang/juliaup) which can better handle multiple Julia versions
+- use [`juliaup`](https://github.com/JuliaLang/juliaup)
+- or download releases from <https://julialang.org/downloads/>
 
 !!! tip
 
@@ -26,7 +26,7 @@ Install with the Julia package manager [Pkg](https://pkgdocs.julialang.org/),
 just like any other registered Julia package:
 
 ```julia
-pkg> add Wannier  # Press ']' to enter the Pkg REPL mode.
+pkg> add Wannier  # Press ']' to enter the Pkg mode
 ```
 
 or
@@ -35,9 +35,9 @@ or
 julia> using Pkg; Pkg.add("Wannier")
 ```
 
-This is the recommended way to install `Wannier.jl` for end users.
-
 #### From GitHub
+
+If you want to play with the code, you can clone the repo:
 
 ```bash
 git clone https://github.com/qiaojunfeng/Wannier.jl.git
@@ -47,8 +47,10 @@ julia --project=. -e 'using Pkg; Pkg.update(); Pkg.resolve(); Pkg.instantiate()'
 
 #### From tarball
 
+Download releases from <https://github.com/qiaojunfeng/Wannier.jl/releases>
+
 ```bash
-tar xvf Wannier.jl.tgz
+tar xvf Wannier.jl.tar.gz
 cd Wannier.jl
 julia --project=. -e 'using Pkg; Pkg.update(); Pkg.resolve(); Pkg.instantiate()'
 ```
@@ -67,12 +69,12 @@ cd Wannier.jl
 julia --project deps/build.jl install  # install CLI
 ```
 
-The executable will be installed in ```~/.julia/bin/wannier```.
+The executable will be installed in ```~/.julia/bin/wjl```.
 
 After appending `~/.julia/bin` to your `$PATH`, you can use the CLI as follows:
 
 ```bash
-$ wannier -h
+$ wjl -h
 
 
   wannier v0.1.0

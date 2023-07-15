@@ -11,4 +11,6 @@ include("interp/include.jl")
 include("realspace/include.jl")
 include("cli/main.jl")
 
+include("Datasets.jl")
+
 end
