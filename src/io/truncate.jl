@@ -30,13 +30,13 @@ function truncate_mmn_eig(
     E1 = map(e -> e[keep_bands], E)
     write_eig(joinpath(outdir, "$seedname_base.eig"), E1)
 
-    M, kpb_k, kpb_b = read_mmn("$seedname.mmn")
+    M, kpb_k, kpb_G = read_mmn("$seedname.mmn")
     M1 = map(M) do Mk
         map(Mk) do Mkb
             Mkb[keep_bands, keep_bands]
         end
     end
-    write_mmn(joinpath(outdir, "$seedname_base.mmn"), M1, kpb_k, kpb_b)
+    write_mmn(joinpath(outdir, "$seedname_base.mmn"), M1, kpb_k, kpb_G)
 
     return nothing
 end

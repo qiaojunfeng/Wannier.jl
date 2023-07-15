@@ -19,7 +19,7 @@ function read_nnkp(filename::AbstractString)
     ik = 1
     for ib in 1:n_bvecs
         ik2 = nnkp.kpb_k[ik][ib]
-        b = nnkp.kpb_b[ik][ib]
+        b = nnkp.kpb_G[ik][ib]
         bvec = nnkp.kpoints[ik2] + b - nnkp.kpoints[ik]
         bvectors[ib] = nnkp.recip_lattice * bvec
     end
@@ -28,7 +28,7 @@ function read_nnkp(filename::AbstractString)
     fill!(weights, NaN)
 
     return BVectors(
-        nnkp.recip_lattice, nnkp.kpoints, bvectors, weights, nnkp.kpb_k, nnkp.kpb_b
+        nnkp.recip_lattice, nnkp.kpoints, bvectors, weights, nnkp.kpb_k, nnkp.kpb_G
     )
 end
 
@@ -48,11 +48,12 @@ function write_nnkp(
     exclude_bands::Union{Nothing,AbstractVector{<:Integer}}=nothing,
 )
     return WannierIO.write_nnkp(
-        filename,
+        filename;
+        lattice=get_lattice(bvectors.recip_lattice),
         bvectors.recip_lattice,
         bvectors.kpoints,
         bvectors.kpb_k,
-        bvectors.kpb_b,
+        bvectors.kpb_G,
         n_wann,
         exclude_bands,
     )

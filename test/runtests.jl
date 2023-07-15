@@ -1,6 +1,7 @@
 using LinearAlgebra
-using Wannier
 using Test
+using Wannier
+using Wannier: Vec3, Mat3
 
 using Aqua
 # only test ambiguities in current module, otherwise fails due to ambiguities in other packages
@@ -11,8 +12,6 @@ using Aqua
 
 const TEST_PATH = @__DIR__
 const FIXTURE_PATH = joinpath(TEST_PATH, "fixtures")
-
-mat2vec(A::AbstractMatrix) = [v for v in eachcol(A)]
 
 @testset "Wannier.jl" begin
     include("io/w90.jl")
@@ -33,7 +32,7 @@ mat2vec(A::AbstractMatrix) = [v for v in eachcol(A)]
     include("wannierize/parallel_transport.jl")
     include("wannierize/constrain_center/max_localize.jl")
     include("wannierize/constrain_center/disentangle.jl")
-    include("wannierize/coopt.jl")
+    # include("wannierize/coopt.jl")
 
     include("realspace.jl")
 

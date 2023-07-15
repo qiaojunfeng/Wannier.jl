@@ -1,19 +1,19 @@
 using YAML
 using Brillouin
-using Wannier: Vec3
+
 @testset "read nnkp" begin
     test_data = YAML.load_file(String(@__DIR__) * "/test_data/nnkp.yaml")
 
     bvectors = read_nnkp(joinpath(FIXTURE_PATH, "silicon/silicon.nnkp"))
 
     # Convert type so YAML can write it.
-    kpb_b = bvectors.kpb_b
+    kpb_G = bvectors.kpb_G
     dict = Dict(
         "recip_lattice" => [[bvectors.recip_lattice[i, j] for i in 1:3] for j in 1:3],
         "kpoints" => bvectors.kpoints,
         "bvectors" => bvectors.bvectors,
         "kpb_k" => bvectors.kpb_k,
-        "kpb_b" => bvectors.kpb_b,
+        "kpb_G" => bvectors.kpb_G,
     )
 
     # YAML.write_file(String(@__DIR__) * "/test_data/nnkp.yaml", dict)
@@ -34,28 +34,28 @@ end
     @test bvectors.kpoints ≈ bvectors2.kpoints
     @test bvectors.bvectors ≈ bvectors2.bvectors
     @test bvectors.kpb_k ≈ bvectors2.kpb_k
-    @test bvectors.kpb_b ≈ bvectors2.kpb_b
+    @test bvectors.kpb_G ≈ bvectors2.kpb_G
 end
 
 @testset "read/write w90 band" begin
     win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
     recip_lattice = Wannier.get_recip_lattice(win.unit_cell_cart)
-    kpi, E = read_w90_band(
+    kpi, eigenvalues = read_w90_band(
         joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"), recip_lattice
     )
 
     outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "silicon")
 
-    write_w90_band(outseedname, kpi, E)
+    write_w90_band(outseedname, kpi, eigenvalues)
 
-    kpi2, E2 = read_w90_band(outseedname, recip_lattice)
+    kpi2, eigenvalues2 = read_w90_band(outseedname, recip_lattice)
 
     @test kpi.kpaths ≈ kpi2.kpaths
     @test kpi.labels == kpi2.labels
     @test kpi.basis ≈ kpi2.basis
     @test Symbol(kpi.setting) == Symbol(kpi2.setting)
-    @test E ≈ E2
+    @test eigenvalues ≈ eigenvalues2
 end
 
 @testset "read tb" begin

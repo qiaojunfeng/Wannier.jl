@@ -11,7 +11,7 @@ Those must be neighbors, and only the first kpoint is assumed to have been rotat
 - `M`: overlap matrices
 - `kpoints`: `BVectors.kpoints`, kpoint coordinates of the grid
 - `kpb_k`: `BVectors.kpb_k`
-- `kpb_b`: `BVectors.kpb_b`
+- `kpb_G`: `BVectors.kpb_G`
 """
 function propagate!(
     U::Vector{Matrix{T}},
@@ -20,7 +20,7 @@ function propagate!(
     M::Vector{Vector{Matrix{T}}},
     kpoints::Vector{Vec3{R}},
     kpb_k::Vector{Vector{Int}},
-    kpb_b::Vector{Vector{Vec3{Int}}},
+    kpb_G::Vector{Vector{Vec3{Int}}},
 ) where {T<:Complex,R<:Real}
     N = length(kpts)
     n = size(U[1], 1)
@@ -40,7 +40,7 @@ function propagate!(
         #   input ik0 to be at kpoints[:, ik] - dk is
         #     b = kpoints[:, ik] - dk - kpoints[:, ik0]
         b = round.(Int, kpoints[ik] - dk - kpoints[ik0])
-        ib = index_bvector(kpb_k, kpb_b, ik, ik0, b)
+        ib = index_bvector(kpb_k, kpb_G, ik, ik0, b)
         Mᵏᵇ = M[ik][ib]
         U[ik] = orthonorm_lowdin(Mᵏᵇ * U[ik0])
     end
@@ -49,7 +49,7 @@ function propagate!(
 end
 
 function propagate!(U, kpts, dk, M, bvectors::BVectors)
-    return propagate!(U, kpts, dk, M, bvectors.kpoints, bvectors.kpb_k, bvectors.kpb_b)
+    return propagate!(U, kpts, dk, M, bvectors.kpoints, bvectors.kpb_k, bvectors.kpb_G)
 end
 
 """

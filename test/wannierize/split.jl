@@ -23,7 +23,7 @@ end
     U = get_U(chk)
     (Ev, _), (Ec, _) = Wannier.split_eig(E, U, n_val)
 
-    M, kpb_k, kpb_b = read_mmn(joinpath(FIXTURE_PATH, "silicon/silicon.mmn"))
+    M, kpb_k, kpb_G = read_mmn(joinpath(FIXTURE_PATH, "silicon/silicon.mmn"))
 
     # V is random, use reference V
     Vv = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.vmn"))
@@ -51,8 +51,8 @@ end
     # write_eig(joinpath(FIXTURE_PATH, "conduction", "silicon.eig"), Ec)
     # write_amn(joinpath(FIXTURE_PATH, "valence", "silicon.vmn"), Vv)
     # write_amn(joinpath(FIXTURE_PATH, "conduction", "silicon.vmn"), Vc)
-    # write_mmn(joinpath(FIXTURE_PATH, "valence", "silicon.mmn"), Mv, kpb_k, kpb_b)
-    # write_mmn(joinpath(FIXTURE_PATH, "conduction", "silicon.mmn"), Mc, kpb_k, kpb_b)
+    # write_mmn(joinpath(FIXTURE_PATH, "valence", "silicon.mmn"), Mv, kpb_k, kpb_G)
+    # write_mmn(joinpath(FIXTURE_PATH, "conduction", "silicon.mmn"), Mc, kpb_k, kpb_G)
 end
 
 @testset "eyes_U" begin

@@ -23,7 +23,7 @@ function get_fg!_rotate(model::Model)
 
         bvectors = model.bvectors
         kpb_k = bvectors.kpb_k
-        kpb_b = bvectors.kpb_b
+        kpb_G = bvectors.kpb_G
         wb = bvectors.weights
         recip_lattice = bvectors.recip_lattice
         kpoints = bvectors.kpoints
@@ -48,7 +48,7 @@ function get_fg!_rotate(model::Model)
                 # need to use UW[:, :, ik] instead of W, if model.U is not identity
                 MWᵏᵇ .= M[ik][ib] * W
                 Nᵏᵇ .= W' * MWᵏᵇ
-                b = recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - kpoints[ik])
+                b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
 
                 q = imaglog.(diag(Nᵏᵇ))
                 for iw in 1:n_wann

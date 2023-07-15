@@ -35,14 +35,14 @@ function read_w90(
 
     n_bvecs = bvectors.n_bvecs
     if mmn
-        M, kpb_k_mmn, kpb_b_mmn = read_mmn("$seedname.mmn")
+        M, kpb_k_mmn, kpb_G_mmn = read_mmn("$seedname.mmn")
 
         # check consistency for mmn
         (n_bands, n_bands) != size(M[1][1]) && error("n_bands != size(M[1][1])")
         n_bvecs != length(M[1]) && error("n_bvecs != length(M[1])")
         n_kpts != length(M) && error("n_kpts != length(M)")
         bvectors.kpb_k != kpb_k_mmn && error("kpb_k != kpb_k from mmn file")
-        bvectors.kpb_b != kpb_b_mmn && error("kpb_b != kpb_b from mmn file")
+        bvectors.kpb_G != kpb_G_mmn && error("kpb_G != kpb_G from mmn file")
     else
         M = [[zeros(ComplexF64, n_bands, n_bands) for ib in 1:n_bvecs] for ik in 1:n_kpts]
     end
@@ -53,9 +53,8 @@ function read_w90(
         else
             U = read_amn("$seedname.amn")
         end
-        n_bands != size(U[1], 1) && error("n_bands != size(U[1], 1)")
-        n_wann != size(U[1], 2) && error("n_wann != size(U[1], 2)")
-        n_kpts != length(U) && error("n_kpts != length(U)")
+        @assert n_kpts == length(U) "amn file has different n_kpts than win file: $(length(U)) != $n_kpts"
+        @assert (n_bands, n_wann) == size(U[1]) "U[1] is not a n_bands x n_wann matrix: $(size(U[1])) != ($n_bands, $n_wann)"
     else
         U = [zeros(ComplexF64, n_bands, n_wann) for i in 1:n_kpts]
     end
@@ -183,8 +182,8 @@ function write_w90(seedname::AbstractString, model::Model; binary::Bool=false)
     write_eig(outname("eig"), model.E; binary=binary)
 
     kpb_k = model.bvectors.kpb_k
-    kpb_b = model.bvectors.kpb_b
-    write_mmn(outname("mmn"), model.M, kpb_k, kpb_b; binary=binary)
+    kpb_G = model.bvectors.kpb_G
+    write_mmn(outname("mmn"), model.M, kpb_k, kpb_G; binary=binary)
 
     write_amn(outname("amn"), model.U; binary=binary)
 

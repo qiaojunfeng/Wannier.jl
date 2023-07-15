@@ -19,10 +19,10 @@ end
     E = read_eig("$outseedname.eig")
     @test E ≈ model.E
 
-    M, kpb_k, kpb_b = read_mmn("$outseedname.mmn")
+    M, kpb_k, kpb_G = read_mmn("$outseedname.mmn")
     @test M ≈ model.M
     @test kpb_k ≈ model.bvectors.kpb_k
-    @test kpb_b ≈ model.bvectors.kpb_b
+    @test kpb_G ≈ model.bvectors.kpb_G
 end
 
 @testset "read_w90_interp" begin

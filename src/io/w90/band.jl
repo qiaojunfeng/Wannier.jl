@@ -4,7 +4,7 @@ using Bravais: ReciprocalBasis
 export read_w90_band, write_w90_band
 
 """
-    KPathInterpolant(kpoints, symm_idx, symm_label, recip_lattice)
+    KPathInterpolant(kpoints, symm_point_indices, symm_point_labels, recip_lattice)
 
 Generate a `KPathInterpolant` from `kpoints` in `seedname_band.dat/kpt/labelinfo`.
 
@@ -13,8 +13,8 @@ Generate a `KPathInterpolant` from `kpoints` in `seedname_band.dat/kpt/labelinfo
 """
 function KPathInterpolant(
     kpoints::AbstractVector,
-    symm_idx::AbstractVector{T},
-    symm_label::AbstractVector{R},
+    symm_point_indices::AbstractVector{T},
+    symm_point_labels::AbstractVector{R},
     recip_lattice::AbstractMatrix,
 ) where {T<:Integer,R<:AbstractString}
     # kpoints along path
@@ -22,10 +22,10 @@ function KPathInterpolant(
     # symmetry points
     labels = Vector{Dict{Int,Symbol}}()
 
-    i0 = symm_idx[1]  # 1st point
+    i0 = symm_point_indices[1]  # 1st point
     lab = Dict{Int,Symbol}()  # label of each line
-    push!(lab, i0 => Symbol(symm_label[1]))
-    for (i, l) in zip(symm_idx[2:end], symm_label[2:end])
+    push!(lab, i0 => Symbol(symm_point_labels[1]))
+    for (i, l) in zip(symm_point_indices[2:end], symm_point_labels[2:end])
         if i == i0 + 1
             push!(labels, lab)
             lab = Dict{Int,Symbol}()
@@ -67,34 +67,36 @@ See also [`read_w90_band(seedname::AbstractString)`](@ref read_w90_band(seedname
 """
 function read_w90_band(seedname::AbstractString, recip_lattice::AbstractMatrix)
     band = WannierIO.read_w90_band(seedname)
-    kpi = KPathInterpolant(band.kpoints, band.symm_idx, band.symm_label, recip_lattice)
-    return kpi, band.E
+    kpi = KPathInterpolant(
+        band.kpoints, band.symm_point_indices, band.symm_point_labels, recip_lattice
+    )
+    return kpi, band.eigenvalues
 end
 
 """
-    get_symm_idx_label(kpi::KPathInterpolant)
+    get_symm_point_indices_label(kpi::KPathInterpolant)
 
 Return the symmetry indexes and labels.
 """
-function get_symm_idx_label(kpi::KPathInterpolant)
+function get_symm_point_indices_label(kpi::KPathInterpolant)
     kpi_frac = latticize(kpi)
 
-    symm_idx = Vector{Int}()
-    symm_label = Vector{String}()
+    symm_point_indices = Vector{Int}()
+    symm_point_labels = Vector{String}()
     ik0 = 0
     for lab in kpi_frac.labels
         for (ik, l) in lab
-            push!(symm_idx, ik + ik0)
-            push!(symm_label, String(l))
+            push!(symm_point_indices, ik + ik0)
+            push!(symm_point_labels, String(l))
         end
         ik0 += maximum(keys(lab))
     end
 
-    perm = sortperm(symm_idx)
-    symm_idx = symm_idx[perm]
-    symm_label = symm_label[perm]
+    perm = sortperm(symm_point_indices)
+    symm_point_indices = symm_point_indices[perm]
+    symm_point_labels = symm_point_labels[perm]
 
-    return symm_idx, symm_label
+    return symm_point_indices, symm_point_labels
 end
 
 """
@@ -104,14 +106,16 @@ Write `SEEDNAME_band.dat, SEEDNAME_band.kpt, SEEDNAME_band.labelinfo.dat`.
 
 This is a more user-friendly version.
 
-See also [`write_w90_band(seedname, kpoints, E, x, symm_idx, symm_label)`]
-(@ref write_w90_band(seedname, kpoints, E, x, symm_idx, symm_label)).
+See also [`write_w90_band(seedname, kpoints, E, x, symm_point_indices, symm_point_labels)`]
+(@ref write_w90_band(seedname, kpoints, E, x, symm_point_indices, symm_point_labels)).
 """
-function write_w90_band(seedname::AbstractString, kpi::KPathInterpolant, E::Vector)
+function write_w90_band(prefix::AbstractString, kpi::KPathInterpolant, eigenvalues::Vector)
     kpoints = get_kpoints(kpi::KPathInterpolant)
     x = get_x(kpi)
-    symm_idx, symm_label = get_symm_idx_label(kpi)
-    return WannierIO.write_w90_band(seedname, kpoints, E, x, symm_idx, symm_label)
+    symm_point_indices, symm_point_labels = get_symm_point_indices_label(kpi)
+    return WannierIO.write_w90_band(
+        prefix; x, eigenvalues, kpoints, symm_point_indices, symm_point_labels
+    )
 end
 
 """
@@ -131,16 +135,18 @@ kpi = Wannier.interpolate_w90(kp, 100)
 Wannier.write_w90_kpt_label("si2", kpi)
 ```
 """
-function write_w90_kpt_label(seedname::AbstractString, kpi::KPathInterpolant)
+function write_w90_kpt_label(prefix::AbstractString, kpi::KPathInterpolant)
     kpoints = get_kpoints(kpi::KPathInterpolant)
     x = get_x(kpi)
-    symm_idx, symm_label = get_symm_idx_label(kpi)
+    symm_point_indices, symm_point_labels = get_symm_point_indices_label(kpi)
 
-    filename = "$(seedname)_band.kpt"
-    WannierIO.write_w90_band_kpt(filename, kpoints)
+    filename = "$(prefix)_band.kpt"
+    WannierIO.write_w90_band_kpt(filename; kpoints)
 
-    filename = "$(seedname)_band.labelinfo.dat"
-    WannierIO.write_w90_band_labelinfo(filename, symm_idx, symm_label, x, kpoints)
+    filename = "$(prefix)_band.labelinfo.dat"
+    WannierIO.write_w90_band_labelinfo(
+        filename; x, kpoints, symm_point_indices, symm_point_labels
+    )
 
     println()
     return nothing

@@ -1,6 +1,4 @@
 using Printf
-using Wannier:Vec3
-using Wannier
 
 const FIXTURE_PATH = joinpath(dirname(pathof(Wannier)), "..", "test", "fixtures")
 
@@ -40,7 +38,7 @@ end
         -0.16137 0.942999 0.932522 0.0124036 0.939593
         -0.965406 -1.20803 0.410094 0.441045 0.439932
     ]
-    ref_r = map(i -> Vec3(ref_r[:, i]), axes(ref_r,2))
+    ref_r = map(i -> Vec3(ref_r[:, i]), axes(ref_r, 2))
     @test isapprox(r, ref_r; atol=1e-4)
 
     ω = omega(rgrid, W)

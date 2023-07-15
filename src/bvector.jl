@@ -89,9 +89,9 @@ The bvectors for each kpoint.
 - `weights`: `n_bvecs`, weights of each bvector
 - `kpb_k`: k+b vectors at kpoint `k`, `k` -> `k + b`
     (index of periodically equivalent kpoint inside `recip_lattice`)
-- `kpb_b`: `3 * n_bvecs * n_kpts`,
+- `kpb_G`: `3 * n_bvecs * n_kpts`,
     displacements between k + b and its periodic image inside `recip_lattice`,
-    such that k+b = `kpoints[:, kpb_k[ib, ik]] + kpb_b[:, ib, ik]` (in fractional)
+    such that k+b = `kpoints[:, kpb_k[ib, ik]] + kpb_G[:, ib, ik]` (in fractional)
 - `n_kpts`: number of kpoints
 - `n_bvecs`: total number of bvectors
 
@@ -124,7 +124,7 @@ struct BVectors{T<:Real}
     # fractional coordinates, actually always integers since they are
     # the number of times to shift along each recip lattice.
     # 3 * n_bvecs * n_kpts, where 3 is [b_x, b_y, b_z]
-    kpb_b::Vector{Vector{Vec3{Int}}}
+    kpb_G::Vector{Vector{Vec3{Int}}}
 end
 
 function Base.getproperty(x::BVectors, sym::Symbol)
@@ -610,7 +610,7 @@ function sort_bvectors(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
 
     # find k+b indexes
     kpb_k = [zeros(Int, n_bvecs) for i in 1:n_kpts]
-    kpb_b = [zeros(Vec3{Int}, n_bvecs) for i in 1:n_kpts]
+    kpb_G = [zeros(Vec3{Int}, n_bvecs) for i in 1:n_kpts]
     # weight
     kpb_w = [zeros(T, n_bvecs) for i in 1:n_kpts]
 
@@ -621,7 +621,7 @@ function sort_bvectors(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
         perm = _sort_kb(bvecs_norm, k_equiv, b_equiv, translations; atol=atol)
 
         kpb_k[ik] = k_equiv[perm]
-        kpb_b[ik] = b_equiv[perm]
+        kpb_G[ik] = b_equiv[perm]
         kpb_w[ik] = bvecs_weight[perm]
     end
 
@@ -629,10 +629,10 @@ function sort_bvectors(shells::BVectorShells{T}; atol::T=1e-6) where {T<:Real}
     # @assert sum(abs.(Iterators.flatten(kpb_w) .- Iterators.flatten(bvecs_weight))) < 1e-6
 
     @debug "k+b k" kpb_k
-    @debug "k+b b" kpb_b
+    @debug "k+b G" kpb_G
     @debug "k+b weights" bvecs_weight
 
-    return BVectors(recip_lattice, kpoints, bvecs, bvecs_weight, kpb_k, kpb_b)
+    return BVectors(recip_lattice, kpoints, bvecs, bvecs_weight, kpb_k, kpb_G)
 end
 
 """
@@ -669,7 +669,7 @@ function get_bvectors(kpoints::AbstractMatrix, args...; kwargs...)
 end
 
 """
-    index_bvector(kpb_k, kpb_b, k1, k2, b)
+    index_bvector(kpb_k, kpb_G, k1, k2, b)
 
 Given bvector `b` connecting kpoints `k1` and `k2`, return the index of the bvector `ib`.
 
@@ -678,14 +678,14 @@ the connecting displacement vector `b`.
 
 # Arguments
 - `kpb_k`: `n_bvecs * n_kpts`, k+b kpoints at `k1`
-- `kpb_b`: `3 * n_bvecs * n_kpts`, displacement vector for k+b bvectors at `k1`
+- `kpb_G`: `3 * n_bvecs * n_kpts`, displacement vector for k+b bvectors at `k1`
 - `k1`: integer, index of kpoint `k1`
 - `k2`: integer, index of kpoint `k2`
 - `b`: vector of 3 integer, displacement vector from `k1` to `k2`
 """
 function index_bvector(
     kpb_k::AbstractVector,
-    kpb_b::AbstractVector,
+    kpb_G::AbstractVector,
     k1::Integer,
     k2::Integer,
     b::AbstractVector{<:Integer},
@@ -693,7 +693,7 @@ function index_bvector(
     n_bvecs = size(kpb_k, 1)
 
     for ib in 1:n_bvecs
-        if kpb_k[k1][ib] == k2 && kpb_b[k1][ib] == b
+        if kpb_k[k1][ib] == k2 && kpb_G[k1][ib] == b
             return ib
         end
     end
@@ -702,7 +702,7 @@ function index_bvector(
 end
 
 function index_bvector(bvectors::BVectors, k1, k2, b)
-    return index_bvector(bvectors.kpb_k, bvectors.kpb_b, k1, k2, b)
+    return index_bvector(bvectors.kpb_k, bvectors.kpb_G, k1, k2, b)
 end
 
 """
@@ -739,16 +739,16 @@ function get_bvectors_nearest(
     # generate bvectors for each kpoint
     n_kpts = length(kpoints)
     kpb_k = [zeros(Int, n_bvecs) for i in 1:n_kpts]
-    kpb_b = [zeros(Vec3{Int}, n_bvecs) for i in 1:n_kpts]
+    kpb_G = [zeros(Vec3{Int}, n_bvecs) for i in 1:n_kpts]
 
     for ik in 1:n_kpts
         k = kpoints[ik]
         # use fractional coordinates to compare
         k_equiv, b_equiv = _bvec_to_kb(bvecs_frac, k, kpoints)
         kpb_k[ik] = k_equiv
-        kpb_b[ik] = b_equiv
+        kpb_G[ik] = b_equiv
     end
 
     bvecs = recip_lattice * bvecs_frac
-    return BVectors(recip_lattice, kpoints, bvecs, bvecs_weight, kpb_k, kpb_b)
+    return BVectors(recip_lattice, kpoints, bvecs, bvecs_weight, kpb_k, kpb_G)
 end
