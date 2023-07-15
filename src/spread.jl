@@ -262,7 +262,7 @@ function omega!(cache::Cache, bvectors::BVectors{FT}, M) where {FT<:Real}
     n_bvecs = length(M[1])
 
     kpb_k = bvectors.kpb_k
-    kpb_b = bvectors.kpb_b
+    kpb_G = bvectors.kpb_G
     wb = bvectors.weights
     recip_lattice = bvectors.recip_lattice
     kpoints = bvectors.kpoints
@@ -288,7 +288,7 @@ function omega!(cache::Cache, bvectors::BVectors{FT}, M) where {FT<:Real}
             ikpb = kpb_k[ik][ib]
             MUkb = MUk[ib]
             Nkb = Nk[ib]
-            b = recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - kpoints[ik])
+            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
 
             wᵇ = wb[ib]
 
@@ -331,7 +331,7 @@ function omega!(cache::Cache, bvectors::BVectors{FT}, M) where {FT<:Real}
     #     for ib in 1:n_bvecs
     #         ikpb = kpb_k[ib, ik]
     #         Nᵏᵇ .= U[:, :, ik]' * M[:, :, ib, ik] * U[:, :, ikpb]
-    #         b .= recip_lattice * (kpoints[:, ikpb] + kpb_b[:, ib, ik] - kpoints[:, ik])
+    #         b .= recip_lattice * (kpoints[:, ikpb] + kpb_G[:, ib, ik] - kpoints[:, ik])
     #         wᵇ = wb[ib]
 
     #         for n in 1:n_wann
@@ -409,7 +409,7 @@ function omega_grad!(penalty::Function, cache::Cache{T}, bvectors, M) where {T}
     center!(r, UtMU, bvectors)
 
     kpb_k = bvectors.kpb_k
-    kpb_b = bvectors.kpb_b
+    kpb_G = bvectors.kpb_G
     wb = bvectors.weights
     recip_lattice = bvectors.recip_lattice
     kpoints = bvectors.kpoints
@@ -429,7 +429,7 @@ function omega_grad!(penalty::Function, cache::Cache{T}, bvectors, M) where {T}
             ikpb = kpb_k[ik][ib]
             MUkb = MUk[ib]
             Nkb = Nk[ib]
-            b = recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - kpoints[ik])
+            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
 
             wᵇ = wb[ib]
 
@@ -565,7 +565,7 @@ function center!(r::Vector{<:Vec3}, UtMU, bvectors)
     n_wann = length(r)
 
     kpb_k = bvectors.kpb_k
-    kpb_b = bvectors.kpb_b
+    kpb_G = bvectors.kpb_G
     wb = bvectors.weights
     recip_lattice = bvectors.recip_lattice
     kpoints = bvectors.kpoints
@@ -575,7 +575,7 @@ function center!(r::Vector{<:Vec3}, UtMU, bvectors)
         for (ib, Nb) in enumerate(Nk)
             ikpb = kpb_k[ik][ib]
 
-            b = recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - k)
+            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - k)
 
             w = wb[ib]
 
@@ -606,7 +606,7 @@ function center(bvectors::BVectors{FT}, M::Vector, U::Array{Complex{FT},3}) wher
     n_bvecs = size(M[1], 3)
 
     kpb_k = bvectors.kpb_k
-    kpb_b = bvectors.kpb_b
+    kpb_G = bvectors.kpb_G
     wb = bvectors.weights
     recip_lattice = bvectors.recip_lattice
     kpoints = bvectors.kpoints
@@ -621,7 +621,7 @@ function center(bvectors::BVectors{FT}, M::Vector, U::Array{Complex{FT},3}) wher
             ikpb = kpb_k[ik][ib]
             mul!(cache, M[ik][ib], U[:, :, ikpb])
             mul!(Nᵏᵇ, U[:, :, ik]', cache)
-            b = recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - kpoints[ik])
+            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
 
             w = wb[ib]
 
@@ -675,7 +675,7 @@ Compute WF postion operator matrix in reciprocal space.
     n_bvecs = length(M[1])
 
     kpb_k = bvectors.kpb_k
-    kpb_b = bvectors.kpb_b
+    kpb_G = bvectors.kpb_G
     wb = bvectors.weights
     recip_lattice = bvectors.recip_lattice
     kpoints = bvectors.kpoints
@@ -690,7 +690,7 @@ Compute WF postion operator matrix in reciprocal space.
             ikpb = kpb_k[ik][ib]
 
             Nᵏᵇ .= U[ik]' * M[ik][ib] * U[ikpb]
-            b = recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - kpoints[ik])
+            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
 
             wᵇ = wb[ib]
 
@@ -749,7 +749,7 @@ Compute Berry connection at each kpoint.
     n_bvecs = length(M[1])
 
     kpb_k = bvectors.kpb_k
-    kpb_b = bvectors.kpb_b
+    kpb_G = bvectors.kpb_G
     wb = bvectors.weights
     recip_lattice = bvectors.recip_lattice
     kpoints = bvectors.kpoints
@@ -763,7 +763,7 @@ Compute Berry connection at each kpoint.
             ikpb = kpb_k[ik][ib]
 
             Nᵏᵇ .= U[ik]' * M[ik][ib] * U[ikpb]
-            b = recip_lattice * (kpoints[ikpb] + kpb_b[ik][ib] - kpoints[ik])
+            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
             wᵇ = wb[ib]
 
             for m in 1:n_wann

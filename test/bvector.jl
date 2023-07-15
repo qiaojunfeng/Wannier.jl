@@ -2,7 +2,7 @@ using Wannier: Vec3
 
 @testset "get_bvectors" begin
     win = read_win(joinpath(FIXTURE_PATH, "silicon/silicon.win"))
-    _, kpb_k, kpb_b = read_mmn(joinpath(FIXTURE_PATH, "silicon/silicon.mmn"))
+    _, kpb_k, kpb_G = read_mmn(joinpath(FIXTURE_PATH, "silicon/silicon.mmn"))
 
     kpoints = win.kpoints
     recip_lattice = get_recip_lattice(win.unit_cell_cart)
@@ -14,7 +14,7 @@ using Wannier: Vec3
         -0.291017 -0.291017 0.291017 -0.291017 0.291017 -0.291017 0.291017 0.291017
         0.291017 -0.291017 -0.291017 0.291017 0.291017 -0.291017 0.291017 -0.291017
     ]
-    ref_bvecs = map(i -> Vec3(ref_bvecs[:, i]), axes(ref_bvecs,2))
+    ref_bvecs = map(i -> Vec3(ref_bvecs[:, i]), axes(ref_bvecs, 2))
 
     ref_weights = zeros(Float64, 8)
     fill!(ref_weights, 1.4759541565587924)
@@ -39,7 +39,7 @@ using Wannier: Vec3
         ret
     end
     @test bvectors.kpb_k ≈ kpb_k
-    @test bvectors.kpb_b ≈ kpb_b
+    @test bvectors.kpb_G ≈ kpb_G
 end
 
 @testset "get_bvectors 2D" begin
@@ -51,17 +51,16 @@ end
 
     bvectors = get_bvectors(kpoints, recip_lattice)
 
-    ref_bvecs =
-        [
-            Vec3(0.000000, 0.070948, 0.000000),
-            Vec3(0.061443, 0.035474, 0.000000),
-            Vec3(-0.061443, -0.035474, 0.000000),
-            Vec3(-0.061443, 0.035474, 0.000000),
-            Vec3(0.000000, -0.070948, 0.000000),
-            Vec3(0.061443, -0.035474, 0.000000),
-            Vec3(0.000000, 0.000000, 0.209440),
-            Vec3(0.000000, 0.000000, -0.209440),
-        ]
+    ref_bvecs = [
+        Vec3(0.000000, 0.070948, 0.000000),
+        Vec3(0.061443, 0.035474, 0.000000),
+        Vec3(-0.061443, -0.035474, 0.000000),
+        Vec3(-0.061443, 0.035474, 0.000000),
+        Vec3(0.000000, -0.070948, 0.000000),
+        Vec3(0.061443, -0.035474, 0.000000),
+        Vec3(0.000000, 0.000000, 0.209440),
+        Vec3(0.000000, 0.000000, -0.209440),
+    ]
 
     ref_weights = [
         66.220759
@@ -94,7 +93,7 @@ end
         ret
     end
     @test bvectors.kpb_k ≈ nnkp.kpb_k
-    @test bvectors.kpb_b ≈ nnkp.kpb_b
+    @test bvectors.kpb_G ≈ nnkp.kpb_G
 end
 
 @testset "get_bvectors kmesh_tol" begin
@@ -106,19 +105,18 @@ end
 
     bvectors = get_bvectors(kpoints, recip_lattice; win.kmesh_tol)
 
-    ref_bvecs =
-        [
-            Vec3(0.000000, 0.000000, 0.180597),
-            Vec3(0.000000, 0.000000, -0.180597),
-            Vec3(0.188176, 0.000000, 0.000001),
-            Vec3(-0.188176, 0.000000, -0.000001),
-            Vec3(-0.094088, 0.162971, -0.000000),
-            Vec3(0.094088, 0.162971, 0.000000),
-            Vec3(0.094088, -0.162971, 0.000000),
-            Vec3(-0.094088, -0.162971, -0.000000),
-            Vec3(-0.188176, 0.000000, 0.180597),
-            Vec3(0.188176, 0.000000, -0.180597)
-        ]
+    ref_bvecs = [
+        Vec3(0.000000, 0.000000, 0.180597),
+        Vec3(0.000000, 0.000000, -0.180597),
+        Vec3(0.188176, 0.000000, 0.000001),
+        Vec3(-0.188176, 0.000000, -0.000001),
+        Vec3(-0.094088, 0.162971, -0.000000),
+        Vec3(0.094088, 0.162971, 0.000000),
+        Vec3(0.094088, -0.162971, 0.000000),
+        Vec3(-0.094088, -0.162971, -0.000000),
+        Vec3(-0.188176, 0.000000, 0.180597),
+        Vec3(0.188176, 0.000000, -0.180597),
+    ]
 
     ref_weights = [
         15.330158
@@ -153,5 +151,5 @@ end
         ret
     end
     @test bvectors.kpb_k ≈ nnkp.kpb_k
-    @test bvectors.kpb_b ≈ nnkp.kpb_b
+    @test bvectors.kpb_G ≈ nnkp.kpb_G
 end
