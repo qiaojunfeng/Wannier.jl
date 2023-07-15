@@ -4,20 +4,19 @@
 
 The documentation is written in Markdown, then processed by `Documenter.jl`.
 
-The tutorials are written in plain Julia code, then processed by `Literate.jl`,
-converted to Markdown, Jupyter notebook, and Julia script,
-finally the Markdown is processed by `Documenter.jl`.
-Thus the tutorials are placed in the `tutorials_src` folder,
-and the `Literate.jl`-generated Markdowns are placed in the `tutorials` folder.
+### Examples
 
-The quickest starting point is looking at existing tutorials,
-e.g. [`1-maxloc.jl`](src/tutorials_src/1-maxloc.jl),
-or [`3-band.jl`](src/tutorials_src/3-band.jl) for integration with `PlotlyJS`.
+1. The examples are written as Julia scripts, in folder `examples/`
+2. The scripts are processed by `Literate.jl`, converted to
+    - Markdown
+    - Jupyter notebook
+    - Julia script without comments
+3. The Markdowns are processed by `Documenter.jl` to generate HTMLs
+
+The quickest starting point is looking at existing examples,
+e.g. [`maximal_localization.jl`](src/examples/maximal_localization.jl),
+or [`band_structure.jl`](src/examples/band_structure.jl) for integration with `PlotlyJS`.
 
 ## Build
 
-Build docs locally
-
-```shell
-julia --project=. make.jl; python -m http.server --directory build
-```
+See [`make_serve.sh`](./make_serve.sh).
