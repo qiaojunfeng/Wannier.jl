@@ -5,11 +5,11 @@ CurrentModule = Wannier
 ```
 
 If you have already been familiar with the Wannierization workflow using
-Wannierization workflow using `Quantum ESPRESSO` and `Wannier90`, the following
+Wannierization workflow using Quantum ESPRESSO and wannier90, the following
 examples should be easy to follow.
-As a side note, some good [`Wannier90`] tutorials can be found at
+As a side note, some good wannier90 tutorials can be found at
 
-- examples folder of [`Wannier90`](https://github.com/wannier-developers/wannier90/tree/develop/examples)
+- `examples` and `tutorials.pdf` of [`Wannier90`](https://github.com/wannier-developers/wannier90/tree/develop/examples)
 - <https://github.com/wannier-developers/wannier-tutorials>
 
 !!! warning
@@ -43,31 +43,35 @@ The `Wannier.Datasets` submodule provides several functions to help inspect and
 load the datasets.
 First, we need to `using` the submodule to bring the functions into scope
 
-```@repl intro_artifacts
+```@repl intro_datasets
 using Wannier.Datasets
 ```
 
 List all available datasets by
 
-```@repl intro_artifacts
+```@repl intro_datasets
 list_datasets()
 ```
 
 Load a dataset into a `Wannier.jl` [`Model`](@ref) by
 
-```@repl intro_artifacts
+```@repl intro_datasets
 model = load_dataset("Si2")
 ```
 
 The dataset is just a folder containing input files, you can inspect the folder by
 
-```@repl intro_artifacts
+```@repl intro_datasets
 show_dataset("Si2")
 ```
 
-Finally, you can directly access the individual files by `artifact` string
+Finally, you can directly access the individual files by `dataset` string
+which just returns a string of the path to the file
+```@repl intro_datasets
+dataset"Si2/Si2.win"
+```
 
-```@repl intro_artifacts
-artifact"Si2/si2.win"
-readlines(artifact"Si2/si2.win")
+For example, you can read the content of a file by
+```@repl intro_datasets
+readlines(dataset"Si2/Si2.win")
 ```

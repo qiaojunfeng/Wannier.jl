@@ -6,15 +6,14 @@ module Datasets
 # need this for lazy artifacts
 using LazyArtifacts
 
-# do not bring exported stuff into scope since I need to extend the @artifact_str macro
-using Artifacts: Artifacts
+using Artifacts
 
 # for pretty printing directory tree
 using FileTrees
 
 using ..Wannier: read_w90
 
-export list_datasets, load_dataset, show_dataset, @artifact_str
+export list_datasets, load_dataset, show_dataset, @dataset_str
 
 function list_datasets()
     artifacts_toml = Artifacts.find_artifacts_toml(@__DIR__)
@@ -37,11 +36,20 @@ function show_dataset(name)
 end
 
 """
-Load artifact from `Wannier.jl/Artifacts.toml`.
+Works like `Artifacts.@artifact_str`, but the `Artifacts.toml` points to the
+`Wannier.jl/Artifacts.toml`.
 
+Defined as a new macro to avoid overwriting the original `@artifact_str`.
 Cannot directly `export @artifact_str` because it can not locate `Artifacts.toml`.
+
+# Example
+
+```julia
+using Wannier.Datasets
+dataset"Si2"
+```
 """
-macro artifact_str(s)
+macro dataset_str(s)
     @eval Artifacts.@artifact_str $s
 end
 

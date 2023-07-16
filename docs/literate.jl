@@ -18,7 +18,7 @@ for (root, _, files) in walkdir(LITERATE_SRCDIR), file in files
     outdir = splitdir(replace(srcpath, LITERATE_SRCDIR => LITERATE_OUTDIR))[1]
 
     # generate markdown which will be executed by Documenter.jl
-    Literate.markdown(srcpath, outdir)
+    Literate.markdown(srcpath, outdir; preprocess=add_badges)
 
     # I skip the execution of the notebook, because
     # 1. it increases the build time
