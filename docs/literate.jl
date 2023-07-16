@@ -4,31 +4,31 @@ include("common.jl")
 
 println("\n**** Process examples with Literate.jl ****")
 
-# Requires variable `EXAMPLES` in caller script
-for (_, md) in EXAMPLES
-    println("\n==== Processing $md ====")
+# dir of the original literate jl script
+LITERATE_SRCDIR = joinpath(@__DIR__, "literate")
+# dir of literate generated markdown/ipynb files
+LITERATE_OUTDIR = joinpath(@__DIR__, "src")
 
-    endswith(md, ".md") || continue
-    # replace
-    jl = replace(md, r"\.md$" => ".jl")
+for (root, _, files) in walkdir(LITERATE_SRCDIR), file in files
+    splitext(file)[2] == ".jl" || continue
 
-    file = joinpath(@__DIR__, "src", jl)
-    isfile(file) || error("tutorial file not found: $file")
+    println("\n==== Processing $file ====")
 
-    outdir = dirname(file)
+    srcpath = joinpath(root, file)
+    outdir = splitdir(replace(srcpath, LITERATE_SRCDIR => LITERATE_OUTDIR))[1]
 
     # generate markdown which will be executed by Documenter.jl
-    Literate.markdown(file, outdir)
+    Literate.markdown(srcpath, outdir)
 
     # I skip the execution of the notebook, because
     # 1. it increases the build time
     # 2. somehow ipynb does not show the plots correctly, e.g. bands, WFs, etc.
     # 3. random numbers during execution might cause the notebook output to be different
     # 4. I will let the user download an empty notebook, so that at least they will run once :-)
-    Literate.notebook(file, outdir; execute=false)
+    Literate.notebook(srcpath, outdir; execute=false)
 
     # This generates a cleansed version w/o comments
-    # Literate.script(file, outdir)
+    # Literate.script(srcpath, outdir)
 end
 
 println("\n**** Literate.jl finished ****\n")

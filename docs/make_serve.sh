@@ -14,11 +14,15 @@ fi
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 if [[ $USE_PYTHON == false ]]; then
-    # 1. Use [`LiveServer.jl`](https://docs.juliahub.com/LiveServer) to track
+    # 1. Use LiveServer.jl (https://docs.juliahub.com/LiveServer) to track
     # changes and rebuild docs automatically
     cd "$SCRIPT_DIR/.."
-    # Avoid infinite loop: https://github.com/tlienart/LiveServer.jl/issues/165
-    julia --project=docs -e 'using Wannier, Documenter, LiveServer; servedocs(literate="")'
+    # Avoid infinite loops:
+    # https://tlienart.github.io/LiveServer.jl/dev/man/ls+lit/
+    # https://github.com/tlienart/LiveServer.jl/issues/165
+    julia_code="using Wannier, Documenter, LiveServer; \
+                servedocs(literate_dir=\"docs/literate\")"
+    julia --project=docs -e "$julia_code"
 else
     # 2. use python's http.server to set up a local server
     cd "$SCRIPT_DIR"
