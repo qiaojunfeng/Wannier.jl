@@ -21,9 +21,16 @@ EXAMPLES = [
     "Split valence/conduction" => "examples/manifold_remixing.md",
     "Constrain WF center" => "examples/center_constraint.md",
     "Fermi surface" => "examples/fermi_surface.md",
+    # "Spin texture" => "examples/spin_texture.md",
     # "Cooptimize spin-polarized WFs" => "examples/10-coopt.md",
     "Tips & code snippets" => "examples/code_snippets.md",
 ]
+
+# Delete previous examples to do a clean build.
+# Otherwise, even if I comment out some entries in `EXAMPLES`, the old pages
+# will still be process by Documenter.jl.
+LITERATE_EXAMPLES_OUTDIR = joinpath(@__DIR__, "src/examples")
+isdir(LITERATE_EXAMPLES_OUTDIR) && rm(LITERATE_EXAMPLES_OUTDIR; recursive=true)
 
 # Process examples by Literate.jl
 if SKIP_EXAMPLES

@@ -1,4 +1,4 @@
-# # 8. Interpolation of Fermi surface
+# # Interpolation of Fermi surface
 
 #=
 ```@meta
@@ -14,18 +14,13 @@ the copper and then compute the Fermi surface.
 2. construct a [`Model`](@ref) for `Wannier.jl`, by reading the `win`, `amn`, `mmn`, and `eig` files
 3. run `Wannier.jl` [`disentangle`](@ref) on the `Model` to minimize the spread
 4. write the maximal localized gauge to a new `amn` file
-
-!!! tip
-
-    This is a HTML version of the tutorial, you can download corresponding
-    - Jupyter notebook: [`tutorial.ipynb`](./tutorial.ipynb)
-    - Julia script: [`tutorial.jl`](./tutorial.jl)
 =#
 
 # ## Preparation
 # Load the package
 using WannierIO
 using Wannier
+using Wannier.Datasets
 using WannierPlots
 
 #=
@@ -35,12 +30,12 @@ using WannierPlots
 =#
 
 #=
-## Model generation
+## Model construction
 
 We will use the [`read_w90`](@ref) function to read the
 `win`, `amn`, `mmn`, and `eig` files, and construct a [`Model`](@ref) that abstracts the calculation
 =#
-model = read_w90("cu")
+model = load_dataset("Cu")
 
 #=
 !!! tip
@@ -78,7 +73,7 @@ model.U .= U;
 =#
 
 # load QE band structure
-kpoints_qe, E_qe = WannierIO.read_qe_band("qe_bands.dat");
+kpoints_qe, E_qe = WannierIO.read_qe_band(dataset"Cu/reference/qe_bands.dat");
 # the Fermi energy from scf calculation
 ef = 16.8985
 
@@ -86,7 +81,7 @@ ef = 16.8985
 ## Generate an [`InterpModel`](@ref)
 =#
 # Force using `kpoint_path` in `win` file
-win = read_win("cu.win")
+win = read_win(dataset"Cu/Cu.win")
 kpath = Wannier.get_kpath(win.unit_cell, win.kpoint_path)
 
 interp_model = Wannier.InterpModel(model; kpath=kpath)
@@ -108,14 +103,14 @@ save to a `bxsf` file
 =#
 # origin of the grid, always zeros
 origin = zeros(Float64, 3)
-WannierIO.write_bxsf("cu.bxsf", ef, origin, interp_model.recip_lattice, E_fs)
+WannierIO.write_bxsf("Cu.bxsf", ef, origin, interp_model.recip_lattice, E_fs)
 
 # show the Brillouin zone
 using Brillouin
 using PlotlyJS
 
 # primitive reciprocal basis associated with k-path
-bxsf = Wannier.read_bxsf("cu.bxsf")
+bxsf = Wannier.read_bxsf(dataset"Cu/reference/Cu.bxsf")
 fig = WannierPlots.plot_fermisurf_plotly(bxsf.rgrid, bxsf.fermi_energy, bxsf.E; kpath=kpath)
 fig.layout.width = 500
 fig.layout.height = 500

@@ -1,4 +1,4 @@
-# # 5. Parallel transport for top valence band of MoS2
+# # Parallel transport for Wannierization of MoS2 top valence band
 
 #=
 ```@meta
@@ -30,26 +30,21 @@ thus more efficient than SCDM, which requires wavefunctions in real space.
 5. maxiaml localize to smoothen the gauge
 6. interpolate band, and write the real space WF
 7. similarly, Wannierize the top valence band
-
-!!! tip
-
-    This is a HTML version of the tutorial, you can download corresponding
-    - Jupyter notebook: [`tutorial.ipynb`](./tutorial.ipynb)
-    - Julia script: [`tutorial.jl`](./tutorial.jl)
 =#
 
 # ## Preparation
 # Load the package
 using Wannier
+using Wannier.Datasets
 using WannierPlots
 
 #=
-## Model generation
+## Model construction
 
 We will use the [`read_w90`](@ref) function to read the
 `win`, `amn`, `mmn`, and `eig` files, and construct a [`Model`](@ref) that abstracts the calculation
 =#
-model = read_w90("mos2")
+model = load_dataset("MoS2")
 
 #=
 ## Maximal localization

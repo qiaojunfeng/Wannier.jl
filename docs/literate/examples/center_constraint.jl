@@ -1,4 +1,4 @@
-# # 7. Constraining the WF center
+# # Constraining Wannier function centers
 
 #=
 ```@meta
@@ -26,25 +26,20 @@ WFs to be centered at the bond centers, i.e., bonding and anti-bonding orbitals.
 1. construct a [`Model`](@ref), by reading the `win`, `amn`, `mmn`, and `eig` files
 2. disentangle, without WF center penalty
 3. disentangle, with WF center penalty
-
-!!! tip
-
-    This is a HTML version of the tutorial, you can download corresponding
-    - Jupyter notebook: [`tutorial.ipynb`](./tutorial.ipynb)
-    - Julia script: [`tutorial.jl`](./tutorial.jl)
 =#
 
 # ## Preparation
 # Load the package
 using Wannier
+using Wannier.Datasets
 
 #=
-## Model generation
+## Model construction
 
 We will use the [`read_w90`](@ref) function to read the
 `win`, `amn`, `mmn`, and `eig` files, and construct a [`Model`](@ref) that abstracts the calculation
 =#
-model = read_w90("si2")
+model = load_dataset("Si2")
 
 #=
 ## Disentanglement

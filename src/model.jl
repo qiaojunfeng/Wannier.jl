@@ -258,3 +258,5 @@ function rotate_gauge(
     )
     return model2
 end
+
+get_kpath(model::Model) = get_kpath(model.lattice, model.atom_positions, model.atom_labels)

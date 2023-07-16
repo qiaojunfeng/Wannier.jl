@@ -74,7 +74,7 @@ P = plot_band_diff(kpi, qe.E_up, qe.E_dn; fermi_energy=qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 #=
-## Model generation
+## Model construction
 
 We will use the [`read_w90`](@ref) function to read the
 `win`, `amn`, `mmn`, and `eig` files, and construct two [`Model`](@ref)s

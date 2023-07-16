@@ -1,4 +1,4 @@
-# # 9. Parallel transport using custom b-vectors
+# # Parallel transport using custom ``b``-vectors
 
 #=
 ```@meta
@@ -31,21 +31,16 @@ generate a custom set of b-vectors, write them to a `nnkp` file, rerun
 6. use the PTG gauge matrices in the `Model`
 7. maxiaml localize to smoothen the gauge
 8. interpolate band structure
-
-!!! tip
-
-    This is a HTML version of the tutorial, you can download corresponding
-    - Jupyter notebook: [`tutorial.ipynb`](./tutorial.ipynb)
-    - Julia script: [`tutorial.jl`](./tutorial.jl)
 =#
 
 # ## Preparation
 # Load the package
 using Wannier
+using Wannier.Datasets
 using WannierPlots
 
 #=
-## Model generation
+## Model construction
 
 We will use the [`read_w90`](@ref) function to read the
 `win`, `amn`, `mmn`, and `eig` files, and construct a [`Model`](@ref)
@@ -65,7 +60,7 @@ We will use the [`read_w90`](@ref) function to read the
     can inspect these two files and use them to populate the `kpoint_path` block
     in the `win` file, or the `K_POINTS` block in the `pw.x` bands calculation.
 =#
-model = read_w90("CuBr2")
+model = load_dataset("CuBr2")
 
 #=
 !!! note
@@ -117,7 +112,7 @@ A template input file for `pw2wannier90.x` is provided here
 
 Now, we load the new `mmn` file, and construct a new [`Model`](@ref)
 =#
-M_nn = WannierIO.read_mmn("CuBr2_nn.mmn")[1];
+M_nn, _, _ = read_mmn("CuBr2_nn.mmn");
 model_nn = Wannier.Model(
     model.lattice,
     model.atom_positions,
@@ -155,12 +150,12 @@ Finally, let's have a look at the band interpolation.
 
 First load the QE band structure
 =#
-kpoints_qe, E_qe = WannierIO.read_qe_band("qe_bands.dat");
+kpoints_qe, E_qe = WannierIO.read_qe_band(dataset"CuBr2/reference/qe_bands.dat");
 # the Fermi energy from scf calculation
 ef = 4.6459
 
 # Force using `kpoint_path` in `win` file
-win = read_win("CuBr2.win")
+win = read_win(dataset"CuBr2/CuBr2.win")
 kpath = Wannier.get_kpath(win.unit_cell, win.kpoint_path)
 
 interp_model = Wannier.InterpModel(model; kpath=kpath)
