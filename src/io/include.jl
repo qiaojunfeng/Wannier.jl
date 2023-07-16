@@ -11,6 +11,7 @@ hidden although I reexport them here.
 =#
 @reexport using WannierIO
 
+include("w90/win.jl")
 include("w90/nnkp.jl")
 include("w90/amn.jl")
 include("w90/chk.jl")

@@ -17,11 +17,14 @@ if [[ $USE_PYTHON == false ]]; then
     # 1. Use LiveServer.jl (https://docs.juliahub.com/LiveServer) to track
     # changes and rebuild docs automatically
     cd "$SCRIPT_DIR/.."
-    # Avoid infinite loops:
+    # set `skip_dir` to avoid infinite loops:
     # https://tlienart.github.io/LiveServer.jl/dev/man/ls+lit/
     # https://github.com/tlienart/LiveServer.jl/issues/165
+    # use `0.0.0.0` to listen on all interfaces, so that port forward works
     julia_code="using Wannier, Documenter, LiveServer; \
-                servedocs(literate_dir=\"docs/literate\")"
+                servedocs(literate_dir=\"docs/literate\", \
+                skip_dir=\"docs/src/examples\", \
+                host=\"0.0.0.0\")"
     julia --project=docs -e "$julia_code"
 else
     # 2. use python's http.server to set up a local server

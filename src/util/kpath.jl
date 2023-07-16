@@ -35,7 +35,9 @@ kpoint_path = [
 ]
 ```
 """
-function get_kpath(lattice::AbstractMatrix, kpoint_path::Vector{Vector{SymbolVec3}})
+function get_kpath(
+    lattice::AbstractMatrix, kpoint_path::Vector{Vector{SV}}
+) where {SV<:SymbolVec3}
     points = Dict{Symbol,Vec3{Float64}}()
     paths = Vector{Vector{Symbol}}()
 

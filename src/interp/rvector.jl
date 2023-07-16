@@ -106,7 +106,7 @@ function get_Rvectors_ws(
 ) where {T<:Real,R<:Integer}
 
     # 1. Generate a supercell where WFs live in
-    supercell_wf, _ = make_supercell([Vec3(0,0,0)], [0:(r - 1) for r in rgrid])
+    supercell_wf, _ = make_supercell([Vec3(0, 0, 0)], [0:(r - 1) for r in rgrid])
     # another supercell of the supercell_wf to find the Wigner Seitz cell of the supercell_wf
     supercell, translations = make_supercell(
         supercell_wf, [((-max_cell):max_cell) * r for r in rgrid]
@@ -114,7 +114,7 @@ function get_Rvectors_ws(
     # sort so z increases fastest, to make sure the Rvec order is the same as W90
     supercell = sort_kpoints(supercell)
     # to cartesian coordinates
-    supercell_cart = map(x -> lattice * x,  supercell)
+    supercell_cart = map(x -> lattice * x, supercell)
     # get translations of supercell_wf, only need unique points
     translations = unique(translations)
     translations_cart = map(x -> lattice * x, translations)
@@ -128,10 +128,10 @@ function get_Rvectors_ws(
     idxs, dists = knn(kdtree, supercell_cart, max_neighbors, true)
 
     # 3. supercell_cart point which is closest to lattice_wf at origin is inside WS cell
-    idx_origin = findfirst(isequal(Vec3(0,0,0)), translations)
+    idx_origin = findfirst(isequal(Vec3(0, 0, 0)), translations)
     R_idxs = Vector{Int}()
     R_degen = Vector{Int}()
-    
+
     for ir in 1:length(supercell_cart)
         i = idxs[ir][1]
         d = dists[ir][1]
@@ -214,13 +214,15 @@ the are calculated automatically based on the input arguments.
 - `T`: `n_wann * n_wann * n_rvecs`, translation vectors w.r.t to lattice for MDRSv1
 - `Nᵀ`: `n_wann * n_wann * n_rvecs`, degeneracy of each `T` vector for MDRSv1
 """
-function RVectorsMDRS(Rvectors::RVectors, T_::Vector{Matrix{Vector{Vec3{Int}}}}, Nᵀ::Vector{Matrix{Int}})
+function RVectorsMDRS(
+    Rvectors::RVectors, T_::Vector{Matrix{Vector{Vec3{Int}}}}, Nᵀ::Vector{Matrix{Int}}
+)
     # expanded R vectors
     R̃ = Vector{Vec3{Int}}()
     # mapping
     R̃_RT = Vector{Vector{SVector{4,Int}}}()
     # generate expanded R̃ vectors, which contains all the R+T
-    for ir in 1:Rvectors.n_rvecs
+    for ir in 1:(Rvectors.n_rvecs)
         T = T_[ir]
         NT = Nᵀ[ir]
         for n in axes(T, 2)
@@ -301,7 +303,7 @@ function get_Rvectors_mdrs(
     # supercell of the supercell_wf to find the Wigner Seitz cell of the supercell_wf,
     # supercell_wf is the cell where WFs live in
     supercell, translations = make_supercell(
-        [Vec3(0,0,0)], [((-max_cell1):max_cell1) * r for r in rgrid]
+        [Vec3(0, 0, 0)], [((-max_cell1):max_cell1) * r for r in rgrid]
     )
     # to cartesian coordinates
     supercell_cart = map(x -> lattice * x, supercell)
@@ -313,13 +315,12 @@ function get_Rvectors_mdrs(
     kdtree = KDTree(translations_cart)
     # usually we don't need such high degeneracies, so I only search for 8 neighbors
     max_neighbors = min(8, length(translations_cart))
-    idx_origin = findfirst(isequal(Vec3(0,0,0)), translations)
+    idx_origin = findfirst(isequal(Vec3(0, 0, 0)), translations)
     # save all translations and degeneracies
-    T_vecs = [Matrix{Vector{Vec3{Int}}}(undef, n_wann, n_wann) for i = 1:n_rvecs]
-    T_degen = [zeros(Int, n_wann, n_wann) for i =1:n_rvecs]
+    T_vecs = [Matrix{Vector{Vec3{Int}}}(undef, n_wann, n_wann) for i in 1:n_rvecs]
+    T_degen = [zeros(Int, n_wann, n_wann) for i in 1:n_rvecs]
 
     @inbounds @views for ir in 1:n_rvecs
-        
         T_vecs_ir = T_vecs[ir]
         T_degen_ir = T_degen[ir]
         R = Rvec.R[ir]
@@ -360,4 +361,18 @@ function get_Rvectors_mdrs(
         end
     end
     return RVectorsMDRS(Rvec, T_vecs, T_degen)
+end
+
+function generate_Rvectors(model::Model, mdrs=true)
+    if mdrs
+        r = center(model)
+        # from cartesian to fractional
+        inv_lattice = inv(model.lattice)
+        r = map(c -> inv_lattice * c, r)
+
+        Rvecs = get_Rvectors_mdrs(model.lattice, model.kgrid, r)
+    else
+        Rvecs = get_Rvectors_ws(model.lattice, model.kgrid)
+    end
+    return Rvecs
 end

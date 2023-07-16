@@ -727,3 +727,5 @@ function disentangle(
 
     return Umin
 end
+
+disentangle(model::Model; kwargs...) = disentangle(SpreadPenalty(), model; kwargs...)

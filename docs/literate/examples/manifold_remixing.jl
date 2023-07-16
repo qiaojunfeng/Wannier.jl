@@ -1,4 +1,4 @@
-# # 6. Splitting the valence/conduction of silicon
+# # Separating the valence and conduction manifolds of silicon
 
 #=
 ```@meta
@@ -56,26 +56,21 @@ conduction manifolds without human intervention.
     and conduction, respectively
 4. maxiaml localize to smoothen the PTG
 5. interpolate band structures
-
-!!! tip
-
-    This is a HTML version of the tutorial, you can download corresponding
-    - Jupyter notebook: [`tutorial.ipynb`](./tutorial.ipynb)
-    - Julia script: [`tutorial.jl`](./tutorial.jl)
 =#
 
 # ## Preparation
 # Load the package
 using Wannier
+using Wannier.Datasets
 using WannierPlots
 
 #=
-## Model generation
+## Model construction
 
 We will use the [`read_w90`](@ref) function to read the
 `win`, `amn`, `mmn`, and `eig` files, and construct a [`Model`](@ref) that abstracts the calculation
 =#
-model = read_w90("si2")
+model = load_datasets("Si2")
 
 #=
 ## Disentanglement

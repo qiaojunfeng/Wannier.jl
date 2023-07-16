@@ -1,7 +1,7 @@
-export read_w90, read_w90_interp, write_w90
+export read_w90, read_w90_with_chk, write_w90
 
 """
-    read_w90(seedname::AbstractString; amn=true, orthonorm_amn=true, mmn=true, eig=true)
+    read_w90(prefix; amn=true, orthonorm_amn=true, mmn=true, eig=true)
 
 Read `win`, and optionally `amn`, `mmn`, `eig`.
 
@@ -14,13 +14,13 @@ Read `win`, and optionally `amn`, `mmn`, `eig`.
 - eig: if `true`, read `eig` file
 """
 function read_w90(
-    seedname::AbstractString;
+    prefix::AbstractString;
     amn::Bool=true,
     orthonorm_amn::Bool=true,
     mmn::Bool=true,
     eig::Bool=true,
 )
-    win = read_win("$seedname.win")
+    win = read_win("$prefix.win")
 
     n_bands = win.num_bands
     n_wann = win.num_wann
@@ -35,7 +35,7 @@ function read_w90(
 
     n_bvecs = bvectors.n_bvecs
     if mmn
-        M, kpb_k_mmn, kpb_G_mmn = read_mmn("$seedname.mmn")
+        M, kpb_k_mmn, kpb_G_mmn = read_mmn("$prefix.mmn")
 
         # check consistency for mmn
         (n_bands, n_bands) != size(M[1][1]) && error("n_bands != size(M[1][1])")
@@ -49,9 +49,9 @@ function read_w90(
 
     if amn
         if orthonorm_amn
-            U = read_orthonorm_amn("$seedname.amn")
+            U = read_orthonorm_amn("$prefix.amn")
         else
-            U = read_amn("$seedname.amn")
+            U = read_amn("$prefix.amn")
         end
         @assert n_kpts == length(U) "amn file has different n_kpts than win file: $(length(U)) != $n_kpts"
         @assert (n_bands, n_wann) == size(U[1]) "U[1] is not a n_bands x n_wann matrix: $(size(U[1])) != ($n_bands, $n_wann)"
@@ -60,7 +60,7 @@ function read_w90(
     end
 
     if eig
-        E = read_eig("$seedname.eig")
+        E = read_eig("$prefix.eig")
         n_bands != length(E[1]) && error("n_bands != length(E[1])")
         n_kpts != length(E) && error("n_kpts != length(E)")
     else
@@ -96,74 +96,19 @@ function read_w90(
     )
 end
 
+@doc raw"""
+    read_w90_with_chk(prefix, chk="$prefix.chk")
+
+Return a `Model` with U matrix filled by that from a chk file.
+
+# Arguments
+- chk: path of chk file to get the unitary matrices.
 """
-    read_w90_interp(seedname::AbstractString; chk=true, amn=nothing, mdrs=nothing)
-
-Return an `TBHamiltonian` for Wannier interpolation.
-
-# Keyword arguments
-- chk: if `true`, read `chk` or `chk.fmt` file to get the unitary matrices,
-    otherwise read `amn` file for unitary matrices.
-- amn: filename for `amn`, read this `amn` file for unitary matrices.
-    Only used if not reading `chk` and `amn` is given.
-- mdrs: use MDRS interpolation, else Wigner-Seitz interpolation.
-    If is `nothing`, detect from `win` file;
-    and if no `use_ws_distance` in `win` file, default to `true`.
-"""
-function read_w90_interp(
-    seedname::AbstractString;
-    chk::Bool=true,
-    amn::Union{Nothing,AbstractString}=nothing,
-    mdrs::Union{Nothing,Bool}=nothing,
-    kwargs...,
-)
-    # read for kpoint_path, use_ws_distance
-    win = read_win("$seedname.win")
-    if isnothing(mdrs)
-        mdrs = get(win, :use_ws_distance, true)
-    end
-
-    if chk
-        model = read_w90(seedname; amn=false)
-        if isfile("$seedname.chk.fmt")
-            fchk = read_chk("$seedname.chk.fmt")
-        else
-            fchk = read_chk("$seedname.chk")
-        end
-        model.U .= get_U(fchk)
-        centers = fchk.r
-    else
-        if isnothing(amn)
-            model = read_w90(seedname)
-        else
-            model = read_w90(seedname; amn=false)
-            model.U .= read_orthonorm_amn(amn)
-        end
-        centers = center(model)
-    end
-    # from cartesian to fractional
-    centers = map(c -> inv(model.lattice) * c, centers)
-
-    if mdrs
-        Rvecs = get_Rvectors_mdrs(model.lattice, model.kgrid, centers)
-    else
-        Rvecs = get_Rvectors_ws(model.lattice, model.kgrid)
-    end
-
-    hami = TBHamiltonian(model, Rvecs; kwargs...)
-
-    if haskey(win, :kpoint_path)
-        kpath = get_kpath(win.unit_cell_cart, win.kpoint_path)
-    else
-        # an empty kpath
-        points = Dict{Symbol,Vec3{Float64}}()
-        paths = Vector{Vector{Symbol}}()
-        basis = ReciprocalBasis([v for v in eachcol(model.recip_lattice)])
-        setting = Ref(Brillouin.LATTICE)
-        kpath = KPath{3}(points, paths, basis, setting)
-    end
-
-    return hami, kpath
+function read_w90_with_chk(prefix::AbstractString, chk::AbstractString="$prefix.chk")
+    model = read_w90(prefix; amn=false)
+    fchk = read_chk(chk)
+    model.U .= get_U(fchk)
+    return model
 end
 
 """

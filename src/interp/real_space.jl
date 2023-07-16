@@ -8,10 +8,10 @@ account to create the correct matrix elements between the Wannierfunctions, stor
 the amount of Wigner-Seitz degeneracies and shifts which speeds up later _k_-point interpolation.
 """
 struct TBBlock{T<:AbstractFloat,LT,M<:AbstractMatrix{Complex{T}}}
-    R_cryst  :: Vec3{Int}
-    R_cart   :: Vec3{LT}
-    block    :: M
-    tb_block :: M
+    R_cryst::Vec3{Int}
+    R_cart::Vec3{LT}
+    block::M
+    tb_block::M
 end
 
 """
@@ -57,22 +57,24 @@ for op in (:+, :-, :*, :/)
         return TBBlock(t.R_cart, t.R_cryst, $op(v, block(t)), $op(v, t.tb_block))
     end
     @eval function Base.$op(t::TBBlock{T,M}, v::TBBlock{T,M}) where {T,M}
-        return TBBlock(t.R_cart, t.R_cryst, $op(block(t), block(v)),
-                       $op(t.tb_block, v.tb_block))
+        return TBBlock(
+            t.R_cart, t.R_cryst, $op(block(t), block(v)), $op(t.tb_block, v.tb_block)
+        )
     end
 end
 
-Base.isapprox(b1::TBBlock, b2::TBBlock, args...;kwargs...) = all(x -> isapprox(x[1], x[2], args...;kwargs...), zip(b1.block, b2.block))
-
+function Base.isapprox(b1::TBBlock, b2::TBBlock, args...; kwargs...)
+    return all(x -> isapprox(x[1], x[2], args...; kwargs...), zip(b1.block, b2.block))
+end
 
 function HR_ws(Hq, kpts, R_cryst_ws, n_wann)
-    HR = [zeros(eltype(Hq[1]), n_wann, n_wann) for i = 1:length(R_cryst_ws)]
+    HR = [zeros(eltype(Hq[1]), n_wann, n_wann) for i in 1:length(R_cryst_ws)]
 
     fourier(kpts, R_cryst_ws) do iR, ik, phase
         @inbounds HR[iR] .+= phase .* Hq[ik]
     end
 
-    HR ./= length(kpts)
+    return HR ./= length(kpts)
 end
 
 function TBHamiltonian(model::Model, rvectors::RVectors; kwargs...)
@@ -81,16 +83,15 @@ function TBHamiltonian(model::Model, rvectors::RVectors; kwargs...)
     R_cryst = rvectors.R
 
     HR = HR_ws(Hq, kpts, R_cryst, model.n_wann)
-    
+
     return map(enumerate(HR)) do (iR, H)
         rcryst = R_cryst[iR]
-        rcart  = model.lattice * rcryst
+        rcart = model.lattice * rcryst
         return TBBlock(rcryst, rcart, H ./ rvectors.N[iR], H)
     end
 end
 
-function mdrs_v1tov2(Oᴿ::Vector{MT}, rvectors::RVectorsMDRS) where {MT <: AbstractMatrix}
-    
+function mdrs_v1tov2(Oᴿ::Vector{MT}, rvectors::RVectorsMDRS) where {MT<:AbstractMatrix}
     R_cryst = rvectors.R̃vectors.R
     R_cryst_ws = rvectors.Rvectors.R
 
@@ -100,7 +101,7 @@ function mdrs_v1tov2(Oᴿ::Vector{MT}, rvectors::RVectorsMDRS) where {MT <: Abst
     # This is for when there's no "real" tb block for a given mdrs R
     zeros_mat = zeros(Oᴿ[1])
     return map(enumerate(R_cryst)) do (iR, rcryst)
-        rcart  = rvectors.Rvectors.lattice * rcryst
+        rcart = rvectors.Rvectors.lattice * rcryst
 
         H = zeros(Oᴿ[1])
         @inbounds for (ir, m, n, it) in rvectors.R̃_RT[iR]
@@ -115,18 +116,16 @@ function mdrs_v1tov2(Oᴿ::Vector{MT}, rvectors::RVectorsMDRS) where {MT <: Abst
 end
 
 function TBHamiltonian(model::Model, rvectors::RVectorsMDRS; kwargs...)
-
     kpts = model.kpoints
 
     Hq = get_Hk(model.E, model.U)
-    
+
     HR = HR_ws(Hq, kpts, rvectors.Rvectors.R, model.n_wann)
 
     return mdrs_v1tov2(HR, rvectors)
 end
 
-
-
+TBHamiltonian(model::Model) = TBHamiltonian(model, generate_Rvectors(model))
 
 # TODO: see DFWannier for wigner seitz stuff
 # function TBHamiltonian(model::Model; kwargs...)
@@ -135,9 +134,9 @@ end
 #     kpts = model.kpoints
 
 #     Hq = get_Hk(model.E, model.U)
-    
+
 #     HR = [zeros(ComplexF64, model.n_wann, model.n_wann) for i = 1:length(R.cryst)]
-    
+
 #     fourier(kpts, R.cryst) do iR, ik, phase
 #         HR[iR] .+= phase .* Hq[ik]
 #     end

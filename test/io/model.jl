@@ -25,8 +25,8 @@ end
     @test kpb_G ≈ model.bvectors.kpb_G
 end
 
-@testset "read_w90_interp" begin
-    model = read_w90_interp(joinpath(FIXTURE_PATH, "valence/band/silicon"))
+@testset "read_w90_with_chk" begin
+    model = read_w90_with_chk(joinpath(FIXTURE_PATH, "valence/band/silicon"))
 
     @test model[1] isa Wannier.TBHamiltonian
     @test Wannier.n_wann(model[1]) == 4

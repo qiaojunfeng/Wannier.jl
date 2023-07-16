@@ -1,7 +1,7 @@
-model_ws = Wannier.read_w90_interp(
+model_ws = Wannier.read_w90_with_chk(
     joinpath(FIXTURE_PATH, "valence/band/silicon"); mdrs=false
 )[1];
-model_mdrs = Wannier.read_w90_interp(
+model_mdrs = Wannier.read_w90_with_chk(
     joinpath(FIXTURE_PATH, "valence/band/silicon"); mdrs=true
 )[1]
 
