@@ -27,3 +27,22 @@ function Base.show(io::IO, ::MIME"text/html", p::HTMLPlot)
     )
 end
 # ---------------------------------------------------------------------------------------- #
+
+# add nbviewer and mybinder links
+# copied from DFTK
+# https://github.com/JuliaMolSim/DFTK.jl/blob/master/docs/make.jl
+function add_badges(str)
+    badges = [
+        "[![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/examples/@__NAME__.ipynb)",
+        "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/examples/@__NAME__.ipynb)",
+    ]
+
+    # Find the Header and insert the badges right below
+    splitted = split(str, "\n")
+    idx = findfirst(startswith.(splitted, "# # "))
+    idx === nothing && error("Example files must start with # #")
+    insert!(splitted, idx + 1, "#md # " * badges[1])
+    insert!(splitted, idx + 2, "#md # " * badges[2])
+    insert!(splitted, idx + 3, "#md #")
+    return join(splitted, "\n")
+end

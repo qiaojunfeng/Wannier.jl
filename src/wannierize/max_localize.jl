@@ -91,5 +91,11 @@ function max_localize(
     show(Ωᶠ)
     println("\n")
 
-    return Umin
+    Umin_vec = map(1:(model.n_kpts)) do ik
+        Umin[:, :, ik]
+    end
+
+    return Umin_vec
 end
+
+max_localize(model::Model; kwargs...) = max_localize(SpreadPenalty(), model; kwargs...)

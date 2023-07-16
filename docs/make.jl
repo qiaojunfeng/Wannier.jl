@@ -22,6 +22,7 @@ EXAMPLES = [
     "Constrain WF center" => "examples/center_constraint.md",
     "Fermi surface" => "examples/fermi_surface.md",
     # "Cooptimize spin-polarized WFs" => "examples/10-coopt.md",
+    "Tips & code snippets" => "examples/code_snippets.md",
 ]
 
 # Process examples by Literate.jl
