@@ -1,7 +1,7 @@
 using Wannier: Vec3
-model = read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
-Rvecs = model.R.Rvectors
-H = model.H
+tb = read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
+Rvecs = tb.Rvectors
+H = tb.H
 # choose a random k-point such that there is no degeneracy
 k = [Vec3(0.1, 0.2, 0.3)]
 
@@ -68,9 +68,9 @@ end
 end
 
 @testset "effmass_fd" begin
-    μ = Wannier.effmass_fd(model.R, H, k)  # n_wann * n_kpts * 3 * 3
+    μ = Wannier.effmass_fd(Rvecs, H, k)  # n_wann * n_kpts * 3 * 3
 
-    ref_μ = zeros(size(model.H[1].block, 1), 3, 3)
+    ref_μ = zeros(size(tb.H[1].block, 1), 3, 3)
     ref_μ[1, :, :] = [
         4.554781130928 2.556346799132 -1.537850125466
         2.556346799132 5.257344720455 0.699701995011
@@ -99,7 +99,7 @@ end
     V = Wannier.get_d2H_dadb(H, k)  # n_wann * n_wann * 1 * 3 * 3
 
     # n_wann * 3 * 3, I only check the effmass tensor of each band, which should be real.
-    ref_V = zeros(Wannier.n_wann(model.H), 3, 3)
+    ref_V = zeros(Wannier.n_wann(tb.H), 3, 3)
     ref_V[1, :, :] = [
         4.554769651183 2.556355324663 -1.537854851936
         2.556355324663 5.257336684714 0.699697328906
