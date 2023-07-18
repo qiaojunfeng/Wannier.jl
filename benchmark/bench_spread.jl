@@ -1,12 +1,12 @@
 module BenchSpread
 
-import Main.FIXTURE_PATH
 using BenchmarkTools
 using Wannier
+using Wannier.Datasets
 
 SUITE = BenchmarkGroup()
 
-model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
+model = load_dataset("Si2")
 bvectors = model.bvectors
 M = model.M
 U = model.U

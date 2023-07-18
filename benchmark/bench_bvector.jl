@@ -1,12 +1,12 @@
 module BenchBvector
 
-import Main.FIXTURE_PATH
 using BenchmarkTools
 using Wannier
+using Wannier.Datasets
 
 SUITE = BenchmarkGroup()
 
-win = read_win(joinpath(FIXTURE_PATH, "silicon/silicon.win"))
+win = read_win(dataset"Si2/Si2.win")
 kpoints = win.kpoints
 recip_lattice = get_recip_lattice(win.unit_cell_cart)
 

@@ -1,12 +1,12 @@
 module BenchDisentangle
 
-import Main.FIXTURE_PATH
 using BenchmarkTools
 using Wannier
+using Wannier.Datasets
 
 SUITE = BenchmarkGroup()
 
-model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
+model = load_dataset("Si2")
 U = model.U
 frozen_bands = model.frozen_bands
 
