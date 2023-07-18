@@ -44,7 +44,7 @@ function velocity(
     size(Hᴿ[1], 1) == size(Hᴿ[1], 2) || error("Hᴿ is not square")
 
     # first I need Hamiltonian eigenvalues and eigenvectors
-    H = HamiltonianKGrid(Hᴿ, kpoints) 
+    H = HamiltonianKGrid(Hᴿ, kpoints)
     E, U = H.eigvals, H.eigvecs
     # now size(E) = (n_wann, n_kpts), size(U) = (n_wann, n_wann, n_kpts)
 
@@ -57,9 +57,9 @@ function velocity(
     vᴴ = zeros(T, n_wann, n_kpts, 3)
 
     for a in 1:3  # three Cartesian directions, a ∈ {x, y, z}
-        
-        RH = map(x->TBBlock(x.R_cryst, x.R_cart, im .* x.R_cart[a] .* x.block, x.tb_block), Hᴿ)
-        
+        RH = map(
+            x -> TBBlock(x.R_cryst, x.R_cart, im .* x.R_cart[a] .* x.block, x.tb_block), Hᴿ
+        )
 
         for ik in 1:n_kpts
             fill!(Vᵂ, 0)
@@ -67,7 +67,7 @@ function velocity(
             invfourier(RH, kpoints[ik]) do i, iR, Rcart, b, fac
                 Vᵂ[i] += fac * b.block[i]
             end
-            
+
             Uᵏ = U[ik]
             Vᴴ .= Uᵏ' * Vᵂ * Uᵏ
             vᴴ[:, ik, a] = real(diag(Vᴴ))  # YWVS Eq.27
@@ -76,7 +76,7 @@ function velocity(
 
             # now considering possible degeneracies
             mask = trues(n_wann)  # E[mask, ik] are eigenvalues to be checked
-            
+
             while any(mask)
                 e = E[ik][mask][1]
                 # indexes of degenerate eigenvalues
@@ -133,7 +133,7 @@ function _get_D(
     size(Hᴿ[1], 1) == size(Hᴿ[1], 2) || error("Hᴿ is not square")
 
     # first I need Hamiltonian eigenvalues and eigenvectors
-    H = HamiltonianKGrid(Hᴿ, kpoints) 
+    H = HamiltonianKGrid(Hᴿ, kpoints)
     E, U = H.eigvals, H.eigvecs
     # now size(E) = (n_wann, n_kpts), size(U) = (n_wann, n_wann, n_kpts)
 
@@ -149,7 +149,9 @@ function _get_D(
 
     # to cartesian in angstrom
     for a in 1:3  # three Cartesian directions, a ∈ {x, y, z}
-        RH = map(x->TBBlock(x.R_cryst, x.R_cart, im .* x.R_cart[a] .* x.block, x.tb_block), Hᴿ)
+        RH = map(
+            x -> TBBlock(x.R_cryst, x.R_cart, im .* x.R_cart[a] .* x.block, x.tb_block), Hᴿ
+        )
 
         for ik in 1:n_kpts
             fill!(Haᵂ, 0)
@@ -212,9 +214,7 @@ Compute the derivative of the Hamiltonian ``H`` with respect to three Cartesian
 directions.
 YWVS Eq. 26.
 """
-function get_dH_da(
-    Hᴿ::TBHamiltonian, kpoints::AbstractVector{Vec3{T}}
-) where {T<:Real}
+function get_dH_da(Hᴿ::TBHamiltonian, kpoints::AbstractVector{Vec3{T}}) where {T<:Real}
     E, U, Haᴴ, D = _get_D(Hᴿ, kpoints; use_degen_pert=false)
     # size(E) = (n_wann, n_kpts)
     # size(U) = (n_wann, n_wann, n_kpts)
@@ -245,9 +245,7 @@ Cartesian directions.
 
 YWVS Eq. 28.
 """
-function get_d2H_dadb(
-    Hᴿ::TBHamiltonian, kpoints::AbstractVector{Vec3{T}}
-) where {T<:Real}
+function get_d2H_dadb(Hᴿ::TBHamiltonian, kpoints::AbstractVector{Vec3{T}}) where {T<:Real}
     n_wann = size(Hᴿ[1], 1)
     n_kpts = length(kpoints)
     size(Hᴿ[1], 1) == size(Hᴿ[1], 2) || error("Hᴿ is not square")
@@ -266,10 +264,16 @@ function get_d2H_dadb(
 
     # to cartesian in angstrom
     for a in 1:3  # three Cartesian directions, a ∈ {x, y, z}
-       
         for b in 1:3
-            
-            RaRbH = map(x->TBBlock(x.R_cryst, x.R_cart, -x.R_cart[a] * x.R_cart[b] .* x.block, x.tb_block), Hᴿ)
+            RaRbH = map(
+                x -> TBBlock(
+                    x.R_cryst,
+                    x.R_cart,
+                    -x.R_cart[a] * x.R_cart[b] .* x.block,
+                    x.tb_block,
+                ),
+                Hᴿ,
+            )
 
             for ik in 1:n_kpts
                 fill!(Habᵂ, 0)
@@ -277,7 +281,7 @@ function get_d2H_dadb(
                 invfourier(RaRbH, kpoints[ik]) do i, iR, Rcart, b, fac
                     Habᵂ[i] += fac * b.block[i]
                 end
-                
+
                 Uᵏ = U[ik]
                 Habᴴ[:, :, ik, a, b] .= Uᵏ' * Habᵂ * Uᵏ
 
@@ -298,7 +302,7 @@ Compute the velocity using finite differences of 2nd order.
 PRB 93, 205147 (2016)  Eq. 80.
 """
 function velocity_fd(
-    Rvectors::RVectors{T}, Hᴿ::TBHamiltonian, kpoints::AbstractVector{Vec3{T}}; dk=1e-3
+    Rvectors::RVectorsMDRS{T}, Hᴿ::TBHamiltonian, kpoints::AbstractVector{Vec3{T}}; dk=1e-3
 ) where {T<:Real}
     n_wann = size(Hᴿ[1], 1)
     n_kpts = length(kpoints)
@@ -307,8 +311,15 @@ function velocity_fd(
     # the final velocity along 3 Cartesian directions
     V = zeros(T, n_wann, n_kpts, 3)
     # the 6 interpolated kpoints, each column is a fractional coordinates
-    Δk = [Vec3(-dk, 0, 0),Vec3(dk, 0, 0),Vec3(0, -dk, 0), Vec3(0, dk, 0), Vec3(0, 0, -dk), Vec3(0, 0, dk)]
-    
+    Δk = [
+        Vec3(-dk, 0, 0),
+        Vec3(dk, 0, 0),
+        Vec3(0, -dk, 0),
+        Vec3(0, dk, 0),
+        Vec3(0, 0, -dk),
+        Vec3(0, 0, dk),
+    ]
+
     # the interpolated Hamiltonain
     Hᵏ = zeros(Complex{T}, n_wann, n_wann)
     # the interpolated eigenvalues
@@ -318,13 +329,13 @@ function velocity_fd(
     Δkᶠ = map(k -> inv(recip_latt) * k, Δk)
 
     for ik in 1:n_kpts
-        for id = 1:6
+        for id in 1:6
             fill!(Hᵏ, 0)
-            
+
             invfourier(Hᴿ, kpoints[ik] .+ Δkᶠ[id]) do i, iR, Rcart, b, fac
                 Hᵏ[i] += fac * b.block[i]
             end
-            
+
             E[:, id] .= real(eigen(Hᵏ).values)  # only eigenvalues are needed
         end
 
@@ -363,24 +374,23 @@ function effmass_fd(
         0 0 0 -dk dk 0 0 -dk/2 dk/2 0 0 -dk/2 dk/2 0 0 -dk/2 -dk/2 dk/2 dk/2
         0 0 0 0 0 -dk dk 0 0 -dk/2 dk/2 0 0 -dk/2 dk/2 -dk/2 dk/2 -dk/2 dk/2
     ]
-    Δk = [Vec3(Δk_[:, ik]) for ik = 1:size(Δk_, 2)]
+    Δk = [Vec3(Δk_[:, ik]) for ik in 1:size(Δk_, 2)]
     # the interpolated Hamiltonain
     Hᵏ = zeros(Complex{T}, n_wann, n_wann)
     # the interpolated eigenvalues
-    E = [zeros(T, n_wann) for i = 1:19]
+    E = [zeros(T, n_wann) for i in 1:19]
     # dϵ/dk at 6 points: k ± dk/2, along 3 Cartesian directions
     dEdk = zeros(T, n_wann, 6, 3)
     # to fractional
     recip_latt = get_recip_lattice(Rvectors.lattice)
     Δkᶠ = map(k -> inv(recip_latt) * k, Δk)
     for ik in 1:n_kpts
-        for i2 = 1:19
+        for i2 in 1:19
             fill!(Hᵏ, 0)
             invfourier(Hᴿ, kpoints[ik] .+ Δkᶠ[i2]) do i, iR, Rcart, b, fac
                 Hᵏ[i] += fac * b.block[i]
             end
             E[i2] .= real(eigen(Hᵏ).values)  # only eigenvalues are needed
-
         end
         # dϵ/dk at k ± dk/2, along the same direction as dk
         dEdk[:, 1, 1] .= (E[2] - E[1]) / -dk
@@ -391,7 +401,7 @@ function effmass_fd(
         dEdk[:, 6, 3] .= (E[7] - E[1]) / dk
 
         # dϵ/dk at k ± dk/2, but along other 2 directions
-        dEdk[:, 1, 2] .= (E[9] -  E[8]) / dk
+        dEdk[:, 1, 2] .= (E[9] - E[8]) / dk
         dEdk[:, 1, 3] .= (E[11] - E[10]) / dk
         dEdk[:, 2, 2] .= (E[13] - E[12]) / dk
         dEdk[:, 2, 3] .= (E[15] - E[14]) / dk

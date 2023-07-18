@@ -1,7 +1,5 @@
 using BenchmarkTools
 
-const FIXTURE_PATH = joinpath(@__DIR__, "..", "test", "fixtures")
-
 SUITE = BenchmarkGroup()
 
 for file in readdir(@__DIR__)

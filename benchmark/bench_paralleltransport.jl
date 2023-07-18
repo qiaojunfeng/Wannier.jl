@@ -1,12 +1,12 @@
 module BenchParalleltransport
 
-import Main.FIXTURE_PATH
 using BenchmarkTools
 using Wannier
+using Wannier.Datasets
 
 SUITE = BenchmarkGroup()
 
-model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
+model = load_dataset("Si2_valence")
 
 SUITE["parallel_transport"] = @benchmarkable parallel_transport($model)
 

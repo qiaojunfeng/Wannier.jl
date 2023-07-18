@@ -33,28 +33,29 @@ Read `seedname_tb.dat` and `seedname_wsvec.dat`, return [`TBHamiltonian`](@ref) 
     auto generate the correct `Brillouin.KPath`.
 """
 function read_w90_tb(seedname::AbstractString; force_mdrs=false)
-    mdrs, wsvec = read_w90_wsvec(seedname * "_wsvec.dat")
+    wsvec = read_w90_wsvec(seedname * "_wsvec.dat")
+    mdrs = wsvec.mdrs
     mdrs |= force_mdrs
-    R = wsvec.R
+    Rvectors = wsvec.Rvectors
     if mdrs
-        T = wsvec.T
-        Nᵀ = wsvec.Nᵀ
+        Tvectors = wsvec.Tvectors
+        Tdegens = wsvec.Tdegens
     end
 
     tbdat = read_w90_tbdat(seedname * "_tb.dat")
 
     lattice = tbdat.lattice
 
-    R == tbdat.R || @error "R vecs in tb.dat and wsvec.dat are not identical"
-    N = tbdat.N
+    Rvectors == tbdat.Rvectors || @error "R vecs in tb.dat and wsvec.dat are not identical"
+    Rdegens = tbdat.Rdegens
 
     # grid is still unknown
     grid = Vec3(-1, -1, -1)  # no grid in wsvec.dat
-    Rvecs = RVectors(lattice, grid, R, N)
+    Rvectors_ws = RVectors(lattice, grid, Rvectors, Rdegens)
 
     function generate_TBBlocks(O)
         map(enumerate(O)) do (iR, o)
-            rcryst = R[iR]
+            rcryst = Rvectors[iR]
             rcart = lattice * rcryst
             return TBBlock(rcryst, rcart, o, o)
         end
@@ -62,21 +63,21 @@ function read_w90_tb(seedname::AbstractString; force_mdrs=false)
 
     if !mdrs
         return (;
-            R=Rvecs,
+            Rvectors=Rvectors_ws,
             H=generate_TBBlocks(tbdat.H),
-            rx=generate_TBBlocks(tbdat.rx),
-            ry=generate_TBBlocks(tbdat.ry),
-            rz=generate_TBBlocks(tbdat.rz),
+            r_x=generate_TBBlocks(tbdat.r_x),
+            r_y=generate_TBBlocks(tbdat.r_y),
+            r_z=generate_TBBlocks(tbdat.r_z),
         )
     end
 
-    Rvecs_mdrs = RVectorsMDRS(Rvecs, T, Nᵀ)
+    Rvectors_mdrs = RVectorsMDRS(Rvectors_ws, Tvectors, Tdegens)
 
     return (;
-        R=Rvecs_mdrs,
-        H=mdrs_v1tov2(tbdat.H, Rvecs_mdrs),
-        rx=mdrs_v1tov2(tbdat.rx, Rvecs_mdrs),
-        ry=mdrs_v1tov2(tbdat.ry, Rvecs_mdrs),
-        rz=mdrs_v1tov2(tbdat.rz, Rvecs_mdrs),
+        Rvectors=Rvectors_mdrs,
+        H=mdrs_v1tov2(tbdat.H, Rvectors_mdrs),
+        r_x=mdrs_v1tov2(tbdat.r_x, Rvectors_mdrs),
+        r_y=mdrs_v1tov2(tbdat.r_y, Rvectors_mdrs),
+        r_z=mdrs_v1tov2(tbdat.r_z, Rvectors_mdrs),
     )
 end
