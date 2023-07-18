@@ -1,15 +1,12 @@
 model = read_w90(joinpath(FIXTURE_PATH, "valence/band/silicon"); amn=false)
 model.U .= get_U(read_chk(joinpath(FIXTURE_PATH, "valence/band/silicon.chk.fmt")))
-model_ws = read_w90_tb(
-    joinpath(FIXTURE_PATH, "valence/band/ws/silicon"))
-model_mdrs = read_w90_tb(
-    joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon")
-)
+tb_ws = read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/ws/silicon"))
+model_mdrs = read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
 
 @testset "fourier WS" begin
-    Hᴿ = Wannier.TBHamiltonian(model, model_ws.R)
-    ref_Hᴿ = model_ws.H
-    @test all(x-> all(isapprox.(x[1].tb_block, x[2].tb_block;atol=1e-7)), zip(Hᴿ, ref_Hᴿ))
+    Hᴿ = Wannier.TBHamiltonian(model, tb_ws.Rvectors)
+    ref_Hᴿ = tb_ws.H
+    @test all(x -> all(isapprox.(x[1].tb_block, x[2].tb_block; atol=1e-7)), zip(Hᴿ, ref_Hᴿ))
 end
 
 # @testset "invfourier WS" begin

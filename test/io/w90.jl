@@ -59,25 +59,25 @@ end
 end
 
 @testset "read tb" begin
-    model = Wannier.read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/ws/silicon"))
-    Rvecs = model.R
+    tb_ws = Wannier.read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/ws/silicon"))
+    Rvecs = tb_ws.Rvectors
     # just some simple tests
     R1 = [-3, 1, 1]
-    @test Rvecs.R[1] == R1 == model.H[1].R_cryst
+    @test Rvecs.R[1] == R1 == tb_ws.H[1].R_cryst
     H111 = 0.51893360E-02 + im * -0.29716277E-02
-    @test model.H[1][1, 1] ≈ H111
+    @test tb_ws.H[1][1, 1] ≈ H111
     P111end = 0.24832468E-03 + im * -0.21054981E-03
-    @test model.rx[end][1, 1] ≈ P111end
+    @test tb_ws.r_x[end][1, 1] ≈ P111end
 
-    model = Wannier.read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
-    Rvecs = model.R
+    tb_mdrs = Wannier.read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
+    Rvecs = tb_mdrs.Rvectors
     @test Rvecs.R[1] == R1
     @test Rvecs.T[1][1, 1] == [Vec3(0, 0, 0), Vec3(4, -4, 0), Vec3(4, 0, -4), Vec3(4, 0, 0)]
     @test Rvecs.Nᵀ[1][1, 1] == 4
     H111 = 0.0012973340069440233 - 0.0007429069229594317im
-    @test model.H[1][1, 1] ≈ H111
+    @test tb_mdrs.H[1][1, 1] ≈ H111
     P111end = 0.0 + 0.0im
-    @test model.rx[end][1, 1] ≈ P111end
+    @test tb_mdrs.r_x[end][1, 1] ≈ P111end
 end
 
 @testset "read tb kpoints/kpath" begin

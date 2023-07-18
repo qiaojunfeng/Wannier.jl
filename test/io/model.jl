@@ -26,8 +26,11 @@ end
 end
 
 @testset "read_w90_with_chk" begin
-    model = read_w90_with_chk(joinpath(FIXTURE_PATH, "valence/band/silicon"))
+    model = read_w90_with_chk(
+        joinpath(FIXTURE_PATH, "valence/band/silicon"),
+        joinpath(FIXTURE_PATH, "valence/band/silicon.chk.fmt"),
+    )
 
-    @test model[1] isa Wannier.TBHamiltonian
-    @test Wannier.n_wann(model[1]) == 4
+    @test model isa Wannier.Model
+    @test model.n_wann == 4
 end
