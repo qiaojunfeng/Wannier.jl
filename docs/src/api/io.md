@@ -8,7 +8,7 @@ The reading and writing functions are implemented in the
 [`WannierIO.jl`](https://github.com/qiaojunfeng/WannierIO.jl)
 package. However, here are also some convenience functions which
 wrap the corresponding functions in `WannierIO.jl`, to utilize the
-`struct`s defined in `Wannier90.jl`, e.g. [`BVectors`](@ref),
+`struct`s defined in `Wannier90.jl`, e.g. [`KgridStencil`](@ref),
 [`RGrid`](@ref), etc.
 
 !!! tip

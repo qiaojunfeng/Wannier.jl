@@ -29,12 +29,14 @@ end
 # ---------------------------------------------------------------------------------------- #
 
 # add nbviewer and mybinder links
-# copied from DFTK
+# adapted from DFTK
 # https://github.com/JuliaMolSim/DFTK.jl/blob/master/docs/make.jl
 function add_badges(str)
     badges = [
         "[![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/examples/@__NAME__.ipynb)",
         "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/examples/@__NAME__.ipynb)",
+        # julia colors from https://github.com/JuliaLang/julia-logo-graphics
+        "[![](https://img.shields.io/badge/download-julia%20script-4063D8.svg?logo=julia&logoColor=389826)](@__REPO_ROOT_URL__/examples/@__NAME__.jl)",
     ]
 
     # Find the Header and insert the badges right below

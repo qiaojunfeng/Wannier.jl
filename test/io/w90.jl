@@ -1,55 +1,54 @@
-using YAML
-using Brillouin
+@testitem "read nnkp" begin
+    using Wannier.Datasets
+    kstencil = read_nnkp_compute_weights(dataset"Si2_valence/reference/Si2_valence.nnkp")
+    nnkp = read_nnkp(dataset"Si2_valence/reference/Si2_valence.nnkp.toml")
 
-@testset "read nnkp" begin
-    test_data = YAML.load_file(String(@__DIR__) * "/test_data/nnkp.yaml")
+    @test reciprocal_lattice(kstencil) ≈ nnkp.recip_lattice
+    @test kstencil.kgrid.kpoints ≈ nnkp.kpoints
+    @test kstencil.kpb_k == nnkp.kpb_k
+    @test kstencil.kpb_G == nnkp.kpb_G
 
-    bvectors = read_nnkp(joinpath(FIXTURE_PATH, "silicon/silicon.nnkp"))
-
-    # Convert type so YAML can write it.
-    kpb_G = bvectors.kpb_G
-    dict = Dict(
-        "recip_lattice" => [[bvectors.recip_lattice[i, j] for i in 1:3] for j in 1:3],
-        "kpoints" => bvectors.kpoints,
-        "bvectors" => bvectors.bvectors,
-        "kpb_k" => bvectors.kpb_k,
-        "kpb_G" => bvectors.kpb_G,
-    )
-
-    # YAML.write_file(String(@__DIR__) * "/test_data/nnkp.yaml", dict)
-
-    for (key, value) in dict
-        @test value ≈ test_data[key]
-    end
+    # copied from wout file
+    ref_bvectors = [
+        [0.192835, 0.192835, -0.192835],
+        [0.192835, -0.192835, 0.192835],
+        [-0.192835, 0.192835, 0.192835],
+        [0.192835, 0.192835, 0.192835],
+        [-0.192835, -0.192835, 0.192835],
+        [-0.192835, 0.192835, -0.192835],
+        [0.192835, -0.192835, -0.192835],
+        [-0.192835, -0.192835, -0.192835],
+    ]
+    ref_weights = [
+        3.361532, 3.361532, 3.361532, 3.361532, 3.361532, 3.361532, 3.361532, 3.361532
+    ]
+    @test isapprox(kstencil.bvectors, ref_bvectors; atol=1e-5)
+    @test isapprox(kstencil.weights, ref_weights; atol=1e-5)
 end
 
-@testset "read/write nnkp" begin
-    bvectors = read_nnkp(joinpath(FIXTURE_PATH, "silicon/silicon.nnkp"))
+@testitem "read/write nnkp" begin
+    using Wannier.Datasets
+    kstencil = read_nnkp_compute_weights(dataset"Si2_valence/reference/Si2_valence.nnkp")
     tmpfile = tempname(; cleanup=true)
-    n_wann = 8
-    write_nnkp(tmpfile, bvectors, n_wann)
+    n_wann = 4
+    write_nnkp(tmpfile, kstencil; n_wann)
 
-    bvectors2 = read_nnkp(tmpfile)
-    @test bvectors.recip_lattice ≈ bvectors2.recip_lattice
-    @test bvectors.kpoints ≈ bvectors2.kpoints
-    @test bvectors.bvectors ≈ bvectors2.bvectors
-    @test bvectors.kpb_k ≈ bvectors2.kpb_k
-    @test bvectors.kpb_G ≈ bvectors2.kpb_G
+    kstencil2 = read_nnkp_compute_weights(tmpfile)
+    @test kstencil ≈ kstencil2
 end
 
-@testset "read/write w90 band" begin
-    win = read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
-    recip_lattice = Wannier.get_recip_lattice(win.unit_cell_cart)
+@testitem "read/write w90 band" begin
+    using Wannier.Datasets
+    win = read_win(dataset"Si2_valence/Si2_valence.win")
+    recip_lattice = reciprocal_lattice(win.unit_cell_cart)
     kpi, eigenvalues = read_w90_band(
-        joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"), recip_lattice
+        dataset"Si2_valence/reference/mdrs/Si2_valence", recip_lattice
     )
 
     outdir = mktempdir(; cleanup=true)
-    outseedname = joinpath(outdir, "silicon")
-
-    write_w90_band(outseedname, kpi, eigenvalues)
-
-    kpi2, eigenvalues2 = read_w90_band(outseedname, recip_lattice)
+    outprefix = joinpath(outdir, "Si2_valence")
+    write_w90_band(outprefix, kpi, eigenvalues)
+    kpi2, eigenvalues2 = read_w90_band(outprefix, recip_lattice)
 
     @test kpi.kpaths ≈ kpi2.kpaths
     @test kpi.labels == kpi2.labels
@@ -58,31 +57,34 @@ end
     @test eigenvalues ≈ eigenvalues2
 end
 
-@testset "read tb" begin
-    tb_ws = Wannier.read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/ws/silicon"))
-    Rvecs = tb_ws.Rvectors
-    # just some simple tests
-    R1 = [-3, 1, 1]
-    @test Rvecs.R[1] == R1 == tb_ws.H[1].R_cryst
-    H111 = 0.51893360E-02 + im * -0.29716277E-02
-    @test tb_ws.H[1][1, 1] ≈ H111
-    P111end = 0.24832468E-03 + im * -0.21054981E-03
-    @test tb_ws.r_x[end][1, 1] ≈ P111end
+@testitem "read_w90_tb WS" begin
+    using Wannier.Datasets
+    hamiltonian, position = read_w90_tb(dataset"Si2_valence/reference/ws/Si2_valence")
 
-    tb_mdrs = Wannier.read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon"))
-    Rvecs = tb_mdrs.Rvectors
-    @test Rvecs.R[1] == R1
-    @test Rvecs.T[1][1, 1] == [Vec3(0, 0, 0), Vec3(4, -4, 0), Vec3(4, 0, -4), Vec3(4, 0, 0)]
-    @test Rvecs.Nᵀ[1][1, 1] == 4
-    H111 = 0.0012973340069440233 - 0.0007429069229594317im
-    @test tb_mdrs.H[1][1, 1] ≈ H111
-    P111end = 0.0 + 0.0im
-    @test tb_mdrs.r_x[end][1, 1] ≈ P111end
+    # just some simple tests
+    R1 = [-4, 0, 2]
+    @test hamiltonian.Rvectors[1] == R1
+    n_degen_R1 = 3
+    H111 = 0.80451304E-03 + im * 0.16092791E-08
+    @test hamiltonian[1][1, 1] ≈ H111 / n_degen_R1
+
+    Rend = [4, 0, -2]
+    @test position.Rvectors[end] == Rend
+    P111end = [0.67881607 + 0.0im, -0.67881621 + 0.0im, -0.67881622 + 0.0im]
+    @test position[0, 0, 0][1, 1] ≈ P111end
 end
 
-@testset "read tb kpoints/kpath" begin
-    win = Wannier.read_win(joinpath(FIXTURE_PATH, "valence/band/silicon.win"))
-    interp_model = Wannier.read_w90_tb(joinpath(FIXTURE_PATH, "valence/band/mdrs/silicon");)
+@testitem "read_w90_tb MDRS" begin
+    using Wannier: Vec3
+    using Wannier.Datasets
+    hamiltonian, position = Wannier.read_w90_tb(
+        dataset"Si2_valence/reference/mdrs/Si2_valence"
+    )
 
-    @test interp_model.H isa Wannier.TBHamiltonian
+    R1 = [-4, 0, 2]
+    @test hamiltonian.Rvectors[1] == R1
+    H11_1 = 0.0042907509333333345 + 8.582822933333332e-9im
+    @test hamiltonian[1][1, 1] ≈ H11_1
+    P11_origin = [10.86105712 + 0.0im, -10.861059360000004 + 0.0im, -10.86105952 + 0.0im]
+    @test position[0, 0, 0][1, 1] ≈ P11_origin
 end

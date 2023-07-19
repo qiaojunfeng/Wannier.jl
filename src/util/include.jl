@@ -1,5 +1,0 @@
-include("linalg.jl")
-include("kpoint.jl")
-include("structure.jl")
-include("center.jl")
-include("kpath.jl")

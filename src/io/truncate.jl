@@ -166,7 +166,7 @@ function truncate(
         model.atom_labels,
         model.kgrid,
         model.kpoints,
-        model.bvectors,
+        model.kstencil,
         frozen_bands,
         M,
         U,

@@ -1,51 +1,50 @@
-@testset "write chk from Model" begin
-    chk = Wannier.read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
-    model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
-    model.U .= Wannier.get_U(chk)
-
+@testitem "write chk from Model" begin
+    using LinearAlgebra
+    using Wannier.Datasets
+    model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/reference/Si2.chk.fmt")
     tmpfile = tempname(; cleanup=true)
     write_chk(tmpfile, model)
 
-    chk2 = Wannier.read_chk(tmpfile)
+    chk = read_chk(tmpfile)
 
     # header contains date, always different
     # @test chk.header == chk2.header
-    @test chk.exclude_bands == chk2.exclude_bands
-    @test chk.lattice ≈ chk2.lattice
-    @test chk.recip_lattice ≈ chk2.recip_lattice
-    @test chk.kgrid == chk2.kgrid
-    @test chk.kpoints ≈ chk2.kpoints
-    @test chk.checkpoint == chk2.checkpoint
-    @test chk.have_disentangled == chk2.have_disentangled
-    @test chk.ΩI ≈ chk2.ΩI
-    # the dis_bands are all true when writing from a model
-    @test chk2.dis_bands == [trues(chk2.n_bands) for i in 1:(chk2.n_kpts)]
-    # the Hamiltonian rotated by Uᵈ must be diagonal, according to W90 convention
-    Hᵈ = Wannier.get_Hk(model.E, Wannier.get_Udis(chk2))
+    @test isempty(chk.exclude_bands)
+    @test model.lattice ≈ chk.lattice
+    @test model.recip_lattice ≈ chk.recip_lattice
+    @test model.kgrid == chk.kgrid
+    @test model.kpoints ≈ chk.kpoints
+    @test true == chk.have_disentangled
+    @test model.dis_bands == chk.dis_bands
+    # the Hamiltonian rotated by Udis must be diagonal, according to W90 convention
+    H = transform_gauge(model.E, Wannier.get_Udis(chk))
     # this is too strict, even
-    #   norm(Hᵈ[:, :, ik] - Hdiag[:, :, ik]) ≈ 1e-14
+    #   norm(H[:, :, ik] - Hdiag[:, :, ik]) ≈ 1e-14
     # is still false
-    # @test all(isdiag(Hᵈ[:, :, ik]) for ik in axes(Hᵈ, 3))
-    Hdiag = similar(Hᵈ)
-    for ik in 1:length(Hᵈ)
-        Hdiag[ik] = Hermitian(Diagonal(Hᵈ[ik]))
+    # @test all(isdiag(H[:, :, ik]) for ik in axes(H, 3))
+    Hdiag = map(H) do h
+        Hermitian(Diagonal(h))
     end
-    @test Hᵈ ≈ Hdiag
+    @test H ≈ Hdiag
     # the unitary matrix should be the same
-    @test model.U ≈ Wannier.get_U(chk2)
+    @test model.U ≈ Wannier.get_U(chk)
 
-    @test chk.M ≈ chk2.M
-    @test chk.r ≈ chk2.r
-    @test chk.ω ≈ chk2.ω
+    M = transform_gauge(model.M, model.bvectors.kpb_k, model.U)
+    @test M ≈ chk.M
+    Ω = omega(model, model.U)
+    @test Ω.ΩI ≈ chk.ΩI
+    @test Ω.r ≈ chk.r
+    @test Ω.ω ≈ chk.ω
 end
 
-@testset "Model(chk)" begin
-    chk = WannierIO.read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
+@testitem "Model from chk" begin
+    using Wannier.Datasets
+    chk = read_chk(dataset"Si2/reference/Si2.chk")
     model = Wannier.Model(chk)
 
     @test chk.lattice ≈ model.lattice
-    @test chk.recip_lattice ≈ model.recip_lattice
-    @test chk.kgrid == model.kgrid
-    @test chk.kpoints ≈ model.kpoints
-    @test chk.M ≈ model.M
+    @test chk.recip_lattice ≈ reciprocal_lattice(model)
+    @test Tuple(chk.kgrid) == size(model.kgrid)
+    @test chk.kpoints ≈ model.kgrid.kpoints
+    @test chk.M ≈ model.overlaps
 end

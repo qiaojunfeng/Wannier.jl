@@ -96,7 +96,7 @@ struct SpreadCenter{T} <: AbstractSpread
     ωt::Vector{T}
 end
 
-function Base.show(io::IO, Ω::SpreadCenter)
+function Base.show(io::IO, ::MIME"text/plain", Ω::SpreadCenter)
     println(io, "  WF     center [rx, ry, rz]/Å              spread/Å²  ω  ωc  ωt")
 
     n_wann = length(Ω.ω)
@@ -136,7 +136,9 @@ mutable struct Cache{T}
 end
 
 # TODO remove 1st arg?
-function Cache(bvectors::BVectors{FT}, M::Vector{Vector{Matrix{Complex{FT}}}}, U) where {FT}
+function Cache(
+    bvectors::KgridStencil{FT}, M::Vector{Vector{Matrix{Complex{FT}}}}, U
+) where {FT}
     n_kpts = length(M)
     n_bands, n_wann = U isa Vector ? size(U[1]) : size.((U,), (1, 2))
     n_bvecs = length(M[1])
@@ -153,13 +155,13 @@ function Cache(bvectors::BVectors{FT}, M::Vector{Vector{Matrix{Complex{FT}}}}, U
     return Cache(X, Y, U, G, r, UtMU, MU)
 end
 
-Cache(model::Model) = Cache(model.bvectors, model.M, model.U)
+Cache(model::Model) = Cache(model.kstencil, model.M, model.U)
 
 n_bands(c::Cache) = size(c.G, 1)
 n_wann(c::Cache) = size(c.G, 2)
 n_kpts(c::Cache) = size(c.G, 3)
 
-function compute_MU_UtMU!(MU, UtMU, bvectors::BVectors, M, U::Vector)
+function compute_MU_UtMU!(MU, UtMU, bvectors::KgridStencil, M, U::Vector)
     kpb_k = bvectors.kpb_k
     n_bvecs = length(kpb_k[1])
 
@@ -175,7 +177,7 @@ function compute_MU_UtMU!(MU, UtMU, bvectors::BVectors, M, U::Vector)
     return MU, UtMU
 end
 
-function compute_MU_UtMU!(MU, UtMU, bvectors::BVectors, M, U::Array)
+function compute_MU_UtMU!(MU, UtMU, bvectors::KgridStencil, M, U::Array)
     kpb_k = bvectors.kpb_k
     n_bvecs = length(kpb_k[1])
 
@@ -191,7 +193,7 @@ function compute_MU_UtMU!(MU, UtMU, bvectors::BVectors, M, U::Array)
     end
     return MU, UtMU
 end
-function compute_MU_UtMU!(cache::Cache, bvectors::BVectors, M, U)
+function compute_MU_UtMU!(cache::Cache, bvectors::KgridStencil, M, U)
     return compute_MU_UtMU!(cache.MU, cache.UtMU, bvectors, M, U)
 end
 
@@ -249,7 +251,7 @@ function omega_center(Ω::Spread; r₀::Vector{Vec3{T}}, λ::T) where {T<:Real}
     return SpreadCenter(Ω.Ω, Ω.ΩI, Ω.ΩOD, Ω.ΩD, Ω.Ω̃, Ω.ω, Ω.r, Ωc, Ωt, ωc, ωt)
 end
 
-function omega!(cache::Cache, bvectors::BVectors{FT}, M) where {FT<:Real}
+function omega!(cache::Cache, bvectors::KgridStencil{FT}, M) where {FT<:Real}
     r = cache.r
     fill!(r, zero(eltype(r)))
 
@@ -264,8 +266,8 @@ function omega!(cache::Cache, bvectors::BVectors{FT}, M) where {FT<:Real}
     kpb_k = bvectors.kpb_k
     kpb_G = bvectors.kpb_G
     wb = bvectors.weights
-    recip_lattice = bvectors.recip_lattice
-    kpoints = bvectors.kpoints
+    recip_lattice = reciprocal_lattice(bvectors)
+    kpoints = bvectors.kgrid.kpoints
 
     # # keep in case we want to do this later on
     # μ::FT = 0.0
@@ -365,20 +367,20 @@ Compute WF spread for a [`Model`](@ref), potentially for a given gauge `U`, or b
 `bvectors` and `M`.
 In case of the first `bvectors = model.bvectors` and `M = model.M`.
 """
-omega(model::Model) = omega(model, model.U)
-omega(model::Model, U) = omega(model.bvectors, model.M, U)
-function omega(bvectors::BVectors, M, X, Y)
+omega(model::Model) = omega(model, model.gauges)
+omega(model::Model, gauges) = omega(model.kstencil, model.overlaps, gauges)
+function omega(bvectors::KgridStencil, M, X, Y)
     U = X_Y_to_U(X, Y)
     return omega(bvectors, M, U)
 end
 
-function omega(bvectors::BVectors, M, U)
+function omega(bvectors::KgridStencil, M, U)
     cache = Cache(bvectors, M, U)
     compute_MU_UtMU!(cache, bvectors, M, U)
     return omega!(cache, bvectors, M)
 end
 
-function Base.show(io::IO, Ω::Spread)
+function Base.show(io::IO, ::MIME"text/plain", Ω::Spread)
     println(io, "  WF     center [rx, ry, rz]/Å              spread/Å²")
 
     n_wann = length(Ω.ω)
@@ -491,19 +493,19 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
 - `U`: `n_wann * n_wann * n_kpts` array
 - `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
 """
-function omega_grad(penalty::Function, bvectors::BVectors, M, U)
+function omega_grad(penalty::Function, bvectors::KgridStencil, M, U)
     cache = Cache(bvectors, M, U)
     compute_MU_UtMU!(cache, bvectors, M, U)
     return omega_grad!(penalty, cache, bvectors, M)
 end
-omega_grad(bvectors::BVectors, M, U) = omega_grad((r, _) -> r, bvectors, M, U)
+omega_grad(bvectors::KgridStencil, M, U) = omega_grad((r, _) -> r, bvectors, M, U)
 
-function omega_grad(penalty::Function, bvectors::BVectors, M, X, Y, frozen)
+function omega_grad(penalty::Function, bvectors::KgridStencil, M, X, Y, frozen)
     U = X_Y_to_U(X, Y)
     G = omega_grad(penalty, bvectors, M, U)
     return GU_to_GX_GY(G, X, Y, frozen)
 end
-function omega_grad(bvectors::BVectors, M, X, Y, frozen)
+function omega_grad(bvectors::KgridStencil, M, X, Y, frozen)
     return omega_grad((r, _) -> r, bvectors, M, X, Y, frozen)
 end
 
@@ -518,7 +520,7 @@ Local part of the contribution to `r^2`.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 function omega_local(
-    bvectors::BVectors{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
+    bvectors::KgridStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
 ) where {FT<:Real}
     n_bands, n_wann = size(U[1])
     n_kpts = length(U)
@@ -555,7 +557,7 @@ Compute WF center in reciprocal space.
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
 - `U`: `n_wann * n_wann * n_kpts` array
 """
-function center(bvectors::BVectors, M, U)
+function center(bvectors::KgridStencil, M, U)
     cache = Cache(bvectors, M, U)
     compute_MU_UtMU!(cache, bvectors, M, U)
     return center!(cache.r, cache.UtMU, bvectors)
@@ -567,8 +569,8 @@ function center!(r::Vector{<:Vec3}, UtMU, bvectors)
     kpb_k = bvectors.kpb_k
     kpb_G = bvectors.kpb_G
     wb = bvectors.weights
-    recip_lattice = bvectors.recip_lattice
-    kpoints = bvectors.kpoints
+    recip_lattice = reciprocal_lattice(bvectors)
+    kpoints = bvectors.kgrid.kpoints
 
     @inbounds for (ik, Nk) in enumerate(UtMU)
         k = kpoints[ik]
@@ -601,7 +603,9 @@ Compute WF center in reciprocal space.
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
 - `U`: `n_wann * n_wann * n_kpts` array
 """
-function center(bvectors::BVectors{FT}, M::Vector, U::Array{Complex{FT},3}) where {FT<:Real}
+function center(
+    bvectors::KgridStencil{FT}, M::Vector, U::Array{Complex{FT},3}
+) where {FT<:Real}
     n_bands, n_wann, n_kpts = size(U)
     n_bvecs = size(M[1], 3)
 
@@ -642,7 +646,7 @@ end
 
 Compute WF center in reciprocal space for `Model`.
 """
-center(model::Model) = center(model.bvectors, model.M, model.U)
+center(model::Model) = center(model.kstencil, model.overlaps, model.gauges)
 
 """
     center(model, U)
@@ -654,7 +658,7 @@ Compute WF center in reciprocal space for `Model` with given `U` gauge.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 function center(model::Model, U::Vector{Matrix{T}}) where {T<:Number}
-    return center(model.bvectors, model.M, U)
+    return center(model.kstencil, model.M, U)
 end
 
 """
@@ -668,7 +672,7 @@ Compute WF postion operator matrix in reciprocal space.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 @views function position_op(
-    bvectors::BVectors{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
+    bvectors::KgridStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
 ) where {FT<:Real}
     n_bands, n_wann = size(U[1])
     n_kpts = length(U)
@@ -716,7 +720,7 @@ end
 
 Compute WF postion operator matrix in reciprocal space for `Model`.
 """
-position_op(model::Model) = position_op(model.bvectors, model.M, model.U)
+position_op(model::Model) = position_op(model.kstencil, model.M, model.U)
 
 """
     position_op(model, U)
@@ -728,7 +732,7 @@ Compute WF postion operator matrix in reciprocal space for `Model` with given `U
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 function position_op(model::Model, U::Vector{Matrix{T}}) where {T<:Number}
-    return position_op(model.bvectors, model.M, U)
+    return position_op(model.kstencil, model.M, U)
 end
 
 """
@@ -742,7 +746,7 @@ Compute Berry connection at each kpoint.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 @views function berry_connection(
-    bvectors::BVectors{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
+    bvectors::KgridStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
 ) where {FT<:Real}
     n_bands, n_wann = size(U[1])
     n_kpts = length(U)

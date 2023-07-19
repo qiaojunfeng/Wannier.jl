@@ -10,9 +10,10 @@ CurrentModule = Wannier
 In this tutorial, we will use Wananier interpolation to compute the band structure
 of silicon valence + conduction bands. A bit different from previous tutorials, we will
 
-1. Construct a [`TBHamiltonian`](@ref) by reading the `win`, `mmn`, `eig`, and `chk` files
+1. Construct a [`Model`](@ref) by reading the `win`, `mmn`, `eig`, and `chk` files
+2. Construct a tight-binding Hamiltonian [`HamiltonianRspace`](@ref) from the `Model`
 2. Run [`interpolate`](@ref) on the `TBHamiltonian` to compute band structure
-3. Read wannier90 interpolated `band.dat` and compare with Wannier.jl interpolated bands
+3. Read wannier90 interpolated `band.dat` and compare with our interpolated bands
 =#
 
 # ## Preparation
@@ -36,9 +37,9 @@ model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/reference/Si2.chk")
 # and check the spread to make sure our `Model` is sensible
 omega(model)
 
-# Now construct a [`TBHamiltonian`](@ref) which contains the ``\mathbf{R}``-space
+# Now construct a [`HamiltonianRspace`](@ref) which contains the ``\mathbf{R}``-space
 # Wannier Hamiltonian, ``H(\mathbf{R})``.
-H = Wannier.TBHamiltonian(model)
+H = HamiltonianRspace(model; MDRS=false)
 
 #=
 !!! tip
@@ -46,7 +47,7 @@ H = Wannier.TBHamiltonian(model)
     To avoid a bloated `Model` that contains everything, and to
     ["Do One Thing And Do It Well"](https://en.wikipedia.org/wiki/Unix_philosophy#Do_One_Thing_and_Do_It_Well),
     we separate on purpose the `Model` that is solely for Wannierization, and
-    the `TBHamiltonian`, that is only used for Wannier interpolation of
+    the `Hamiltonian`, that is only used for Wannier interpolation of
     tight-binding Hamiltonian.
     This is also convenient for developers to focus on the the Wannierization or
     interpolation algorithm without being distracted by one or the other.
@@ -62,7 +63,7 @@ First read the `win` file,
 win = read_win(dataset"Si2/Si2.win")
 # the returned `win` is a `NamedTuple` that contains all the input tags in the `win` file.
 # Then generate a `KPath` based on crystal structure and `kpoint_path` block,
-kpath = get_kpath(win.unit_cell_cart, win.kpoint_path)
+kpi = generate_w90_kpoint_path(win.unit_cell_cart, win.kpoint_path)
 
 #=
 ### Auto generate kpath from lattice
@@ -71,18 +72,18 @@ Another approach is to auto generate a kpath from the lattice, which can be
 either conventional or primitive, the function [`get_kpath`](@ref) will generate
 a correct kpath.
 =#
-kpath_auto = get_kpath(model)
+kpath = generate_kpath(model)
 
 #=
 ### Set kpoint spacing along the kpath
 
 To help comparing with the `band.dat` file, we provide a function
-[`interpolate_w90`](@ref) which will return the exact same kpoints as that
+[`generate_w90_kpoint_path`](@ref) which will return the exact same kpoints as that
 in wannier90 `prefix_band.kpt` file.
 The function returns a `KPathInterpolant` object, containing a list of kpoint
 coordinates to be interpolated on,
 =#
-kpi = Wannier.interpolate_w90(kpath, 100)
+kpi_auto = Wannier.generate_w90_kpoint_path(kpath)
 
 #=
 !!! tip
@@ -121,7 +122,7 @@ the [`interpolate`](@ref) function,
 it will return a `KPathInterpolant`, and the
 band eigen energies,
 =#
-eigenvalues = interpolate(H, kpi)
+eigenvalues = interpolate(kpi, H)
 
 #=
 ## Plotting band structure
@@ -166,7 +167,9 @@ Main.HTMLPlot(P, 500) # hide
 Now we load the `Wannier90` interpolated band,
 to compare between the two codes,
 =#
-kpi_w90, eigenvalues_w90 = read_w90_band(dataset"Si2/reference/Si2", model.recip_lattice)
+kpi_w90, eigenvalues_w90 = read_w90_band(
+    dataset"Si2/reference/Si2", reciprocal_lattice(model)
+)
 #=
 !!! tip
 
