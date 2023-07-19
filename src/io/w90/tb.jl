@@ -1,83 +1,44 @@
 export read_w90_tb
 
 """
-    read_w90_tb(seedname; force_mdrs=false)
+    $(SIGNATURES)
 
-Read `seedname_tb.dat` and `seedname_wsvec.dat`, return [`TBHamiltonian`](@ref) and [`TBPosition`](@ref) operators.
+Read `prefix_tb.dat` and `prefix_wsvec.dat` and construct tight-binding models.
 
 # Arguments
-- `seedname`: the seedname of `seedname_tb.dat` and `seedname_wsvec.dat`
+- `prefix`: the prefix of `prefix_tb.dat` and `prefix_wsvec.dat`
 
 # Return
-- A [`RVectors`](@ref).
-- A [`TBHamiltonian`](@ref).
-- A `rx` [`TBPosition`](@ref).
-- A `ry` [`TBPosition`](@ref).
-- A `rz` [`TBPosition`](@ref).
+- a [`HamiltonianRspace`](@ref)
+- a [`PositionRspace`](@ref)
 
 !!! note
-
-    Usually, if you only need to interpolate operators (e.g., the band structure),
-    that is only inverse Fourier transform [`invfourier`](@ref) is needed,
-    then you don't need to provide `kpoints`.
-    If in some cases, you want to generate Wannier gauge operators, then passing
-    the `kpoints` allows you to construct a complete [`KRVectors`](@ref),
-    and you can subsequently call [`fourier`](@ref) on Bloch gauge operators
-    to get Wannier gauge operators.
-
-!!! warning
-
-    Since no atomic positions and labels are provided, the auto-generated
-    `Brillouin.KPath` is probably wrong. It is recommended that you pass the
-    `atom_positions` and `atom_labels` arguments so that this function can
-    auto generate the correct `Brillouin.KPath`.
+    This will call [`simplify`](@ref) to absorb the R-vector degeneracies and
+    T-vectors into the operator, leading to faster interpolations.
 """
-function read_w90_tb(seedname::AbstractString; force_mdrs=false)
-    wsvec = read_w90_wsvec(seedname * "_wsvec.dat")
-    mdrs = wsvec.mdrs
-    mdrs |= force_mdrs
-    Rvectors = wsvec.Rvectors
-    if mdrs
-        Tvectors = wsvec.Tvectors
-        Tdegens = wsvec.Tdegens
-    end
+function read_w90_tb(prefix::AbstractString)
+    wsvec = read_w90_wsvec(prefix * "_wsvec.dat")
+    tbdat = read_w90_tbdat(prefix * "_tb.dat")
+    @assert wsvec.Rvectors == tbdat.Rvectors "R-vectors in tb.dat and wsvec.dat are not identical"
 
-    tbdat = read_w90_tbdat(seedname * "_tb.dat")
-
-    lattice = tbdat.lattice
-
-    Rvectors == tbdat.Rvectors || @error "R vecs in tb.dat and wsvec.dat are not identical"
-    Rdegens = tbdat.Rdegens
-
-    # grid is still unknown
-    grid = Vec3(-1, -1, -1)  # no grid in wsvec.dat
-    Rvectors_ws = RVectors(lattice, grid, Rvectors, Rdegens)
-
-    function generate_TBBlocks(O)
-        map(enumerate(O)) do (iR, o)
-            rcryst = Rvectors[iR]
-            rcart = lattice * rcryst
-            return TBBlock(rcryst, rcart, o, o)
-        end
-    end
-
-    if !mdrs
-        return (;
-            Rvectors=Rvectors_ws,
-            H=generate_TBBlocks(tbdat.H),
-            r_x=generate_TBBlocks(tbdat.r_x),
-            r_y=generate_TBBlocks(tbdat.r_y),
-            r_z=generate_TBBlocks(tbdat.r_z),
+    if wsvec.mdrs
+        Rdomain = MDRSRspaceDomain(
+            tbdat.lattice, tbdat.Rvectors, tbdat.Rdegens, wsvec.Tvectors, wsvec.Tdegens
         )
+    else
+        Rdomain = WSRspaceDomain(tbdat.lattice, tbdat.Rvectors, tbdat.Rdegens)
     end
 
-    Rvectors_mdrs = RVectorsMDRS(Rvectors_ws, Tvectors, Tdegens)
+    bare_Rdomain, bare_H = simplify(Rdomain, tbdat.H)
+    hamiltonian = HamiltonianRspace(bare_Rdomain, bare_H)
 
-    return (;
-        Rvectors=Rvectors_mdrs,
-        H=mdrs_v1tov2(tbdat.H, Rvectors_mdrs),
-        r_x=mdrs_v1tov2(tbdat.r_x, Rvectors_mdrs),
-        r_y=mdrs_v1tov2(tbdat.r_y, Rvectors_mdrs),
-        r_z=mdrs_v1tov2(tbdat.r_z, Rvectors_mdrs),
-    )
+    # convert to matrix of MVec3, here mutable since we might need to invoke
+    # some in-place functions in later interpolation steps
+    pos_vecs = map(zip(tbdat.r_x, tbdat.r_y, tbdat.r_z)) do (x, y, z)
+        MVec3.(x, y, z)
+    end
+    bare_Rdomain, bare_pos = simplify(Rdomain, pos_vecs)
+    position = PositionRspace(bare_Rdomain, bare_pos)
+
+    return (; hamiltonian, position)
 end

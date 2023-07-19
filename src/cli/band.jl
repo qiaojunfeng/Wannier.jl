@@ -16,7 +16,7 @@ Interpolate band structure.
         model = read_w90_with_chk(seedname)
     else
         model = read_w90(seedname)
-        model.U .= read_orthonorm_amn(amn)
+        model.U .= read_amn_ortho(amn)
     end
 
     _print_type(model.kRvectors.Rvectors)

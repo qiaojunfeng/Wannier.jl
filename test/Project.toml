@@ -1,16 +1,16 @@
 [deps]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
-JuliaFormatter = "98e50ef6-434e-11e9-1051-2b60c6c9e899"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 NLSolversBase = "d41bc354-129a-5804-8e4c-c37616107c6c"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
+TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
+WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
 
 [compat]
 Aqua = "0.5"
 Brillouin = "~0.5"
-JuliaFormatter = "~1.0"
 NLSolversBase = "7"
-YAML = "0.4"
+TestItemRunner = "0.2"
+WannierIO = "0.2"

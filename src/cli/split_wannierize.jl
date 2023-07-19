@@ -50,7 +50,7 @@ Then this command split WFs into two independent groups.
 
     if run_disentangle
         # You can also use disentangle to get a good gauge from initial projection
-        model.U .= read_orthonorm_amn("$seedname.amn")
+        model.U .= read_amn_ortho("$seedname.amn")
         model.U .= disentangle(model)
     else
         # Get max localized gauge from chk file, 1st try text format, then binary
@@ -96,7 +96,7 @@ Then this command split WFs into two independent groups.
             @info "Run optimal rotation"
             println()
             W = opt_rotate(m)
-            m.U .= rotate_U(m.U, W)
+            m.U .= merge_gauge(m.U, W)
         end
 
         if run_maxloc

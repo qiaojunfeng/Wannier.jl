@@ -26,7 +26,7 @@ optimal rotation function.
 
     W = opt_rotate(model; max_iter=maxiter)
 
-    U = rotate_U(U0, W)
+    U = merge_gauge(U0, W)
     write_amn(output, U)
 
     return nothing

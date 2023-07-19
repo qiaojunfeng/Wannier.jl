@@ -52,7 +52,7 @@ We will use the [`read_w90`](@ref) function to read the
     ```julia
     win = read_win("CuBr2.win")
     kp = get_kpath(win.unit_cell, win.atoms_frac, win.atom_labels)
-    kpi = Wannier.interpolate_w90(kp, 100)
+    kpi = Wannier.generate_w90_kpoint_path(kp, 100)
     Wannier.write_w90_kpt_label("CuBr2", kpi)
     ```
     The outputs are two files: `CuBr2_band.kpt` and `CuBr2_band.labelinfo.dat`,
@@ -83,7 +83,7 @@ WannierPlots.plot(model.bvectors)
 
 # thus we need to use a different set of b-vectors, which simply includes all the
 # 6 nearest neighbors.
-bvectors_nn = Wannier.get_bvectors_nearest(model.kpoints, model.recip_lattice)
+bvectors_nn = Wannier.generate_bvectors_nearest(model.kpoints, model.recip_lattice)
 WannierPlots.plot(bvectors_nn)
 
 # now write to a new `nnkp` file
@@ -162,7 +162,7 @@ interp_model = Wannier.InterpModel(model; kpath=kpath)
 
 # interpolate band structure
 # the QE bands use 50 points per segment, so we use 50 here as well
-kpi = Wannier.interpolate_w90(kpath, 50)
+kpi = Wannier.generate_w90_kpoint_path(kpath, 50)
 E = Wannier.interpolate(interp_model, kpi)
 
 # plot band difference

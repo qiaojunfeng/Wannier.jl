@@ -7,7 +7,7 @@ model = read_w90(joinpath(FIXTURE_PATH, "graphene_unk/graphene"))
 model.U .= read_amn(joinpath(FIXTURE_PATH, "graphene_unk/graphene.w90.amn"))
 unkdir = joinpath(FIXTURE_PATH, "graphene_unk")
 
-@testset "realspace xsf" begin
+@testitem "realspace xsf" begin
     outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "wjl")
 
@@ -29,7 +29,7 @@ unkdir = joinpath(FIXTURE_PATH, "graphene_unk")
     end
 end
 
-@testset "realspace moment" begin
+@testitem "realspace moment" begin
     rgrid, W = read_realspace_wf(model, 2, unkdir)
 
     r = center(rgrid, W)

@@ -1,60 +1,63 @@
-export read_nnkp, write_nnkp
+export read_nnkp_compute_weights, write_nnkp
 
 """
-    read_nnkp(filename::AbstractString)
+    $(SIGNATURES)
 
 Read the `nnkp` file.
 
-!!! note
-
-    This is a wrapper of `WannierIO.read_nnkp`. It returns a [`BVectors`](@ref)
-    instead of `NamedTuple`.
+This function calls `WannierIO.read_nnkp` to parse the file, compute the weights
+of b-vectors, and returns a [`KgridStencil`](@ref) (while `WannierIO.read_nnkp` only
+returns a `NamedTuple`).
 """
-function read_nnkp(filename::AbstractString)
+function read_nnkp_compute_weights(filename::AbstractString)
     nnkp = WannierIO.read_nnkp(filename)
-    n_bvecs = length(nnkp.kpb_k[1])
+    kpoints = nnkp.kpoints
+    recip_lattice = nnkp.recip_lattice
+    kpb_k = nnkp.kpb_k
+    kpb_G = nnkp.kpb_G
+    n_bvecs = length(kpb_k[1])
 
-    # Generate bvectors from 1st kpoint, in Cartesian coordinates
+    # Generate bvectors from 1st kpoint, in fractional coordinates
     bvectors = zeros(Vec3{Float64}, n_bvecs)
     ik = 1
     for ib in 1:n_bvecs
-        ik2 = nnkp.kpb_k[ik][ib]
-        b = nnkp.kpb_G[ik][ib]
-        bvec = nnkp.kpoints[ik2] + b - nnkp.kpoints[ik]
-        bvectors[ib] = nnkp.recip_lattice * bvec
+        ikpb = kpb_k[ik][ib]
+        G = kpb_G[ik][ib]
+        bvectors[ib] = recip_lattice * (kpoints[ikpb] + G - kpoints[ik])
     end
 
-    weights = zeros(Float64, n_bvecs)
-    fill!(weights, NaN)
-
-    return BVectors(
-        nnkp.recip_lattice, nnkp.kpoints, bvectors, weights, nnkp.kpb_k, nnkp.kpb_G
-    )
+    weights = compute_weights(bvectors)
+    kgrid_size = guess_kgrid_size(kpoints)
+    kgrid = KpointGrid(recip_lattice, kgrid_size, kpoints)
+    return KgridStencil(kgrid, bvectors, weights, kpb_k, kpb_G)
 end
 
 """
-    write_nnkp(filename::AbstractString, bvectors::BVectors, n_wann::Integer)
+    $(SIGNATURES)
 
 Write nnkp that can be used by `pw2wannier90`.
 
-!!! note
+# Arguments
+- `filename`: the filename to write to
+- `kstencil`: a [`KgridStencil`](@ref) object
 
-    This is a wrapper of `WannierIO.write_nnkp`.
+!!! tip
+
+    Some important tags in `nnkp` file (can be passed as keyword arguments):
+    - `n_wann`: the number of WFs, needed by `pw2wannier90`
+    - `exclude_bands`: the bands (often semicore states) to exclude, needed by
+        `pw2wannier90`
+
+    For other keyword arguments, see [`WannierIO.write_nnkp`](@ref).
 """
-function write_nnkp(
-    filename::AbstractString,
-    bvectors::BVectors,
-    n_wann::Integer,
-    exclude_bands::Union{Nothing,AbstractVector{<:Integer}}=nothing,
-)
+function write_nnkp(filename::AbstractString, kstencil::KgridStencil; kwargs...)
     return WannierIO.write_nnkp(
         filename;
-        lattice=get_lattice(bvectors.recip_lattice),
-        bvectors.recip_lattice,
-        bvectors.kpoints,
-        bvectors.kpb_k,
-        bvectors.kpb_G,
-        n_wann,
-        exclude_bands,
+        lattice=real_lattice(reciprocal_lattice(kstencil)),
+        recip_lattice=reciprocal_lattice(kstencil),
+        kstencil.kgrid.kpoints,
+        kstencil.kpb_k,
+        kstencil.kpb_G,
+        kwargs...,
     )
 end

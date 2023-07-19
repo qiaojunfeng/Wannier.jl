@@ -48,7 +48,7 @@ Interpolate Fermi surface.
     Rvecs = model.kRvectors.Rvectors
     _print_type(Rvecs)
 
-    recip_latt = get_recip_lattice(Rvecs.lattice)
+    recip_latt = reciprocal_lattice(Rvecs.lattice)
 
     if dk > 0
         nk = [round(Int, norm(b) / dk) for b in eachcol(recip_latt)]

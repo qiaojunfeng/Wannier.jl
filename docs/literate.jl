@@ -42,7 +42,7 @@ for file in src_files
     Literate.notebook(file, outdir; execute=false)
 
     # This generates a cleansed version w/o comments
-    # Literate.script(file, outdir)
+    Literate.script(file, outdir)
 end
 
 println("\n**** Literate.jl finished ****\n")

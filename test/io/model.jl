@@ -1,36 +1,36 @@
-@testset "read_w90" begin
-    model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
+@testitem "read_w90" begin
+    using Wannier.Datasets
+    model = load_dataset("Si2")
 
-    @test model.n_bands ≈ 12
-    @test model.n_wann ≈ 8
-    @test model.n_kpts ≈ 64
+    @test n_bands(model) == 16
+    @test n_wannier(model) == 8
+    @test n_kpoints(model) == 9^3
 end
 
-@testset "write_w90" begin
-    model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
+@testitem "write_w90" begin
+    using Wannier.Datasets
+    model = load_dataset("Si2")
 
     outdir = mktempdir(; cleanup=true)
-    outseedname = joinpath(outdir, "silicon")
-    write_w90(outseedname, model)
+    outprefix = joinpath(outdir, "silicon")
+    write_w90(outprefix, model)
 
-    U = read_orthonorm_amn("$outseedname.amn")
-    @test U ≈ model.U
+    gauges = read_amn_ortho("$outprefix.amn")
+    @test gauges ≈ model.gauges
 
-    E = read_eig("$outseedname.eig")
-    @test E ≈ model.E
+    eigenvalues = read_eig("$outprefix.eig")
+    @test eigenvalues ≈ model.eigenvalues
 
-    M, kpb_k, kpb_G = read_mmn("$outseedname.mmn")
-    @test M ≈ model.M
-    @test kpb_k ≈ model.bvectors.kpb_k
-    @test kpb_G ≈ model.bvectors.kpb_G
+    overlaps, kpb_k, kpb_G = read_mmn("$outprefix.mmn")
+    @test overlaps ≈ model.overlaps
+    @test kpb_k == model.bvectors.kpb_k
+    @test kpb_G == model.bvectors.kpb_G
 end
 
-@testset "read_w90_with_chk" begin
-    model = read_w90_with_chk(
-        joinpath(FIXTURE_PATH, "valence/band/silicon"),
-        joinpath(FIXTURE_PATH, "valence/band/silicon.chk.fmt"),
-    )
+@testitem "read_w90_with_chk" begin
+    using Wannier.Datasets
+    model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/reference/Si2.chk")
 
     @test model isa Wannier.Model
-    @test model.n_wann == 4
+    @test n_wannier(model) == 8
 end

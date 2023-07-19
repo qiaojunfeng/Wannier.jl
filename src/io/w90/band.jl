@@ -1,22 +1,30 @@
-using Brillouin
 using Bravais: ReciprocalBasis
+using Brillouin: LATTICE, KPathInterpolant
+# to extend some methods
+import WannierIO: read_w90_band, write_w90_band
 
 export read_w90_band, write_w90_band
 
 """
-    KPathInterpolant(kpoints, symm_point_indices, symm_point_labels, recip_lattice)
+    $(SIGNATURES)
 
-Generate a `KPathInterpolant` from `kpoints` in `prefix_band.dat/kpt/labelinfo`.
+Generate a `KPathInterpolant` from the kpoint coordinates and high-symmetry kpoints.
+
+The `WannierIO.read_w90_band(prefix)` function returns the required arguments
+of this function.
 
 # Arguments
-- kpoints: fractional coordinate, each column is a kpoint.
+- `recip_lattice`: each column is a reciprocal lattice vector in Å
+- `kpoints`: list of kpoint coordinates along a kpath, fractional coordinates
+- `symm_point_indices`: indices of the high-symmetry kpoints
+- `symm_point_labels`: labels of the high-symmetry kpoints
 """
-function KPathInterpolant(
-    kpoints::AbstractVector,
-    symm_point_indices::AbstractVector{T},
-    symm_point_labels::AbstractVector{R},
+function generate_w90_kpoint_path(
     recip_lattice::AbstractMatrix,
-) where {T<:Integer,R<:AbstractString}
+    kpoints::AbstractVector,
+    symm_point_indices::AbstractVector,
+    symm_point_labels::AbstractVector,
+)
     # kpoints along path
     kpaths = Vector{Vector{Vec3{Float64}}}()
     # symmetry points
@@ -49,34 +57,40 @@ function KPathInterpolant(
     end
 
     basis = ReciprocalBasis([v for v in eachcol(recip_lattice)])
-    setting = Ref(Brillouin.LATTICE)
+    setting = Ref(LATTICE)
     kpi = KPathInterpolant(kpaths, labels, basis, setting)
     return kpi
 end
 
 """
-    read_w90_band(prefix::AbstractString, recip_lattice::AbstractMatrix)
+    $(SIGNATURES)
 
 # Arguments
-- `recip_lattice`: each column is a reciprocal lattice vector in Cartesian coordinates.
-    If given, return a tuple of `(KPathInterpolant, E)`.
-    This is a more user-friendly version of
-    [`read_w90_band(prefix::AbstractString)`](@ref read_w90_band(prefix::AbstractString)).
+- `recip_lattice`: each column is a reciprocal lattice vector in Å.
 
-See also [`read_w90_band(prefix::AbstractString)`](@ref read_w90_band(prefix::AbstractString)).
+# Return
+- `kpi`: a `KPathInterpolant` object
+- `eigenvalues`: the eigenvalues of the band structure
+
+!!! note
+
+    The `WannierIO.read_w90_band(prefix)` function returns a `NamedTuple`
+    containing basis variables such as `kpoints`, `symm_point_indices`, etc.
+    Here, once we know the `recip_lattice`, we can generate a `KPathInterpolant`
+    which can be used directly in plotting functions.
 """
 function read_w90_band(prefix::AbstractString, recip_lattice::AbstractMatrix)
     band = WannierIO.read_w90_band(prefix)
-    kpi = KPathInterpolant(
-        band.kpoints, band.symm_point_indices, band.symm_point_labels, recip_lattice
+    kpi = generate_w90_kpoint_path(
+        recip_lattice, band.kpoints, band.symm_point_indices, band.symm_point_labels
     )
     return kpi, band.eigenvalues
 end
 
 """
-    get_symm_point_indices_labels(kpi::KPathInterpolant)
+    $(SIGNATURES)
 
-Return the symmetry indexes and labels.
+Return the symmetry indices and labels.
 """
 function get_symm_point_indices_labels(kpi::KPathInterpolant)
     kpi_frac = latticize(kpi)
@@ -100,18 +114,18 @@ function get_symm_point_indices_labels(kpi::KPathInterpolant)
 end
 
 """
-    write_w90_band(prefix, kpi::KPathInterpolant, eigenvalues)
+    $(SIGNATURES)
 
 Write `prefix_band.dat, prefix_band.kpt, prefix_band.labelinfo.dat`.
 
-This is a more user-friendly version.
-
-See also [`write_w90_band(prefix, kpoints, E, x, symm_point_indices, symm_point_labels)`]
-(@ref write_w90_band(prefix, kpoints, E, x, symm_point_indices, symm_point_labels)).
+This is a more user-friendly version that works with `KPathInterpolant`;
+the `WannierIO.write_w90_band(prefix; kwargs...)` is the low-level version.
 """
-function write_w90_band(prefix::AbstractString, kpi::KPathInterpolant, eigenvalues::Vector)
-    kpoints = get_kpoints(kpi::KPathInterpolant)
-    x = get_x(kpi)
+function write_w90_band(
+    prefix::AbstractString, kpi::KPathInterpolant, eigenvalues::AbstractVector
+)
+    kpoints = get_kpoints(kpi)
+    x = get_linear_path(kpi)
     symm_point_indices, symm_point_labels = get_symm_point_indices_labels(kpi)
     return WannierIO.write_w90_band(
         prefix; x, eigenvalues, kpoints, symm_point_indices, symm_point_labels
@@ -119,31 +133,38 @@ function write_w90_band(prefix::AbstractString, kpi::KPathInterpolant, eigenvalu
 end
 
 """
-    write_w90_kpt_label(prefix, kpi::KPathInterpolant)
+    $(SIGNATURES)
 
-Write `prefix_band.kpt` and `prefix_band.labelinfo.dat`.
+Write kpoints into wannier90 formats: `prefix_band.kpt`, `prefix_band.labelinfo.dat`.
 
-This allows generating the high-symmetry kpoints and labels from crystal
-structure, and use the generated kpoints in `pw.x` `bands` calculation
-or in the `win` input file for `Wannier90`.
+# Arguments
+- `prefix`: the prefix of the output files `prefix_band.kpt` and `prefix_band.labelinfo.dat`
+- `kpi`: a `KPathInterpolant` object
+
+!!! tip
+
+    This allows auto generating the high-symmetry kpoints and labels from crystal
+    structure using `generate_kpath`, writing them into files. Then other codes
+    can use the kpoints for band structure calculations, e.g., QE `pw.x` `bands`
+    calculation, or in the `win` input file for `Wannier90`.
 
 # Example
 ```julia
 win = read_win("si2.win")
-kp = get_kpath(win.unit_cell_cart, win.atoms_frac, win.atom_labels)
-kpi = Wannier.interpolate_w90(kp, 100)
+kp = generate_kpath(win.unit_cell_cart, win.atoms_frac, win.atom_labels)
+kpi = Wannier.generate_w90_kpoint_path(kp, 100)
 Wannier.write_w90_kpt_label("si2", kpi)
 ```
 """
 function write_w90_kpt_label(prefix::AbstractString, kpi::KPathInterpolant)
-    kpoints = get_kpoints(kpi::KPathInterpolant)
-    x = get_x(kpi)
+    kpoints = get_kpoints(kpi)
+    x = get_linear_path(kpi)
     symm_point_indices, symm_point_labels = get_symm_point_indices_labels(kpi)
 
-    filename = "$(prefix)_band.kpt"
+    filename = prefix * "_band.kpt"
     WannierIO.write_w90_band_kpt(filename; kpoints)
 
-    filename = "$(prefix)_band.labelinfo.dat"
+    filename = prefix * "_band.labelinfo.dat"
     return WannierIO.write_w90_band_labelinfo(
         filename; x, kpoints, symm_point_indices, symm_point_labels
     )

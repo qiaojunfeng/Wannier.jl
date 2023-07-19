@@ -1,14 +1,14 @@
 """Check `win.use_ws_distance`."""
-ismdrs(win::NamedTuple) = get(win, :use_ws_distance, true)
+isMDRS(win::NamedTuple) = get(win, :use_ws_distance, true)
 
 """
 Construct a `KPath` from `win` input `unit_cell_cart` and `kpoint_path`.
 
 If `kpoint_path` is empty, an empty `KPath` will be returned.
 """
-function get_kpath(win::NamedTuple)
+function generate_kpath(win::NamedTuple)
     if haskey(win, :kpoint_path)
-        kpath = get_kpath(win.unit_cell_cart, win.kpoint_path)
+        kpath = generate_kpath(win.unit_cell_cart, win.kpoint_path)
     else
         # an empty kpath
         points = Dict{Symbol,Vec3{Float64}}()

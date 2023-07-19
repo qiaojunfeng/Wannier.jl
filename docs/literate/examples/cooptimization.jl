@@ -67,7 +67,7 @@ then we construct an [`KPathInterpolant`](@ref) object which stores the exact
 kpoint coordinates to be interpolated, using 100 points in the 1st kpath segment
 (equivalent to Wannier90 input `bands_num_points`).
 =#
-kpi = Wannier.interpolate_w90(kpath, 100)
+kpi = Wannier.generate_w90_kpoint_path(kpath, 100)
 
 # Now we can plot the QE bands for two spin channels
 P = plot_band_diff(kpi, qe.E_up, qe.E_dn; fermi_energy=qe.fermi_energy)
@@ -179,7 +179,7 @@ omega(model_up, U_up_mlwf)
 interpModel_up_mlwf = Wannier.InterpModel(
     interpModel_up.kRvectors,
     interpModel_up.kpath,
-    fourier(interpModel_up.kRvectors, Wannier.get_Hk(model_up.E, U_up_mlwf)),
+    fourier(interpModel_up.kRvectors, Wannier.rotate_gauge(model_up.E, U_up_mlwf)),
 )
 E_up_mlwf = Wannier.interpolate(interpModel_up_mlwf, kpi)
 
@@ -195,7 +195,7 @@ omega(model_dn, U_dn_mlwf)
 interpModel_dn_mlwf = Wannier.InterpModel(
     interpModel_dn.kRvectors,
     interpModel_dn.kpath,
-    fourier(interpModel_dn.kRvectors, Wannier.get_Hk(model_dn.E, U_dn_mlwf)),
+    fourier(interpModel_dn.kRvectors, Wannier.rotate_gauge(model_dn.E, U_dn_mlwf)),
 )
 E_dn_mlwf = Wannier.interpolate(interpModel_dn_mlwf, kpi)
 P = plot_band_diff(kpi, qe.E_dn, E_dn_mlwf; fermi_energy=qe.fermi_energy)
@@ -329,12 +329,12 @@ Finally, we check the interpolated bands.
 interpModel_up = Wannier.InterpModel(
     interpModel_up.kRvectors,
     interpModel_up.kpath,
-    fourier(interpModel_up.kRvectors, Wannier.get_Hk(model_up.E, U_up)),
+    fourier(interpModel_up.kRvectors, Wannier.rotate_gauge(model_up.E, U_up)),
 )
 interpModel_dn = Wannier.InterpModel(
     interpModel_dn.kRvectors,
     interpModel_dn.kpath,
-    fourier(interpModel_dn.kRvectors, Wannier.get_Hk(model_dn.E, U_dn)),
+    fourier(interpModel_dn.kRvectors, Wannier.rotate_gauge(model_dn.E, U_dn)),
 )
 E_up = Wannier.interpolate(interpModel_up, kpi);
 E_dn = Wannier.interpolate(interpModel_dn, kpi);

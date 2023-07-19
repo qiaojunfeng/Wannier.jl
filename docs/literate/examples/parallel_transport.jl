@@ -100,7 +100,7 @@ However, to make the tutorial reproducible, we will use a fixed random seed.
 =#
 using Random
 Random.seed!(12345)
-R = Wannier.rand_unitary(eltype(model_val.U), size(model_val.U)...)
+R = Wannier.rand_U(eltype(model_val.U), size(model_val.U)...)
 # and assign it to the `model_val`
 model_val.U .= R;
 # of course now we have totally destroyed the gauge 😈
@@ -130,7 +130,7 @@ This is convenient since the calculation is cheap, and helps evade local minimum
 
 Then let's rotate the input gauge by `W`,
 =#
-U3 = rotate_U(U2, W);
+U3 = merge_gauge(U2, W);
 #=
 and inspect the new gauge,
 =#

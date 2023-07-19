@@ -11,11 +11,11 @@ model.U .= get_U(read_chk(dataset"Si2_valence/reference/Si2_valence.chk.fmt"))
 tb_ws = read_w90_tb(dataset"Si2_valence/reference/ws/Si2_valence")
 tb_mdrs = read_w90_tb(dataset"Si2_valence/reference/mdrs/Si2_valence")
 
-Hᵏ = Wannier.get_Hk(model.E, model.U)
+Hᵏ = Wannier.rotate_gauge(model.E, model.U)
 kRvectors_ws = tb_ws.Rvectors
 kRvectors_mdrs = tb_mdrs.Rvectors
 
-SUITE["get_Hk"] = @benchmarkable Wannier.get_Hk($(model.E), $(model.U))
+SUITE["rotate_gauge"] = @benchmarkable Wannier.rotate_gauge($(model.E), $(model.U))
 
 tbhami = tb_ws.H
 

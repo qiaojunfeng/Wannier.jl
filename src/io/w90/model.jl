@@ -1,82 +1,76 @@
 export read_w90, read_w90_with_chk, write_w90
 
 """
-    read_w90(prefix; amn=true, orthonorm_amn=true, mmn=true, eig=true)
+    $(SIGNATURES)
 
-Read `win`, and optionally `amn`, `mmn`, `eig`.
+Read `win` file, and read `amn`, `mmn`, `eig` files if they exist.
 
 # Keyword arguments
-- amn: if `true`, read `amn` file
-- orthonorm_amn: Lowdin orthonormalization after reading `amn` matrices.
+- ortho_amn: Lowdin orthonormalization after reading `amn` matrices.
     Should be `true` for most cases, since usually the input `amn` matrices are
-    projections onto atomic orbitals, and are not unitary or semi-unitary.
-- mmn: if `true`, read `mmn` file
-- eig: if `true`, read `eig` file
+    not guaranteed to be unitary or semi-unitary.
 """
-function read_w90(
-    prefix::AbstractString;
-    amn::Bool=true,
-    orthonorm_amn::Bool=true,
-    mmn::Bool=true,
-    eig::Bool=true,
-)
-    win = read_win("$prefix.win")
-
-    n_bands = win.num_bands
-    n_wann = win.num_wann
-    kpoints = win.kpoints
-    kgrid = Vec3{Int}(win.mp_grid)
-    n_kpts = prod(kgrid)
+function read_w90(prefix::AbstractString; ortho_amn::Bool=true)
+    win = read_win(prefix * ".win")
+    nbands = win.num_bands
+    nwann = win.num_wann
 
     lattice = win.unit_cell_cart
-    recip_lattice = get_recip_lattice(lattice)
+    kgrid = KpointGrid(reciprocal_lattice(lattice), win.mp_grid, win.kpoints)
 
-    bvectors = get_bvectors(kpoints, recip_lattice; kmesh_tol=get(win, :kmesh_tol, 1e-6))
+    nkpts = n_kpoints(kgrid)
+    atol = get(win, :kmesh_tol, default_w90_kmesh_tol())
+    kstencil = generate_stencil(kgrid; atol)
+    nbvecs = n_bvectors(kstencil)
 
-    n_bvecs = bvectors.n_bvecs
-    if mmn
-        M, kpb_k_mmn, kpb_G_mmn = read_mmn("$prefix.mmn")
+    if isfile(prefix * ".mmn")
+        overlaps, kpb_k_mmn, kpb_G_mmn = read_mmn(prefix * ".mmn")
 
         # check consistency for mmn
-        (n_bands, n_bands) != size(M[1][1]) && error("n_bands != size(M[1][1])")
-        n_bvecs != length(M[1]) && error("n_bvecs != length(M[1])")
-        n_kpts != length(M) && error("n_kpts != length(M)")
-        bvectors.kpb_k != kpb_k_mmn && error("kpb_k != kpb_k from mmn file")
-        bvectors.kpb_G != kpb_G_mmn && error("kpb_G != kpb_G from mmn file")
+        @assert nkpts == length(overlaps) "different n_kpoints in mmn and win files"
+        @assert nbvecs == length(overlaps[1]) "different n_bvectors in mmn and win files"
+        @assert (nbands, nbands) == size(overlaps[1][1]) "different n_bands in mmn and win files"
+        @assert kstencil.kpb_k == kpb_k_mmn "auto generated kpb_k are different from mmn file"
+        @assert kstencil.kpb_G == kpb_G_mmn "auto generated kpb_G are different from mmn file"
     else
-        M = [[zeros(ComplexF64, n_bands, n_bands) for ib in 1:n_bvecs] for ik in 1:n_kpts]
+        overlaps = zero_overlap(ComplexF64, nkpts, nbvecs, nbands)
+        @warn "$prefix.mmn file does not exist, set M to zeros"
     end
 
-    if amn
-        if orthonorm_amn
-            U = read_orthonorm_amn("$prefix.amn")
+    if isfile(prefix * ".amn")
+        if ortho_amn
+            gauges = read_amn_ortho("$prefix.amn")
         else
-            U = read_amn("$prefix.amn")
+            gauges = read_amn("$prefix.amn")
         end
-        @assert n_kpts == length(U) "amn file has different n_kpts than win file: $(length(U)) != $n_kpts"
-        @assert (n_bands, n_wann) == size(U[1]) "U[1] is not a n_bands x n_wann matrix: $(size(U[1])) != ($n_bands, $n_wann)"
+        @assert nkpts == length(gauges) "different n_kpoints in amn and win files"
+        @assert (nbands, nwann) == size(gauges[1]) "different n_bands or n_wannier in amn and win files"
     else
-        U = [zeros(ComplexF64, n_bands, n_wann) for i in 1:n_kpts]
+        gauges = zero_gauge(ComplexF64, nkpts, nbands, nwann)
+        @warn "$prefix.amn file does not exist, set U to zeros"
     end
 
-    if eig
-        E = read_eig("$prefix.eig")
-        n_bands != length(E[1]) && error("n_bands != length(E[1])")
-        n_kpts != length(E) && error("n_kpts != length(E)")
+    disentangle = nbands != nwann
+    if isfile(prefix * ".eig")
+        eigenvalues = read_eig(prefix * ".eig")
+        @assert nkpts == length(eigenvalues) "different n_kpoints in eig and win files"
+        @assert nbands == length(eigenvalues[1]) "different n_bands in eig and win files"
     else
-        E = [zeros(Float64, n_bands) for i in 1:n_kpts]
+        @assert !disentangle "eig file is required for disentanglement"
+        eigenvalues = [zeros(Float64, nbands) for _ in 1:nkpts]
+        @warn "$prefix.eig file does not exist, set eigenvalues to zeros"
     end
 
-    if eig && n_bands != n_wann
+    if disentangle
         dis_froz_max = get(win, :dis_froz_max, nothing)
         dis_froz_min = get(win, :dis_froz_min, -Inf)
         if isnothing(dis_froz_max)
-            frozen_bands = [falses(n_bands) for i in 1:n_kpts]
+            frozen_bands = [falses(nbands) for _ in 1:nkpts]
         else
-            frozen_bands = get_frozen_bands(E, dis_froz_max, dis_froz_min)
+            frozen_bands = get_frozen_bands(eigenvalues, dis_froz_max, dis_froz_min)
         end
     else
-        frozen_bands = [falses(n_bands) for i in 1:n_kpts]
+        frozen_bands = [falses(nbands) for _ in 1:nkpts]
     end
 
     atom_labels = map(x -> string(x.first), win.atoms_frac)
@@ -87,17 +81,16 @@ function read_w90(
         atom_positions,
         atom_labels,
         kgrid,
-        kpoints,
-        bvectors,
+        kstencil,
+        overlaps,
+        gauges,
+        eigenvalues,
         frozen_bands,
-        M,
-        U,
-        E,
     )
 end
 
-@doc raw"""
-    read_w90_with_chk(prefix, chk="$prefix.chk")
+"""
+    $(SIGNATURES)
 
 Return a `Model` with U matrix filled by that from a chk file.
 
@@ -105,32 +98,25 @@ Return a `Model` with U matrix filled by that from a chk file.
 - chk: path of chk file to get the unitary matrices.
 """
 function read_w90_with_chk(prefix::AbstractString, chk::AbstractString="$prefix.chk")
-    model = read_w90(prefix; amn=false)
+    model = read_w90(prefix)
     fchk = read_chk(chk)
-    model.U .= get_U(fchk)
+    model.gauges .= get_U(fchk)
     return model
 end
 
 """
-    write_w90(seedname::AbstractString, model::Model)
+    $(SIGNATURES)
 
 Write `Model` into `eig`, `mmn`, `amn` files.
 
 # Keyword arguments
 - `binary`: write `eig`, `mmn`, and `amn` in Fortran binary format
 """
-function write_w90(seedname::AbstractString, model::Model; binary::Bool=false)
-    # Note I need to use basename! If seedname is absolute path the joinpath
-    # will just return seedname.
-    outname(suffix::String) = "$seedname.$suffix"
+function write_w90(prefix::AbstractString, model::Model; binary::Bool=false)
+    outname(suffix) = "$prefix.$suffix"
 
-    write_eig(outname("eig"), model.E; binary=binary)
-
-    kpb_k = model.bvectors.kpb_k
-    kpb_G = model.bvectors.kpb_G
-    write_mmn(outname("mmn"), model.M, kpb_k, kpb_G; binary=binary)
-
-    write_amn(outname("amn"), model.U; binary=binary)
-
+    write_eig(outname("eig"), model.eigenvalues; binary)
+    write_mmn(outname("mmn"), model.overlaps, model.kstencil; binary)
+    write_amn(outname("amn"), model.gauges; binary)
     return nothing
 end
