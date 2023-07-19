@@ -1,34 +1,44 @@
 name: CI
 
 on:
-  pull_request:
   push:
     branches: [main]
+    tags: [v*]
+  pull_request:
+    branches:
+      - main
 
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v3
-    - uses: julia-actions/setup-julia@v1
-    - uses: julia-actions/cache@v1
-    - uses: julia-actions/julia-buildpkg@v1
-    - uses: pre-commit/action@v3.0.0
-      with:
-        extra_args: ""  # do not run on all files
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+      - uses: julia-actions/setup-julia@v1
+      - uses: julia-actions/cache@v1
+      - name: Install JuliaFormatter
+        # This will use the latest version by default but you can set the version like so:
+        # julia  -e 'using Pkg; Pkg.add(PackageSpec(name="JuliaFormatter", version="0.13.0"))'
+        run: |
+          using Pkg
+          Pkg.add("JuliaFormatter")
+        shell: julia --color=yes {0}
+      - uses: pre-commit/action@v3.0.0
+        with:
+          extra_args: ""  # do not run on all files
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         julia-version:
           - "1"
+        arch:
+          - x64
         os:
           - ubuntu-latest
           - windows-latest
           - macOS-latest
-        arch:
-          - x64
     steps:
       - uses: actions/checkout@v3
         # with:
@@ -40,28 +50,11 @@ jobs:
       - uses: julia-actions/cache@v1
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
+        with:
+          annotate: true
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v3
         with:
-          file: lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: julia-actions/setup-julia@v1
-      - run: |
-          julia --project=docs -e '
-            using Pkg
-            Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.instantiate()'
-      - run: |
-          julia --project=docs -e '
-            using Documenter: doctest
-            using Wannier
-            doctest(Wannier)'
-      - run: julia --project=docs docs/make.jl
+          files: lcov.info
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

@@ -1,4 +1,5 @@
 name: TagBot
+
 on:
   issue_comment:
     types:
@@ -7,6 +8,8 @@ on:
     inputs:
       lookback:
         default: 3
+        type: number
+
 permissions:
   actions: read
   checks: read
@@ -20,6 +23,7 @@ permissions:
   repository-projects: read
   security-events: read
   statuses: read
+
 jobs:
   TagBot:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
@@ -28,6 +32,5 @@ jobs:
       - uses: JuliaRegistries/TagBot@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          # Edit the following line to reflect the actual name of the GitHub Secret containing your private key
+          # To allow triggering the Documenter workflow
           ssh: ${{ secrets.DOCUMENTER_KEY }}
-          # ssh: ${{ secrets.NAME_OF_MY_SSH_PRIVATE_KEY_SECRET }}
