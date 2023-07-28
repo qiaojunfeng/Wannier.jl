@@ -34,13 +34,10 @@ struct Model{T<:Real}
     """atomic labels, length-`n_atoms` vector of string"""
     atom_labels::Vector{String}
 
-    """uniformly-spaced kpoint grid, see [`KpointGrid`](@ref)"""
-    kgrid::KpointGrid{T}
-
     """stencil for finite differences on the kpoint grid, also called
     ``\\mathbf{b}``-vectors. Should satisfy completeness condition, see
-    [`KgridStencil`](@ref)"""
-    kstencil::KgridStencil{T}
+    [`KspaceStencil`](@ref)"""
+    kstencil::KspaceStencil{T}
 
     """overlap matrices between neighboring wavefunctions, ``M_{\\bm{k},\\bm{b}}``.
     Length-`n_kpoints` vector, each element is a length-`n_bvectors` vector, then
@@ -68,12 +65,31 @@ struct Model{T<:Real}
     entangled_bands::Vector{BitVector}
 end
 
+# expose the fields of kstencil for convenience
+function Base.propertynames(model::Model)
+    return Tuple(
+        [
+            collect(fieldnames(typeof(model.kstencil)))
+            collect(fieldnames(typeof(model)))
+        ]
+    )
+end
+
+function Base.getproperty(model::Model, sym::Symbol)
+    type_stencil = typeof(getfield(model, :kstencil))
+    if sym ∈ fieldnames(type_stencil)
+        return getfield(getfield(model, :kstencil), sym)
+    else
+        # fallback
+        return getfield(model, sym)
+    end
+end
+
 function Model(
     lattice::AbstractMatrix,
     atom_positions::AbstractVector,
     atom_labels::AbstractVector,
-    kgrid::KpointGrid,
-    kstencil::KgridStencil,
+    kstencil::KspaceStencil,
     overlaps::AbstractVector,
     gauges::AbstractVector,
     eigenvalues::AbstractVector,
@@ -86,8 +102,8 @@ function Model(
     natoms = length(atom_positions)
     @assert length(atom_labels) == natoms "atom_labels has wrong number of atoms"
 
+    nkpts = n_kpoints(kstencil)
     @assert nkpts > 0 "empty kpoints"
-    @assert n_kpoints(kgrid) == nkpts "kgrid and kpoints have different number of kpoints"
     @assert length(overlaps) == nkpts "overlaps has wrong number of kpoints"
     @assert length(gauges) == nkpts "gauges has wrong number of kpoints"
     @assert length(eigenvalues) == nkpts "eigenvalues has wrong number of kpoints"
@@ -114,7 +130,6 @@ function Model(
         Mat3{T}(lattice),
         Vector{Vec3{T}}(atom_positions),
         atom_labels,
-        kgrid,
         kstencil,
         Vector{Vector{Matrix{CT}}}(overlaps),
         Vector{Matrix{CT}}(gauges),
@@ -125,12 +140,12 @@ function Model(
 end
 
 n_atoms(model::Model) = length(model.atom_positions)
-n_kpoints(model::Model) = n_kpoints(model.kgrid)
+n_kpoints(model::Model) = n_kpoints(model.kstencil)
 n_bvectors(model::Model) = n_bvectors(model.kstencil)
 n_bands(model::Model) = isempty(model.gauges) ? 0 : size(model.gauges[1], 1)
 n_wannier(model::Model) = isempty(model.gauges) ? 0 : size(model.gauges[1], 2)
 real_lattice(model::Model) = model.lattice
-reciprocal_lattice(model::Model) = reciprocal_lattice(model.kgrid)
+reciprocal_lattice(model::Model) = reciprocal_lattice(model.kstencil)
 
 """
     $(SIGNATURES)
@@ -156,16 +171,12 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     end
     println(io, repeat("-", 80))
 
-    show(io, MIME"text/plain"(), model.kgrid)
-    println(io)
-    println(io, repeat("-", 80))
-
     show(io, MIME"text/plain"(), model.kstencil)
     println(io)
     println(io, repeat("-", 80))
 
-    println(io, "summary:")
-    @printf(io, "  kgrid_size  =  %d %d %d\n", size(model.kgrid)...)
+    println(io, "Summary:")
+    @printf(io, "  kgrid_size  =  %d %d %d\n", model.kgrid_size...)
     @printf(io, "  n_kpoints   =  %d\n", n_kpoints(model))
     @printf(io, "  n_bvectors  =  %d\n", n_bvectors(model))
     @printf(io, "  n_bands     =  %d\n", n_bands(model))

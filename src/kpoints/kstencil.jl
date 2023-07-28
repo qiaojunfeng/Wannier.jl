@@ -1,4 +1,4 @@
-export generate_stencil, index_bvector
+export generate_kspace_stencil, index_bvector
 
 """
     $(TYPEDEF)
@@ -16,16 +16,24 @@ $(FIELDS)
     file, we need to make sure we sort the bvectors in the same ordering as
     wannier90.
 """
-struct KgridStencil{T<:Real}
-    """kpoints, see [`KpointGrid`](@ref)"""
-    kgrid::KpointGrid{T}
+struct KspaceStencil{T<:Real}
+    """reciprocal lattice vectors, 3 * 3, each column is a reciprocal lattice
+    vector in Å⁻¹ unit"""
+    recip_lattice::Mat3{T}
+
+    """number of kpoints along three reciprocal lattice vectors"""
+    kgrid_size::Vec3{Int}
+
+    """kpoint fractional coordinates, length-`n_kpoints` vector of `Vec3`.
+    Should be a uniformlly-spaced kpoint grid."""
+    kpoints::Vector{Vec3{T}}
 
     """\\mathbf{b}-vectors, length-`n_bvectors` vector, each element is a `Vec3`
     in Cartesian coordinates, in Å⁻¹ unit"""
     bvectors::Vector{Vec3{T}}
 
     """weight of each bvector, length-`n_bvectors` vector, Å² unit"""
-    weights::Vector{T}
+    bweights::Vector{T}
 
     """Indices of kpoints that are periodic images of \\mathbf{k+b} vectors.
     the real ``\\mathbf{k+b}`` vector has periodic image ``\\mathbf{k^\\prime}``
@@ -51,23 +59,35 @@ struct KgridStencil{T<:Real}
     kpb_G::Vector{Vector{Vec3{Int}}}
 end
 
-n_kpoints(kstencil::KgridStencil) = n_kpoints(kstencil.kgrid)
-n_bvectors(kstencil::KgridStencil) = length(kstencil.bvectors)
-reciprocal_lattice(kstencil::KgridStencil) = reciprocal_lattice(kstencil.kgrid)
+function KspaceStencil(recip_lattice, kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G)
+    return KspaceStencil(
+        Mat3(recip_lattice), Vec3(kgrid_size), kpoints, bvectors, bweights, kpb_k, kpb_G
+    )
+end
 
-function Base.show(io::IO, ::MIME"text/plain", kstencil::KgridStencil)
+n_kpoints(kstencil::KspaceStencil) = length(kstencil.kpoints)
+n_bvectors(kstencil::KspaceStencil) = length(kstencil.bvectors)
+reciprocal_lattice(kstencil::KspaceStencil) = kstencil.recip_lattice
+
+function Base.show(io::IO, ::MIME"text/plain", kstencil::KspaceStencil)
+    show_recip_lattice(io, kstencil.recip_lattice)
+    println(io)
     @printf(io, "b-vectors:       [bx, by, bz] (Å⁻¹)          norm (Å⁻¹)  weight (Å²)")
-    for (i, (v, w)) in enumerate(zip(kstencil.bvectors, kstencil.weights))
+    for (i, (v, w)) in enumerate(zip(kstencil.bvectors, kstencil.bweights))
         @printf(io, "\n%3d    %11.6f %11.6f %11.6f %11.6f %11.6f", i, v..., norm(v), w)
     end
+    println(io, "\n")
+    @printf(io, "kgrid_size  =  %d %d %d\n", kstencil.kgrid_size...)
+    @printf(io, "n_kpoints   =  %d\n", n_kpoints(kstencil))
+    @printf(io, "n_bvectors  =  %d", n_bvectors(kstencil))
 end
 
 """
     $(SIGNATURES)
 
-Compare two `KgridStencil` objects.
+Compare two `KspaceStencil` objects.
 """
-function Base.isapprox(a::KgridStencil, b::KgridStencil; kwargs...)
+function Base.isapprox(a::KspaceStencil, b::KspaceStencil; kwargs...)
     for f in propertynames(a)
         va = getfield(a, f)
         vb = getfield(b, f)
@@ -84,13 +104,13 @@ end
 """
     $(SIGNATURES)
 
-Compute bvector weights from MV1997 Eq. (B1).
+Compute bvector bweights from MV1997 Eq. (B1).
 
 # Arguments
 - `bvectors`: a **flattened** vector of bvectors, assuming the bvectors are
-    already correct but only need to compute the weights. e.g., after parsing
+    already correct but only need to compute the bweights. e.g., after parsing
     the `mmn` or `nnkp` file, the bvector themselves are already known, but
-    the weights are still missing.
+    the bweights are still missing.
 
 # Keyword Arguments
 - `atol`: tolerance to satisfy B1 condition
@@ -100,7 +120,7 @@ Compute bvector weights from MV1997 Eq. (B1).
     To reproduce wannier90's behavior,
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
-function compute_weights(bvectors::Vector{Vec3{T}}; atol=default_w90_kmesh_tol()) where {T}
+function compute_bweights(bvectors::Vector{Vec3{T}}; atol=default_w90_kmesh_tol()) where {T}
     # assume the bvectors are correct: they should be able to be nested into
     # a shell structure
     bvectors_norm = map(norm, bvectors)
@@ -126,17 +146,17 @@ function compute_weights(bvectors::Vector{Vec3{T}}; atol=default_w90_kmesh_tol()
         push!(shells, eqnorm_idxs)
         ib += length(eqnorm_idxs)
     end
-    keep_shells, weights = compute_weights(bvectors_nested; atol)
-    @assert keep_shells == 1:length(bvectors_nested) "compute_weights should be " *
+    keep_shells, bweights = compute_bweights(bvectors_nested; atol)
+    @assert keep_shells == 1:length(bvectors_nested) "compute_bweights should be " *
         " idempotent to the bvectors, maybe the input bvectors are not complete?"
 
-    # now remap weights to the original bvector order
+    # now remap bweights to the original bvector order
     # mappings: index of bvectors_sorted -> index of shell
     mappings = [fill(i, length(sh)) for (i, sh) in enumerate(shells)]
     # flatten mappings
     mappings = vcat(mappings...)
     return map(perm) do p
-        weights[mappings[p]]
+        bweights[mappings[p]]
     end
 end
 
@@ -319,10 +339,10 @@ wannier90.
 
 Wannier90 uses different ordering of bvectors at each kpoint. In principle,
 this is not needed. However, the `mmn` file is written in such order, so we need
-to sort bvectors and calculate weights, since `nnkp` file has no section of weights.
+to sort bvectors and calculate bweights, since `nnkp` file has no section of bweights.
 
 # Arguments
-- `shells`: `KgridStencilShells`
+- `shells`: `KspaceStencilShells`
 
 # Keyword Arguments
 - `atol`: floating point tolerance
@@ -333,10 +353,10 @@ to sort bvectors and calculate weights, since `nnkp` file has no section of weig
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
 function sort_bvectors(
-    shells::KgridStencilShells{T}; atol=default_w90_kmesh_tol()
+    shells::KspaceStencilShells{T}; atol=default_w90_kmesh_tol()
 ) where {T}
-    kpoints = shells.kgrid.kpoints
-    recip_lattice = shells.kgrid.recip_lattice
+    kpoints = shells.kpoints
+    recip_lattice = shells.recip_lattice
 
     # To sort bvectors for each kpoints, I need to calculate distances of
     # supercells to original cell. I only need one kpoint at Γ.
@@ -345,7 +365,7 @@ function sort_bvectors(
     # If using `kmesh_tol`, the dataset"graphene" nnkp file test will fail.
     translations = sort_supercell(translations, recip_lattice)
 
-    bvectors, weights = flatten_shells(shells)
+    bvectors, bweights = flatten_shells(shells)
     nbvecs = length(bvectors)
     bvectors_norm = norm.(bvectors)
     inv_recip_lattice = inv(recip_lattice)
@@ -365,85 +385,93 @@ function sort_bvectors(
 
         kpb_k[ik] = ik_equiv[perm]
         kpb_G[ik] = G_equiv[perm]
-        # since small-length bvectors go first, their weights should not change
-        @assert iszero(weights - weights[perm]) "bvector weights should not change"
+        # since small-length bvectors go first, their bweights should not change
+        @assert iszero(bweights - bweights[perm]) "bvector bweights should not change"
     end
 
     @debug "k+b k" kpb_k
     @debug "k+b G" kpb_G
-    @debug "k+b weights" weights
+    @debug "k+b bweights" bweights
 
     # Reset the order of `bvectors` by using the ordering of the 1st kpoint.
     # In principle, this is not needed -- our `kpb_k` and `kpb_G` already have
     # the same ordering as wannier90.
-    # However, this additional step can make sure the `KgridStencil.bvectors` are
+    # However, this additional step can make sure the `KspaceStencil.bvectors` are
     # exactly the same as the wannier90 wout file, so we can directly test
     # against the wout file.
     bvectors = map(zip(kpb_k[1], kpb_G[1])) do (ikpb, G)
         recip_lattice * (kpoints[ikpb] + G - kpoints[1])
     end
 
-    return KgridStencil(shells.kgrid, bvectors, weights, kpb_k, kpb_G)
+    return KspaceStencil(
+        recip_lattice, shells.kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G
+    )
 end
 
 """Abstract type for b-vector generation algorithms"""
-abstract type KgridStencilAlgorithm end
+abstract type KspaceStencilAlgorithm end
 
 """Generate b-vectors for first-order finite difference, i.e., MV1997 Eq. (B1)"""
-struct FirstOrderKgridStencil <: KgridStencilAlgorithm end
+struct FirstOrderKspaceStencil <: KspaceStencilAlgorithm end
 
 """Generate b-vectors for 6 (cubic, ±x, ±y, ±z) nearest neighbors"""
-struct CubicNearestKgridStencil <: KgridStencilAlgorithm end
+struct CubicNearestKspaceStencil <: KspaceStencilAlgorithm end
 
 """
-    generate_stencil(kgrid; kwargs...)
-    generate_stencil(kgrid, ::FirstOrderKgridStencil; atol=default_w90_kmesh_tol())
-    generate_stencil(kgrid, ::CubicNearestKgridStencil)
+    generate_kspace_stencil()
 
-Generate bvectors for all the kgrid.
+Generate bvectors for all the kpoints.
 
 # Arguments
-- `kgrid`: a [`KpointGrid`](@ref)
+- `kpoints`: kpoints in fractional coordinates
 
 # Keyword Arguments
 - `atol`: floating point tolerance
 
 # Return
-- a [`KgridStencil`](@ref) struct
+- a [`KspaceStencil`](@ref) struct
 
 !!! tip
 
-    The default algorithm is `FirstOrderKgridStencil`, which generates bvectors
+    The default algorithm is `FirstOrderKspaceStencil`, which generates bvectors
     same as wannier90, exactly in the same ordering.
     To fully reproduce wannier90's behavior,
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 
-    The `CubicNearestKgridStencil` generates bvectors containing only 6 nearest
+    The `CubicNearestKspaceStencil` generates bvectors containing only 6 nearest
     neighbors (cubic case). This is useful for [`parallel_transport`](@ref),
     since we only need overlap matrices between 6 nearest neighbors, and some
-    times the `FirstOrderKgridStencil` does not contain those 6 nearest neighbors.
+    times the `FirstOrderKspaceStencil` does not contain those 6 nearest neighbors.
 """
-function generate_stencil end
+function generate_kspace_stencil end
 
-function generate_stencil(
-    kgrid::KpointGrid, ::FirstOrderKgridStencil; atol=default_w90_kmesh_tol()
+function generate_kspace_stencil(
+    recip_lattice::Mat3,
+    kgrid_size::AbstractVector,
+    kpoints::AbstractVector,
+    ::FirstOrderKspaceStencil;
+    atol=default_w90_kmesh_tol(),
 )
     # find shells
-    shells = search_shells(kgrid; atol)
+    shells = search_shells(recip_lattice, kgrid_size, kpoints; atol)
     keep_shells = check_parallel(shells)
     shells = delete_shells(shells, keep_shells)
 
-    keep_shells, weights = compute_weights(shells; atol)
+    keep_shells, bweights = compute_bweights(shells; atol)
     shells = delete_shells(shells, keep_shells)
-    shells.weights .= weights
+    shells.bweights .= bweights
 
     check_completeness(shells; atol)
     # generate bvectors for each kpoint
     return sort_bvectors(shells; atol)
 end
 
-function generate_stencil(kgrid::KpointGrid; kwargs...)
-    return generate_stencil(kgrid, FirstOrderKgridStencil(); kwargs...)
+function generate_kspace_stencil(
+    recip_lattice::Mat3, kgrid_size::AbstractVector, kpoints::AbstractVector; kwargs...
+)
+    return generate_kspace_stencil(
+        recip_lattice, kgrid_size, kpoints, FirstOrderKspaceStencil(); kwargs...
+    )
 end
 
 """
@@ -486,12 +514,18 @@ end
 
 See also [`index_bvector`](@ref).
 """
-function index_bvector(kstencil::KgridStencil, ik, ikpb, G)
+function index_bvector(kstencil::KspaceStencil, ik, ikpb, G)
     return index_bvector(kstencil.kpb_k, kstencil.kpb_G, ik, ikpb, G)
 end
 
-function generate_stencil(kgrid::KpointGrid{T}, ::CubicNearestKgridStencil) where {T}
-    dkx, dky, dkz = 1 ./ size(kgrid)
+function generate_kspace_stencil(
+    recip_lattice::Mat3,
+    kgrid_size::AbstractVector,
+    kpoints::AbstractVector,
+    ::CubicNearestKspaceStencil,
+)
+    dkx, dky, dkz = 1 ./ size(kgrid_size)
+    T = eltype(recip_lattice)
 
     # only 6 nearest neighbors
     nbvecs = 6
@@ -504,7 +538,7 @@ function generate_stencil(kgrid::KpointGrid{T}, ::CubicNearestKgridStencil) wher
     bvectors_frac[6] = Vec3{T}(0, 0, -dkz)
 
     # just a fake weight
-    weights = zeros(T, nbvecs)
+    bweights = zeros(T, nbvecs)
 
     # generate bvectors for each kpoint, always the same across kpoints
     nkpts = length(kpoints)
@@ -521,5 +555,7 @@ function generate_stencil(kgrid::KpointGrid{T}, ::CubicNearestKgridStencil) wher
     bvectors = map(bvectors_frac) do b
         recip_lattice * b
     end
-    return KgridStencil(kgrid, bvectors, weights, kpb_k, kpb_G)
+    return KspaceStencil(
+        recip_lattice, kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G
+    )
 end

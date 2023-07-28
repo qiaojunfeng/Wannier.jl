@@ -164,8 +164,6 @@ function truncate(
         model.lattice,
         model.atom_positions,
         model.atom_labels,
-        model.kgrid,
-        model.kpoints,
         model.kstencil,
         frozen_bands,
         M,

@@ -14,13 +14,13 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool=true)
     win = read_win(prefix * ".win")
     nbands = win.num_bands
     nwann = win.num_wann
-
     lattice = win.unit_cell_cart
-    kgrid = KpointGrid(reciprocal_lattice(lattice), win.mp_grid, win.kpoints)
 
-    nkpts = n_kpoints(kgrid)
     atol = get(win, :kmesh_tol, default_w90_kmesh_tol())
-    kstencil = generate_stencil(kgrid; atol)
+    kstencil = generate_kspace_stencil(
+        reciprocal_lattice(lattice), win.mp_grid, win.kpoints; atol
+    )
+    nkpts = n_kpoints(kstencil)
     nbvecs = n_bvectors(kstencil)
 
     if isfile(prefix * ".mmn")
@@ -80,7 +80,6 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool=true)
         lattice,
         atom_positions,
         atom_labels,
-        kgrid,
         kstencil,
         overlaps,
         gauges,

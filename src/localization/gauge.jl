@@ -187,7 +187,7 @@ function transform_gauge(
         model.lattice,
         model.atom_positions,
         model.atom_labels,
-        model.kgrid,
+        model.kgrid_size,
         model.kpoints,
         model.bvectors,
         [falses(n_wann) for i in 1:n_kpts],

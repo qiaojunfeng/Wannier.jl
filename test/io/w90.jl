@@ -1,10 +1,10 @@
 @testitem "read nnkp" begin
     using Wannier.Datasets
-    kstencil = read_nnkp_compute_weights(dataset"Si2_valence/reference/Si2_valence.nnkp")
+    kstencil = read_nnkp_compute_bweights(dataset"Si2_valence/reference/Si2_valence.nnkp")
     nnkp = read_nnkp(dataset"Si2_valence/reference/Si2_valence.nnkp.toml")
 
     @test reciprocal_lattice(kstencil) ≈ nnkp.recip_lattice
-    @test kstencil.kgrid.kpoints ≈ nnkp.kpoints
+    @test kstencil.kpoints ≈ nnkp.kpoints
     @test kstencil.kpb_k == nnkp.kpb_k
     @test kstencil.kpb_G == nnkp.kpb_G
 
@@ -19,21 +19,21 @@
         [0.192835, -0.192835, -0.192835],
         [-0.192835, -0.192835, -0.192835],
     ]
-    ref_weights = [
+    ref_bweights = [
         3.361532, 3.361532, 3.361532, 3.361532, 3.361532, 3.361532, 3.361532, 3.361532
     ]
     @test isapprox(kstencil.bvectors, ref_bvectors; atol=1e-5)
-    @test isapprox(kstencil.weights, ref_weights; atol=1e-5)
+    @test isapprox(kstencil.bweights, ref_bweights; atol=1e-5)
 end
 
 @testitem "read/write nnkp" begin
     using Wannier.Datasets
-    kstencil = read_nnkp_compute_weights(dataset"Si2_valence/reference/Si2_valence.nnkp")
+    kstencil = read_nnkp_compute_bweights(dataset"Si2_valence/reference/Si2_valence.nnkp")
     tmpfile = tempname(; cleanup=true)
     n_wann = 4
     write_nnkp(tmpfile, kstencil; n_wann)
 
-    kstencil2 = read_nnkp_compute_weights(tmpfile)
+    kstencil2 = read_nnkp_compute_bweights(tmpfile)
     @test kstencil ≈ kstencil2
 end
 

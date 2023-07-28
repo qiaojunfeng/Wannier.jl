@@ -137,7 +137,7 @@ end
 
 # TODO remove 1st arg?
 function Cache(
-    bvectors::KgridStencil{FT}, M::Vector{Vector{Matrix{Complex{FT}}}}, U
+    bvectors::KspaceStencil{FT}, M::Vector{Vector{Matrix{Complex{FT}}}}, U
 ) where {FT}
     n_kpts = length(M)
     n_bands, n_wann = U isa Vector ? size(U[1]) : size.((U,), (1, 2))
@@ -161,7 +161,7 @@ n_bands(c::Cache) = size(c.G, 1)
 n_wann(c::Cache) = size(c.G, 2)
 n_kpts(c::Cache) = size(c.G, 3)
 
-function compute_MU_UtMU!(MU, UtMU, bvectors::KgridStencil, M, U::Vector)
+function compute_MU_UtMU!(MU, UtMU, bvectors::KspaceStencil, M, U::Vector)
     kpb_k = bvectors.kpb_k
     n_bvecs = length(kpb_k[1])
 
@@ -177,7 +177,7 @@ function compute_MU_UtMU!(MU, UtMU, bvectors::KgridStencil, M, U::Vector)
     return MU, UtMU
 end
 
-function compute_MU_UtMU!(MU, UtMU, bvectors::KgridStencil, M, U::Array)
+function compute_MU_UtMU!(MU, UtMU, bvectors::KspaceStencil, M, U::Array)
     kpb_k = bvectors.kpb_k
     n_bvecs = length(kpb_k[1])
 
@@ -193,7 +193,7 @@ function compute_MU_UtMU!(MU, UtMU, bvectors::KgridStencil, M, U::Array)
     end
     return MU, UtMU
 end
-function compute_MU_UtMU!(cache::Cache, bvectors::KgridStencil, M, U)
+function compute_MU_UtMU!(cache::Cache, bvectors::KspaceStencil, M, U)
     return compute_MU_UtMU!(cache.MU, cache.UtMU, bvectors, M, U)
 end
 
@@ -251,7 +251,7 @@ function omega_center(Ω::Spread; r₀::Vector{Vec3{T}}, λ::T) where {T<:Real}
     return SpreadCenter(Ω.Ω, Ω.ΩI, Ω.ΩOD, Ω.ΩD, Ω.Ω̃, Ω.ω, Ω.r, Ωc, Ωt, ωc, ωt)
 end
 
-function omega!(cache::Cache, bvectors::KgridStencil{FT}, M) where {FT<:Real}
+function omega!(cache::Cache, bvectors::KspaceStencil{FT}, M) where {FT<:Real}
     r = cache.r
     fill!(r, zero(eltype(r)))
 
@@ -265,9 +265,9 @@ function omega!(cache::Cache, bvectors::KgridStencil{FT}, M) where {FT<:Real}
 
     kpb_k = bvectors.kpb_k
     kpb_G = bvectors.kpb_G
-    wb = bvectors.weights
+    wb = bvectors.bweights
     recip_lattice = reciprocal_lattice(bvectors)
-    kpoints = bvectors.kgrid.kpoints
+    kpoints = bvectors.kpoints
 
     # # keep in case we want to do this later on
     # μ::FT = 0.0
@@ -369,12 +369,12 @@ In case of the first `bvectors = model.bvectors` and `M = model.M`.
 """
 omega(model::Model) = omega(model, model.gauges)
 omega(model::Model, gauges) = omega(model.kstencil, model.overlaps, gauges)
-function omega(bvectors::KgridStencil, M, X, Y)
+function omega(bvectors::KspaceStencil, M, X, Y)
     U = X_Y_to_U(X, Y)
     return omega(bvectors, M, U)
 end
 
-function omega(bvectors::KgridStencil, M, U)
+function omega(bvectors::KspaceStencil, M, U)
     cache = Cache(bvectors, M, U)
     compute_MU_UtMU!(cache, bvectors, M, U)
     return omega!(cache, bvectors, M)
@@ -412,7 +412,7 @@ function omega_grad!(penalty::Function, cache::Cache{T}, bvectors, M) where {T}
 
     kpb_k = bvectors.kpb_k
     kpb_G = bvectors.kpb_G
-    wb = bvectors.weights
+    wb = bvectors.bweights
     recip_lattice = bvectors.recip_lattice
     kpoints = bvectors.kpoints
 
@@ -493,19 +493,19 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
 - `U`: `n_wann * n_wann * n_kpts` array
 - `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
 """
-function omega_grad(penalty::Function, bvectors::KgridStencil, M, U)
+function omega_grad(penalty::Function, bvectors::KspaceStencil, M, U)
     cache = Cache(bvectors, M, U)
     compute_MU_UtMU!(cache, bvectors, M, U)
     return omega_grad!(penalty, cache, bvectors, M)
 end
-omega_grad(bvectors::KgridStencil, M, U) = omega_grad((r, _) -> r, bvectors, M, U)
+omega_grad(bvectors::KspaceStencil, M, U) = omega_grad((r, _) -> r, bvectors, M, U)
 
-function omega_grad(penalty::Function, bvectors::KgridStencil, M, X, Y, frozen)
+function omega_grad(penalty::Function, bvectors::KspaceStencil, M, X, Y, frozen)
     U = X_Y_to_U(X, Y)
     G = omega_grad(penalty, bvectors, M, U)
     return GU_to_GX_GY(G, X, Y, frozen)
 end
-function omega_grad(bvectors::KgridStencil, M, X, Y, frozen)
+function omega_grad(bvectors::KspaceStencil, M, X, Y, frozen)
     return omega_grad((r, _) -> r, bvectors, M, X, Y, frozen)
 end
 
@@ -520,14 +520,14 @@ Local part of the contribution to `r^2`.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 function omega_local(
-    bvectors::KgridStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
+    bvectors::KspaceStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
 ) where {FT<:Real}
     n_bands, n_wann = size(U[1])
     n_kpts = length(U)
     n_bvecs = length(M[1])
 
     kpb_k = bvectors.kpb_k
-    wb = bvectors.weights
+    wb = bvectors.bweights
 
     loc = zeros(FT, n_kpts)
 
@@ -557,7 +557,7 @@ Compute WF center in reciprocal space.
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
 - `U`: `n_wann * n_wann * n_kpts` array
 """
-function center(bvectors::KgridStencil, M, U)
+function center(bvectors::KspaceStencil, M, U)
     cache = Cache(bvectors, M, U)
     compute_MU_UtMU!(cache, bvectors, M, U)
     return center!(cache.r, cache.UtMU, bvectors)
@@ -568,9 +568,9 @@ function center!(r::Vector{<:Vec3}, UtMU, bvectors)
 
     kpb_k = bvectors.kpb_k
     kpb_G = bvectors.kpb_G
-    wb = bvectors.weights
+    wb = bvectors.bweights
     recip_lattice = reciprocal_lattice(bvectors)
-    kpoints = bvectors.kgrid.kpoints
+    kpoints = bvectors.kpoints
 
     @inbounds for (ik, Nk) in enumerate(UtMU)
         k = kpoints[ik]
@@ -604,14 +604,14 @@ Compute WF center in reciprocal space.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 function center(
-    bvectors::KgridStencil{FT}, M::Vector, U::Array{Complex{FT},3}
+    bvectors::KspaceStencil{FT}, M::Vector, U::Array{Complex{FT},3}
 ) where {FT<:Real}
     n_bands, n_wann, n_kpts = size(U)
     n_bvecs = size(M[1], 3)
 
     kpb_k = bvectors.kpb_k
     kpb_G = bvectors.kpb_G
-    wb = bvectors.weights
+    wb = bvectors.bweights
     recip_lattice = bvectors.recip_lattice
     kpoints = bvectors.kpoints
 
@@ -672,7 +672,7 @@ Compute WF postion operator matrix in reciprocal space.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 @views function position_op(
-    bvectors::KgridStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
+    bvectors::KspaceStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
 ) where {FT<:Real}
     n_bands, n_wann = size(U[1])
     n_kpts = length(U)
@@ -680,7 +680,7 @@ Compute WF postion operator matrix in reciprocal space.
 
     kpb_k = bvectors.kpb_k
     kpb_G = bvectors.kpb_G
-    wb = bvectors.weights
+    wb = bvectors.bweights
     recip_lattice = bvectors.recip_lattice
     kpoints = bvectors.kpoints
 
@@ -746,7 +746,7 @@ Compute Berry connection at each kpoint.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 @views function berry_connection(
-    bvectors::KgridStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
+    bvectors::KspaceStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
 ) where {FT<:Real}
     n_bands, n_wann = size(U[1])
     n_kpts = length(U)
@@ -754,7 +754,7 @@ Compute Berry connection at each kpoint.
 
     kpb_k = bvectors.kpb_k
     kpb_G = bvectors.kpb_G
-    wb = bvectors.weights
+    wb = bvectors.bweights
     recip_lattice = bvectors.recip_lattice
     kpoints = bvectors.kpoints
 

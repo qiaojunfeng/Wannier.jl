@@ -3,20 +3,18 @@ using ProgressMeter: Progress, next!
 
 export TBHamiltonian, HamiltonianInterpolator, eigen
 
-"""A struct representing tight-binding Hamiltonian in R-space."""
-const TBHamiltonian{T} = TBOperator{Matrix{Complex{T}}}
+"""Construct a tight-binding Hamiltonain in Rspace.
+
+From a Wannierization [`Model`](@ref)."""
+function TBHamiltonian end
 
 function TBHamiltonian(Rspace::BareRspace, operator::AbstractVector)
     @assert !isempty(operator) "empty operator"
     T = real(eltype(operator[1]))
-    return TBHamiltonian{T}("Hamiltonian", Rspace, operator)
+    M = Matrix{Complex{T}}
+    return TBOperator{M}("Hamiltonian", Rspace, operator)
 end
 
-"""
-    $(SIGNATURES)
-
-Construct a `TBHamiltonian` from a Wannierization [`Model`](@ref).
-"""
 function TBHamiltonian(
     Rspace::AbstractRspace,
     kpoints::AbstractVector,
@@ -42,7 +40,7 @@ Construct a [`HamiltonianRspace`](@ref) from a Wannierization [`Model`](@ref).
 """
 function TBHamiltonian(model::Model, gauges::AbstractVector=model.gauges; kwargs...)
     Rspace = generate_Rspace(model; kwargs...)
-    return TBHamiltonian(Rspace, model.kgrid.kpoints, model.eigenvalues, gauges)
+    return TBHamiltonian(Rspace, model.kpoints, model.eigenvalues, gauges)
 end
 
 """
@@ -53,9 +51,9 @@ A struct for interpolating tight-binding Hamiltonian on given kpoints.
 # Fields
 $(FIELDS)
 """
-struct HamiltonianInterpolator{T} <: AbstractTBInterpolator
+struct HamiltonianInterpolator <: AbstractTBInterpolator
     """R-space Hamiltonian"""
-    hamiltonian::TBHamiltonian{T}
+    hamiltonian::TBOperator
 end
 
 """Interpolate the Hamiltonian operator and transform it to Bloch gauge."""

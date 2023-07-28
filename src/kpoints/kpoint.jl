@@ -6,10 +6,10 @@ Get the mappings between kpoint indices and kpoint coordiantes.
 # Arguments
 - `kpoints`: length-`n_kpts` vector of fractional coordinates, e.g. `Vec3`.
     The kpoint fractional coordinates should be
-    `[(ikx - 1)/n_kx, (iky - 1)/n_ky, (ikz - 1)/n_kz]` where `n_kx, n_ky, n_kz = kgrid`
+    `[(ikx - 1)/n_kx, (iky - 1)/n_ky, (ikz - 1)/n_kz]` where `n_kx, n_ky, n_kz = kgrid_size`
     are the number of kpoints along each reciprocal lattice vector, and
     `ikx`, `iky`, `ikz` are integers in `1:n_kx`, `1:n_ky`, `1:n_kz`, respectively.
-- `kgrid`: length-`3` vector, number of kpoints along each reciprocal lattice vector
+- `kgrid_size`: length-`3` vector, number of kpoints along each reciprocal lattice vector
 
 # Return
 - `k_xyz`: mapping from linear index to Cartesian index, such that
@@ -17,11 +17,11 @@ Get the mappings between kpoint indices and kpoint coordiantes.
     `[ix, iy, iz] ./ kgrid`
 - `xyz_k`: `xyz_k[ikx, iky, ikz]` maps kpoint coordinates `[ikx, iky, ikz]` to kpoint index `ik`
 """
-function get_kpoint_mappings(kpoints::AbstractVector, kgrid::AbstractVector)
-    n_kpts = prod(kgrid)
-    n_kx, n_ky, n_kz = kgrid
+function get_kpoint_mappings(kpoints::AbstractVector, kgrid_size::AbstractVector)
+    n_kpts = prod(kgrid_size)
+    n_kx, n_ky, n_kz = kgrid_size
     dk = Vec3(1 / n_kx, 1 / n_ky, 1 / n_kz)
-    kgrid = Vec3(kgrid...)
+    kgrid = Vec3(kgrid_size...)
 
     kpoints_int = map(kpoints) do k
         t = round.(Int, k ./ dk)
@@ -103,7 +103,7 @@ end
 Get the kpoint integer indices from a kpoint grid.
 
 # Arguments
-- `kgrid`: length-`3` vector, number of kpoints along each reciprocal lattice vector
+- `kgrid_size`: length-`3` vector, number of kpoints along each reciprocal lattice vector
 - `contain_zero`: whether to include 0 or 1 in the returned indices
 
 # Return
@@ -112,9 +112,9 @@ Get the kpoint integer indices from a kpoint grid.
 
 See also [`get_kpoints`](@ref).
 """
-function get_kpoint_indices(kgrid::AbstractVector; contain_zero::Bool=false)
-    n_kx, n_ky, n_kz = kgrid
-    n_kpts = prod(kgrid)
+function get_kpoint_indices(kgrid_size::AbstractVector; contain_zero::Bool=false)
+    n_kx, n_ky, n_kz = kgrid_size
+    n_kpts = prod(kgrid_size)
 
     kpoint_indices = zeros(Vec3{Int}, n_kpts)
     counter = 1
@@ -145,7 +145,7 @@ end
 Generate list of kpoint coordinates from kpoint grid.
 
 # Arguments
-- `kgrid`: length-`3` vector, number of kpoints along each reciprocal lattice vector
+- `kgrid_size`: length-`3` vector, number of kpoints along each reciprocal lattice vector
 - `endpoint`: whether to the last point is 1.0 or not, e.g. `[0.0, 1.0]` or
     `[0.0, 0.5]`
 
@@ -155,13 +155,15 @@ See also [`get_kpoint_indices`](@ref).
 
     If the default keyword arguments are used, this function works just like `kmesh.pl` of wannier90.
 """
-function get_kpoints(kgrid::AbstractVector; endpoint::Bool=false)
-    any(isone, kgrid) && endpoint && error("cannot have endpoint when kgrid contains 1")
+function get_kpoints(kgrid_size::AbstractVector; endpoint::Bool=false)
+    any(isone, kgrid_size) &&
+        endpoint &&
+        error("cannot have endpoint when kgrid contains 1")
 
-    kpoint_indices = get_kpoint_indices(kgrid; contain_zero=true)
-    denom = Vec3(kgrid)
+    kpoint_indices = get_kpoint_indices(kgrid_size; contain_zero=true)
+    denom = Vec3(kgrid_size)
     if endpoint
-        denom = Vec3(kgrid) .- 1
+        denom = Vec3(kgrid_size) .- 1
     end
 
     return map(kpoint_indices) do k
@@ -185,7 +187,7 @@ end
 """
     $(SIGNATURES)
 
-Guess kgrid from list of kpoint coordinates.
+Guess kgrid_size from list of kpoint coordinates.
 
 Input `kpoints` has size `3 * n_kpts`, where `n_kpts = nkx * nky *  nkz`,
 output `[nkx, nky, nkz]`.
@@ -207,7 +209,7 @@ function guess_kgrid_size(kpoints::AbstractVector; atol=1e-5)
     end
 
     if prod(kgrid_size) != length(kpoints)
-        error("kgrid and kpoints do not match")
+        error("kgrid_size and kpoints do not match")
     end
 
     # do some sanity check to be very safe
@@ -223,7 +225,7 @@ function guess_kgrid_size(kpoints::AbstractVector; atol=1e-5)
     diff = kpoints_sorted .- kpoints_recovered_sorted
     diff .-= Ref(diff[1])
     if !all(isapprox.(diff, Ref([0, 0, 0]); atol))
-        error("cannot guess kgrid size from kpoint coordinates")
+        error("cannot guess kgrid_size from kpoint coordinates")
     end
 
     return kgrid_size

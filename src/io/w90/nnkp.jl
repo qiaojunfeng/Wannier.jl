@@ -1,15 +1,15 @@
-export read_nnkp_compute_weights, write_nnkp
+export read_nnkp_compute_bweights, write_nnkp
 
 """
     $(SIGNATURES)
 
 Read the `nnkp` file.
 
-This function calls `WannierIO.read_nnkp` to parse the file, compute the weights
-of b-vectors, and returns a [`KgridStencil`](@ref) (while `WannierIO.read_nnkp` only
+This function calls `WannierIO.read_nnkp` to parse the file, compute the bweights
+of b-vectors, and returns a [`KspaceStencil`](@ref) (while `WannierIO.read_nnkp` only
 returns a `NamedTuple`).
 """
-function read_nnkp_compute_weights(filename::AbstractString)
+function read_nnkp_compute_bweights(filename::AbstractString)
     nnkp = WannierIO.read_nnkp(filename)
     kpoints = nnkp.kpoints
     recip_lattice = nnkp.recip_lattice
@@ -26,10 +26,11 @@ function read_nnkp_compute_weights(filename::AbstractString)
         bvectors[ib] = recip_lattice * (kpoints[ikpb] + G - kpoints[ik])
     end
 
-    weights = compute_weights(bvectors)
+    bweights = compute_bweights(bvectors)
     kgrid_size = guess_kgrid_size(kpoints)
-    kgrid = KpointGrid(recip_lattice, kgrid_size, kpoints)
-    return KgridStencil(kgrid, bvectors, weights, kpb_k, kpb_G)
+    return KspaceStencil(
+        recip_lattice, kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G
+    )
 end
 
 """
@@ -39,7 +40,7 @@ Write nnkp that can be used by `pw2wannier90`.
 
 # Arguments
 - `filename`: the filename to write to
-- `kstencil`: a [`KgridStencil`](@ref) object
+- `kstencil`: a [`KspaceStencil`](@ref) object
 
 !!! tip
 
@@ -50,12 +51,12 @@ Write nnkp that can be used by `pw2wannier90`.
 
     For other keyword arguments, see [`WannierIO.write_nnkp`](@ref).
 """
-function write_nnkp(filename::AbstractString, kstencil::KgridStencil; kwargs...)
+function write_nnkp(filename::AbstractString, kstencil::KspaceStencil; kwargs...)
     return WannierIO.write_nnkp(
         filename;
         lattice=real_lattice(reciprocal_lattice(kstencil)),
         recip_lattice=reciprocal_lattice(kstencil),
-        kstencil.kgrid.kpoints,
+        kstencil.kpoints,
         kstencil.kpb_k,
         kstencil.kpb_G,
         kwargs...,

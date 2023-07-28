@@ -68,12 +68,12 @@ function write_chk(
         exclude_bands,
         model.lattice,
         model.recip_lattice,
-        model.kgrid,
+        model.kgrid_size,
         model.kpoints,
         checkpoint,
         have_disentangled,
         Ω.ΩI,
-        model.dis_bands,
+        model.entangled_bands,
         Udis,
         Uml,
         overlaps,
@@ -116,8 +116,9 @@ function Model(chk::WannierIO.Chk; kmesh_tol=default_w90_kmesh_tol())
     # I try to generate bvectors, but it might happen that the generated bvectors
     # are different from the calculation corresponding to the chk file,
     # e.g. kmesh_tol is different
-    kgrid = KpointGrid(chk.recip_lattice, chk.kgrid, chk.kpoints)
-    kstencil = generate_stencil(kgrid; atol=kmesh_tol)
+    kstencil = generate_kspace_stencil(
+        chk.recip_lattice, chk.kgrid, chk.kpoints; atol=kmesh_tol
+    )
     @warn "The generated bvectors might be different from that used in the " *
         "chk file, if the wannier90 input parameter `kmesh_tol` is different from " *
         "its default value."
@@ -142,7 +143,6 @@ function Model(chk::WannierIO.Chk; kmesh_tol=default_w90_kmesh_tol())
         chk.lattice,
         atom_positions,
         atom_labels,
-        kgrid,
         kstencil,
         overlaps,
         gauges,

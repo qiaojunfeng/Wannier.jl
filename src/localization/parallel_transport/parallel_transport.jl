@@ -27,7 +27,7 @@ function parallel_transport(
         println("parallel transport")
     end
 
-    n_kx, n_ky, n_kz = model.kgrid
+    n_kx, n_ky, n_kz = model.kgrid_size
     n_kpts = model.n_kpts
     n_wann = model.n_wann
     kpoints = model.kpoints
@@ -37,7 +37,7 @@ function parallel_transport(
     ty = collect(0:(n_ky - 1)) / n_ky
     tz = collect(0:(n_kz - 1)) / n_kz
 
-    k_xyz, xyz_k = get_kpoint_mappings(kpoints, model.kgrid)
+    k_xyz, xyz_k = get_kpoint_mappings(kpoints, model.kgrid_size)
 
     # for overlap matrices
     M = model.M
@@ -327,9 +327,9 @@ function compute_error(model::Model{T}, U::Vector{Matrix{Complex{T}}}) where {T<
     # final error
     ϵ1 = 0.0
 
-    n_kx, n_ky, n_kz = model.kgrid
+    n_kx, n_ky, n_kz = model.kgrid_size
     kpoints = model.kpoints
-    k_xyz, xyz_k = get_kpoint_mappings(kpoints, model.kgrid)
+    k_xyz, xyz_k = get_kpoint_mappings(kpoints, model.kgrid_size)
 
     M = model.M
     U0 = model.U
