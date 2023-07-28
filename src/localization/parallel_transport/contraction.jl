@@ -9,9 +9,9 @@ Those must be neighbors, and only the first kpoint is assumed to have been rotat
 - `kpts`: list of kpoints along which to propagate the gauge matrices
 - `dk`: the distance between two consecutive kpoints, in fractional coordinates
 - `M`: overlap matrices
-- `kpoints`: `KgridStencil.kpoints`, kpoint coordinates of the grid
-- `kpb_k`: `KgridStencil.kpb_k`
-- `kpb_G`: `KgridStencil.kpb_G`
+- `kpoints`: `KspaceStencil.kpoints`, kpoint coordinates of the grid
+- `kpb_k`: `KspaceStencil.kpb_k`
+- `kpb_G`: `KspaceStencil.kpb_G`
 """
 function propagate!(
     U::Vector{Matrix{T}},
@@ -48,7 +48,7 @@ function propagate!(
     return nothing
 end
 
-function propagate!(U, kpts, dk, M, bvectors::KgridStencil)
+function propagate!(U, kpts, dk, M, bvectors::KspaceStencil)
     return propagate!(U, kpts, dk, M, bvectors.kpoints, bvectors.kpb_k, bvectors.kpb_G)
 end
 

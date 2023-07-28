@@ -1,6 +1,7 @@
 export TBPosition
 
-"""A struct representing tight-binding position operator in R-space.
+"""
+Construct a tight-binding position operator in R-space.
 
 !!! note
 
@@ -9,7 +10,7 @@ export TBPosition
     It is also possible to use `Vec3`, however, this will forbid all the
     in-place functions.
 """
-const TBPosition{T} = TBOperator{Matrix{MVec3{Complex{T}}}}
+function TBPosition end
 
 function TBPosition(Rspace::BareRspace, operator::AbstractVector)
     @assert !isempty(operator) "empty operator"
@@ -18,7 +19,8 @@ function TBPosition(Rspace::BareRspace, operator::AbstractVector)
     v = operator[1][1, 1]
     @assert v isa AbstractVector && length(v) == 3 "each element must be 3-vector"
     T = real(eltype(v))
-    return TBPosition{T}("Position", Rspace, operator)
+    M = Matrix{MVec3{Complex{T}}}
+    return TBOperator{M}("Position", Rspace, operator)
 end
 
 """
@@ -29,14 +31,14 @@ A struct for interpolating tight-binding position operator on given kpoints.
 # Fields
 $(FIELDS)
 """
-struct PositionInterpolator{T} <: AbstractTBInterpolator
+struct PositionInterpolator <: AbstractTBInterpolator
     """R-space Hamiltonian.
     Since we interpolate on kpoints in Bloch gauge, we need to store the Hamiltonain.
     """
-    hamiltonian::TBHamiltonian{T}
+    hamiltonian::TBOperator
 
     """R-space position operator."""
-    position::TBPosition{T}
+    position::TBOperator
 end
 
 """Interpolate the Hamiltonian operator and transform it to Bloch gauge."""

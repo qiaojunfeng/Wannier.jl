@@ -20,9 +20,6 @@ include("utils/center.jl")
 include("defaults.jl")
 
 include("kpoints/kpoint.jl")
-include("kpoints/kcontainer.jl")
-include("kpoints/kgrid.jl")
-include("kpoints/klist.jl")
 include("kpoints/kstencil_shell.jl")
 include("kpoints/kstencil.jl")
 

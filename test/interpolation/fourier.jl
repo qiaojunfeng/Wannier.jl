@@ -8,7 +8,7 @@
         dataset"Si2_valence/Si2_valence", dataset"Si2_valence/reference/Si2_valence.chk.fmt"
     )
     Hᵏ = transform_gauge(model.eigenvalues, model.gauges)
-    Hᴿ = fourier(model.kgrid.kpoints, Hᵏ, Rspace)
+    Hᴿ = fourier(model.kpoints, Hᵏ, Rspace)
     @test all(isapprox.(ref_Hᴿ, Hᴿ; atol=5e-7))
 end
 

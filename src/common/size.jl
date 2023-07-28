@@ -12,8 +12,8 @@ function n_atoms end
 
 """
     n_kpoints(::Model)
-    n_kpoints(::KgridStencil)
-    n_kpoints(::KgridStencilShells)
+    n_kpoints(::KspaceStencil)
+    n_kpoints(::KspaceStencilShells)
 
 Number of kpoints.
 """
@@ -21,8 +21,8 @@ function n_kpoints end
 
 """
     n_bvectors(::Model)
-    n_bvectors(::KgridStencil)
-    n_bvectors(::KgridStencilShells)
+    n_bvectors(::KspaceStencil)
+    n_bvectors(::KspaceStencilShells)
 
 Number of ``\\mathbf{b}``-vectors.
 """

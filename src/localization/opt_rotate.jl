@@ -24,7 +24,7 @@ function get_fg!_rotate(model::Model)
         bvectors = model.kstencil
         kpb_k = bvectors.kpb_k
         kpb_G = bvectors.kpb_G
-        wb = bvectors.weights
+        wb = bvectors.bweights
         recip_lattice = bvectors.recip_lattice
         kpoints = bvectors.kpoints
 

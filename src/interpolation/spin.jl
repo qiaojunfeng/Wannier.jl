@@ -1,6 +1,6 @@
 export TBSpin, SpinInterpolator
 
-"""A struct representing tight-binding spin operator in R-space.
+"""Construct a tight-binding spin operator in R-space.
 
 !!! note
 
@@ -8,7 +8,7 @@ export TBSpin, SpinInterpolator
     the spin operator and position operator transform differently under gauge
     transformation, see [`SpinInterpolator`](@ref) for details.
 """
-const TBSpin{T} = TBOperator{Matrix{MVec3{Complex{T}}}}
+function TBSpin end
 
 function TBSpin(Rspace::BareRspace, operator::AbstractVector)
     @assert !isempty(operator) "empty operator"
@@ -17,7 +17,8 @@ function TBSpin(Rspace::BareRspace, operator::AbstractVector)
     v = operator[1][1, 1]
     @assert v isa AbstractVector && length(v) == 3 "each element must be 3-vector"
     T = real(eltype(v))
-    return TBSpin{T}("Spin", Rspace, operator)
+    M = Matrix{MVec3{Complex{T}}}
+    return TBOperator{M}("Spin", Rspace, operator)
 end
 
 """
@@ -28,14 +29,14 @@ A struct for interpolating tight-binding spin operator on given kpoints.
 # Fields
 $(FIELDS)
 """
-struct SpinInterpolator{T} <: AbstractTBInterpolator
+struct SpinInterpolator <: AbstractTBInterpolator
     """R-space Hamiltonian.
     Since we interpolate on kpoints in Bloch gauge, we need to store the Hamiltonain.
     """
-    hamiltonian::TBHamiltonian{T}
+    hamiltonian::TBOperator
 
     """R-space spin operator."""
-    spin::TBSpin{T}
+    spin::TBOperator
 end
 
 """Interpolate the spin operator and transform it to Bloch gauge."""

@@ -18,7 +18,7 @@ Generate parallel transport gauge Wannier functions.
 
     n_bands = model.n_bands
     n_bvecs = model.n_bvecs
-    n_k1, n_k2, n_k3 = model.kgrid
+    n_k1, n_k2, n_k3 = model.kgrid_size
     @info "Parallel transport gauge" n_bands n_k1 n_k2 n_k3 n_bvecs
 
     #Build the gauge that makes the Bloch frame continuous on the Brillouin Zone.

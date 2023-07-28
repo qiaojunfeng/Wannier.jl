@@ -2,12 +2,12 @@
     using Wannier.Datasets
     win = read_win(dataset"Si2/Si2.win")
     kpoints = win.kpoints
-    kgrid = win.mp_grid
+    kgrid_size = win.mp_grid
 
-    k_xyz, xyz_k = Wannier.get_kpoint_mappings(kpoints, kgrid)
+    k_xyz, xyz_k = Wannier.get_kpoint_mappings(kpoints, kgrid_size)
 
-    n_kx, n_ky, n_kz = kgrid
-    n_kpts = prod(kgrid)
+    n_kx, n_ky, n_kz = kgrid_size
+    n_kpts = prod(kgrid_size)
 
     k_xyz_ref = Vector{Wannier.Vec3{Int}}(undef, n_kpts)
     xyz_k_ref = Array{Int,3}(undef, n_kx, n_ky, n_kz)
@@ -82,11 +82,11 @@ end
 
 @testitem "guess_kgrid_size" begin
     using Wannier: Vec3
-    kgrid = [2, 2, 2]
-    kpoints = Wannier.get_kpoints(kgrid)
+    kgrid_size = [2, 2, 2]
+    kpoints = Wannier.get_kpoints(kgrid_size)
     kpoints[1] = Vec3(0.5, 0.5, 0.0)
     kpoints[end - 1] = Vec3(0, 0, 0)
-    @test Wannier.guess_kgrid_size(kpoints) == kgrid
+    @test Wannier.guess_kgrid_size(kpoints) == kgrid_size
 end
 
 @testitem "guess_kgrid_size shifted" begin

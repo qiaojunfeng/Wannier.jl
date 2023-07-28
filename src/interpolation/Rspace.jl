@@ -323,9 +323,9 @@ function generate_Rspace(model::Model; MDRS::Bool=true, kwargs...)
         r = map(center(model)) do c
             inv_lattice * c
         end
-        Rspace = MDRSRspace(model.lattice, size(model.kgrid), r; kwargs...)
+        Rspace = MDRSRspace(model.lattice, model.kgrid_size, r; kwargs...)
     else
-        Rspace = WignerSeitzRspace(model.lattice, size(model.kgrid); kwargs...)
+        Rspace = WignerSeitzRspace(model.lattice, model.kgrid_size; kwargs...)
     end
     return Rspace
 end

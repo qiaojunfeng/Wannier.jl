@@ -13,9 +13,17 @@ kpoints are sorted by their distance to the original kpoint, such that equal-dis
 # Fields
 $(FIELDS)
 """
-struct KgridStencilShells{T<:Real}
-    """kpoints grid, see [`KpointGrid`](@ref)"""
-    kgrid::KpointGrid{T}
+struct KspaceStencilShells{T<:Real}
+    """reciprocal lattice vectors, 3 * 3, each column is a reciprocal lattice
+    vector in Å⁻¹ unit"""
+    recip_lattice::Mat3{T}
+
+    """number of kpoints along three reciprocal lattice vectors"""
+    kgrid_size::Vec3{Int}
+
+    """kpoint fractional coordinates, length-`n_kpoints` vector of `Vec3`.
+    Should be a uniformlly-spaced kpoint grid."""
+    kpoints::Vector{Vec3{T}}
 
     """dengeneracy (i.e. the number of bvectors) of each shell,
     length-`n_shells` vector of integers"""
@@ -31,32 +39,34 @@ struct KgridStencilShells{T<:Real}
     bvectors::Vector{Vector{Vec3{T}}}
 
     """bvector weight of each shell, length-`n_shells` vector, Å² unit."""
-    weights::Vector{T}
+    bweights::Vector{T}
 end
 
-n_kpoints(shells::KgridStencilShells) = n_kpoints(shells.kgrid)
+n_kpoints(shells::KspaceStencilShells) = length(shells.kpoints)
 """number of b-vector shells"""
-n_shells(shells::KgridStencilShells) = length(shells.n_degens)
-n_bvectors(shells::KgridStencilShells) = sum(shells.n_degens)
-reciprocal_lattice(shells::KgridStencilShells) = reciprocal_lattice(shells.kgrid)
+n_shells(shells::KspaceStencilShells) = length(shells.n_degens)
+n_bvectors(shells::KspaceStencilShells) = sum(shells.n_degens)
+reciprocal_lattice(shells::KspaceStencilShells) = shell.recip_lattice
 
 """
     $(SIGNATURES)
 
-Convenience constructor of `KgridStencilShells`, auto set `n_degens`.
+Convenience constructor of `KspaceStencilShells`, auto set `n_degens`.
 
 # Arguments
-See the fields of [`KgridStencilShells`](@ref) struct.
+See the fields of [`KspaceStencilShells`](@ref) struct.
 """
-function KgridStencilShells(kgrid, bvectors, weights)
+function KspaceStencilShells(recip_lattice, kgrid_size, kpoints, bvectors, bweights)
     n_degens = [length(bvecs) for bvecs in bvectors]
-    return KgridStencilShells(kgrid, n_degens, bvectors, weights)
+    return KspaceStencilShells(
+        recip_lattice, Vec3(kgrid_size), kpoints, n_degens, bvectors, bweights
+    )
 end
 
-function Base.show(io::IO, ::MIME"text/plain", shells::KgridStencilShells)
+function Base.show(io::IO, ::MIME"text/plain", shells::KspaceStencilShells)
     nshells = n_shells(shells)
     @printf(io, "                 [bx, by, bz] (Å⁻¹)\n")
-    for (ish, (bvecs, w)) in enumerate(zip(shells.bvectors, shells.weights))
+    for (ish, (bvecs, w)) in enumerate(zip(shells.bvectors, shells.bweights))
         n = isempty(bvecs) ? NaN : norm(bvecs[1])
         @printf(
             io, "b-vector shell %3d:    norm = %8.5f (Å⁻¹)   weight = %8.5f (Å²)", ish, n, w
@@ -74,15 +84,15 @@ end
 Search bvector shells satisfing completeness condition.
 
 # Arguments
-- `kpoints`: fractional coordinates
 - `recip_lattice`: each column is a reciprocal lattice vector
+- `kpoints`: fractional coordinates
 
 # Keyword Arguments
 - `atol`: tolerance to select a shell (points having equal distances)
 - `max_shells`: max number of nearest-neighbor shells
 
 # Return
-- a `KgridStencilShells` struct, note the `weights` are not computed yet, all zeros!
+- a `KspaceStencilShells` struct, note the `bweights` are not computed yet, all zeros!
 
 !!! note
     To reproduce wannier90's behavior,
@@ -90,7 +100,9 @@ Search bvector shells satisfing completeness condition.
     - `max_shells` should be set to wannier90's input parameter `search_shells`
 """
 function search_shells(
-    kgrid::KpointGrid;
+    recip_lattice::Mat3,
+    kgrid_size::AbstractVector,
+    kpoints::AbstractVector;
     atol=default_w90_kmesh_tol(),
     max_shells=default_w90_bvectors_search_shells(),
 )
@@ -102,13 +114,13 @@ function search_shells(
     # max_shells = round(Int, max_neighbors / max_degens)
 
     # 1. Generate a supercell to search bvectors
-    supercell, _ = make_supercell(kgrid.kpoints)
+    supercell, _ = make_supercell(kpoints)
     # To cartesian coordinates
     supercell_cart = map(supercell) do cell
-        kgrid.recip_lattice * cell
+        recip_lattice * cell
     end
     # use the 1st kpt to search bvectors, usually Γ point
-    kpt_orig = kgrid.recip_lattice * kgrid.kpoints[1]
+    kpt_orig = recip_lattice * kpoints[1]
 
     # 2. KDTree to search nearest neighbors
     kdtree = KDTree(supercell_cart)
@@ -124,7 +136,7 @@ function search_shells(
     inb = 2  # index of neighbors
     ish = 1  # index of shells
     while (inb <= max_neighbors) && (ish <= max_shells)
-        # use the 1st kpoint to find bvector shells & weights
+        # use the 1st kpoint to find bvector shells & bweights
         eqdist_idxs = findall(x -> isapprox(x, dists[inb]; atol), dists)
         degen = length(eqdist_idxs)
         if degen >= max_degens
@@ -138,15 +150,15 @@ function search_shells(
     end
 
     # 4. Get Cartesian-coordinate vectors
-    T = eltype(kgrid.recip_lattice)
+    T = eltype(recip_lattice)
     bvectors = map(shells) do idxs
         kpb_cart = supercell_cart[idxs]
         return map(v -> Vec3{T}(v .- kpt_orig), kpb_cart)
     end
     @debug "Found bvector shells" bvectors
 
-    weights = zeros(T, length(shells))
-    return KgridStencilShells(kgrid, bvectors, weights)
+    bweights = zeros(T, length(shells))
+    return KspaceStencilShells(recip_lattice, kgrid_size, kpoints, bvectors, bweights)
 end
 
 """
@@ -237,9 +249,9 @@ end
 Check if shells having parallel bvectors.
 
 # Arguments
-- `shells`: `KgridStencilShells` containing bvectors in each shell
+- `shells`: `KspaceStencilShells` containing bvectors in each shell
 """
-function check_parallel(shells::KgridStencilShells)
+function check_parallel(shells::KspaceStencilShells)
     return check_parallel(shells.bvectors)
 end
 
@@ -255,20 +267,22 @@ Remove shells.
 # Arguments
 - `keep_shells`: indices of shells to keep
 """
-function delete_shells(shells::KgridStencilShells, keep_shells)
+function delete_shells(shells::KspaceStencilShells, keep_shells)
     bvectors = delete_shells(shells.bvectors, keep_shells)
-    weights = shells.weights[keep_shells]
-    return KgridStencilShells(shells.kgrid, bvectors, weights)
+    bweights = shells.bweights[keep_shells]
+    return KspaceStencilShells(
+        shells.recip_lattice, shells.kgrid_size, shells.kpoints, bvectors, bweights
+    )
 end
 
 """
     $(SIGNATURES)
 
-Try to guess bvector weights from MV1997 Eq. (B1).
+Try to guess bvector bweights from MV1997 Eq. (B1).
 
 The input bvectors are overcomplete vectors found during shell search, i.e., from
 [`search_shells`](@ref). This function tries to find the minimum number of bvector
-shells that satisfy the B1 condition, and return the new `KgridStencilShells` and weights.
+shells that satisfy the B1 condition, and return the new `KspaceStencilShells` and bweights.
 
 # Arguments
 - `bvectors`: vector of bvectors in each shell
@@ -281,7 +295,7 @@ shells that satisfy the B1 condition, and return the new `KgridStencilShells` an
     To reproduce wannier90's behavior,
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
-function compute_weights(
+function compute_bweights(
     bvectors::Vector{Vector{Vec3{T}}}; atol=default_w90_kmesh_tol()
 ) where {T}
     nshells = length(bvectors)
@@ -329,17 +343,17 @@ function compute_weights(
         error("not enough shells to satisfy B1 condition")
     end
 
-    weights = W[keep_shells]
-    return keep_shells, weights
+    bweights = W[keep_shells]
+    return keep_shells, bweights
 end
 
 """
     $(SIGNATURES)
 
-Try to guess bvector weights from MV1997 Eq. (B1).
+Try to guess bvector bweights from MV1997 Eq. (B1).
 
 # Arguments
-- `shells`: `KgridStencilShells` containing bvectors in each shell
+- `shells`: `KspaceStencilShells` containing bvectors in each shell
 
 # Keyword Arguments
 - `atol`: tolerance to satisfy B1 condition
@@ -349,17 +363,17 @@ Try to guess bvector weights from MV1997 Eq. (B1).
     To reproduce wannier90's behavior,
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
-function compute_weights(shells::KgridStencilShells; atol=default_w90_kmesh_tol())
-    return compute_weights(shells.bvectors; atol)
+function compute_bweights(shells::KspaceStencilShells; atol=default_w90_kmesh_tol())
+    return compute_bweights(shells.bvectors; atol)
 end
 
 """
     $(SIGNATURES)
 
-Check completeness (B1 condition) of `KgridStencilShells`.
+Check completeness (B1 condition) of `KspaceStencilShells`.
 
 # Arguments
-- `shells`: `KgridStencilShells` containing bvectors in each shell
+- `shells`: `KspaceStencilShells` containing bvectors in each shell
 
 # Keyword Arguments
 - `atol`: floating point tolerance
@@ -370,11 +384,11 @@ Check completeness (B1 condition) of `KgridStencilShells`.
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
 function check_completeness(
-    shells::KgridStencilShells{T}; atol=default_w90_kmesh_tol()
+    shells::KspaceStencilShells{T}; atol=default_w90_kmesh_tol()
 ) where {T}
     M = zeros(T, 3, 3)
 
-    for (bvecs, w) in zip(shells.bvectors, shells.weights)
+    for (bvecs, w) in zip(shells.bvectors, shells.bweights)
         bvec = reduce(hcat, bvecs)
         M += w * bvec * bvec'
     end
@@ -400,20 +414,20 @@ Unwrap nested shell vectors into a flattened vector.
 
 # Return
 - `bvectors`: length-`n_bvectors` vector, each element is a `Vec3`
-- `weights`: length-`n_bvectors` vector of weights for each bvector
+- `bweights`: length-`n_bvectors` vector of bweights for each bvector
 """
-function flatten_shells(shells::KgridStencilShells{T}) where {T}
+function flatten_shells(shells::KspaceStencilShells{T}) where {T}
     nbvecs = n_bvectors(shells)
 
     bvectors = zeros(Vec3{T}, nbvecs)
-    weights = zeros(T, nbvecs)
+    bweights = zeros(T, nbvecs)
 
     counter = 1
-    for (bvecs, w, degen) in zip(shells.bvectors, shells.weights, shells.n_degens)
+    for (bvecs, w, degen) in zip(shells.bvectors, shells.bweights, shells.n_degens)
         bvectors[counter:(counter + degen - 1)] = bvecs
-        weights[counter:(counter + degen - 1)] .= w
+        bweights[counter:(counter + degen - 1)] .= w
         counter += degen
     end
 
-    return bvectors, weights
+    return bvectors, bweights
 end

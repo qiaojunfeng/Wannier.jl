@@ -229,8 +229,8 @@ function cut(tb::TBOperator, Rcut::Real)
     _, normR, _ = sort_by_Rnorm(tb)
     println("")
     idx_keep = normR .<= Rcut
-    Rspace = typeof(tb.Rspace)(tb.Rspace.lattice, deepcopy(tb.Rvectors[idx_keep]))
-    return typeof(tb)(Rspace, deepcopy(tb.operator[idx_keep]))
+    Rspace = BareRspace(tb.Rspace.lattice, deepcopy(tb.Rvectors[idx_keep]))
+    return TBOperator(Rspace, deepcopy(tb.operator[idx_keep]))
 end
 
 """An abstract type that interpolate physical quantities from some
