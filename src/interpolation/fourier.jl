@@ -57,7 +57,8 @@ function fourier!(
     @assert length(operator_R) == nRvecs "operator_R has wrong n_Rvectors"
 
     for (R, Oᴿ) in zip(Rspace.Rvectors, operator_R)
-        Oᴿ .= 0  # clean buffer
+        # clean buffer
+        fill!(Oᴿ, zero(eltype(Oᴿ)))
         for (k, Oᵏ) in zip(kpoints, operator_k)
             Oᴿ .+= exp(-im * 2π * dot(k, R)) * Oᵏ
         end
@@ -70,7 +71,8 @@ function fourier(
     kpoints::AbstractVector, operator_k::AbstractVector, Rspace::AbstractRspace
 )
     @assert length(operator_k) > 0 "empty operator_k"
-    T_op = complex(eltype(operator_k[1]))
+    # force type to complex
+    T_op = typeof(complex(first(operator_k[1])))
     size_op = size(operator_k[1])
     operator_R = [zeros(T_op, size_op) for _ in 1:n_Rvectors(Rspace)]
     fourier!(operator_R, kpoints, operator_k, Rspace)
@@ -132,7 +134,8 @@ function invfourier!(
     @assert length(operator_k) == nkpts "operator_k has wrong n_kpoints"
 
     for (k, Oᵏ) in zip(kpoints, operator_k)
-        Oᵏ .= 0  # clean buffer
+        # clean buffer
+        fill!(Oᵏ, zero(eltype(Oᵏ)))
         for (R, Oᴿ) in zip(Rspace.Rvectors, operator_R)
             Oᵏ .+= exp(im * 2π * dot(k, R)) * Oᴿ
         end
@@ -148,7 +151,8 @@ end
 
 function invfourier(Rspace::BareRspace, operator_R::AbstractVector, kpoints::AbstractVector)
     @assert length(operator_R) > 0 "empty operator_R"
-    T_op = complex(eltype(operator_R[1]))
+    # force type to complex
+    T_op = typeof(complex(first(operator_R[1])))
     size_op = size(operator_R[1])
     operator_k = [zeros(T_op, size_op) for _ in 1:length(kpoints)]
     invfourier!(operator_k, Rspace, operator_R, kpoints)

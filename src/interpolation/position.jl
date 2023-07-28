@@ -69,6 +69,12 @@ function (interp::PositionInterpolator)(
     return A_k
 end
 
+# kpi isa AbstractVector{<:AbstractVector}, need to define it to resolve ambiguity
+@inline function (interp::PositionInterpolator)(kpi::KPathInterpolant; kwargs...)
+    kpoints = get_kpoints(kpi)
+    return interp(kpoints; kwargs...)
+end
+
 """
     $(SIGNATURES)
 
