@@ -19,6 +19,7 @@ include("utils/center.jl")
 
 include("defaults.jl")
 
+## Wannierization
 include("kpoints/kpoint.jl")
 include("kpoints/kstencil_shell.jl")
 include("kpoints/kstencil.jl")
@@ -33,10 +34,6 @@ include("io/w90/mmn.jl")
 include("io/w90/chk.jl")
 include("io/w90/model.jl")
 include("io/w90/band.jl")
-include("io/w90/tb.jl")
-include("io/volume/xsf.jl")
-include("io/volume/cube.jl")
-include("io/volume/bxsf.jl")
 include("io/truncate.jl")
 include("io/interface/mud.jl")
 
@@ -54,8 +51,18 @@ include("localization/constrain_center/coopt.jl")
 # include("realspace/wavefunction.jl")
 # include("realspace/moment.jl")
 
+## Wannier interpolation
 include("interpolation/kpath.jl")
 include("interpolation/Rspace.jl")
+
+# these are files for interpolation only, put them here since
+# they need structs defined in Rspace.jl
+include("io/w90/tb.jl")
+include("io/w90/spn.jl")
+include("io/volume/xsf.jl")
+include("io/volume/cube.jl")
+include("io/volume/bxsf.jl")
+
 include("interpolation/operator.jl")
 include("interpolation/fourier.jl")
 include("interpolation/hamiltonian.jl")

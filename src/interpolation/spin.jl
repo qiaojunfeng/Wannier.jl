@@ -1,4 +1,4 @@
-export TBSpin, SpinInterpolator
+export TBSpin, SpinInterpolator, SpinProjectionInterpolator
 
 """Construct a tight-binding spin operator in R-space.
 
@@ -49,10 +49,76 @@ function (interp::SpinInterpolator)(kpoints::AbstractVector{<:AbstractVector}; k
     _, gauges = eigen(H_k)
 
     # Wannier-gauge k-space spin operator
-    Sᵂ_k = invfourier(interp.position, kpoints)
+    Sᵂ_k = invfourier(interp.spin, kpoints)
     # transform to Bloch gauge
     S_k = map(zip(Sᵂ_k, gauges)) do (Sᵂ, U)
         U' * Sᵂ * U
     end
     return S_k
+end
+
+# kpi isa AbstractVector{<:AbstractVector}, need to define it to resolve ambiguity
+@inline function (interp::SpinInterpolator)(kpi::KPathInterpolant; kwargs...)
+    kpoints = get_kpoints(kpi)
+    return interp(kpoints; kwargs...)
+end
+
+"""
+    $(TYPEDEF)
+
+A struct for interpolating tight-binding spin operator projected on a given
+axis, on given kpoints.
+
+# Fields
+$(FIELDS)
+"""
+struct SpinProjectionInterpolator <: AbstractTBInterpolator
+    spin_interpolator::SpinInterpolator
+
+    """spin quantization axis polar angle, in radian."""
+    θ::Float64
+
+    """spin quantization axis azimuthal angle, in radian."""
+    ϕ::Float64
+end
+
+n_wannier(interp::SpinProjectionInterpolator) = n_wannier(interp.spin_interpolator)
+n_Rvectors(interp::SpinProjectionInterpolator) = n_Rvectors(interp.spin_interpolator)
+real_lattice(interp::SpinProjectionInterpolator) = real_lattice(interp.spin_interpolator)
+
+function SpinProjectionInterpolator(hamiltonian::TBOperator, spin::TBOperator, θ, ϕ)
+    spin_interpolator = SpinInterpolator(hamiltonian, spin)
+    return SpinProjectionInterpolator(spin_interpolator, θ, ϕ)
+end
+
+"""
+Interpolate the spin operator and transform it to Bloch gauge.
+
+# Keyword arguments
+- `truncate`: if abs(spin) > 1, truncate them to inside [-1, 1]
+"""
+function (interp::SpinProjectionInterpolator)(
+    kpoints::AbstractVector{<:AbstractVector}; truncate::Bool=true
+)
+    S_k = interp.spin_interpolator(kpoints)
+
+    # instead of matrix, return real part of diagonal elements
+    # also truncate values > 1
+    ax = Vec3(sin(interp.θ) * cos(interp.ϕ), sin(interp.θ) * sin(interp.ϕ), cos(interp.θ))
+    return map(S_k) do S
+        S_diag = real(diag(S))
+        S_ax = map(S_diag) do svec # each band
+            svec ⋅ ax
+        end
+        if truncate
+            S_ax = clamp.(S_ax, -1, 1)
+        end
+        return S_ax
+    end
+end
+
+# kpi isa AbstractVector{<:AbstractVector}, need to define it to resolve ambiguity
+@inline function (interp::SpinProjectionInterpolator)(kpi::KPathInterpolant; kwargs...)
+    kpoints = get_kpoints(kpi)
+    return interp(kpoints; kwargs...)
 end

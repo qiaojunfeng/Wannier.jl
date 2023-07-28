@@ -30,7 +30,7 @@ end
 """
     $(SIGNATURES)
 
-Construct a [`HamiltonianRspace`](@ref) from a Wannierization [`Model`](@ref).
+Construct a [`TBHamiltonian`](@ref) from a Wannierization [`Model`](@ref).
 
 # Arguments
 - `model`: the Wannierization [`Model`](@ref)
@@ -62,6 +62,12 @@ function (interp::HamiltonianInterpolator)(kpoints::AbstractVector{<:AbstractVec
     return eigen(Hᵏ)
 end
 
+# kpi isa AbstractVector{<:AbstractVector}, need to define it to resolve ambiguity
+@inline function (interp::HamiltonianInterpolator)(kpi::KPathInterpolant; kwargs...)
+    kpoints = get_kpoints(kpi)
+    return interp(kpoints; kwargs...)
+end
+
 @inline function LinearAlgebra.eigen(A::AbstractMatrix, ws::HermitianEigenWs)
     return Eigen(decompose!(ws, 'V', 'A', 'U', A, 0.0, 0.0, 0, 0, 1e-16)...)
 end
@@ -91,7 +97,7 @@ function LinearAlgebra.eigen(hamiltonian::AbstractVector{<:AbstractMatrix})
         tid = Threads.threadid()
         eigenvecs[ik] .= hamiltonian[ik]
         eigen!(eigenvals[ik], eigenvecs[ik], caches[tid])
-        # this is slow
+        # this is slower
         # e = eigen(Hermitian(eigenvecs[ik]))
         # eigenvals[ik] .= e.values
         # eigenvecs[ik] .= e.vectors

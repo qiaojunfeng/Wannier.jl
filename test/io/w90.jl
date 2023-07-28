@@ -87,3 +87,36 @@ end
     P11_origin = ComplexF64[0.67881607 + 0.0im, -0.67881621 + 0.0im, -0.67881622 + 0.0im]
     @test position[0, 0, 0][1, 1] ≈ P11_origin
 end
+
+@testitem "read_w90_tb_chk_spn" begin
+    using Wannier.Datasets
+    using Wannier: Vec3
+    # hamiltonian, position, spin = Wannier.read_w90_tb_chk_spn(
+    #     dataset"Fe/reference/Fe";
+    #     spn=dataset"Fe/Fe.spn",
+    # )
+    hamiltonian, position, spin = Wannier.read_w90_tb_chk_spn(
+        expanduser("~/git/WannierDatasets/datasets/Fe/reference/MDRS/Fe");
+        chk=expanduser("~/git/WannierDatasets/datasets/Fe/reference/Fe.chk"),
+        spn=expanduser("~/git/WannierDatasets/datasets/Fe/Fe.spn"),
+    )
+
+    S11 = Vec3(
+        -4.648028910440591e-5 + 2.374737696435062e-5im,
+        -6.0301956322061204e-5 - 1.638901806984331e-5im,
+        -0.0001239322774898806 - 4.426989554163255e-7im,
+    )
+    S12 = Vec3(
+        1.5735137180138543e-5 - 3.721098851980894e-5im,
+        2.6168818950736308e-5 - 6.011199334516285e-5im,
+        -3.1928160018176935e-5 + 8.37424892167478e-5im,
+    )
+    S21 = Vec3(0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im)
+    S22 = Vec3(
+        6.305695608742687e-6 + 1.0805021589902928e-6im,
+        9.374556752615726e-6 - 4.398377968713008e-7im,
+        -1.01162536765518e-5 - 1.7493947814005437e-7im,
+    )
+    ref_S = [[S11, S21] [S12, S22]]
+    @test spin[1][1:2, 1:2] ≈ ref_S
+end

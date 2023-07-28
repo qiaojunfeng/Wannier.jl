@@ -245,14 +245,25 @@ Since it interpolates back to Bloch gauge, almost always the 1st field is
 """
 abstract type AbstractTBInterpolator <: Function end
 
+#=
+I cannot define a function like this, because this will cause method ambiguity:
+    - the KPathInterpolant is also a AbstractVector{<:AbstractVector}
+    - each concrete interpolator type defines a function for AbstractVector{<:AbstractVector}
+
 @inline function (interp::AbstractTBInterpolator)(kpi::KPathInterpolant; kwargs...)
     kpoints = get_kpoints(kpi)
     return interp(kpoints; kwargs...)
 end
+=#
 
 @inline function (interp::AbstractTBInterpolator)(kpoint::AbstractVector{<:Real}; kwargs...)
     # unwrap results
-    return map(x -> x[1], interp([kpoint]); kwargs...)
+    result = interp([kpoint]; kwargs...)
+    if length(result) == 1
+        return result[1]
+    else
+        return Tuple(map(x -> x[1], result))
+    end
 end
 
 n_wannier(interp::AbstractTBInterpolator) = n_wannier(interp.hamiltonian)
@@ -261,15 +272,33 @@ real_lattice(interp::AbstractTBInterpolator) = real_lattice(interp.hamiltonian)
 
 function Base.show(io::IO, ::MIME"text/plain", interp::AbstractTBInterpolator)
     @printf(io, "Tight-binding interpolator name  :  %s\n", nameof(interp))
-    println(io, "\nList of contained operators:")
+    ops = []
+    itps = []
     for p in propertynames(interp)
-        println(io, "-"^80)
-        show(io, MIME"text/plain"(), getproperty(interp, p))
-        println(io)
-        println(io, "-"^80)
+        f = getproperty(interp, p)
+        if f isa TBOperator
+            push!(ops, f.name)
+        elseif f isa AbstractTBInterpolator
+            push!(itps, nameof(typeof(f)))
+        else
+            continue
+        end
+    end
+    if length(itps) > 0
+        println(io, "\nList of contained interpolators:")
+        for it in itps
+            println(io, "  ", it)
+        end
+    end
+    if length(ops) > 0
+        println(io, "\nList of contained operators:")
+        for op in ops
+            println(io, "  ", op)
+        end
     end
     println(io, "\nSummary:")
-    @printf(io, "n_operators =  %d\n", length(propertynames(interp)))
-    @printf(io, "n_Rvectors  =  %d\n", n_Rvectors(interp))
-    @printf(io, "n_wannier   =  %d", n_wannier(interp))
+    length(itps) > 0 && @printf(io, "  n_interpolators =  %d\n", length(itps))
+    length(ops) > 0 && @printf(io, "  n_operators     =  %d\n", length(ops))
+    @printf(io, "  n_Rvectors      =  %d\n", n_Rvectors(interp))
+    @printf(io, "  n_wannier       =  %d", n_wannier(interp))
 end
