@@ -147,7 +147,7 @@ Is isolated manifold?
 isisolated(model::Model) = n_bands(model) == n_wannier(model)
 
 function Base.show(io::IO, ::MIME"text/plain", model::Model)
-    _print_lattice(io, model.lattice)
+    show_lattice(io, model.lattice)
     println(io)
 
     @printf(io, "atoms:             fractional\n")

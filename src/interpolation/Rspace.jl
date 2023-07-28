@@ -1,7 +1,7 @@
 using OffsetArrays: OffsetArray
 using NearestNeighbors: KDTree, knn
 
-export generate_Rspace_domain
+export generate_Rspace, WignerSeitzRspace, MDRSRspace, BareRspace
 
 """
 The Fourier-space frequencies for Wannier interpolation, also called
@@ -11,100 +11,41 @@ The Fourier-space frequencies for Wannier interpolation, also called
 
 Since julia does not permit inheritance for fields, we need to ask the developers
 to implement the following fields when introducing a new type of R-space domain,
-see [`WSRspaceDomain`](@ref) for an example.
+see [`WignerSeitzRspace`](@ref) for an example.
 
 - `lattice`: `3 * 3` matrix, each column is a lattice vector in Å unit
 - `Rvectors`: length-`n_Rvectors` of `Vec3` for fractional (actually integers)
     coordinates w.r.t. lattice
 """
-abstract type AbstractRspaceDomain end
+abstract type AbstractRspace end
 
-n_Rvectors(Rdomain::AbstractRspaceDomain) = length(Rdomain.Rvectors)
-real_lattice(Rdomain::AbstractRspaceDomain) = Rdomain.lattice
+n_Rvectors(Rspace::AbstractRspace) = length(Rspace.Rvectors)
+real_lattice(Rspace::AbstractRspace) = Rspace.lattice
 
-"""Index using `i` of kpoints"""
-function Base.getindex(Rdomain::AbstractRspaceDomain, i::Integer)
-    return Rdomain.Rvectors[i]
+"""Index using `i` of Rvectors"""
+function Base.getindex(Rspace::AbstractRspace, i::Integer)
+    return Rspace.Rvectors[i]
 end
 
-Base.lastindex(Rdomain::AbstractRspaceDomain) = lastindex(Rdomain.Rvectors)
-Base.length(Rdomain::AbstractRspaceDomain) = length(Rdomain.Rvectors)
+Base.lastindex(Rspace::AbstractRspace) = lastindex(Rspace.Rvectors)
+Base.length(Rspace::AbstractRspace) = length(Rspace.Rvectors)
 
-function Base.iterate(Rdomain::AbstractRspaceDomain, state=1)
-    if state > length(Rdomain.Rvectors)
+function Base.iterate(Rspace::AbstractRspace, state=1)
+    if state > length(Rspace.Rvectors)
         return nothing
     else
-        return (Rdomain.Rvectors[state], state + 1)
+        return (Rspace.Rvectors[state], state + 1)
     end
 end
 
-"""
-    $(SIGNATURES)
-
-Generate R-space domain for Wannier interpolation.
-
-# Arguments
-- `lattice`: columns are lattice vectors
-- `Rgrid_size`: number of FFT grid points in each direction, actually determined
-    by (and is equal to) `kgrid_size`
-- `centers`: length-`n_wannier` vector, each element is a WF center in
-    fractional coordinates
-
-# Keyword arguments
-- `atol`: toerance for checking degeneracy
-- `max_cell`: number of neighboring cells to be searched
-
-# Return
-- `Rdomain`: a [`WSRspaceDomain`](@ref) or [`MDRSRspaceDomain`](@ref)
-
-!!! note
-
-    To reproduce wannier90's behavior
-    - `atol` should be equal to wannier90's input parameter `ws_distance_tol`
-    - `max_cell` should be equal to wannier90's input parameter `ws_search_size`
-"""
-function generate_Rspace_domain end
-
-"""
-    $(TYPEDEF)
-
-``\\mathbf{R}``-vectors generated using Wigner-Seitz cell.
-
-# Fields
-$(FIELDS)
-
-!!! note
-
-    The R vectors are sorted in the same order as `Wannier90`.
-"""
-struct WSRspaceDomain{T<:Real} <: AbstractRspaceDomain
-    """lattice, 3 * 3, each column is a lattice vector in Å unit"""
-    lattice::Mat3{T}
-
-    """R-vectors, length-`n_Rvectors` of `Vec3` for fractional (actually integers)
-    coordinates w.r.t. lattice"""
-    Rvectors::Vector{Vec3{Int}}
-
-    """degeneracy of each Rvector, length-`n_Rvectors` vector.
-    The weight of each Rvector = 1 / degeneracy."""
-    n_Rdegens::Vector{Int}
-end
-
-function WSRspaceDomain(
-    lattice::AbstractMatrix, Rvectors::AbstractVector, n_Rdegens::AbstractVector
-)
-    T = eltype(lattice)
-    return WSRspaceDomain{T}(Mat3(lattice), Vector{Vec3{Int}}(Rvectors), n_Rdegens)
-end
-
-function Base.show(io::IO, ::MIME"text/plain", domain::AbstractRspaceDomain)
-    @printf(io, "R-space domain type :  %s\n\n", nameof(typeof(domain)))
-    _print_lattice(io, domain.lattice)
+function Base.show(io::IO, ::MIME"text/plain", Rspace::AbstractRspace)
+    @printf(io, "R-space type  :  %s\n\n", nameof(typeof(Rspace)))
+    show_lattice(io, Rspace.lattice)
     println(io)
-    @printf(io, "n_Rvectors  =  %d", n_Rvectors(domain))
+    @printf(io, "n_Rvectors  =  %d", n_Rvectors(Rspace))
 end
 
-function Base.isapprox(a::AbstractRspaceDomain, b::AbstractRspaceDomain; kwargs...)
+function Base.isapprox(a::AbstractRspace, b::AbstractRspace; kwargs...)
     for f in propertynames(a)
         va = getfield(a, f)
         vb = getfield(b, f)
@@ -118,19 +59,41 @@ function Base.isapprox(a::AbstractRspaceDomain, b::AbstractRspaceDomain; kwargs.
     return true
 end
 
-"""Abstract type for Wannier interpolation algorithms"""
-abstract type WannierInterpolationAlgorithm end
+"""
+    $(TYPEDEF)
 
-"""Wigner-Seitz Wannier interpolation"""
-struct WSInterpolation <: WannierInterpolationAlgorithm end
+``\\mathbf{R}``-vectors generated using Wigner-Seitz cell.
 
-"""Minimal-distance replica selection method for Wannier interpolation"""
-struct MDRSInterpolation <: WannierInterpolationAlgorithm end
+# Fields
+$(FIELDS)
 
-function generate_Rspace_domain(
+!!! note
+
+    The R vectors are sorted in the same order as `Wannier90`.
+"""
+struct WignerSeitzRspace{T<:Real} <: AbstractRspace
+    """lattice, 3 * 3, each column is a lattice vector in Å unit"""
+    lattice::Mat3{T}
+
+    """R-vectors, length-`n_Rvectors` of `Vec3` for fractional (actually integers)
+    coordinates w.r.t. lattice"""
+    Rvectors::Vector{Vec3{Int}}
+
+    """degeneracy of each Rvector, length-`n_Rvectors` vector.
+    The weight of each Rvector = 1 / degeneracy."""
+    n_Rdegens::Vector{Int}
+end
+
+function WignerSeitzRspace(
+    lattice::AbstractMatrix, Rvectors::AbstractVector, n_Rdegens::AbstractVector
+)
+    T = eltype(lattice)
+    return WignerSeitzRspace{T}(Mat3(lattice), Vector{Vec3{Int}}(Rvectors), n_Rdegens)
+end
+
+function WignerSeitzRspace(
     lattice::AbstractMatrix,
-    Rgrid_size::Union{AbstractVector,Tuple},
-    ::WSInterpolation;
+    Rgrid_size::Union{AbstractVector,Tuple};
     atol=default_w90_ws_distance_tol(),
     max_cell::Integer=default_w90_ws_search_size(),
 )
@@ -181,7 +144,7 @@ function generate_Rspace_domain(
     # fractional coordinates
     Rvectors = supercell[R_idxs]
 
-    return WSRspaceDomain(lattice, Rvectors, n_Rdegens)
+    return WignerSeitzRspace(lattice, Rvectors, n_Rdegens)
 end
 
 """
@@ -196,7 +159,7 @@ $(FIELDS)
 
     The R-vectors are sorted in the same order as wannier90.
 """
-struct MDRSRspaceDomain{T<:Real} <: AbstractRspaceDomain
+struct MDRSRspace{T<:Real} <: AbstractRspace
     """lattice, 3 * 3, each column is a lattice vector in Å unit"""
     lattice::Mat3{T}
 
@@ -219,7 +182,7 @@ struct MDRSRspaceDomain{T<:Real} <: AbstractRspaceDomain
     n_Tdegens::Vector{Matrix{Int}}
 end
 
-function MDRSRspaceDomain(
+function MDRSRspace(
     lattice::AbstractMatrix,
     Rvectors::AbstractVector,
     n_Rdegens::AbstractVector,
@@ -227,14 +190,13 @@ function MDRSRspaceDomain(
     n_Tdegens::AbstractVector,
 )
     T = eltype(lattice)
-    return MDRSRspaceDomain{T}(Mat3(lattice), Rvectors, n_Rdegens, Tvectors, n_Tdegens)
+    return MDRSRspace{T}(Mat3(lattice), Rvectors, n_Rdegens, Tvectors, n_Tdegens)
 end
 
-function generate_Rspace_domain(
-    wsRdomain::WSRspaceDomain,
+function MDRSRspace(
+    wsRspace::WignerSeitzRspace,
     Rgrid_size::Union{AbstractVector,Tuple},
-    centers::AbstractVector,
-    ::MDRSInterpolation;
+    centers::AbstractVector;
     atol=default_w90_ws_distance_tol(),
     max_cell::Integer=default_w90_ws_search_size(),
 )
@@ -242,8 +204,8 @@ function generate_Rspace_domain(
     nwann = length(centers)
     @assert nwann > 0 "centers is empty"
 
-    nRvecs = n_Rvectors(wsRdomain)
-    lattice = wsRdomain.lattice
+    nRvecs = n_Rvectors(wsRspace)
+    lattice = wsRspace.lattice
 
     # 1. generate WS cell around origin to check WF |nR> is inside |m0> or not
     # increase max_cell by 1 in case WF center drifts away from the parallelepiped
@@ -271,7 +233,7 @@ function generate_Rspace_domain(
     @inbounds @views for iR in 1:nRvecs
         Tvectors_iR = Tvectors[iR]
         Tdegens_iR = Tdegens[iR]
-        R = wsRdomain.Rvectors[iR]
+        R = wsRspace.Rvectors[iR]
         for m in 1:nwann
             for n in 1:nwann
                 # translation vector of |nR> WF center relative to |m0> WF center
@@ -308,43 +270,64 @@ function generate_Rspace_domain(
             end
         end
     end
-    return MDRSRspaceDomain(
-        wsRdomain.lattice, wsRdomain.Rvectors, wsRdomain.n_Rdegens, Tvectors, Tdegens
+    return MDRSRspace(
+        wsRspace.lattice, wsRspace.Rvectors, wsRspace.n_Rdegens, Tvectors, Tdegens
     )
 end
 
-function generate_Rspace_domain(
+function MDRSRspace(
     lattice::AbstractMatrix,
     Rgrid_size::Union{AbstractVector,Tuple},
-    centers::AbstractVector,
-    ::MDRSInterpolation;
-    atol=default_w90_ws_distance_tol(),
-    max_cell::Integer=default_w90_ws_search_size(),
+    centers::AbstractVector;
+    kwargs...,
 )
-    wsRdomain = generate_Rspace_domain(
-        lattice, Rgrid_size, WSInterpolation(); atol, max_cell
-    )
-    return generate_Rspace_domain(
-        wsRdomain, Rgrid_size, centers, MDRSInterpolation(); atol, max_cell
-    )
+    wsRspace = WignerSeitzRspace(lattice, Rgrid_size; kwargs...)
+    return MDRSRspace(wsRspace, Rgrid_size, centers; kwargs...)
 end
 
-function generate_Rspace_domain(model::Model, MDRS::Bool=true)
+"""
+    $(SIGNATURES)
+
+Generate R-space domain for Wannier interpolation.
+
+# Arguments
+- `lattice`: columns are lattice vectors
+- `Rgrid_size`: number of FFT grid points in each direction, actually determined
+    by (and is equal to) `kgrid_size`
+- `centers`: length-`n_wannier` vector, each element is a WF center in
+    fractional coordinates
+
+# Keyword arguments
+- `atol`: toerance for checking degeneracy
+- `max_cell`: number of neighboring cells to be searched
+
+# Return
+- `Rdomain`: a [`WignerSeitzRspace`](@ref) or [`MDRSRspace`](@ref)
+
+!!! note
+
+    To reproduce wannier90's behavior
+    - `atol` should be equal to wannier90's input parameter `ws_distance_tol`
+    - `max_cell` should be equal to wannier90's input parameter `ws_search_size`
+"""
+function generate_Rspace end
+
+function generate_Rspace(T::Type{<:AbstractRspace}, args...; kwargs...)
+    return T(args...; kwargs...)
+end
+
+function generate_Rspace(model::Model; MDRS::Bool=true, kwargs...)
     if MDRS
         # from Cartesian to fractional
         inv_lattice = inv(model.lattice)
         r = map(center(model)) do c
             inv_lattice * c
         end
-        Rdomain = generate_Rspace_domain(
-            model.lattice, size(model.kgrid), r, MDRSInterpolation()
-        )
+        Rspace = MDRSRspace(model.lattice, size(model.kgrid), r; kwargs...)
     else
-        Rdomain = generate_Rspace_domain(
-            model.lattice, size(model.kgrid), WSInterpolation()
-        )
+        Rspace = WignerSeitzRspace(model.lattice, size(model.kgrid); kwargs...)
     end
-    return Rdomain
+    return Rspace
 end
 
 """Type for the `xyz_iR` mapping using OffsetArray"""
@@ -355,7 +338,7 @@ const RvectorIndexMapping = OffsetArray{Int,3}
 
 A minimalistic R-space domain, with only R-vectors themselves.
 
-Contrary to [`WSRspaceDomain`](@ref) and [`MDRSRspaceDomain`](@ref), this domain
+Contrary to [`WignerSeitzRspace`](@ref) and [`MDRSRspace`](@ref), this domain
 does not contain any info on R-vector degeneracies or translation T-vectors.
 Therefore, it is not possible to do the forward Fourier transform from k-space
 operators to R-space representation (in comparison, the previous two domains
@@ -370,7 +353,7 @@ Fourier series.
 # Fields
 $(FIELDS)
 """
-struct BareRspaceDomain{T<:Real} <: AbstractRspaceDomain
+struct BareRspace{T<:Real} <: AbstractRspace
     """lattice, 3 * 3, each column is a lattice vector in Å unit"""
     lattice::Mat3{T}
 
@@ -414,13 +397,12 @@ function build_mapping_xyz_iR(Rvectors::AbstractVector)
     return mapping
 end
 
-function BareRspaceDomain{T}(lattice::AbstractMatrix, Rvectors::AbstractVector) where {T}
+function BareRspace{T}(lattice::AbstractMatrix, Rvectors::AbstractVector) where {T}
     xyz_iR = build_mapping_xyz_iR(Rvectors)
-    return BareRspaceDomain{T}(Mat3(lattice), Vector{Vec3{Int}}(Rvectors), xyz_iR)
+    return BareRspace{T}(Mat3(lattice), Vector{Vec3{Int}}(Rvectors), xyz_iR)
 end
 
-function BareRspaceDomain(lattice::AbstractMatrix, Rvectors::AbstractVector)
+function BareRspace(lattice::AbstractMatrix, Rvectors::AbstractVector)
     T = eltype(lattice)
-    xyz_iR = build_mapping_xyz_iR(Rvectors)
-    return BareRspaceDomain{T}(Mat3(lattice), Vector{Vec3{Int}}(Rvectors), xyz_iR)
+    return BareRspace{T}(lattice, Rvectors)
 end

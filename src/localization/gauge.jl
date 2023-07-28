@@ -22,12 +22,12 @@ function transform_gauge(
     eigenvalues::AbstractVector{V}, gauges::AbstractVector{T}
 ) where {V<:AbstractVector,T<:AbstractMatrix}
     nkpts = length(eigenvalues)
-    @assert nkpts > 0 "eigenvalues must be non-empty"
-    @assert length(eigenvalues) == nkpts "different length of eigenvalues and gauges"
-    nbands, nwann = size(gauges[1])
+    @assert nkpts > 0 "empty eigenvalues"
+    @assert length(gauges) == nkpts "different length of eigenvalues and gauges"
+    nbands = size(gauges[1], 1)
     @assert length(eigenvalues[1]) == nbands "eigenvalues have wrong n_bands"
 
-    return map(zip(eigenvalues, gauges)) do (E, U)
+    return map(zip(eigenvalues, gauges)) do (ε, U)
         # I need to force Hermiticity here, otherwise in some cases,
         # especially degenerate eigenvalues, the eigenvectors of Hᵏ,
         #   F = eigen(Hᵏ)
@@ -42,7 +42,7 @@ function transform_gauge(
         # so I enforce Hermiticity here.
         # See also
         # https://discourse.julialang.org/t/a-b-a-is-not-hermitian-even-when-b-is/70611
-        Hermitian(U' * Diagonal(E) * U)
+        Hermitian(U' * Diagonal(ε) * U)
     end
 end
 

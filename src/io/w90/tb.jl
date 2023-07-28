@@ -22,23 +22,23 @@ function read_w90_tb(prefix::AbstractString)
     @assert wsvec.Rvectors == tbdat.Rvectors "R-vectors in tb.dat and wsvec.dat are not identical"
 
     if wsvec.mdrs
-        Rdomain = MDRSRspaceDomain(
+        Rspace = MDRSRspace(
             tbdat.lattice, tbdat.Rvectors, tbdat.Rdegens, wsvec.Tvectors, wsvec.Tdegens
         )
     else
-        Rdomain = WSRspaceDomain(tbdat.lattice, tbdat.Rvectors, tbdat.Rdegens)
+        Rspace = WignerSeitzRspace(tbdat.lattice, tbdat.Rvectors, tbdat.Rdegens)
     end
 
-    bare_Rdomain, bare_H = simplify(Rdomain, tbdat.H)
-    hamiltonian = HamiltonianRspace(bare_Rdomain, bare_H)
+    bare_Rspace, bare_H = simplify(Rspace, tbdat.H)
+    hamiltonian = TBHamiltonian(bare_Rspace, bare_H)
 
     # convert to matrix of MVec3, here mutable since we might need to invoke
     # some in-place functions in later interpolation steps
     pos_vecs = map(zip(tbdat.r_x, tbdat.r_y, tbdat.r_z)) do (x, y, z)
         MVec3.(x, y, z)
     end
-    bare_Rdomain, bare_pos = simplify(Rdomain, pos_vecs)
-    position = PositionRspace(bare_Rdomain, bare_pos)
+    _, bare_pos = simplify(Rspace, pos_vecs)
+    position = TBPosition(bare_Rspace, bare_pos)
 
     return (; hamiltonian, position)
 end

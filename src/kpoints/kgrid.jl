@@ -37,7 +37,7 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", kgrid::KpointGrid)
     @printf(io, "kpoint type         :  %s\n\n", nameof(typeof(kgrid)))
-    _print_recip_lattice(io, kgrid.recip_lattice)
+    show_recip_lattice(io, kgrid.recip_lattice)
     println(io)
     @printf(io, "kgrid_size  =  %d %d %d\n", size(kgrid)...)
     @printf(io, "n_kpoints   =  %d", n_kpoints(kgrid))

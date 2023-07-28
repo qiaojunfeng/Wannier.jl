@@ -1,53 +1,70 @@
-export PositionRspace, PositionKspace
+export TBPosition
 
+"""A struct representing tight-binding position operator in R-space.
+
+!!! note
+
+    The tight-binding operator defined on the Rspace domain.
+    Here the inner type `MVec3` represents 3 Cartesian directions.
+    It is also possible to use `Vec3`, however, this will forbid all the
+    in-place functions.
 """
-    $(TYPEDEF)
+const TBPosition{T} = TBOperator{Matrix{MVec3{Complex{T}}}}
 
-A struct representing tight-binding position operator in R-space.
-
-# Fields
-$(FIELDS)
-"""
-struct PositionRspace{M<:AbstractMatrix} <: AbstractOperatorRspace
-    """the R-space domain (or called R-vectors) on which the operator is defined"""
-    domain::BareRspaceDomain
-
-    """The tight-binding operator defined on the domain.
-    Here the type `M` is often `Matrix{MVec3{ComplexF64}}`, where the inner
-    `MVec3` represents 3 Cartesian directions. One can also use `Vec3`,
-    however, this will prohibit all the in-place functions."""
-    operator::Vector{M}
+function TBPosition(Rspace::BareRspace, operator::AbstractVector)
+    @assert !isempty(operator) "empty operator"
+    @assert !isempty(operator[1]) "empty operator"
+    @assert operator[1] isa AbstractMatrix "operator must be a matrix"
+    v = operator[1][1, 1]
+    @assert v isa AbstractVector && length(v) == 3 "each element must be 3-vector"
+    T = real(eltype(v))
+    return TBPosition{T}("Position", Rspace, operator)
 end
 
 """
     $(TYPEDEF)
 
-A struct representing tight-binding position operator on a kpoint grid.
+A struct for interpolating tight-binding position operator on given kpoints.
 
 # Fields
 $(FIELDS)
 """
-struct PositionKspace{K<:AbstractKpointContainer,M<:AbstractMatrix} <:
-       AbstractOperatorKspace{K}
-    """a [`KpointGrid`](@ref) or [`KpointList`](@ref) on which the operator is defined"""
-    domain::K
+struct PositionInterpolator{T} <: AbstractTBInterpolator
+    """R-space Hamiltonian.
+    Since we interpolate on kpoints in Bloch gauge, we need to store the Hamiltonain.
+    """
+    hamiltonian::TBHamiltonian{T}
 
-    """the tight-binding operator defined on the domain"""
-    operator::Vector{M}
+    """R-space position operator."""
+    position::TBPosition{T}
 end
 
-function transform_gauge(
-    position_k::PositionKspace, gauges::AbstractVector, D_matrices::AbstractVector
+"""Interpolate the Hamiltonian operator and transform it to Bloch gauge."""
+function (interp::PositionInterpolator)(
+    kpoints::AbstractVector{<:AbstractVector}; kwargs...
 )
-    A = map(zip(position_k.operator, gauges, D_matrices)) do (Aᵂ, U, D)
+    # R-space Hamiltonain
+    H_R = interp.hamiltonian
+    # k-space Hamiltonian
+    H_k = invfourier(H_R, kpoints)
+
+    RH_R = zeros(H_R)
+    lattice = real_lattice(H_R)
+    map(1:nRvecs) do iR
+        # to Cartesian in angstrom
+        RH_R[iR] .= im * (lattice * H_R.Rspace[iR]) * H_R[iR]
+    end
+    RH_k = invfourier(RH_R, kpoints)
+
+    _, gauges, _, D_matrices = compute_D_matrix(H_k, RH_k, kpoints; kwargs...)
+
+    # gauge-covariant part of k-space position operator
+    Aᵂ_k = invfourier(interp.position, kpoints)
+    # build the gauge-covariant position operator
+    A_k = map(zip(Aᵂ_k, gauges, D_matrices)) do (Aᵂ, U, D)
         U' * Aᵂ * U + im * D
     end
-    return HamiltonianKspace(position_k.domain, A)
-end
-
-function transform_gauge(position_k::PositionKspace, hamiltonian_R::HamiltonianRspace)
-    _, U, _, D = compute_D_matrix(hamiltonian_R, position_k.domain)
-    return transform_gauge(position_k, U, D)
+    return A_k
 end
 
 """
@@ -78,26 +95,9 @@ Compute the matrix D in YWVS Eq. 25 (or Eq. 32 if `degen_pert = true`).
     simultaneously all the three directions.
 """
 function compute_D_matrix(
-    hamiltonian_R::HamiltonianRspace,
-    kpoints::Union{AbstractVector,AbstractKpointContainer};
-    degen_pert::Bool=default_w90_berry_use_degen_pert(),
-    degen_tol::Real=default_w90_berry_degen_tol(),
-)
-    H_k = invfourier(hamiltonian_R, kpoints)
-    RH_R = zeros(hamiltonian_R)
-    lattice = real_lattice(hamiltonian_R)
-    map(1:nRvecs) do iR
-        # to Cartesian in angstrom
-        RH_R[iR] .= im * (lattice * hamiltonian_R.domain[iR]) * hamiltonian_R[iR]
-    end
-    RH_k = invfourier(RH_R, kpoints)
-    return compute_D_matrix(H_k, RH_k, kpoints; degen_pert, degen_tol)
-end
-
-function compute_D_matrix(
     H_k::AbstractVector,
     RH_k::AbstractVector,
-    kpoints;
+    kpoints::AbstractVector;
     degen_pert::Bool=default_w90_berry_use_degen_pert(),
     degen_tol::Real=default_w90_berry_degen_tol(),
 )
@@ -107,9 +107,7 @@ function compute_D_matrix(
     T = eltype(H_k[1])
 
     # first, need Hamiltonian eigenvalues and eigenvectors
-    eigvalvecs = eigen.(H_k)
-    eigvals = [x.values for x in eigvalvecs]
-    U = [x.vectors for x in eigvalvecs]
+    eigvals, U = eigen(H_k)
 
     # the covariant part of Hamiltonian gauge dH, i.e., dHᴴ = U† dHᵂ U
     # also the ``\bar{H}_{\alpha}^{(H)}`` in YWVS Eq. 26

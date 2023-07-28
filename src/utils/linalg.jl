@@ -1,5 +1,11 @@
 export orthonorm_lowdin,
-    identity_gauge, zero_gauge, rand_gauge, merge_gauge, zero_overlap, isunitary
+    identity_gauge,
+    zeros_gauge,
+    rand_gauge,
+    merge_gauge,
+    zeros_overlap,
+    zeros_eigenvalues,
+    isunitary
 
 """
     $(SIGNATURES)
@@ -118,16 +124,16 @@ Allocate gauge matrix `U` filled with zeros.
 
 See also [`identity_gauge`](@ref).
 """
-function zero_gauge end
+function zeros_gauge end
 
-function zero_gauge(T::Type, nkpts::Integer, nbands::Integer, nwann::Integer)
+function zeros_gauge(T::Type, nkpts::Integer, nbands::Integer, nwann::Integer)
     return map(1:nkpts) do _
         zeros(T, nbands, nwann)
     end
 end
 
-function zero_gauge(T::Type, nkpts::Integer, nwann::Integer)
-    return zero_gauge(T, nkpts, nwann, nwann)
+function zeros_gauge(T::Type, nkpts::Integer, nwann::Integer)
+    return zeros_gauge(T, nkpts, nwann, nwann)
 end
 
 """
@@ -186,12 +192,24 @@ Allocate overlap `M` matrices filled with zeros.
 The `M` can be accessed by `M[ik][ib][m, n]`, where `ik`, `ib`, `m`, `n` are
 the indices of kpoints, b-vectors, bands, and WFs, respectively.
 """
-function zero_overlap(T::Type, nkpts::Integer, nbvecs::Integer, nbands::Integer)
+function zeros_overlap(T::Type, nkpts::Integer, nbvecs::Integer, nbands::Integer)
     return map(1:nkpts) do _
         map(1:nbvecs) do _
             zeros(T, nbands, nbands)
         end
     end
+end
+
+"""
+    $(SIGNATURES)
+
+Allocate eigenvalues matrices filled with zeros.
+
+The returned `E` can be accessed by `E[ik][m]`, where `ik`, `m` are the indices
+of kpoints and bands, respectively.
+"""
+function zeros_eigenvalues(T::Type, nkpts::Integer, nwann::Integer)
+    return [zeros(T, nwann) for _ in 1:nkpts]
 end
 
 """
