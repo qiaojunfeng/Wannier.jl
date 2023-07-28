@@ -33,7 +33,7 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool=true)
         @assert kstencil.kpb_k == kpb_k_mmn "auto generated kpb_k are different from mmn file"
         @assert kstencil.kpb_G == kpb_G_mmn "auto generated kpb_G are different from mmn file"
     else
-        overlaps = zero_overlap(ComplexF64, nkpts, nbvecs, nbands)
+        overlaps = zeros_overlap(ComplexF64, nkpts, nbvecs, nbands)
         @warn "$prefix.mmn file does not exist, set M to zeros"
     end
 
@@ -46,7 +46,7 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool=true)
         @assert nkpts == length(gauges) "different n_kpoints in amn and win files"
         @assert (nbands, nwann) == size(gauges[1]) "different n_bands or n_wannier in amn and win files"
     else
-        gauges = zero_gauge(ComplexF64, nkpts, nbands, nwann)
+        gauges = zeros_gauge(ComplexF64, nkpts, nbands, nwann)
         @warn "$prefix.amn file does not exist, set U to zeros"
     end
 

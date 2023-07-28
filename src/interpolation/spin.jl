@@ -1,40 +1,57 @@
-export SpinRspace, SpinKspace
+export TBSpin, SpinInterpolator
 
-"""
-    $(TYPEDEF)
-
-A struct representing tight-binding spin operator in R-space.
-
-# Fields
-$(FIELDS)
+"""A struct representing tight-binding spin operator in R-space.
 
 !!! note
 
-    This is defined in the same way as [`PositionRspace`](@ref), however,
-    since the spin operator and position operator transform differently
-    under gauge transformation, we define them separately so that they can
-    be dispatched differently.
+    This is defined in the same way as [`TBPosition`](@ref). However, note that
+    the spin operator and position operator transform differently under gauge
+    transformation, see [`SpinInterpolator`](@ref) for details.
 """
-struct SpinRspace{M<:AbstractMatrix} <: AbstractOperatorRspace
-    """the R-space domain (or called R-vectors) on which the operator is defined"""
-    domain::BareRspaceDomain
+const TBSpin{T} = TBOperator{Matrix{MVec3{Complex{T}}}}
 
-    """The tight-binding operator defined on the domain."""
-    operator::Vector{M}
+function TBSpin(Rspace::BareRspace, operator::AbstractVector)
+    @assert !isempty(operator) "empty operator"
+    @assert !isempty(operator[1]) "empty operator"
+    @assert operator[1] isa AbstractMatrix "operator must be a matrix"
+    v = operator[1][1, 1]
+    @assert v isa AbstractVector && length(v) == 3 "each element must be 3-vector"
+    T = real(eltype(v))
+    return TBSpin{T}("Spin", Rspace, operator)
 end
 
 """
     $(TYPEDEF)
 
-A struct representing tight-binding spin operator on a kpoint grid.
+A struct for interpolating tight-binding spin operator on given kpoints.
 
 # Fields
 $(FIELDS)
 """
-struct SpinKspace{K<:AbstractKpointContainer,M<:AbstractMatrix} <: AbstractOperatorKspace{K}
-    """a [`KpointGrid`](@ref) or [`KpointList`](@ref) on which the operator is defined"""
-    domain::K
+struct SpinInterpolator{T} <: AbstractTBInterpolator
+    """R-space Hamiltonian.
+    Since we interpolate on kpoints in Bloch gauge, we need to store the Hamiltonain.
+    """
+    hamiltonian::TBHamiltonian{T}
 
-    """the tight-binding operator defined on the domain"""
-    operator::Vector{M}
+    """R-space spin operator."""
+    spin::TBSpin{T}
+end
+
+"""Interpolate the spin operator and transform it to Bloch gauge."""
+function (interp::SpinInterpolator)(kpoints::AbstractVector{<:AbstractVector}; kwargs...)
+    # R-space Hamiltonain
+    H_R = interp.hamiltonian
+    # k-space Hamiltonian
+    H_k = invfourier(H_R, kpoints)
+    # diagonalize
+    _, gauges = eigen(H_k)
+
+    # Wannier-gauge k-space spin operator
+    Sᵂ_k = invfourier(interp.position, kpoints)
+    # transform to Bloch gauge
+    S_k = map(zip(Sᵂ_k, gauges)) do (Sᵂ, U)
+        U' * Sᵂ * U
+    end
+    return S_k
 end

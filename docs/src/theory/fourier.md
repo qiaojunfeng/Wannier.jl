@@ -19,27 +19,27 @@ large-magnitude interactions (e.g., Hamiltonian ``H(\\mathbf{R})``) are
 included. Therefore, we have some special algorithms to generate the
 ``\\mathbf{R}``-space domain.
 
-Th function [`generate_Rspace_domain`] can generate two kinds of R-space domains, by providing an argument
+Th function [`generate_Rspace`] can generate two kinds of R-space domains, by providing an argument
 of type [`WannierInterpolationAlgorithm`](@ref):
 - [`WSInterpolation`](@ref): Wigner-Seitz interpolation,
-    returns a [`WSRspaceDomain`](@ref)
+    returns a [`WignerSeitzRspace`](@ref)
 - [`MDRSInterpolation`](@ref): minimal-distance replica selection interpolation,
-    returns a [`MDRSRspaceDomain`](@ref)
+    returns a [`MDRSRspace`](@ref)
 
 However, the details of how to place the R-vectors and setting their degeneracies
 are irrelevant to the Fourier / inverse Fourier transforms, therefore, we
 provide a function [`simplify`](@ref) that can convert each kind of RspaceDomain
-to a [`BareRspaceDomain`](@ref), enabling faster Fourier transforms.
+to a [`BareRspace`](@ref), enabling faster Fourier transforms.
 
 Depending on the type of RspaceDomain, there are three kinds of Fourier transform:
-- `BareRspaceDomain`: simple Fourier sum
+- `BareRspace`: simple Fourier sum
     ```math
     O_{mn}(\\mathbf{R}) = \\frac{1}{N_{\\mathbf{k}}}
     \\sum_{\\mathbf{k}} \\exp(-i {\\mathbf{k}} \\mathbf{R}) O_{mn}(\\mathbf{k}),
     ```
-- `WSRspaceDomain`: Wigner-Seitz interpolation, the forward Fourier transform
-    is the same as `BareRspaceDomain`,
-- `MDRSRspaceDomain`: minimal-distance replica selection interpolation
+- `WignerSeitzRspace`: Wigner-Seitz interpolation, the forward Fourier transform
+    is the same as `BareRspace`,
+- `MDRSRspace`: minimal-distance replica selection interpolation
     ```math
     O_{mn}(\\widetilde{ \\mathbf{R} }) =
     \\sum_{ \\mathbf{R} } \\frac{1}{\\mathcal{N}_{\\mathbf{R}} \\mathcal{N}_{mn \\mathbf{R}}}

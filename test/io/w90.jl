@@ -75,7 +75,6 @@ end
 end
 
 @testitem "read_w90_tb MDRS" begin
-    using Wannier: Vec3
     using Wannier.Datasets
     hamiltonian, position = Wannier.read_w90_tb(
         dataset"Si2_valence/reference/mdrs/Si2_valence"
@@ -83,8 +82,8 @@ end
 
     R1 = [-4, 0, 2]
     @test hamiltonian.Rvectors[1] == R1
-    H11_1 = 0.0042907509333333345 + 8.582822933333332e-9im
-    @test hamiltonian[1][1, 1] ≈ H11_1
-    P11_origin = [10.86105712 + 0.0im, -10.861059360000004 + 0.0im, -10.86105952 + 0.0im]
+    H111 = 0.0002681719333333333 + 5.364264333333333e-10im
+    @test hamiltonian[1][1, 1] ≈ H111
+    P11_origin = ComplexF64[0.67881607 + 0.0im, -0.67881621 + 0.0im, -0.67881622 + 0.0im]
     @test position[0, 0, 0][1, 1] ≈ P11_origin
 end

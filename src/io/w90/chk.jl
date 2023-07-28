@@ -58,7 +58,7 @@ function write_chk(
             Uml = map(v -> v', V)
         end
     else
-        Udis = zero_gauge(eltype(gauges), n_kpoints(model), n_wannier(model))
+        Udis = zeros_gauge(eltype(gauges), n_kpoints(model), n_wannier(model))
         Uml = gauges
     end
     overlaps = transform_gauge(model.overlaps, model.kstencil.kpb_k, gauges)

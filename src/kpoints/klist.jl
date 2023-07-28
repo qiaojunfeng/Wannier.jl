@@ -28,7 +28,7 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", klist::KpointList)
     @printf(io, "kpoint type         :  %s\n\n", nameof(typeof(klist)))
-    _print_recip_lattice(io, klist.recip_lattice)
+    show_recip_lattice(io, klist.recip_lattice)
     println(io)
     @printf(io, "n_kpoints   =  %d", n_kpoints(klist))
 end

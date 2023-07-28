@@ -43,8 +43,8 @@ Number of Wannier functions.
 function n_wannier end
 
 """
-    n_Rvectors(::AbstractRspaceDomain)
-    n_Rvectors(::AbstractOperatorRspace)
+    n_Rvectors(::AbstractRspace)
+    n_Rvectors(::TBOperator)
 
 Number of ``\\mathbf{R}``-vectors.
 """
