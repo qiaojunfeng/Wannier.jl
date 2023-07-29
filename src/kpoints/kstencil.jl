@@ -88,17 +88,7 @@ end
 Compare two `KspaceStencil` objects.
 """
 function Base.isapprox(a::KspaceStencil, b::KspaceStencil; kwargs...)
-    for f in propertynames(a)
-        va = getfield(a, f)
-        vb = getfield(b, f)
-
-        if va isa Vector
-            all(isapprox.(va, vb; kwargs...)) || return false
-        else
-            isapprox(va, vb; kwargs...) || return false
-        end
-    end
-    return true
+    return isapprox_struct(a, b; kwargs...)
 end
 
 """

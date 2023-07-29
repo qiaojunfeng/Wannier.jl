@@ -109,6 +109,10 @@ function Base.fill!(tb::TBOperator, x)
     end
 end
 
+function Base.isapprox(a::TBOperator, b::TBOperator; kwargs...)
+    return isapprox_struct(a, b; kwargs...)
+end
+
 """
     $(SIGNATURES)
 
@@ -230,7 +234,7 @@ function cut(tb::TBOperator, Rcut::Real)
     println("")
     idx_keep = normR .<= Rcut
     Rspace = BareRspace(tb.Rspace.lattice, deepcopy(tb.Rvectors[idx_keep]))
-    return TBOperator(Rspace, deepcopy(tb.operator[idx_keep]))
+    return TBOperator(tb.name, Rspace, deepcopy(tb.operator[idx_keep]))
 end
 
 """An abstract type that interpolate physical quantities from some
