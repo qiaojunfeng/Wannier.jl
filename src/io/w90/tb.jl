@@ -1,4 +1,4 @@
-export read_w90_tb
+export read_w90_tb, write_w90_tb
 
 """
     $(SIGNATURES)
@@ -52,4 +52,40 @@ function _raw_read_w90_tb(prefix::AbstractString)
     end
 
     return (; Rspace, hamiltonian=tbdat.H, position)
+end
+
+"""
+    $(SIGNATURES)
+
+Write a tight-binding model of Hamiltonian and position operator into
+`prefix_tb.dat` and `prefix_wsvec.dat` files.
+"""
+function write_w90_tb(prefix::AbstractString, hamiltonian::TBOperator, position::TBOperator)
+    @assert hamiltonian.Rspace == position.Rspace "R-space of hamiltonian and position are different"
+
+    # the operators are always BareRspace
+    WannierIO.write_w90_wsvec(
+        prefix * "_wsvec.dat"; hamiltonian.Rspace.Rvectors, n_wann=n_wannier(hamiltonian)
+    )
+
+    r_x = map(position.operator) do O
+        map(x -> x[1], O)
+    end
+    r_y = map(position.operator) do O
+        map(x -> x[2], O)
+    end
+    r_z = map(position.operator) do O
+        map(x -> x[3], O)
+    end
+    WannierIO.write_w90_tbdat(
+        prefix * "_tb.dat";
+        lattice=real_lattice(hamiltonian),
+        hamiltonian.Rspace.Rvectors,
+        Rdegens=ones(n_Rvectors(hamiltonian)),
+        H=hamiltonian.operator,
+        r_x,
+        r_y,
+        r_z,
+    )
+    return nothing
 end

@@ -54,24 +54,24 @@ include("localization/constrain_center/coopt.jl")
 ## Wannier interpolation
 include("interpolation/kpath.jl")
 include("interpolation/Rspace.jl")
+include("interpolation/operator.jl")
 
 # these are files for interpolation only, put them here since
-# they need structs defined in Rspace.jl
+# they need structs defined in previous files
 include("io/w90/tb.jl")
 include("io/w90/spn.jl")
 include("io/volume/xsf.jl")
 include("io/volume/cube.jl")
 include("io/volume/bxsf.jl")
 
-include("interpolation/operator.jl")
 include("interpolation/fourier.jl")
 include("interpolation/hamiltonian.jl")
+# include("interpolation/hamiltonian_gradient.jl")
+# include("interpolation/hamiltonian_hessian.jl")
 include("interpolation/position.jl")
 include("interpolation/spin.jl")
 
-# include("interpolation/real_space.jl")
 # include("interpolation/fermisurf.jl")
-# include("interpolation/derivative.jl")
 # include("interpolation/magmom.jl")
 
 # include("cli/main.jl")

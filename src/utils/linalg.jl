@@ -240,3 +240,20 @@ function compute_projectability(U::AbstractVector)
         return real(diag(p))
     end
 end
+
+"""Compare two structs recursively using `isapprox`."""
+function isapprox_struct(a, b; kwargs...)
+    for f in propertynames(a)
+        va = getproperty(a, f)
+        vb = getproperty(b, f)
+
+        if va isa Vector
+            all(isapprox.(va, vb; kwargs...)) || return false
+        elseif va isa String
+            va == vb || return false
+        else
+            isapprox(va, vb; kwargs...) || return false
+        end
+    end
+    return true
+end

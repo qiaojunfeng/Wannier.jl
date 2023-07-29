@@ -88,6 +88,21 @@ end
     @test position[0, 0, 0][1, 1] ≈ P11_origin
 end
 
+@testitem "write_w90_tb" begin
+    using Wannier.Datasets
+    hamiltonian, position = Wannier.read_w90_tb(
+        dataset"Si2_valence/reference/mdrs/Si2_valence"
+    )
+
+    outdir = mktempdir(; cleanup=true)
+    outprefix = joinpath(outdir, "Si2_valence")
+    write_w90_tb(outprefix, hamiltonian, position)
+
+    hamiltonian2, position2 = Wannier.read_w90_tb(outprefix)
+    @test hamiltonian ≈ hamiltonian2
+    @test position ≈ position2
+end
+
 @testitem "read_w90_tb_chk_spn" begin
     using Wannier.Datasets
     using Wannier: Vec3
