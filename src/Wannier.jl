@@ -66,12 +66,11 @@ include("io/volume/bxsf.jl")
 
 include("interpolation/fourier.jl")
 include("interpolation/hamiltonian.jl")
-# include("interpolation/hamiltonian_gradient.jl")
-# include("interpolation/hamiltonian_hessian.jl")
 include("interpolation/position.jl")
+include("interpolation/hamiltonian_gradient.jl")
+include("interpolation/hamiltonian_hessian.jl")
 include("interpolation/spin.jl")
 
-# include("interpolation/fermisurf.jl")
 # include("interpolation/magmom.jl")
 
 # include("cli/main.jl")

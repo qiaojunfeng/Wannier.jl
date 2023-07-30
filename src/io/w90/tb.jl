@@ -35,7 +35,7 @@ end
 function _raw_read_w90_tb(prefix::AbstractString)
     wsvec = read_w90_wsvec(prefix * "_wsvec.dat")
     tbdat = read_w90_tbdat(prefix * "_tb.dat")
-    @assert wsvec.Rvectors == tbdat.Rvectors "R-vectors in tb.dat and wsvec.dat are not identical"
+    @assert wsvec.Rvectors ≈ tbdat.Rvectors "R-vectors in tb.dat and wsvec.dat are not identical"
 
     if wsvec.mdrs
         Rspace = MDRSRspace(

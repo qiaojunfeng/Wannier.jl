@@ -4,14 +4,14 @@ using Comonicon
 # it seems Comonicon returns wrong doc when there are multiple
 # functions having the same name.
 
-include("max_localize.jl")
-include("disentangle.jl")
-include("parallel_transport.jl")
-include("opt_rotate.jl")
-include("split_wannierize.jl")
-include("truncate.jl")
+# include("max_localize.jl")
+# include("disentangle.jl")
+# include("parallel_transport.jl")
+# include("opt_rotate.jl")
+# include("split_wannierize.jl")
+# include("truncate.jl")
 include("band.jl")
-include("fermisurf.jl")
+include("fermi_surface.jl")
 
 """
 Julia package for Wannier functions.

@@ -45,20 +45,7 @@ end
 function (interp::PositionInterpolator)(
     kpoints::AbstractVector{<:AbstractVector}; kwargs...
 )
-    # R-space Hamiltonain
-    H_R = interp.hamiltonian
-    # k-space Hamiltonian
-    H_k = invfourier(H_R, kpoints)
-
-    RH_R = zeros(H_R)
-    lattice = real_lattice(H_R)
-    map(1:nRvecs) do iR
-        # to Cartesian in angstrom
-        RH_R[iR] .= im * (lattice * H_R.Rspace[iR]) * H_R[iR]
-    end
-    RH_k = invfourier(RH_R, kpoints)
-
-    _, gauges, _, D_matrices = compute_D_matrix(H_k, RH_k, kpoints; kwargs...)
+    _, gauges, _, D_matrices = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
 
     # gauge-covariant part of k-space position operator
     Aᵂ_k = invfourier(interp.position, kpoints)
@@ -127,18 +114,18 @@ function compute_D_matrix(
     for ik in 1:nkpts
         # derivative of Hamiltonain dH = [dH/dkx, dH/dky, dH/dkz]
         # in Wannier gauge, at kpoint k
-        dHᵂₖ = @view RH_k[ik]
+        dHᵂₖ = RH_k[ik]
         # to Bloch gauge, dHₖ = U† dHᵂₖ U
-        Uₖ = @view U[ik]
+        Uₖ = U[ik]
         dH[ik] .= Uₖ' * dHᵂₖ * Uₖ
 
         # the D matrix
         Δε = eigvals[ik] .- eigvals[ik]'
         # assign a nonzero number to the diagonal elements for inversion
         Δε[diagind(Δε)] .= 1
-        Dₖ = @view D[ik]
+        Dₖ = D[ik]
         Dₖ .= dH[ik] ./ (-Δε)
-        Dₖ[diagind(Dₖ)] .= 0
+        Dₖ[diagind(Dₖ)] .= Ref([0, 0, 0])
 
         # TODO: maybe it is helpful to run at least once the perturbation treatment
         # for one Cartesian direction, to avoid vanishing denominator in D matrix
@@ -180,4 +167,24 @@ function compute_D_matrix(
     end
 
     return eigvals, U, dH, D
+end
+
+function compute_D_matrix(hamiltonian::TBOperator, kpoints::AbstractVector; kwargs...)
+    # R-space Hamiltonain
+    H_R = hamiltonian
+    # k-space Hamiltonian
+    H_k = invfourier(H_R, kpoints)
+
+    RH_R = zeros(H_R)
+    lattice = real_lattice(H_R)
+    RH_R = map(zip(H_R.Rspace, H_R)) do (R, H)
+        # to Cartesian in angstrom, result indexed by RH_R[iR][m, n][α], where
+        # - iR is the index of Rvectors
+        # - m, n are the indices of Wannier functions
+        # - α ∈ {1, 2, 3} is the Cartesian direction for x, y, z
+        Ref(im * (lattice * R)) .* H
+    end
+    RH_k = invfourier(hamiltonian.Rspace, RH_R, kpoints)
+
+    return compute_D_matrix(H_k, RH_k, kpoints; kwargs...)
 end
