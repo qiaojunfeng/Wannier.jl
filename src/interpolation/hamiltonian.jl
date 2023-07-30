@@ -81,17 +81,19 @@ end
     return nothing
 end
 
-function LinearAlgebra.eigen(hamiltonian::AbstractVector{<:AbstractMatrix})
+function LinearAlgebra.eigen!(
+    eigenvals::AbstractVector{<:AbstractVector},
+    eigenvecs::AbstractVector{<:AbstractMatrix},
+    hamiltonian::AbstractVector{<:AbstractMatrix},
+)
     @assert length(hamiltonian) > 0 "empty hamiltonian"
     T = eltype(hamiltonian[1])
     nkpts = length(hamiltonian)
     nwann = size(hamiltonian[1], 1)
 
-    caches = [HermitianEigenWs(zeros(T, nwann, nwann)) for _ in 1:Threads.nthreads()]
-    progress = Progress(nkpts, 1, "Diagonalizing H(k)...")
-
-    eigenvals = zeros_eigenvalues(real(T), nkpts, nwann)
-    eigenvecs = zeros_gauge(T, nkpts, nwann)
+    n_threads = Threads.nthreads()
+    caches = [HermitianEigenWs(zeros(T, nwann, nwann)) for _ in 1:n_threads]
+    progress = Progress(nkpts, 1, "Diagonalizing matrices using $n_threads threads...")
 
     Threads.@threads for ik in 1:nkpts
         tid = Threads.threadid()
@@ -103,5 +105,16 @@ function LinearAlgebra.eigen(hamiltonian::AbstractVector{<:AbstractMatrix})
         # eigenvecs[ik] .= e.vectors
         next!(progress)
     end
+    return nothing
+end
+
+function LinearAlgebra.eigen(hamiltonian::AbstractVector{<:AbstractMatrix})
+    nkpts = length(hamiltonian)
+    @assert nkpts > 0 "empty hamiltonian"
+    nwann = size(hamiltonian[1], 1)
+    T = eltype(hamiltonian[1])
+    eigenvals = zeros_eigenvalues(real(T), nkpts, nwann)
+    eigenvecs = zeros_gauge(T, nkpts, nwann)
+    eigen!(eigenvals, eigenvecs, hamiltonian)
     return eigenvals, eigenvecs
 end

@@ -95,8 +95,12 @@ function Base.getindex(tb::TBOperator, x::Integer, y::Integer, z::Integer)
 end
 
 function Base.zeros(tb::TBOperator)
-    return TBOperator("", tb.Rspace, [zeros(tb.operator[1]) for _ in 1:n_Rvectors(tb)])
+    @assert length(tb) > 0 "empty operator"
+    T = eltype(tb.operator[1])
+    s = size(tb.operator[1])
+    return TBOperator("zeros", tb.Rspace, [zeros(T, s) for _ in 1:length(tb)])
 end
+
 function Base.fill!(tb::TBOperator, x)
     for O in tb.operator
         if eltype(O) <: AbstractArray
@@ -260,9 +264,11 @@ I cannot define a function like this, because this will cause method ambiguity:
 end
 =#
 
-@inline function (interp::AbstractTBInterpolator)(kpoint::AbstractVector{<:Real}; kwargs...)
+@inline function (interp::AbstractTBInterpolator)(
+    kpoint::AbstractVector{<:Real}, args...; kwargs...
+)
     # unwrap results
-    result = interp([kpoint]; kwargs...)
+    result = interp([kpoint], args...; kwargs...)
     if length(result) == 1
         return result[1]
     else
