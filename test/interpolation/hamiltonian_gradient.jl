@@ -1,6 +1,6 @@
 @testitem "VelocityInterpolator FiniteDifferenceVelocity" begin
     using Wannier.Datasets
-    hamiltonian, _ = read_w90_tb(dataset"Si2_valence/reference/mdrs/Si2_valence")
+    hamiltonian, _ = read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence")
     interp = Wannier.VelocityInterpolator(hamiltonian)
 
     # choose a random k-point such that there is no degeneracy
@@ -18,7 +18,7 @@ end
 
 @testitem "VelocityInterpolator FourierSpaceVelocity" begin
     using Wannier.Datasets
-    hamiltonian, _ = read_w90_tb(dataset"Si2_valence/reference/mdrs/Si2_valence")
+    hamiltonian, _ = read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence")
     interp = Wannier.VelocityInterpolator(hamiltonian)
 
     k = [0.1, 0.2, 0.3]
@@ -31,7 +31,7 @@ end
 @testitem "HamiltonianGradientInterpolator" begin
     using LinearAlgebra
     using Wannier.Datasets
-    hamiltonian, _ = read_w90_tb(dataset"Si2_valence/reference/mdrs/Si2_valence")
+    hamiltonian, _ = read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence")
     interp = Wannier.HamiltonianGradientInterpolator(hamiltonian)
 
     k = [0.1, 0.2, 0.3]

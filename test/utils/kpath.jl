@@ -42,7 +42,7 @@ end
     win = read_win(dataset"Si2/Si2.win")
     lattice = win.unit_cell_cart
     recip_lattice = reciprocal_lattice(lattice)
-    ref_kpi, _ = read_w90_band(dataset"Si2/reference/Si2", recip_lattice)
+    ref_kpi, _ = read_w90_band(dataset"Si2/reference/WS/Si2", recip_lattice)
 
     # number of points along the 1st segment
     n_points = 100
@@ -76,7 +76,7 @@ end
     using Wannier.Datasets
     win = read_win(dataset"Si2/Si2.win")
     lattice = win.unit_cell_cart
-    banddat = WannierIO.read_w90_band_dat(dataset"Si2/reference/Si2_band.dat")
+    banddat = WannierIO.read_w90_band_dat(dataset"Si2/reference/WS/Si2_band.dat")
 
     kpoint_path = generate_kpath(lattice, win.kpoint_path)
     kpi = Wannier.generate_w90_kpoint_path(kpoint_path)
