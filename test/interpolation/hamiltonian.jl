@@ -6,7 +6,7 @@
     hamiltonian = TBHamiltonian(model; MDRS=false)
     interp = HamiltonianInterpolator(hamiltonian)
 
-    ref_band = read_w90_band(dataset"Si2_valence/reference/ws/Si2_valence")
+    ref_band = read_w90_band(dataset"Si2_valence/reference/WS/Si2_valence")
     # if I use the kpoints in ref_band, the difference between eigenvalues is
     # around 2e-5, this is because the kpoints coordinates do not have enough
     # digits. Therefore, I read the win file and construct the kpoints myself.
@@ -25,10 +25,8 @@ end
     hamiltonian = TBHamiltonian(model)
     interp = HamiltonianInterpolator(hamiltonian)
 
-    # ref_band = read_w90_band(dataset"Si2_valence/reference/MDRS/Si2_valence")
-    ref_band = read_w90_band(
-        expanduser("~/git/WannierDatasets/datasets/Si2_valence/reference/MDRS/Si2_valence")
-    )
+    ref_band = read_w90_band(dataset"Si2_valence/reference/MDRS/Si2_valence")
+
     # if I use the kpoints in ref_band, the difference between eigenvalues is
     # around 2e-5, this is because the kpoints coordinates do not have enough
     # digits. Therefore, I read the win file and construct the kpoints myself.

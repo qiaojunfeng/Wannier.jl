@@ -42,7 +42,7 @@ end
     win = read_win(dataset"Si2_valence/Si2_valence.win")
     recip_lattice = reciprocal_lattice(win.unit_cell_cart)
     kpi, eigenvalues = read_w90_band(
-        dataset"Si2_valence/reference/mdrs/Si2_valence", recip_lattice
+        dataset"Si2_valence/reference/MDRS/Si2_valence", recip_lattice
     )
 
     outdir = mktempdir(; cleanup=true)
@@ -59,7 +59,7 @@ end
 
 @testitem "read_w90_tb WS" begin
     using Wannier.Datasets
-    hamiltonian, position = read_w90_tb(dataset"Si2_valence/reference/ws/Si2_valence")
+    hamiltonian, position = read_w90_tb(dataset"Si2_valence/reference/WS/Si2_valence")
 
     # just some simple tests
     R1 = [-4, 0, 2]
@@ -77,7 +77,7 @@ end
 @testitem "read_w90_tb MDRS" begin
     using Wannier.Datasets
     hamiltonian, position = Wannier.read_w90_tb(
-        dataset"Si2_valence/reference/mdrs/Si2_valence"
+        dataset"Si2_valence/reference/MDRS/Si2_valence"
     )
 
     R1 = [-4, 0, 2]
@@ -91,7 +91,7 @@ end
 @testitem "write_w90_tb" begin
     using Wannier.Datasets
     hamiltonian, position = Wannier.read_w90_tb(
-        dataset"Si2_valence/reference/mdrs/Si2_valence"
+        dataset"Si2_valence/reference/MDRS/Si2_valence"
     )
 
     outdir = mktempdir(; cleanup=true)
@@ -106,31 +106,28 @@ end
 @testitem "read_w90_tb_chk_spn" begin
     using Wannier.Datasets
     using Wannier: Vec3
-    # hamiltonian, position, spin = Wannier.read_w90_tb_chk_spn(
-    #     dataset"Fe/reference/Fe";
-    #     spn=dataset"Fe/Fe.spn",
-    # )
+
     hamiltonian, position, spin = Wannier.read_w90_tb_chk_spn(
-        expanduser("~/git/WannierDatasets/datasets/Fe/reference/MDRS/Fe");
-        chk=expanduser("~/git/WannierDatasets/datasets/Fe/reference/Fe.chk"),
-        spn=expanduser("~/git/WannierDatasets/datasets/Fe/Fe.spn"),
+        dataset"Fe/reference/MDRS/Fe";
+        chk=dataset"Fe/reference/Fe.chk",
+        spn=dataset"Fe/Fe.spn",
     )
 
     S11 = Vec3(
-        -4.648028910440591e-5 + 2.374737696435062e-5im,
-        -6.0301956322061204e-5 - 1.638901806984331e-5im,
-        -0.0001239322774898806 - 4.426989554163255e-7im,
+        -3.3504128887794515e-6 - 2.0695113970174982e-7im,
+        -2.1153719418182977e-7 + 3.2771390949182185e-6im,
+        -1.985800296833016e-6 - 3.2702207871264183e-9im,
     )
     S12 = Vec3(
-        1.5735137180138543e-5 - 3.721098851980894e-5im,
-        2.6168818950736308e-5 - 6.011199334516285e-5im,
-        -3.1928160018176935e-5 + 8.37424892167478e-5im,
+        3.2762283456795215e-6 - 3.574572112334792e-6im,
+        -5.393582227136275e-5 + 1.9806242535766845e-6im,
+        -6.841880799976521e-7 - 1.674838515661443e-5im,
     )
     S21 = Vec3(0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im)
     S22 = Vec3(
-        6.305695608742687e-6 + 1.0805021589902928e-6im,
-        9.374556752615726e-6 - 4.398377968713008e-7im,
-        -1.01162536765518e-5 - 1.7493947814005437e-7im,
+        3.275338208154498e-6 - 2.155010091165256e-7im,
+        2.0845504154119345e-7 + 3.4112795403105504e-6im,
+        -1.6876628611978443e-6 + 1.0699641168496235e-9im,
     )
     ref_S = [[S11, S21] [S12, S22]]
     @test spin[1][1:2, 1:2] ≈ ref_S

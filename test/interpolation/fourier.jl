@@ -1,6 +1,6 @@
 @testitem "fourier" begin
     using Wannier.Datasets
-    tbdat = read_w90_tbdat(dataset"Si2_valence/reference/ws/Si2_valence_tb.dat")
+    tbdat = read_w90_tbdat(dataset"Si2_valence/reference/WS/Si2_valence_tb.dat")
     ref_Hᴿ = tbdat.H
     Rspace = Wannier.WignerSeitzRspace(tbdat.lattice, tbdat.Rvectors, tbdat.Rdegens)
 
@@ -14,8 +14,8 @@ end
 
 @testitem "invfourier" begin
     using Wannier.Datasets
-    hamiltonian, position = read_w90_tb(dataset"Si2_valence/reference/ws/Si2_valence")
-    ref_band = read_w90_band(dataset"Si2_valence/reference/ws/Si2_valence")
+    hamiltonian, position = read_w90_tb(dataset"Si2_valence/reference/WS/Si2_valence")
+    ref_band = read_w90_band(dataset"Si2_valence/reference/WS/Si2_valence")
     kpoints = ref_band.kpoints
 
     Hᵏ = invfourier(hamiltonian, kpoints)
