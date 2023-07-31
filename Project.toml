@@ -20,6 +20,7 @@ NLSolversBase = "d41bc354-129a-5804-8e4c-c37616107c6c"
 NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
 OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
+PackageExtensionCompat = "65ce6f38-6b18-4e1d-a461-8949797d7930"
 PeriodicTable = "7b2266bf-644c-5ea3-82d8-af4bbd25a884"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
@@ -41,6 +42,7 @@ NLSolversBase = "7.8"
 NearestNeighbors = "0.4"
 OffsetArrays = "1.12"
 Optim = "1.7"
+PackageExtensionCompat = "1"
 PeriodicTable = "1.1"
 ProgressBars = "1.4"
 ProgressMeter = "1"
@@ -49,3 +51,9 @@ Spglib = "0.6"
 StaticArrays = "1"
 WannierIO = "0.2"
 julia = "1.8.4"
+
+[weakdeps]
+PlotlyJS = "f0f68f2c-4968-5e81-91da-67840de0976a"
+
+[extensions]
+WannierPlotlyJSExt = ["PlotlyJS"]
