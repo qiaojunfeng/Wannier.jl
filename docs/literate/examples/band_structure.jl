@@ -20,11 +20,6 @@ of silicon valence + conduction bands. A bit different from previous tutorials, 
 # Load the package
 using Wannier
 using Wannier.Datasets
-using WannierPlots
-#=
-The `WannierPlots` is a companion package of `Wannier.jl`, for plotting band structures,
-real space WFs, etc.
-=#
 
 #=
 ## Model construction
@@ -37,9 +32,10 @@ model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/reference/Si2.chk")
 # and check the spread to make sure our `Model` is sensible
 omega(model)
 
-# Now construct a [`HamiltonianRspace`](@ref) which contains the ``\mathbf{R}``-space
+# Now construct a tight-binding Hamiltonian, the [`TBHamiltonian`](@ref) function
+# returns a [`TBOperator`](@ref) struct, which contains the ``\mathbf{R}``-space
 # Wannier Hamiltonian, ``H(\mathbf{R})``.
-H = HamiltonianRspace(model; MDRS=false)
+hamiltonian = TBHamiltonian(model)
 
 #=
 !!! tip
@@ -47,8 +43,8 @@ H = HamiltonianRspace(model; MDRS=false)
     To avoid a bloated `Model` that contains everything, and to
     ["Do One Thing And Do It Well"](https://en.wikipedia.org/wiki/Unix_philosophy#Do_One_Thing_and_Do_It_Well),
     we separate on purpose the `Model` that is solely for Wannierization, and
-    the `Hamiltonian`, that is only used for Wannier interpolation of
-    tight-binding Hamiltonian.
+    the `TBOperator`, that is only used for Wannier interpolation of
+    tight-binding operators.
     This is also convenient for developers to focus on the the Wannierization or
     interpolation algorithm without being distracted by one or the other.
 
@@ -62,17 +58,18 @@ First read the `win` file,
 =#
 win = read_win(dataset"Si2/Si2.win")
 # the returned `win` is a `NamedTuple` that contains all the input tags in the `win` file.
+#
 # Then generate a `KPath` based on crystal structure and `kpoint_path` block,
-kpi = generate_w90_kpoint_path(win.unit_cell_cart, win.kpoint_path)
+kpath = generate_kpath(win.unit_cell_cart, win.kpoint_path)
 
 #=
 ### Auto generate kpath from lattice
 
 Another approach is to auto generate a kpath from the lattice, which can be
-either conventional or primitive, the function [`get_kpath`](@ref) will generate
+either conventional or primitive, the function [`generate_kpath`](@ref) will generate
 a correct kpath.
 =#
-kpath = generate_kpath(model)
+kpath_auto = generate_kpath(model)
 
 #=
 ### Set kpoint spacing along the kpath
@@ -83,46 +80,33 @@ in wannier90 `prefix_band.kpt` file.
 The function returns a `KPathInterpolant` object, containing a list of kpoint
 coordinates to be interpolated on,
 =#
-kpi_auto = Wannier.generate_w90_kpoint_path(kpath)
+kpi = Wannier.generate_w90_kpoint_path(kpath)
+
+# you can also directly pass the inputs in `win` file to directly genereate
+# the kpoints,
+kpi = generate_w90_kpoint_path(win.unit_cell_cart, win.kpoint_path)
 
 #=
 !!! tip
 
-    In comparison, the `KPath` only stores the high-symmetry kpoints and their labels.
+    In comparison, the `KPath` only stores the high-symmetry kpoints and their
+    labels, while the `KPathInterpolant` stores the kpoint coordinates.
 
 ## Band interpolation
 
-### Tips on interpolation algorithm
-
-There are two interpolation algorithms
-1. Wigner-Seitz (WS) interpolation
-2. Minimal-distance replica selection (MDRS) method
-
-In wannier90 input file, the `use_ws_distance` parameter determines which algorithm
-to use, and the default is `true`:
-1. if `use_ws_distance` is `true`, use MDRS
-2. if `use_ws_distance` is `false`, use WS
-
-Moreover, there are two versions of MDRS, i.e., `mdrsv1` and `mdrsv2` in the
-jargon of `Wannier.jl`. The `v2` is faster than `v1` so it is used by default.
-For details, see the API for interpolation,
-e.g., [`fourier`](@ref), [`invfourier`](@ref),
-[`_fourier_mdrs_v1`](@ref), [`_fourier_mdrs_v2`](@ref), [`_invfourier_mdrs_v1`](@ref), and
-[`_invfourier_mdrs_v2`](@ref), etc.
-
-If you are tech-savvy, you can even control the generation of `R` vectors for interpolation,
-this is useful for developing new
-interpolation algorithms, see
-[`get_Rvectors_mdrs`](@ref), [`get_Rvectors_ws`](@ref), etc.
+Computing band structure is very easy, we first construct a
+[`HamiltonianInterpolator`] from the `hamiltonian`,
 =#
+interp = HamiltonianInterpolator(hamiltonian)
 
 #=
-Computing band structure is very easy, by calling
-the [`interpolate`](@ref) function,
-it will return a `KPathInterpolant`, and the
-band eigen energies,
+the returned `interp` is a functor, i.e., under the hood is a Julia `struct`
+but can be called as a function: in our case, we can pass kpoint coordinates
+to the interpolator and it will return the interpolated eigenvalues and eigenvectors.
+We can either pass a vector of 3-vectors for fractional coordinates, or directly
+a `KPathInterpolant` object,
 =#
-eigenvalues = interpolate(kpi, H)
+eigenvalues, eigenvectors = interp(kpi)
 
 #=
 ## Plotting band structure
@@ -145,20 +129,23 @@ i.e., written files are
 ### Visualization in the Julia world
 
 Instead of saving, you can also plot the band structure by
-calling the `WannierPlots.plot_band` function,
+calling the [`Wannier.plot_band`](@ref) function.
 
-!!! note
-
-    This requires you having executed `using PlotlyJS`
+To activate the `plot_band` function, we need to first load `PlotlyJS` package,
 =#
-P = plot_band(kpi, eigenvalues)
+using PlotlyJS
+
+# then we can plot the band structure by
+P = plot_band(kpi, eigenvalues; win.fermi_energy)
 Main.HTMLPlot(P, 500) # hide
 #=
 Or, you can use the plotting functions provided by
 [`Brillouin.jl`](https://thchr.github.io/Brillouin.jl/stable/kpaths/#Band-structure),
-but requires a little bit transposation to size `(n_kpts, n_bands)`
+but requires a little bit transposation to a vector of length-`n_kpoints`, each
+elmenet is a length-`n_bands` vector
 =#
-P = plot(kpi, eigenvalues)
+eigenvalue_reshuffled = eachrow(reduce(hcat, eigenvalues))
+P = plot(kpi, eigenvalue_reshuffled)
 Main.HTMLPlot(P, 500) # hide
 
 #=
@@ -190,9 +177,10 @@ qe = WannierIO.read_qe_xml(dataset"Si2/reference/qe_bands.xml")
 P = plot_band_diff(kpi, qe.eigenvalues, eigenvalues)
 Main.HTMLPlot(P, 500) # hide
 #=
-As expected, the two band structures exactly overlaps. 🥳
+As expected, the Wannier-interpolated band structures nicely reproduce
+DFT bands.
 =#
 
 #=
-Well done! You have finished the first Wannier interpolation.
+Well done! You have finished the first Wannier interpolation 🥳.
 =#
