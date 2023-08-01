@@ -63,6 +63,9 @@ struct Model{T<:Real}
     each element is a length-`n_bands` BitVector. If `true` the the state at that
     kpoint and band index participates the disentanglement procedure."""
     entangled_bands::Vector{BitVector}
+
+    """Spread functional"""
+    terms::Vector{AbstractSpreadTerm}
 end
 
 # expose the fields of kstencil for convenience

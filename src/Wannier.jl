@@ -25,7 +25,6 @@ include("kpoints/kstencil_shell.jl")
 include("kpoints/kstencil.jl")
 
 include("model.jl")
-include("spread.jl")
 
 include("io/w90/win.jl")
 include("io/w90/nnkp.jl")
@@ -40,6 +39,7 @@ include("io/interface/orbital_magnetization.jl")
 
 include("Datasets.jl")
 
+include("localization/spread.jl")
 include("localization/gauge.jl")
 include("localization/max_localize.jl")
 include("localization/disentangle.jl")

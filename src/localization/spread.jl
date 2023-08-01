@@ -1,5 +1,3 @@
-using LinearAlgebra
-
 export omega, omega_grad, center, SpreadPenalty, CenterSpreadPenalty
 
 abstract type AbstractSpread end
