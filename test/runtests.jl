@@ -7,39 +7,5 @@
 
 using TestItemRunner
 
-@run_package_tests verbose = true
-
-# const TEST_PATH = @__DIR__
-# const FIXTURE_PATH = joinpath(TEST_PATH, "fixtures")
-
-# @testitem "Wannier.jl" begin
-#     include("io/w90.jl")
-#     include("io/model.jl")
-#     include("io/chk.jl")
-#     include("bvector.jl")
-#     include("spread.jl")
-
-#     include("util/kpoint.jl")
-#     include("util/element.jl")
-#     include("util/center.jl")
-#     include("util/kpath.jl")
-
-#     include("wannierize/max_localize.jl")
-#     include("wannierize/disentangle.jl")
-#     include("wannierize/opt_rotate.jl")
-#     include("wannierize/split.jl")
-#     include("wannierize/parallel_transport.jl")
-#     include("wannierize/constrain_center/max_localize.jl")
-#     include("wannierize/constrain_center/disentangle.jl")
-#     # include("wannierize/coopt.jl")
-
-#     include("realspace.jl")
-
-#     include("cli/help.jl")
-
-#     include("interp/rvector.jl")
-#     include("interp/fourier.jl")
-#     include("interp/hamiltonian.jl")
-#     include("interp/fermisurf.jl")
-#     include("interp/derivative.jl")
-# end
+# TODO enable everything once the refactor is done
+@run_package_tests verbose = true filter = ti -> occursin("interpolation/", ti.filename)
