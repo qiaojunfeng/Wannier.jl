@@ -1,94 +1,106 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Foreword to the examples · Wannier.jl</title><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">Wannier.jl</a></span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../start/">Getting Started</a></li><li><span class="tocitem">Examples</span></li><li><span class="tocitem">Theory</span><ul><li><a class="tocitem" href="../theory/algorithm/">Algorithm</a></li><li><a class="tocitem" href="../theory/normalization/">Normalization</a></li><li><a class="tocitem" href="../theory/initial_projection/">Initial projection</a></li></ul></li><li><span class="tocitem">API</span><ul><li><a class="tocitem" href="../api/util/">Utility</a></li><li><a class="tocitem" href="../api/io/">Input/Output</a></li><li><a class="tocitem" href="../api/bvector/">B vector</a></li><li><a class="tocitem" href="../api/model/">Model</a></li><li><a class="tocitem" href="../api/wannierize/">Wannierize</a></li><li><a class="tocitem" href="../api/interpolation/">Interpolation</a></li><li><a class="tocitem" href="../api/realspace/">Real space</a></li><li><a class="tocitem" href="../api/cli/">Command line</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Foreword to the examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Foreword to the examples</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/qiaojunfeng/Wannier.jl/blob/main/docs/src/examples_foreword.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Foreword-to-the-examples"><a class="docs-heading-anchor" href="#Foreword-to-the-examples">Foreword to the examples</a><a id="Foreword-to-the-examples-1"></a><a class="docs-heading-anchor-permalink" href="#Foreword-to-the-examples" title="Permalink"></a></h1><p>If you have already been familiar with the Wannierization workflow using Wannierization workflow using Quantum ESPRESSO and wannier90, the following examples should be easy to follow. As a side note, some good wannier90 tutorials can be found at</p><ul><li><code>examples</code> and <code>tutorials.pdf</code> of <a href="https://github.com/wannier-developers/wannier90/tree/develop/examples"><code>Wannier90</code></a></li><li><a href="https://github.com/wannier-developers/wannier-tutorials">https://github.com/wannier-developers/wannier-tutorials</a></li></ul><div class="admonition is-warning"><header class="admonition-header">Warning</header><div class="admonition-body"><p>In this repo, the convergence parameters (kpoint sampling, ...) when generating the input files (e.g., <code>amn</code>/<code>mmn</code>/<code>eig</code>/...) are quite loose! This is on purpose to reduce storage size and save computational time. Thus, it is expected that the band interpolation might have some defects.</p><p>In real applications, one should always run calculations with production-quality convergence parameters for high-quality band interpolations.</p></div></div><h2 id="WannierDatasets"><a class="docs-heading-anchor" href="#WannierDatasets">WannierDatasets</a><a id="WannierDatasets-1"></a><a class="docs-heading-anchor-permalink" href="#WannierDatasets" title="Permalink"></a></h2><p>Throughout the examples, we need to load input files to construct <code>Model</code>s for Wannierizations. Often, preparing these input files requires density-functional-theory calculations which can be time-consuming, and distracting ourselves from the main purpose of Wannierizations and Wannier interpolations.</p><p>Julia has a convenient <a href="https://pkgdocs.julialang.org/v1/artifacts/"><code>artifact</code></a> system allowing us to load binaries or data files easily in Julia script or REPL, without the need of manually downloading and placing them in the right folder.</p><p>In <code>Wannier.jl</code>, we use such system to load our pre-computed <a href="https://github.com/qiaojunfeng/WannierDatasets"><code>WannierDatasets</code></a>, which contains some typical materials, e.g., silicon, copper, graphene, etc. This allows easy loading of input files and construct Wannier functions hassle-free.</p><p>The <code>Wannier.Datasets</code> submodule provides several functions to help inspect and load the datasets. First, we need to <code>using</code> the submodule to bring the functions into scope</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; using Wannier.Datasets</code><code class="nohighlight hljs ansi" style="display:block;"></code></pre><p>List all available datasets by</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; list_datasets()</code><code class="nohighlight hljs ansi" style="display:block;">7-element Vector{String}:
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Foreword to the examples · Wannier.jl</title><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">Wannier.jl</a></span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../start/">Getting Started</a></li><li><span class="tocitem">Examples</span></li><li><span class="tocitem">Theory</span><ul><li><a class="tocitem" href="../theory/normalization/">Normalization</a></li><li><a class="tocitem" href="../theory/discretization/"><span>$k$</span>-space Discretization</a></li><li><a class="tocitem" href="../theory/initial_projection/">Initial projection</a></li><li><a class="tocitem" href="../theory/algorithm/">Localization</a></li><li><a class="tocitem" href="../theory/fourier/">Wannier Interpolation</a></li></ul></li><li><span class="tocitem">API</span><ul><li><a class="tocitem" href="../api/util/">Utility</a></li><li><a class="tocitem" href="../api/io/">Input/Output</a></li><li><a class="tocitem" href="../api/model/">Model</a></li><li><a class="tocitem" href="../api/bvector/"><span>$b$</span>-vector</a></li><li><a class="tocitem" href="../api/wannierize/">Localization</a></li><li><a class="tocitem" href="../api/realspace/">Real space</a></li><li><a class="tocitem" href="../api/interpolation/">Interpolation</a></li><li><a class="tocitem" href="../api/cli/">Command line</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Foreword to the examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Foreword to the examples</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/qiaojunfeng/Wannier.jl/blob/main/docs/src/examples_foreword.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Foreword-to-the-examples"><a class="docs-heading-anchor" href="#Foreword-to-the-examples">Foreword to the examples</a><a id="Foreword-to-the-examples-1"></a><a class="docs-heading-anchor-permalink" href="#Foreword-to-the-examples" title="Permalink"></a></h1><p>If you have already been familiar with the Wannierization workflow using Wannierization workflow using Quantum ESPRESSO and wannier90, the following examples should be easy to follow. As a side note, some good wannier90 tutorials can be found at</p><ul><li><code>examples</code> and <code>tutorials.pdf</code> of <a href="https://github.com/wannier-developers/wannier90/tree/develop/examples"><code>Wannier90</code></a></li><li><a href="https://github.com/wannier-developers/wannier-tutorials">https://github.com/wannier-developers/wannier-tutorials</a></li></ul><div class="admonition is-warning"><header class="admonition-header">Warning</header><div class="admonition-body"><p>In this repo, the convergence parameters (kpoint sampling, ...) when generating the input files (e.g., <code>amn</code>/<code>mmn</code>/<code>eig</code>/...) are quite loose! This is on purpose to reduce storage size and save computational time. Thus, it is expected that the band interpolation might have some defects.</p><p>In real applications, one should always run calculations with production-quality convergence parameters for high-quality band interpolations.</p></div></div><h2 id="WannierDatasets"><a class="docs-heading-anchor" href="#WannierDatasets">WannierDatasets</a><a id="WannierDatasets-1"></a><a class="docs-heading-anchor-permalink" href="#WannierDatasets" title="Permalink"></a></h2><p>Throughout the examples, we need to load input files to construct <code>Model</code>s for Wannierizations. Often, preparing these input files requires density-functional-theory calculations which can be time-consuming, and distracting ourselves from the main purpose of Wannierizations and Wannier interpolations.</p><p>Julia has a convenient <a href="https://pkgdocs.julialang.org/v1/artifacts/"><code>artifact</code></a> system allowing us to load binaries or data files easily in Julia script or REPL, without the need of manually downloading and placing them in the right folder.</p><p>In <code>Wannier.jl</code>, we use such system to load our pre-computed <a href="https://github.com/qiaojunfeng/WannierDatasets"><code>WannierDatasets</code></a>, which contains some typical materials, e.g., silicon, copper, graphene, etc. This allows easy loading of input files and construct Wannier functions hassle-free.</p><p>The <code>Wannier.Datasets</code> submodule provides several functions to help inspect and load the datasets. First, we need to <code>using</code> the submodule to bring the functions into scope</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; using Wannier.Datasets</code><code class="nohighlight hljs ansi" style="display:block;"></code></pre><p>List all available datasets by</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; list_datasets()</code><code class="nohighlight hljs ansi" style="display:block;">9-element Vector{String}:
  &quot;Cu&quot;
  &quot;CuBr2&quot;
  &quot;Si2_valence&quot;
  &quot;CrI3&quot;
+ &quot;SnSe2&quot;
+ &quot;Fe&quot;
  &quot;Si2&quot;
  &quot;MoS2&quot;
  &quot;graphene&quot;</code></pre><p>Load a dataset into a <code>Wannier.jl</code> <a href="../api/model/#Wannier.Model"><code>Model</code></a> by</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; model = load_dataset(&quot;Si2&quot;)</code><code class="nohighlight hljs ansi" style="display:block;"> Downloading artifact: Si2
 ┌ Info: Reading win file
-│   filename = &quot;/home/runner/.julia/artifacts/137d9414be716de582ab2d70e99a7e19988001d4/Si2.win&quot;
+│   filename = &quot;/home/runner/.julia/artifacts/341c9869e56314d0154151129eca5c105cdc968e/Si2.win&quot;
 │   num_wann = 8
 │   num_bands = 16
 └   mp_grid = (9, 9, 9)
-b-vector shell   1    weight =  7.56345
-    1       0.12856   -0.12856   -0.12856
-    2      -0.12856    0.12856   -0.12856
-    3      -0.12856   -0.12856   -0.12856
-    4      -0.12856   -0.12856    0.12856
-    5       0.12856    0.12856    0.12856
-    6      -0.12856    0.12856    0.12856
-    7       0.12856    0.12856   -0.12856
-    8       0.12856   -0.12856    0.12856
-
-Finite difference condition satisfied
-
+[ Info: b-vector completeness condition satisfied
 ┌ Info: Reading mmn file
-│   filename = &quot;/home/runner/.julia/artifacts/137d9414be716de582ab2d70e99a7e19988001d4/Si2.mmn&quot;
+│   filename = &quot;/home/runner/.julia/artifacts/341c9869e56314d0154151129eca5c105cdc968e/Si2.mmn&quot;
 │   header = &quot;Created on 15Jun2023 at 14: 8:56&quot;
 │   n_kpts = 729
 │   n_bvecs = 8
 └   n_bands = 16
 ┌ Info: Reading amn file
-│   filename = &quot;/home/runner/.julia/artifacts/137d9414be716de582ab2d70e99a7e19988001d4/Si2.amn&quot;
+│   filename = &quot;/home/runner/.julia/artifacts/341c9869e56314d0154151129eca5c105cdc968e/Si2.amn&quot;
 │   header = &quot;Created on 15Jun2023 at 14: 8:44&quot;
 │   n_kpts = 729
 │   n_bands = 16
 └   n_wann = 8
+[ Info: Lowdin orthonormalization applied to U matrices
 ┌ Info: Reading eig file
-│   filename = &quot;/home/runner/.julia/artifacts/137d9414be716de582ab2d70e99a7e19988001d4/Si2.eig&quot;
+│   filename = &quot;/home/runner/.julia/artifacts/341c9869e56314d0154151129eca5c105cdc968e/Si2.eig&quot;
 │   n_kpts = 729
 └   n_bands = 16
-lattice: Å
-  a1:  0.00000  2.71527  2.71527
-  a2:  2.71527  0.00000  2.71527
-  a3:  2.71527  2.71527  0.00000
+lattice:    [ax, ay, az] (Å)
+  a₁ =  0.000000  2.715265  2.715265
+  a₂ =  2.715265  0.000000  2.715265
+  a₃ =  2.715265  2.715265  0.000000
 
-atoms: fractional
-  Si:  0.00000  0.00000  0.00000
-  Si:  0.25000  0.25000  0.25000
+atoms:             fractional
+   1   Si:  0.000000  0.000000  0.000000
+   2   Si:  0.250000  0.250000  0.250000
+--------------------------------------------------------------------------------
+recip_lattice:  [bx, by, bz] (Å⁻¹)
+  b₁ = -1.157011  1.157011  1.157011
+  b₂ =  1.157011 -1.157011  1.157011
+  b₃ =  1.157011  1.157011 -1.157011
 
-n_bands: 16
-n_wann : 8
-kgrid  : 9 9 9
-n_kpts : 729
-n_bvecs: 8
+b-vectors:       [bx, by, bz] (Å⁻¹)          norm (Å⁻¹)  weight (Å²)
+  1       0.128557    0.128557   -0.128557    0.222667    7.563446
+  2       0.128557   -0.128557    0.128557    0.222667    7.563446
+  3      -0.128557    0.128557    0.128557    0.222667    7.563446
+  4       0.128557    0.128557    0.128557    0.222667    7.563446
+  5      -0.128557   -0.128557    0.128557    0.222667    7.563446
+  6      -0.128557    0.128557   -0.128557    0.222667    7.563446
+  7       0.128557   -0.128557   -0.128557    0.222667    7.563446
+  8      -0.128557   -0.128557   -0.128557    0.222667    7.563446
 
-b-vectors:
-         [bx, by, bz] / Å⁻¹                weight
-  1       0.12856   -0.12856   -0.12856    7.56345
-  2      -0.12856    0.12856   -0.12856    7.56345
-  3      -0.12856   -0.12856   -0.12856    7.56345
-  4      -0.12856   -0.12856    0.12856    7.56345
-  5       0.12856    0.12856    0.12856    7.56345
-  6      -0.12856    0.12856    0.12856    7.56345
-  7       0.12856    0.12856   -0.12856    7.56345
-  8       0.12856   -0.12856    0.12856    7.56345</code></pre><p>The dataset is just a folder containing input files, you can inspect the folder by</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; show_dataset(&quot;Si2&quot;)</code><code class="nohighlight hljs ansi" style="display:block;">/home/runner/.julia/artifacts/137d9414be716de582ab2d70e99a7e19988001d4/
+kgrid_size  =  9 9 9
+n_kpoints   =  729
+n_bvectors  =  8
+--------------------------------------------------------------------------------
+Summary:
+  kgrid_size  =  9 9 9
+  n_kpoints   =  729
+  n_bvectors  =  8
+  n_bands     =  16
+  n_wannier   =  8</code></pre><p>The dataset is just a folder containing input files, you can inspect the folder by</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; show_dataset(&quot;Si2&quot;)</code><code class="nohighlight hljs ansi" style="display:block;">/home/runner/.julia/artifacts/341c9869e56314d0154151129eca5c105cdc968e/
 ├─ Si2.amn
 ├─ Si2.eig
 ├─ Si2.mmn
 ├─ Si2.win
 └─ reference/
+   ├─ MDRS/
+   │  ├─ Si2_band.dat
+   │  ├─ Si2_band.gnu
+   │  ├─ Si2_band.kpt
+   │  ├─ Si2_band.labelinfo.dat
+   │  ├─ Si2_tb.dat
+   │  └─ Si2_wsvec.dat
    ├─ Si2.chk
    ├─ Si2.chk.fmt
    ├─ Si2.chk_U.amn
    ├─ Si2.chk_Udis.amn
-   ├─ Si2_band.dat
-   ├─ Si2_band.gnu
-   ├─ Si2_band.kpt
-   ├─ Si2_band.labelinfo.dat
-   └─ qe_bands.xml</code></pre><p>Finally, you can directly access the individual files by <code>dataset</code> string which just returns a string of the path to the file</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; dataset&quot;Si2/Si2.win&quot;</code><code class="nohighlight hljs ansi" style="display:block;">&quot;/home/runner/.julia/artifacts/137d9414be716de582ab2d70e99a7e19988001d4/Si2.win&quot;</code></pre><p>For example, you can read the content of a file by</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; readlines(dataset&quot;Si2/Si2.win&quot;)</code><code class="nohighlight hljs ansi" style="display:block;">775-element Vector{String}:
+   ├─ Si2.wout
+   ├─ WS/
+   │  ├─ Si2_band.dat
+   │  ├─ Si2_band.gnu
+   │  ├─ Si2_band.kpt
+   │  ├─ Si2_band.labelinfo.dat
+   │  ├─ Si2_tb.dat
+   │  └─ Si2_wsvec.dat
+   └─ qe_bands.xml</code></pre><p>Finally, you can directly access the individual files by <code>dataset</code> string which just returns a string of the path to the file</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; dataset&quot;Si2/Si2.win&quot;</code><code class="nohighlight hljs ansi" style="display:block;">&quot;/home/runner/.julia/artifacts/341c9869e56314d0154151129eca5c105cdc968e/Si2.win&quot;</code></pre><p>For example, you can read the content of a file by</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; readlines(dataset&quot;Si2/Si2.win&quot;)</code><code class="nohighlight hljs ansi" style="display:block;">779-element Vector{String}:
+ &quot;# restart = plot&quot;
+ &quot;# write_tb = true&quot;
+ &quot;# use_ws_distance = .false.&quot;
+ &quot;&quot;
  &quot;bands_plot = .true.&quot;
  &quot;conv_tol =   2.0000000000d-10&quot;
  &quot;conv_window = 3&quot;
  &quot;dis_conv_tol =   2.0000000000d-10&quot;
  &quot;dis_froz_max =   10&quot;
  &quot;dis_num_iter = 4000&quot;
- &quot;fermi_energy =   6.5283&quot;
- &quot;mp_grid = 9 9 9&quot;
- &quot;num_bands = 16&quot;
- &quot;num_cg_steps = 200&quot;
  ⋮
  &quot;  0.88888889  0.88888889  0.11111111  1.371742e-03&quot;
  &quot;  0.88888889  0.88888889  0.22222222  1.371742e-03&quot;
@@ -98,4 +110,4 @@ b-vectors:
  &quot;  0.88888889  0.88888889  0.66666667  1.371742e-03&quot;
  &quot;  0.88888889  0.88888889  0.77777778  1.371742e-03&quot;
  &quot;  0.88888889  0.88888889  0.88888889  1.371742e-03&quot;
- &quot;end kpoints&quot;</code></pre></article><nav class="docs-footer"><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.25 on <span class="colophon-date" title="Thursday 27 July 2023 21:58">Thursday 27 July 2023</span>. Using Julia version 1.9.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+ &quot;end kpoints&quot;</code></pre></article><nav class="docs-footer"><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.25 on <span class="colophon-date" title="Tuesday 1 August 2023 10:53">Tuesday 1 August 2023</span>. Using Julia version 1.9.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
