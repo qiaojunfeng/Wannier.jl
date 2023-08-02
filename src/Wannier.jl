@@ -70,6 +70,7 @@ include("interpolation/position.jl")
 include("interpolation/hamiltonian_gradient.jl")
 include("interpolation/hamiltonian_hessian.jl")
 include("interpolation/spin.jl")
+include("interpolation/berry_curvature.jl")
 
 # include("interpolation/magmom.jl")
 
