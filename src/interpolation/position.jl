@@ -45,6 +45,8 @@ end
 function (interp::PositionInterpolator)(
     kpoints::AbstractVector{<:AbstractVector}; kwargs...
 )
+    # to also handle `KPathInterpolant`
+    kpoints = get_kpoints(kpoints)
     _, gauges, _, D_matrices = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
 
     # gauge-covariant part of k-space position operator
@@ -54,12 +56,6 @@ function (interp::PositionInterpolator)(
         U' * Aᵂ * U + im * D
     end
     return A_k
-end
-
-# kpi isa AbstractVector{<:AbstractVector}, need to define it to resolve ambiguity
-@inline function (interp::PositionInterpolator)(kpi::KPathInterpolant; kwargs...)
-    kpoints = get_kpoints(kpi)
-    return interp(kpoints; kwargs...)
 end
 
 """
