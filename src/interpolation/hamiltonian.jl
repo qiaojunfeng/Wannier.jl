@@ -58,14 +58,10 @@ end
 
 """Interpolate the Hamiltonian operator and transform it to Bloch gauge."""
 function (interp::HamiltonianInterpolator)(kpoints::AbstractVector{<:AbstractVector})
+    # to also handle `KPathInterpolant`
+    kpoints = get_kpoints(kpoints)
     Hᵏ = invfourier(interp.hamiltonian, kpoints)
     return eigen(Hᵏ)
-end
-
-# kpi isa AbstractVector{<:AbstractVector}, need to define it to resolve ambiguity
-@inline function (interp::HamiltonianInterpolator)(kpi::KPathInterpolant; kwargs...)
-    kpoints = get_kpoints(kpi)
-    return interp(kpoints; kwargs...)
 end
 
 @inline function LinearAlgebra.eigen(A::AbstractMatrix, ws::HermitianEigenWs)

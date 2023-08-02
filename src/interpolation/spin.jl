@@ -41,6 +41,8 @@ end
 
 """Interpolate the spin operator and transform it to Bloch gauge."""
 function (interp::SpinInterpolator)(kpoints::AbstractVector{<:AbstractVector}; kwargs...)
+    # to also handle `KPathInterpolant`
+    kpoints = get_kpoints(kpoints)
     # R-space Hamiltonain
     H_R = interp.hamiltonian
     # k-space Hamiltonian
@@ -55,12 +57,6 @@ function (interp::SpinInterpolator)(kpoints::AbstractVector{<:AbstractVector}; k
         U' * Sᵂ * U
     end
     return S_k
-end
-
-# kpi isa AbstractVector{<:AbstractVector}, need to define it to resolve ambiguity
-@inline function (interp::SpinInterpolator)(kpi::KPathInterpolant; kwargs...)
-    kpoints = get_kpoints(kpi)
-    return interp(kpoints; kwargs...)
 end
 
 """
@@ -100,6 +96,8 @@ Interpolate the spin operator and transform it to Bloch gauge.
 function (interp::SpinProjectionInterpolator)(
     kpoints::AbstractVector{<:AbstractVector}; truncate::Bool=true
 )
+    # to also handle `KPathInterpolant`
+    kpoints = get_kpoints(kpoints)
     S_k = interp.spin_interpolator(kpoints)
 
     # instead of matrix, return real part of diagonal elements
@@ -115,10 +113,4 @@ function (interp::SpinProjectionInterpolator)(
         end
         return S_ax
     end
-end
-
-# kpi isa AbstractVector{<:AbstractVector}, need to define it to resolve ambiguity
-@inline function (interp::SpinProjectionInterpolator)(kpi::KPathInterpolant; kwargs...)
-    kpoints = get_kpoints(kpi)
-    return interp(kpoints; kwargs...)
 end

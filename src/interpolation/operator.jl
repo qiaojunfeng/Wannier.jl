@@ -253,17 +253,6 @@ Since it interpolates back to Bloch gauge, almost always the 1st field is
 """
 abstract type AbstractTBInterpolator <: Function end
 
-#=
-I cannot define a function like this, because this will cause method ambiguity:
-    - the KPathInterpolant is also a AbstractVector{<:AbstractVector}
-    - each concrete interpolator type defines a function for AbstractVector{<:AbstractVector}
-
-@inline function (interp::AbstractTBInterpolator)(kpi::KPathInterpolant; kwargs...)
-    kpoints = get_kpoints(kpi)
-    return interp(kpoints; kwargs...)
-end
-=#
-
 @inline function (interp::AbstractTBInterpolator)(
     kpoint::AbstractVector{<:Real}, args...; kwargs...
 )

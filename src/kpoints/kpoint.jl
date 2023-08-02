@@ -155,7 +155,7 @@ See also [`get_kpoint_indices`](@ref).
 
     If the default keyword arguments are used, this function works just like `kmesh.pl` of wannier90.
 """
-function get_kpoints(kgrid_size::AbstractVector; endpoint::Bool=false)
+function get_kpoints(kgrid_size::AbstractVector{<:Integer}; endpoint::Bool=false)
     any(isone, kgrid_size) &&
         endpoint &&
         error("cannot have endpoint when kgrid contains 1")

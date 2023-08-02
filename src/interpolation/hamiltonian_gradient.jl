@@ -13,11 +13,6 @@ struct HamiltonianGradientInterpolator <: AbstractTBInterpolator
     hamiltonian::TBOperator
 end
 
-@inline function (interp::HamiltonianGradientInterpolator)(kpi::KPathInterpolant; kwargs...)
-    kpoints = get_kpoints(kpi)
-    return interp(kpoints; kwargs...)
-end
-
 """
 Compute the derivative of the Hamiltonian with respect to three Cartesian
 directions.
@@ -27,6 +22,9 @@ YWVS Eq. 26.
 function (interp::HamiltonianGradientInterpolator)(
     kpoints::AbstractVector{<:AbstractVector}; kwargs...
 )
+    # since `KPathInterpolant` is also a `AbstractVector{<:AbstractVector}`,
+    # we call the `get_kpoints` so that this function also works for `KPathInterpolant`
+    kpoints = get_kpoints(kpoints)
     eigvals, _, dH, D_matrices = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
 
     # dH is the gauge-covariant part, now compute non-diagonal part, to build the full dHᴴ
@@ -63,11 +61,6 @@ struct VelocityInterpolator <: AbstractTBInterpolator
     hamiltonian::TBOperator
 end
 
-@inline function (interp::VelocityInterpolator)(kpi::KPathInterpolant, args...; kwargs...)
-    kpoints = get_kpoints(kpi)
-    return interp(kpoints, args...; kwargs...)
-end
-
 abstract type AbstractVelocityAlgorithm end
 
 """Compute velocity using inverse Fourier transform of ``\\mathbf{R} H`` operator."""
@@ -98,6 +91,8 @@ Compute velocity (in Bloch gauge) along three Cartesian directions.
 function (interp::VelocityInterpolator)(
     kpoints::AbstractVector{<:AbstractVector}, ::FourierSpaceVelocity; kwargs...
 )
+    # to also handle `KPathInterpolant`
+    kpoints = get_kpoints(kpoints)
     _, _, dH, _ = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
     # velocity is the diagonal part, not affected by the D matrices
     return map(dH) do dHₖ
@@ -120,6 +115,8 @@ function (interp::VelocityInterpolator)(
     dk::Real=1e-3,
     kwargs...,
 )
+    # to also handle `KPathInterpolant`
+    kpoints = get_kpoints(kpoints)
     nwann = n_wannier(interp.hamiltonian)
     nkpts = length(kpoints)
 

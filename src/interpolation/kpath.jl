@@ -241,6 +241,33 @@ end
 """
     $(SIGNATURES)
 
+This function returns the input `kpoints` as is.
+
+!!! note
+
+    This is used in the [`AbstractTBInterpolator`](@ref), since it is not
+    possible to define a function like this:
+    ```julia
+    @inline function (interp::AbstractTBInterpolator)(kpi::KPathInterpolant; kwargs...)
+        kpoints = get_kpoints(kpi)
+        return interp(kpoints; kwargs...)
+    end
+    ```
+    because this will cause method ambiguity:
+    - the `KPathInterpolant` is also a `AbstractVector{<:AbstractVector}`
+    - each concrete interpolator type defines a function for `AbstractVector{<:AbstractVector}`
+
+    Therefore, we define this function so that all the Interpolators can handle
+    both `AbstractVector{<:AbstractVector}` (for fractional coordinates)
+    and `KPathInterpolant`.
+"""
+function get_kpoints(kpoints::AbstractVector{T}) where {T<:AbstractVector}
+    return kpoints
+end
+
+"""
+    $(SIGNATURES)
+
 Get a `Brillouin.KPath` for arbitrary cell (can be non-standard).
 
 Internally use `Brillouin.jl`.
