@@ -94,11 +94,19 @@ function Base.getindex(tb::TBOperator, x::Integer, y::Integer, z::Integer)
     return tb.operator[iR]
 end
 
-function Base.zeros(tb::TBOperator)
-    @assert length(tb) > 0 "empty operator"
-    T = eltype(tb.operator[1])
-    s = size(tb.operator[1])
-    return TBOperator("zeros", tb.Rspace, [zeros(T, s) for _ in 1:length(tb)])
+@inline function zeros_operator(T::DataType, nwann::Integer, nRvecs::Integer)
+    return [zeros(T, (nwann, nwann)) for _ in 1:nRvecs]
+end
+
+@inline function zeros_operator(operator::AbstractVector{<:AbstractMatrix})
+    @assert length(operator) > 0 "empty operator"
+    T = eltype(operator[1])
+    n = size(operator[1], 1)
+    return zeros_operator(T, n, length(operator))
+end
+
+@inline function Base.zeros(tb::TBOperator)
+    return TBOperator("zeros", tb.Rspace, zeros_operator(tb.operator))
 end
 
 function Base.fill!(tb::TBOperator, x)
