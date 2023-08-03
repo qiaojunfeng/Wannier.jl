@@ -24,6 +24,24 @@ function TBPosition(Rspace::BareRspace, operator::AbstractVector)
 end
 
 """
+    $(SIGNATURES)
+
+Generate tight-binding position operator from a Wannierization [`Model`](@ref).
+
+# Keyword Arguments
+See the keyword args of [`generate_Rspace`](@ref).
+"""
+function TBPosition(model::Model, gauges::AbstractVector=model.gauges; kwargs...)
+    Rspace = generate_Rspace(model; kwargs...)
+    # Wannier-gauge position operator in kspace, WYSV Eq. 44
+    Aᵂ = compute_berry_connection_kspace(model, gauges)
+    # Wannier-gauge position operator in Rspace, WYSV Eq. 43
+    A_R = fourier(model.kpoints, Aᵂ, Rspace)
+    bare_Rspace, bare_A_R = simplify(Rspace, A_R)
+    return TBPosition(bare_Rspace, bare_A_R)
+end
+
+"""
     $(TYPEDEF)
 
 A struct for interpolating tight-binding position operator on given kpoints.
