@@ -64,7 +64,7 @@ end
 abstract type AbstractVelocityAlgorithm end
 
 """Compute velocity using inverse Fourier transform of ``\\mathbf{R} H`` operator."""
-struct FourierSpaceVelocity <: AbstractVelocityAlgorithm end
+struct AnalyticVelocity <: AbstractVelocityAlgorithm end
 
 """Compute velocity using finite difference of Wannier-interpolated eigenvalues."""
 struct FiniteDifferenceVelocity <: AbstractVelocityAlgorithm end
@@ -89,7 +89,7 @@ Compute velocity (in Bloch gauge) along three Cartesian directions.
     also include non-diagonal part, see [`HamiltonianGradientInterpolator`](@ref).
 """
 function (interp::VelocityInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}, ::FourierSpaceVelocity; kwargs...
+    kpoints::AbstractVector{<:AbstractVector}, ::AnalyticVelocity; kwargs...
 )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
@@ -165,5 +165,5 @@ end
 function (interp::VelocityInterpolator)(
     kpoints::AbstractVector{<:AbstractVector}; kwargs...
 )
-    return interp(kpoints, FourierSpaceVelocity(); kwargs...)
+    return interp(kpoints, AnalyticVelocity(); kwargs...)
 end
