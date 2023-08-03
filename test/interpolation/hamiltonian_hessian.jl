@@ -32,13 +32,13 @@
     @test all(isapprox.(μ, ref_μ; atol=1e-7))
 end
 
-@testitem "EffectiveMassInterpolator FourierSpaceEffectiveMass" begin
+@testitem "EffectiveMassInterpolator AnalyticEffectiveMass" begin
     using Wannier.Datasets
     hamiltonian, _ = read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence")
     interp = Wannier.EffectiveMassInterpolator(hamiltonian)
 
     k = [0.1, 0.2, 0.3]
-    μ = interp(k, Wannier.FourierSpaceEffectiveMass())
+    μ = interp(k, Wannier.AnalyticEffectiveMass())
 
     ref_μ = interp(k, Wannier.FiniteDifferenceEffectiveMass())
     @test all(isapprox.(μ, ref_μ; atol=2e-3))
@@ -55,7 +55,7 @@ end
 
     # only check the effmass tensor of each band, which should be real
     ref_diag = Wannier.EffectiveMassInterpolator(hamiltonian)(
-        k, Wannier.FourierSpaceEffectiveMass()
+        k, Wannier.AnalyticEffectiveMass()
     )
     # element of d²H are complex MMat3, so these also ensure that
     # the imaginary part is zero

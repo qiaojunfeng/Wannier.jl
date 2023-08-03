@@ -90,7 +90,7 @@ end
 abstract type AbstractEffectiveMassAlgorithm end
 
 """Compute effective mass using inverse Fourier transform of ``\\mathbf{R} H`` operator."""
-struct FourierSpaceEffectiveMass <: AbstractEffectiveMassAlgorithm end
+struct AnalyticEffectiveMass <: AbstractEffectiveMassAlgorithm end
 
 """Compute effective mass using finite difference of Wannier-interpolated eigenvalues."""
 struct FiniteDifferenceEffectiveMass <: AbstractEffectiveMassAlgorithm end
@@ -110,7 +110,7 @@ Compute the inverse of effective mass using Wannier interpolation.
 YWVS Eq.28
 """
 function (interp::EffectiveMassInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}, ::FourierSpaceEffectiveMass; kwargs...
+    kpoints::AbstractVector{<:AbstractVector}, ::AnalyticEffectiveMass; kwargs...
 )
     hessian_interp = HamiltonianHessianInterpolator(interp.hamiltonian)
     d²Hᴴ = hessian_interp(kpoints; kwargs...)

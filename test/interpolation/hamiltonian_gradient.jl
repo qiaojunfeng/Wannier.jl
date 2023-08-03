@@ -16,13 +16,13 @@
     @test all(isapprox.(V, ref_V; atol=1e-7))
 end
 
-@testitem "VelocityInterpolator FourierSpaceVelocity" begin
+@testitem "VelocityInterpolator AnalyticVelocity" begin
     using Wannier.Datasets
     hamiltonian, _ = read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence")
     interp = Wannier.VelocityInterpolator(hamiltonian)
 
     k = [0.1, 0.2, 0.3]
-    V = interp(k, Wannier.FourierSpaceVelocity())
+    V = interp(k, Wannier.AnalyticVelocity())
 
     ref_V = interp(k, Wannier.FiniteDifferenceVelocity())
     @test all(isapprox.(V, ref_V; atol=5e-5))
@@ -37,9 +37,7 @@ end
     k = [0.1, 0.2, 0.3]
     dH = interp(k)
 
-    ref_dHdiag = Wannier.VelocityInterpolator(hamiltonian)(
-        k, Wannier.FourierSpaceVelocity()
-    )
+    ref_dHdiag = Wannier.VelocityInterpolator(hamiltonian)(k, Wannier.AnalyticVelocity())
     @test diag(dH) ≈ ref_dHdiag
     V_offdiag = dH - diagm(ref_dHdiag)
     # element of dH are complex MVec3, so this also ensure that
