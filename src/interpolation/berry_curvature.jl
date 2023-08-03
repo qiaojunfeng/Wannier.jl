@@ -33,7 +33,7 @@ function (interp::BerryCurvatureInterpolator)(
 
     # commutators [Dᴴα, Āᴴβ] - [Dᴴβ, Āᴴα]
     Dᴴ_Āᴴ = map(zip(Dᴴ, Āᴴ)) do (Dᴴₖ, Āᴴₖ)
-        # each element: 3x1 vector *  1x3 vector -> 3x3 matrix,
+        # each element: 3x1 vector * 1x3 vector -> 3x3 matrix,
         # the result can be indexed by [m, n][α, β], where
         # - m, n are band indices
         # - α, β are Cartesian indices ∈ {1, 2, 3}

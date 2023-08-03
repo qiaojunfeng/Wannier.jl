@@ -736,53 +736,59 @@ function position_op(model::Model, U::Vector{Matrix{T}}) where {T<:Number}
 end
 
 """
-    berry_connection(bvectors, M, U)
+    $(SIGNATURES)
 
-Compute Berry connection at each kpoint.
+Wannier-gauge Berry connection in kspace, WYSV Eq. 44 or MV Eq. C14
 
-# Arguments
-- `bvectors`: bvecoters
-- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `U`: `n_wann * n_wann * n_kpts` array
+# Keyword arguments
+- `imlog_diag`: use imaginary part of logrithm for diagonal elements,
+    MV1997 Eq. 31. wannier90 default is true.
 """
-@views function berry_connection(
-    bvectors::KspaceStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
-) where {FT<:Real}
-    n_bands, n_wann = size(U[1])
-    n_kpts = length(U)
-    n_bvecs = length(M[1])
+function compute_berry_connection_kspace(
+    kstencil::KspaceStencil,
+    overlaps::AbstractVector,
+    gauges::AbstractVector;
+    imlog_diag::Bool=true,
+)
+    nkpts = length(gauges)
+    @assert nkpts > 0 "empty gauges"
+    nwann = size(gauges[1], 2)
+    nbvecs = length(overlaps[1])
 
-    kpb_k = bvectors.kpb_k
-    kpb_G = bvectors.kpb_G
-    wb = bvectors.bweights
-    recip_lattice = bvectors.recip_lattice
-    kpoints = bvectors.kpoints
+    wb = kstencil.bweights
+    recip_lattice = reciprocal_lattice(kstencil)
+    kpoints = kstencil.kpoints
 
-    # along x, y, z directions
-    A = [zeros(Vec3{Complex{FT}}, n_wann, n_wann) for i in 1:n_kpts]
-    Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
-
-    for ik in 1:n_kpts
-        for ib in 1:n_bvecs
-            ikpb = kpb_k[ik][ib]
-
-            Nᵏᵇ .= U[ik]' * M[ik][ib] * U[ikpb]
-            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
-            wᵇ = wb[ib]
-
-            for m in 1:n_wann
-                for n in 1:n_wann
-                    A[ik][m, n] += wᵇ * Nᵏᵇ[m, n] * b
-
-                    if m == n
-                        A[ik][m, n] -= wᵇ * b
-                    end
-                end
+    # Aᵂ can be indexed by Aᵂ[ik][m, n][α], where
+    # - ik: kpoint index
+    # - m, n: WF indices
+    # - α ∈ {1, 2, 3} for x, y, z directions
+    Aᵂ = map(1:nkpts) do ik
+        Uₖ = gauges[ik]
+        Aᵂₖ = zeros(Vec3{eltype(Uₖ)}, nwann, nwann)
+        for ib in 1:nbvecs
+            ik2 = kstencil.kpb_k[ik][ib]
+            Mᴴ = overlaps[ik][ib]
+            Uₖ₂ = gauges[ik2]
+            Mᵂ = Uₖ' * Mᴴ * Uₖ₂
+            G = kstencil.kpb_G[ik][ib]
+            # b isa Vec3, along x, y, z directions
+            b = recip_lattice * (kpoints[ik2] + G - kpoints[ik])
+            if imlog_diag
+                N = im * (Mᵂ - I)
+                N[diagind(N)] .= -imaglog.(diag(Mᵂ))
+                Aᵂₖ .+= wb[ib] .* Ref(b) .* N
+            else
+                Aᵂₖ .+= im * wb[ib] .* Ref(b) .* (Mᵂ - I)
             end
         end
+        return Aᵂₖ
     end
+    return Aᵂ
+end
 
-    A *= im
-
-    return A
+@inline function compute_berry_connection_kspace(
+    model::Model, gauges::AbstractVector=model.gauges
+)
+    return compute_berry_connection_kspace(model.kstencil, model.overlaps, gauges)
 end
