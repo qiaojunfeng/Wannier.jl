@@ -3,7 +3,7 @@ git-tree-sha1 = "26cd04ef4c5290f197a9763ee2b5e315de87ab09"
 lazy = true
 
     [[Cu.download]]
-    sha256 = "02ca23b4cf36cd344db8dde407f9743998be5083c23d97304a0529d028dc4d01"
+    sha256 = "19be07f44405049e6c67d5dbeeb2db678f0616ed8f189c4f2e95c1d562e4618c"
     url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/Cu.tar.gz"
 
 [CuBr2]
@@ -11,15 +11,23 @@ git-tree-sha1 = "b399f867ae5242aacb0059186ac7b28c26ec8e73"
 lazy = true
 
     [[CuBr2.download]]
-    sha256 = "049827a1851955c502df41e0ff0359929211530cbec02006515400157d6c37ed"
+    sha256 = "58f979eca686795761a86d581e776e2f7bd1a1f36d89028d901e7279caaa0f78"
     url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/CuBr2.tar.gz"
+
+[Fe_soc]
+git-tree-sha1 = "7408d03abce1b2a75fa2006fabc94a83499ee5ef"
+lazy = true
+
+    [[Fe_soc.download]]
+    sha256 = "ce47f02ed64b26b90bc73afa772199b35426f00a626b09cdd550c681ad31b4cc"
+    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/Fe_soc.tar.gz"
 
 [Si2_valence]
 git-tree-sha1 = "03635d409d4449351ac87b8069c763de898c03af"
 lazy = true
 
     [[Si2_valence.download]]
-    sha256 = "1c06e8e8caebf44a31853827dbfc1aa8df392b01ecd47213d8e0817298429af3"
+    sha256 = "2da1eb68f753db70623c1f83f1db7940edb52e14dc2bd958684577bd43e73865"
     url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/Si2_valence.tar.gz"
 
 [CrI3]
@@ -27,7 +35,7 @@ git-tree-sha1 = "f698136fe78b64e96c909a4ac508fd4529610eda"
 lazy = true
 
     [[CrI3.download]]
-    sha256 = "1f1526f7f511444aa944d97785f92031ce024e5c5f3e82cd17c48bd47d1311d0"
+    sha256 = "7fec0f4de20e204e0dc6667e322124db57c271b0497bc73eced75d72ee13c9d3"
     url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/CrI3.tar.gz"
 
 [SnSe2]
@@ -35,31 +43,31 @@ git-tree-sha1 = "86aa64f5fa8f9262a01d7e0720212332fb4119e2"
 lazy = true
 
     [[SnSe2.download]]
-    sha256 = "bb974c7d1c7a536ce8b30c2cfd524ef6e0b447c7c893fae9af40344d6006aec6"
+    sha256 = "8376f36917a04cc7013a88129b181bb81a9afe820f0e88c6d049cf9082da36e8"
     url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/SnSe2.tar.gz"
-
-[Fe]
-git-tree-sha1 = "92ad551b1db2555790e86a7c7ae9cb1bd26f8825"
-lazy = true
-
-    [[Fe.download]]
-    sha256 = "87bb618d8572ccef1314b141a68e102d8e34353eb5e748af13cddd1873905ab8"
-    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/Fe.tar.gz"
 
 [Si2]
 git-tree-sha1 = "341c9869e56314d0154151129eca5c105cdc968e"
 lazy = true
 
     [[Si2.download]]
-    sha256 = "faa1eaa922477cce4d6d87d4b51215858f48b2371e6d56b38903affd2194ed62"
+    sha256 = "87ec2d23a06e33dab729ead0241e21f1d610c6ec98258a58b4e84aa9ee0c955b"
     url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/Si2.tar.gz"
+
+[Fe_collinear]
+git-tree-sha1 = "13bfff238b9094b296a162f37d97bb8d81636337"
+lazy = true
+
+    [[Fe_collinear.download]]
+    sha256 = "04bde6911fe12648bc6295458a6ff8e14b00f650028d14a4d834c189eacff725"
+    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/Fe_collinear.tar.gz"
 
 [MoS2]
 git-tree-sha1 = "2b36703f7e686b5b3e40bcdbd86688e80be4a4d6"
 lazy = true
 
     [[MoS2.download]]
-    sha256 = "1c9c3b95a56756e5763d95cd32ce903054a4147a3e9575245ae301fcdf01ef6c"
+    sha256 = "09c7cd12a350510ae88f8c2c84e0d511db80c0104386486755477cd717427076"
     url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/MoS2.tar.gz"
 
 [graphene]
@@ -67,5 +75,5 @@ git-tree-sha1 = "41b06ee5668996867a89a911e6b34db102b757b0"
 lazy = true
 
     [[graphene.download]]
-    sha256 = "cf5519c732f412364b581082fdbdc80cf4612a62a70d1348b41cf37014b06bfd"
+    sha256 = "145bd5bfd3f798cb6b72904a9273907176f65cde382bef9a75f2b19d524ad60b"
     url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/graphene.tar.gz"
