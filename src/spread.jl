@@ -155,7 +155,7 @@ function Cache(
     return Cache(X, Y, U, G, r, UtMU, MU)
 end
 
-Cache(model::Model) = Cache(model.kstencil, model.M, model.U)
+Cache(model::Model) = Cache(model.kstencil, model.overlaps, model.gauges)
 
 n_bands(c::Cache) = size(c.G, 1)
 n_wann(c::Cache) = size(c.G, 2)
@@ -658,7 +658,7 @@ Compute WF center in reciprocal space for `Model` with given `U` gauge.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 function center(model::Model, U::Vector{Matrix{T}}) where {T<:Number}
-    return center(model.kstencil, model.M, U)
+    return center(model.kstencil, model.overlaps, U)
 end
 
 """
@@ -720,7 +720,7 @@ end
 
 Compute WF postion operator matrix in reciprocal space for `Model`.
 """
-position_op(model::Model) = position_op(model.kstencil, model.M, model.U)
+position_op(model::Model) = position_op(model.kstencil, model.overlaps, model.gauges)
 
 """
     position_op(model, U)
@@ -732,7 +732,7 @@ Compute WF postion operator matrix in reciprocal space for `Model` with given `U
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 function position_op(model::Model, U::Vector{Matrix{T}}) where {T<:Number}
-    return position_op(model.kstencil, model.M, U)
+    return position_op(model.kstencil, model.overlaps, U)
 end
 
 """

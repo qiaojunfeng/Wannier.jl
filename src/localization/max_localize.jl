@@ -11,14 +11,14 @@ function get_fg!_maxloc(p::AbstractPenalty, model::Model)
     cache = Cache(model)
 
     function fg!(F, G, U)
-        compute_MU_UtMU!(cache, model.kstencil, model.M, U)
+        compute_MU_UtMU!(cache, model.kstencil, model.overlaps, U)
 
         if G !== nothing
             cache.G = G
-            omega_grad!(p, cache, model.kstencil, model.M)
+            omega_grad!(p, cache, model.kstencil, model.overlaps)
         end
         if F !== nothing
-            return omega!(p, cache, model.kstencil, model.M).Ω
+            return omega!(p, cache, model.kstencil, model.overlaps).Ω
         end
     end
 
@@ -49,25 +49,25 @@ function max_localize(
     max_iter::Int=200,
     history_size::Int=3,
 ) where {T<:Real}
-    model.n_bands != model.n_wann &&
+    n_bands(model) != n_wannier(model) &&
         error("n_bands != n_wann, run instead disentanglement?")
 
     fg! = get_fg!_maxloc(p, model)
 
-    Ωⁱ = omega(p, model.kstencil, model.M, model.U)
+    Ωⁱ = omega(p, model.kstencil, model.overlaps, model.gauges)
     @info "Initial spread"
     show(Ωⁱ)
     println("\n")
 
     kManif = Optim.Stiefel_SVD()
-    Manif = Optim.PowerManifold(kManif, (model.n_wann, model.n_wann), (model.n_kpts,))
+    Manif = Optim.PowerManifold(kManif, (n_wannier(model), n_wannier(model)), (n_kpoints(model),))
 
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
     Uinit = [
-        model.U[ik][ib, ic] for ib in 1:(model.n_bands), ic in 1:(model.n_wann),
-        ik in 1:length(model.U)
+        model.gauges[ik][ib, ic] for ib in 1:(n_bands(model)), ic in 1:(n_wannier(model)),
+        ik in 1:length(model.gauges)
     ]
 
     opt = Optim.optimize(
@@ -86,12 +86,12 @@ function max_localize(
 
     Umin = Optim.minimizer(opt)
 
-    Ωᶠ = omega(p, model.kstencil, model.M, Umin)
+    Ωᶠ = omega(p, model.kstencil, model.overlaps, Umin)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
 
-    Umin_vec = map(1:(model.n_kpts)) do ik
+    Umin_vec = map(1:(n_kpoints(model))) do ik
         Umin[:, :, ik]
     end
 
