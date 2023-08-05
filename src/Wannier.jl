@@ -36,6 +36,7 @@ include("io/w90/model.jl")
 include("io/w90/band.jl")
 include("io/truncate.jl")
 include("io/interface/mud.jl")
+include("io/interface/uHu.jl")
 
 include("Datasets.jl")
 
