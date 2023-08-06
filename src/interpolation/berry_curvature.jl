@@ -12,11 +12,49 @@ struct BerryCurvatureInterpolator <: AbstractTBInterpolator
     """R-space Hamiltonian."""
     hamiltonian::TBOperator
 
+    """R-space Hamiltonian gradient, Rα * < m0 | H | nR >, i.e., RHS of YWVS Eq. 38.
+    Can be computed from hamiltonian operator by [`TBHamiltonianGradient`](@ref)."""
+    hamiltonian_gradient::TBOperator
+
     """R-space position operator."""
     position::TBOperator
 
+    """Wannier-gauge Berry curvature, WYSV06 Eq. 40 or LVTS12 Eq. 31.
+    Can be computed from position operator by [`TBBerryCurvature`](@ref)."""
+    berry_curvature::TBOperator
+
     """Fermi energy in eV"""
     fermi_energy::Float64
+end
+
+function BerryCurvatureInterpolator(
+    hamiltonian::TBOperator, position::TBOperator, fermi_energy::Real
+)
+    hamiltonian_gradient = TBHamiltonianGradient(hamiltonian)
+    berry_curvature = TBBerryCurvature(position)
+    return BerryCurvatureInterpolator(
+        hamiltonian, hamiltonian_gradient, position, berry_curvature, fermi_energy
+    )
+end
+
+"""
+Wannier-gauge Berry curvature Ωᵂ in Rspace.
+
+Right-hand side of WYSV Eq. 40, `i * Rα * <0n|r̂β|Rm> - i * Rβ * <0n|r̂α|Rm>`
+"""
+function TBBerryCurvature(position::TBOperator)
+    lattice = real_lattice(position)
+    r_R = position.operator
+    # Rr_R indexed by [iR][m, n][α, β]
+    Rr_R = map(zip(position.Rspace, r_R)) do (R, r)
+        # to Cartesian in angstrom
+        Rr = Ref(im * (lattice * R)) .* transpose.(r)
+        return Rr - transpose.(Rr)
+    end
+    v = position.operator[1][1, 1]
+    T = real(eltype(v))
+    M = Matrix{MMat3{Complex{T}}}
+    return TBOperator{M}("BerryCurvature", position.Rspace, Rr_R)
 end
 
 abstract type AbstractBerryCurvatureInterpolationAlgorithm end
@@ -59,7 +97,9 @@ function (interp::BerryCurvatureInterpolator)(
 )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
-    _, U, _, Dᴴ = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
+    _, U, _, Dᴴ = compute_D_matrix(
+        interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
+    )
 
     # WYSV Eq. 27
     # gauge-covariant part of k-space position operator
@@ -87,8 +127,7 @@ function (interp::BerryCurvatureInterpolator)(
         return DD - transpose.(DD)
     end
 
-    Rr_R = compute_berry_curvature_Rspace(interp.position)
-    Ωᵂ = invfourier(interp.hamiltonian.Rspace, Rr_R, kpoints)
+    Ωᵂ = invfourier(interp.berry_curvature, kpoints)
     # gauge-covariant part of Berry curvature, Ω̄ᴴ
     Ω̄ᴴ = map(zip(Ωᵂ, U)) do (Ωᵂₖ, Uₖ)
         Uₖ' * Ωᵂₖ * Uₖ
@@ -102,23 +141,6 @@ function (interp::BerryCurvatureInterpolator)(
     end
 end
 
-"""
-Wannier-gauge Berry curvature Ωᵂ in Rspace.
-
-Right-hand side of WYSV Eq. 40, `i * Rα * <0n|r̂β|Rm> - i * Rβ * <0n|r̂α|Rm>`
-"""
-function compute_berry_curvature_Rspace(position::TBOperator)
-    lattice = real_lattice(position)
-    r_R = position.operator
-    # Rr_R indexed by [iR][m, n][α, β]
-    Rr_R = map(zip(position.Rspace, r_R)) do (R, r)
-        # to Cartesian in angstrom
-        Rr = Ref(im * (lattice * R)) .* transpose.(r)
-        return Rr - transpose.(Rr)
-    end
-    return Rr_R
-end
-
 """Interpolate Berry curvature in Bloch gauge, sumed over bands with given
 occupations, using WYSV06 Eq. 32."""
 function (interp::BerryCurvatureInterpolator)(
@@ -127,7 +149,9 @@ function (interp::BerryCurvatureInterpolator)(
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
 
-    eigenvalues, U, _, Dᴴ = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
+    eigenvalues, U, _, Dᴴ = compute_D_matrix(
+        interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
+    )
     occupations = [Int.(εₖ .<= interp.fermi_energy) for εₖ in eigenvalues]
 
     # WYSV Eq. 27
@@ -137,8 +161,7 @@ function (interp::BerryCurvatureInterpolator)(
         Uₖ' * Aᵂₖ * Uₖ
     end
 
-    Rr_R = compute_berry_curvature_Rspace(interp.position)
-    Ωᵂ = invfourier(interp.hamiltonian.Rspace, Rr_R, kpoints)
+    Ωᵂ = invfourier(interp.berry_curvature, kpoints)
     # gauge-covariant part of Berry curvature, Ω̄ᴴ
     Ω̄ᴴ = map(zip(Ωᵂ, U)) do (Ωᵂₖ, Uₖ)
         Uₖ' * Ωᵂₖ * Uₖ
@@ -171,11 +194,12 @@ function (interp::BerryCurvatureInterpolator)(
     # Wannier-gauge position operator, LVTS12 Eq. 28 and 78
     Aᵂ = invfourier(interp.position, kpoints)
     # Wannier-gauge Berry curvature, LVTS12 Eq. 31
-    Rr_R = compute_berry_curvature_Rspace(interp.position)
-    Ωᵂ = invfourier(interp.hamiltonian.Rspace, Rr_R, kpoints)
+    Ωᵂ = invfourier(interp.berry_curvature, kpoints)
 
     # Wannier-gauge, J⁻ = f*J*g, J⁺ = g*J*f, LVTS12 Eq. 76
-    eigenvalues, U, _, Dᴴ = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
+    eigenvalues, U, _, Dᴴ = compute_D_matrix(
+        interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
+    )
     J, J⁻, J⁺ = compute_J_matrix(eigenvalues, U, Dᴴ, interp.fermi_energy)
 
     # Wannier-gauge occupation operator
@@ -200,18 +224,29 @@ end
 """
     $(SIGNATURES)
 
-Convert a Berry curvature vector to second-rank antisymmetric tensor.
+Convert an axial vector to second-rank antisymmetric tensor.
 
-WYSV Eq. 5, Ωγ = ϵαβγ * Ωαβ
+`v_γ = ϵ_αβγ * v_αβ`
+
+WYSV Eq. 5.
 
 # Arguments
-- `Ω`: Berry curvature vector, `Ω = (Ωx, Ωy, Ωz)`
+- `v`: axial vector, `v = (v_x, v_y, v_z)`
 """
-function vector_to_tensor(Ω::AbstractArray{<:Number})
-    Ωx, Ωy, Ωz = Ω
+function axialvector_to_antisymmetrictensor(v::AbstractArray)
+    vx, vy, vz = v
     return MMat3([
-        0 Ωz -Ωy
-        -Ωz 0 Ωx
-        Ωy -Ωx 0
+        0 vz -vy
+        -vz 0 vx
+        vy -vx 0
     ])
+end
+
+"""
+    $(SIGNATURES)
+
+Convert a second-rank antisymmetric tensor to an axial vector.
+"""
+function antisymmetrictensor_to_axialvector(M::AbstractMatrix)
+    return MVec3(M[2, 3], -M[1, 3], M[1, 2])
 end

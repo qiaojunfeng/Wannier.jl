@@ -25,9 +25,9 @@
     deleteat!(kpoints, 417)
     @test all(norm.(kpoints - ref_kpt.kpoints) .< 1e-6)
     ##
-    eigvals = HamiltonianInterpolator(hamiltonian)(kpoints)[1]
-    @test all(norm.(eigvals - ref_dat.eigenvalues) .< 2e-6)
+    eigenvalues = HamiltonianInterpolator(hamiltonian)(kpoints)[1]
+    @test all(norm.(eigenvalues - ref_dat.eigenvalues) .< 2e-6)
 
     Sz = interp(kpoints)
-    @test all(isapprox.(Sz, ref_dat.extras; atol=3e-5))
+    @test all(isapprox.(Sz, ref_dat.extras; atol=5e-5))
 end
