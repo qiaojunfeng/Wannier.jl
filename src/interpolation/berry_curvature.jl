@@ -14,11 +14,48 @@ struct BerryCurvatureInterpolator <: AbstractTBInterpolator
 
     """R-space position operator."""
     position::TBOperator
+
+    """Fermi energy in eV"""
+    fermi_energy::Float64
 end
+
+abstract type AbstractBerryCurvatureInterpolationAlgorithm end
+
+"""
+Interpolate Berry curvature using Eq. 32 in
+X. Wang, J. R. Yates, I. Souza, and D. Vanderbilt, Phys. Rev. B 74, 195118 (2006).
+
+This algorithm returns Berry curvature summed over occupied states.
+It is more accurate than manually summing over the band-resolved Berry curvature
+(see [`WYSV06BandResolved`](@ref)) times occupation, since the occupation factors
+are reorganized so that pairs of fully occupied states give zero contribution.
+"""
+struct WYSV06 <: AbstractBerryCurvatureInterpolationAlgorithm end
+
+"""
+Interpolate Berry curvature using Eq. 27 in
+X. Wang, J. R. Yates, I. Souza, and D. Vanderbilt, Phys. Rev. B 74, 195118 (2006).
+
+This algorithm returns band-resolved Berry curvature, which might be useful for
+plotting Berry-curvature-colored band structure.
+See also [`WYSV06`](@ref).
+"""
+struct WYSV06BandResolved <: AbstractBerryCurvatureInterpolationAlgorithm end
+
+"""
+Interpolate Berry curvature using Eq. 51 in
+M. Lopez, D. Vanderbilt, T. Thonhauser, and I. Souza, Phys. Rev. B 85, 014435 (2012).
+
+Compared to [`WYSV06`](@ref), this algorithm computes Berry curvature of the
+whole occuppied manifold in Wannier gauge. The algorithm is probably more
+numerically stable than [`WYSV06`](@ref). However, it does not return
+band-resolved Berry curvature (see [`WYSV06BandResolved`](@ref)).
+"""
+struct LVTS12 <: AbstractBerryCurvatureInterpolationAlgorithm end
 
 """Interpolate Berry curvature and transform it to Bloch gauge, WYSV Eq. 27."""
 function (interp::BerryCurvatureInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}; kwargs...
+    kpoints::AbstractVector{<:AbstractVector}, ::WYSV06BandResolved; kwargs...
 )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
@@ -50,7 +87,7 @@ function (interp::BerryCurvatureInterpolator)(
         return DD - transpose.(DD)
     end
 
-    Rr_R = compute_berry_curvature_Rspace(interp.hamiltonian, interp.position)
+    Rr_R = compute_berry_curvature_Rspace(interp.position)
     Ωᵂ = invfourier(interp.hamiltonian.Rspace, Rr_R, kpoints)
     # gauge-covariant part of Berry curvature, Ω̄ᴴ
     Ω̄ᴴ = map(zip(Ωᵂ, U)) do (Ωᵂₖ, Uₖ)
@@ -60,7 +97,8 @@ function (interp::BerryCurvatureInterpolator)(
     Ωᴴ = Ω̄ᴴ .- Dᴴ_Āᴴ .- im .* Dᴴ_Dᴴ
     # just need band-diagonal elements
     return map(Ωᴴ) do Ωᴴₖ
-        diag(Ωᴴₖ)
+        # force it to be real
+        real(diag(Ωᴴₖ))
     end
 end
 
@@ -69,11 +107,11 @@ Wannier-gauge Berry curvature Ωᵂ in Rspace.
 
 Right-hand side of WYSV Eq. 40, `i * Rα * <0n|r̂β|Rm> - i * Rβ * <0n|r̂α|Rm>`
 """
-function compute_berry_curvature_Rspace(hamiltonian::TBOperator, position::TBOperator)
+function compute_berry_curvature_Rspace(position::TBOperator)
     lattice = real_lattice(position)
     r_R = position.operator
     # Rr_R indexed by [iR][m, n][α, β]
-    Rr_R = map(zip(hamiltonian.Rspace, r_R)) do (R, r)
+    Rr_R = map(zip(position.Rspace, r_R)) do (R, r)
         # to Cartesian in angstrom
         Rr = Ref(im * (lattice * R)) .* transpose.(r)
         return Rr - transpose.(Rr)
@@ -81,24 +119,16 @@ function compute_berry_curvature_Rspace(hamiltonian::TBOperator, position::TBOpe
     return Rr_R
 end
 
-"""Interpolate Berry curvature and transform it to Bloch gauge, sumed over
-bands with given occupations, WYSV Eq. 32.
-
-More accurate than directly summing over the band-resolved Berry curvature
-times occupation, since the occupation factors are reorganized so that
-pairs of fully occupied states give zero contribution.
-"""
+"""Interpolate Berry curvature in Bloch gauge, sumed over bands with given
+occupations, using WYSV06 Eq. 32."""
 function (interp::BerryCurvatureInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector},
-    occupations::AbstractVector{<:AbstractVector};
-    kwargs...,
+    kpoints::AbstractVector{<:AbstractVector}, ::WYSV06; kwargs...
 )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
-    nkpts = length(kpoints)
-    @assert length(occupations) == nkpts > 0 "length of occupations != length of kpoints"
-    @assert length(occupations[1]) == n_wannier(interp.hamiltonian) "n_wannier of occupations != n_wannier of Hamiltonian"
-    _, U, _, Dᴴ = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
+
+    eigenvalues, U, _, Dᴴ = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
+    occupations = [Int.(εₖ .<= interp.fermi_energy) for εₖ in eigenvalues]
 
     # WYSV Eq. 27
     # gauge-covariant part of k-space position operator
@@ -107,7 +137,7 @@ function (interp::BerryCurvatureInterpolator)(
         Uₖ' * Aᵂₖ * Uₖ
     end
 
-    Rr_R = compute_berry_curvature_Rspace(interp.hamiltonian, interp.position)
+    Rr_R = compute_berry_curvature_Rspace(interp.position)
     Ωᵂ = invfourier(interp.hamiltonian.Rspace, Rr_R, kpoints)
     # gauge-covariant part of Berry curvature, Ω̄ᴴ
     Ω̄ᴴ = map(zip(Ωᵂ, U)) do (Ωᵂₖ, Uₖ)
@@ -118,9 +148,53 @@ function (interp::BerryCurvatureInterpolator)(
         # occupation -> matrix
         F = transpose(fₖ) .- fₖ
         DA = (F .* Dᴴₖ) * transpose.(Āᴴₖ)
-        return sum(fₖ .* diag(Ω̄ᴴₖ)) +
-               sum(diag(DA - transpose.(DA) + (im .* F .* Dᴴₖ) * transpose.(Dᴴₖ)))
+        return real(
+            sum(fₖ .* diag(Ω̄ᴴₖ)) +
+            sum(diag(DA - transpose.(DA) + (im .* F .* Dᴴₖ) * transpose.(Dᴴₖ))),
+        )
     end
+end
+
+"""Interpolate Berry curvature and sum over bands with given occupations,
+using LVTS12 Eq. 51.
+
+This is numerically more accurate than WYSV06, since it operates in Wannier
+gauge and the spiky J matrix (= im * D matrix) is regulated by the occupation f:
+f * J * g, where g = 1 - f.
+"""
+function (interp::BerryCurvatureInterpolator)(
+    kpoints::AbstractVector{<:AbstractVector}, ::LVTS12; kwargs...
+)
+    # to also handle `KPathInterpolant`
+    kpoints = get_kpoints(kpoints)
+
+    # Wannier-gauge position operator, LVTS12 Eq. 28 and 78
+    Aᵂ = invfourier(interp.position, kpoints)
+    # Wannier-gauge Berry curvature, LVTS12 Eq. 31
+    Rr_R = compute_berry_curvature_Rspace(interp.position)
+    Ωᵂ = invfourier(interp.hamiltonian.Rspace, Rr_R, kpoints)
+
+    # Wannier-gauge, J⁻ = f*J*g, J⁺ = g*J*f, LVTS12 Eq. 76
+    eigenvalues, U, _, Dᴴ = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
+    J, J⁻, J⁺ = compute_J_matrix(eigenvalues, U, Dᴴ, interp.fermi_energy)
+
+    # Wannier-gauge occupation operator
+    fᵂ = map(zip(eigenvalues, U)) do (εₖ, Uₖ)
+        Uₖ * Diagonal(Int.(εₖ .<= interp.fermi_energy)) * Uₖ'
+    end
+    # LVTS12 Eq. 51
+    return map(zip(fᵂ, Ωᵂ, Aᵂ, J, J⁻, J⁺)) do (fᵂₖ, Ωᵂₖ, Aᵂₖ, Jₖ, J⁻ₖ, J⁺ₖ)
+        # note we use the cyclic property of trace for the 2nd term of the
+        # RHS of LVTS12 Eq. 51, so that we can directly use J⁺ₖ
+        real(tr(fᵂₖ * Ωᵂₖ)) -
+        2 * imag(tr(Aᵂₖ * transpose.(J⁺ₖ) + J⁻ₖ * transpose.(Aᵂₖ + Jₖ)))
+    end
+end
+
+function (interp::BerryCurvatureInterpolator)(
+    kpoints::AbstractVector{<:AbstractVector}; kwargs...
+)
+    return interp(kpoints, LVTS12(); kwargs...)
 end
 
 """

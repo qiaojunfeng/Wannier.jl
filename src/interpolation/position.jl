@@ -29,12 +29,19 @@ end
 Generate tight-binding position operator from a Wannierization [`Model`](@ref).
 
 # Keyword Arguments
-See the keyword args of [`generate_Rspace`](@ref).
+- `imlog_diag` and `force_hermiticity`: See [`compute_berry_connection_kspace`](@ref)
+- others see the keyword args of [`generate_Rspace`](@ref)
 """
-function TBPosition(model::Model, gauges::AbstractVector=model.gauges; kwargs...)
+function TBPosition(
+    model::Model,
+    gauges::AbstractVector=model.gauges;
+    imlog_diag::Bool=true,
+    force_hermiticity::Bool=default_w90_berry_position_force_hermiticity(),
+    kwargs...,
+)
     Rspace = generate_Rspace(model; kwargs...)
     # Wannier-gauge position operator in kspace, WYSV Eq. 44
-    Aᵂ = compute_berry_connection_kspace(model, gauges)
+    Aᵂ = compute_berry_connection_kspace(model, gauges; imlog_diag, force_hermiticity)
     # Wannier-gauge position operator in Rspace, WYSV Eq. 43
     A_R = fourier(model.kpoints, Aᵂ, Rspace)
     bare_Rspace, bare_A_R = simplify(Rspace, A_R)
@@ -116,7 +123,7 @@ function compute_D_matrix(
     T = eltype(H_k[1])
 
     # first, need Hamiltonian eigenvalues and eigenvectors
-    eigvals, U = eigen(H_k)
+    eigenvalues, U = eigen(H_k)
 
     # the covariant part of Hamiltonian gauge dH, i.e., dHᴴ = U† dHᵂ U
     # also the ``\bar{H}_{\alpha}^{(H)}`` in YWVS Eq. 26
@@ -134,7 +141,7 @@ function compute_D_matrix(
         dH[ik] .= Uₖ' * dHᵂₖ * Uₖ
 
         # the D matrix
-        Δε = eigvals[ik] .- eigvals[ik]'
+        Δε = eigenvalues[ik] .- eigenvalues[ik]'
         # assign a nonzero number to the diagonal elements for inversion
         Δε[diagind(Δε)] .= 1
         Dₖ = D[ik]
@@ -146,12 +153,12 @@ function compute_D_matrix(
         degen_pert || continue
 
         # now considering possible degeneracies
-        # eigvals[ik][mask] are eigenvalues to be checked
+        # eigenvalues[ik][mask] are eigenvalues to be checked
         mask = trues(nwann)
         while any(mask)
-            e = eigvals[ik][mask][1]
+            e = eigenvalues[ik][mask][1]
             # indices of degenerate eigenvalues
-            idx = abs.(eigvals[ik] .- e) .< degen_tol
+            idx = abs.(eigenvalues[ik] .- e) .< degen_tol
             if count(idx) > 1
                 # I can only run once the diagonalization for only one Cartesian
                 # direction, and update the U matrix. The following directions
@@ -180,16 +187,13 @@ function compute_D_matrix(
         end
     end
 
-    return eigvals, U, dH, D
+    return eigenvalues, U, dH, D
 end
 
-function compute_D_matrix(hamiltonian::TBOperator, kpoints::AbstractVector; kwargs...)
+"""Compute Wannier-gauge ``Rα * < m0 | H | nR >``, i.e., right-hand side of YWVS Eq. 38."""
+@inline function compute_hamiltonian_gradient_Rspace(hamiltonian::TBOperator)
     # R-space Hamiltonain
     H_R = hamiltonian
-    # k-space Hamiltonian
-    H_k = invfourier(H_R, kpoints)
-
-    RH_R = zeros(H_R)
     lattice = real_lattice(H_R)
     RH_R = map(zip(H_R.Rspace, H_R)) do (R, H)
         # to Cartesian in angstrom, result indexed by RH_R[iR][m, n][α], where
@@ -198,7 +202,82 @@ function compute_D_matrix(hamiltonian::TBOperator, kpoints::AbstractVector; kwar
         # - α ∈ {1, 2, 3} is the Cartesian direction for x, y, z
         Ref(im * (lattice * R)) .* H
     end
-    RH_k = invfourier(hamiltonian.Rspace, RH_R, kpoints)
+    return RH_R
+end
 
+@inline function compute_D_matrix(
+    hamiltonian::TBOperator, kpoints::AbstractVector; kwargs...
+)
+    # k-space Hamiltonian
+    H_k = invfourier(hamiltonian, kpoints)
+    # Rα * < m0 | H | nR >
+    RH_R = compute_hamiltonian_gradient_Rspace(hamiltonian)
+    RH_k = invfourier(hamiltonian.Rspace, RH_R, kpoints)
     return compute_D_matrix(H_k, RH_k, kpoints; kwargs...)
+end
+
+"""
+Compute `J`, `J⁻` and `J⁺` matrices, i.e., LVTS12 Eq. 76 and 77.
+
+The `Jᴴ` matrix (LVTS12 Eq. 75) `= im * Dᴴ` matrix. Here we compute the
+`Jᴴ⁺` and `Jᴴ⁻` matrices, which take occupations into account so they are
+numerically more stable than the `Jᴴ` matrix. Then the `J`, `J⁻` and `J⁺`
+are the Wannier-gauge matrices rotated from the `Jᴴ`, `Jᴴ⁻` and `Jᴴ⁺` matrices.
+"""
+function compute_J_matrix end
+
+"""
+    $(SIGNATURES)
+
+Compute `J` matrices from `D` matrices.
+
+# Arguments
+- `eigenvalues`, `U`, `Dᴴ`: return values of [`compute_D_matrix`](@ref)
+"""
+function compute_J_matrix(
+    eigenvalues::AbstractVector{<:AbstractVector},
+    U::AbstractVector{<:AbstractMatrix},
+    Dᴴ::AbstractVector{<:AbstractMatrix},
+    fermi_energy::Real,
+)
+    # occupations in Hamiltonian gauge
+    fᴴ = [Diagonal(Int.(εₖ .<= fermi_energy)) for εₖ in eigenvalues]
+    gᴴ = Ref(I) .- fᴴ
+
+    Jᴴ = im * Dᴴ
+    Jᴴ⁻ = fᴴ .* Jᴴ .* gᴴ
+    Jᴴ⁺ = gᴴ .* Jᴴ .* fᴴ
+
+    Ut = adjoint.(U)
+    J = U .* Jᴴ .* Ut
+    J⁻ = U .* Jᴴ⁻ .* Ut
+    J⁺ = U .* Jᴴ⁺ .* Ut
+    return J, J⁻, J⁺
+end
+
+"""
+    $(SIGNATURES)
+
+# Keyword Arguments
+See [`compute_D_matrix`](@ref).
+"""
+@inline function compute_J_matrix(
+    H_k::AbstractVector{<:AbstractMatrix},
+    RH_k::AbstractVector{<:AbstractMatrix},
+    kpoints::AbstractVector{<:AbstractVector},
+    fermi_energy::Real;
+    kwargs...,
+)
+    eigenvalues, U, _, Dᴴ = compute_D_matrix(H_k, RH_k, kpoints; kwargs...)
+    return compute_J_matrix(eigenvalues, U, Dᴴ, fermi_energy)
+end
+
+@inline function compute_J_matrix(
+    hamiltonian::TBOperator, kpoints::AbstractVector, fermi_energy::Real; kwargs...
+)
+    H_k = invfourier(hamiltonian, kpoints)
+    # Rα * < m0 | H | nR >
+    RH_R = compute_hamiltonian_gradient_Rspace(hamiltonian)
+    RH_k = invfourier(hamiltonian.Rspace, RH_R, kpoints)
+    return compute_J_matrix(H_k, RH_k, kpoints, fermi_energy; kwargs...)
 end

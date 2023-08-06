@@ -749,6 +749,7 @@ function compute_berry_connection_kspace(
     overlaps::AbstractVector,
     gauges::AbstractVector;
     imlog_diag::Bool=true,
+    force_hermiticity::Bool=default_w90_berry_position_force_hermiticity(),
 )
     nkpts = length(gauges)
     @assert nkpts > 0 "empty gauges"
@@ -782,13 +783,19 @@ function compute_berry_connection_kspace(
                 Aᵂₖ .+= im * wb[ib] .* Ref(b) .* (Mᵂ - I)
             end
         end
+        if force_hermiticity
+            # cannot use adjoint which recursively transpose the inner Vec3
+            Aᵂₖ = (Aᵂₖ + conj(permutedims(Aᵂₖ))) / 2
+        end
         return Aᵂₖ
     end
     return Aᵂ
 end
 
 @inline function compute_berry_connection_kspace(
-    model::Model, gauges::AbstractVector=model.gauges
+    model::Model, gauges::AbstractVector=model.gauges; kwargs...
 )
-    return compute_berry_connection_kspace(model.kstencil, model.overlaps, gauges)
+    return compute_berry_connection_kspace(
+        model.kstencil, model.overlaps, gauges; kwargs...
+    )
 end
