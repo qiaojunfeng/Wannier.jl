@@ -64,3 +64,6 @@ default_w90_berry_degen_tol() = 1e-4
 
 """Wannier90's default switch for using degenerate perturbation theory."""
 default_w90_berry_use_degen_pert() = false
+
+"""Wannier90's default switch for enforcing Hermiticity of position operator."""
+default_w90_berry_position_force_hermiticity() = true
