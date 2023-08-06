@@ -18,7 +18,7 @@
     ref_dat = readdlm(dataset"Fe_soc/reference/MDRS/postw90/Fe-curv.dat")
     # w90 actually writes -Ω, so we need to negate it
     ref_Ω = map(eachrow(ref_dat[:, 2:end])) do Ω
-        -Wannier.vector_to_tensor(Ω)
+        -Wannier.axialvector_to_antisymmetrictensor(Ω)
     end
 
     # if I use the kpoints in ref_kpt, the difference between eigenvalues is

@@ -67,3 +67,7 @@ default_w90_berry_use_degen_pert() = false
 
 """Wannier90's default switch for enforcing Hermiticity of position operator."""
 default_w90_berry_position_force_hermiticity() = true
+
+"""Wannier90's default switch for enforcing Hermiticity of
+position*hamiltonian*position operator, for orbital magnetization."""
+default_w90_berry_duHdu_force_hermiticity() = true

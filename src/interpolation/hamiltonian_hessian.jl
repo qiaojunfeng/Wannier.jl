@@ -11,6 +11,14 @@ $(FIELDS)
 struct HamiltonianHessianInterpolator <: AbstractTBInterpolator
     """R-space Hamiltonian"""
     hamiltonian::TBOperator
+
+    """R-space Hamiltonian gradient, Rα * < m0 | H | nR >, i.e., RHS of YWVS Eq. 38.
+    Can be computed from hamiltonian operator by [`TBHamiltonianGradient`](@ref)."""
+    hamiltonian_gradient::TBOperator
+end
+
+function HamiltonianHessianInterpolator(hamiltonian::TBOperator)
+    return HamiltonianHessianInterpolator(hamiltonian, TBHamiltonianGradient(hamiltonian))
 end
 
 """
@@ -28,7 +36,9 @@ function (interp::HamiltonianHessianInterpolator)(
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
 
-    _, U, dH, D_matrices = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
+    _, U, dH, D_matrices = compute_D_matrix(
+        interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
+    )
 
     # Objective: 2nd order derivative d²H := ∂ᵦ Vα = ∂²H / ∂kα ∂kβ
     # The following comments use notations:
@@ -85,6 +95,14 @@ $(FIELDS)
 struct EffectiveMassInterpolator <: AbstractTBInterpolator
     """R-space Hamiltonian"""
     hamiltonian::TBOperator
+
+    """R-space Hamiltonian gradient, Rα * < m0 | H | nR >, i.e., RHS of YWVS Eq. 38.
+    Can be computed from hamiltonian operator by [`TBHamiltonianGradient`](@ref)."""
+    hamiltonian_gradient::TBOperator
+end
+
+function EffectiveMassInterpolator(hamiltonian::TBOperator)
+    return EffectiveMassInterpolator(hamiltonian, TBHamiltonianGradient(hamiltonian))
 end
 
 abstract type AbstractEffectiveMassAlgorithm end

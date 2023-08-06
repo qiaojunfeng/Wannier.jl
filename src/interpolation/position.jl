@@ -31,21 +31,34 @@ Generate tight-binding position operator from a Wannierization [`Model`](@ref).
 # Keyword Arguments
 - `imlog_diag` and `force_hermiticity`: See [`compute_berry_connection_kspace`](@ref)
 - others see the keyword args of [`generate_Rspace`](@ref)
+
+!!! note
+
+    When wannier90 writes a `tb.dat` file, it does not force the hermiticity of
+    position operator, so to reproduce the same position operator in `tb.dat`,
+    one should set `force_hermiticity=false`. However, when wannier90 computes
+    Berry curvature, it does force the hermiticity when constructing position
+    operator from `mmn` file.
 """
 function TBPosition(
+    Rspace::Union{WignerSeitzRspace,MDRSRspace},
     model::Model,
     gauges::AbstractVector=model.gauges;
     imlog_diag::Bool=true,
     force_hermiticity::Bool=default_w90_berry_position_force_hermiticity(),
     kwargs...,
 )
-    Rspace = generate_Rspace(model; kwargs...)
     # Wannier-gauge position operator in kspace, WYSV Eq. 44
     Aᵂ = compute_berry_connection_kspace(model, gauges; imlog_diag, force_hermiticity)
     # Wannier-gauge position operator in Rspace, WYSV Eq. 43
     A_R = fourier(model.kpoints, Aᵂ, Rspace)
     bare_Rspace, bare_A_R = simplify(Rspace, A_R)
     return TBPosition(bare_Rspace, bare_A_R)
+end
+
+function TBPosition(model::Model, gauges::AbstractVector=model.gauges; kwargs...)
+    Rspace = generate_Rspace(model)
+    return TBPosition(Rspace, model, gauges; kwargs...)
 end
 
 """
@@ -62,6 +75,10 @@ struct PositionInterpolator <: AbstractTBInterpolator
     """
     hamiltonian::TBOperator
 
+    """R-space Hamiltonian gradient, Rα * < m0 | H | nR >, i.e., RHS of YWVS Eq. 38.
+    Can be computed from hamiltonian operator by [`TBHamiltonianGradient`](@ref)."""
+    hamiltonian_gradient::TBOperator
+
     """R-space position operator."""
     position::TBOperator
 end
@@ -72,7 +89,9 @@ function (interp::PositionInterpolator)(
 )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
-    _, gauges, _, D_matrices = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
+    _, gauges, _, D_matrices = compute_D_matrix(
+        interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
+    )
 
     # gauge-covariant part of k-space position operator
     Aᵂ_k = invfourier(interp.position, kpoints)
@@ -191,7 +210,7 @@ function compute_D_matrix(
 end
 
 """Compute Wannier-gauge ``Rα * < m0 | H | nR >``, i.e., right-hand side of YWVS Eq. 38."""
-@inline function compute_hamiltonian_gradient_Rspace(hamiltonian::TBOperator)
+@inline function TBHamiltonianGradient(hamiltonian::TBOperator)
     # R-space Hamiltonain
     H_R = hamiltonian
     lattice = real_lattice(H_R)
@@ -202,17 +221,19 @@ end
         # - α ∈ {1, 2, 3} is the Cartesian direction for x, y, z
         Ref(im * (lattice * R)) .* H
     end
-    return RH_R
+    return TBOperator("HamiltonianGradient", H_R.Rspace, RH_R)
 end
 
 @inline function compute_D_matrix(
-    hamiltonian::TBOperator, kpoints::AbstractVector; kwargs...
+    hamiltonian::TBOperator,
+    hamiltonian_gradient::TBOperator,
+    kpoints::AbstractVector;
+    kwargs...,
 )
     # k-space Hamiltonian
     H_k = invfourier(hamiltonian, kpoints)
     # Rα * < m0 | H | nR >
-    RH_R = compute_hamiltonian_gradient_Rspace(hamiltonian)
-    RH_k = invfourier(hamiltonian.Rspace, RH_R, kpoints)
+    RH_k = invfourier(hamiltonian_gradient, kpoints)
     return compute_D_matrix(H_k, RH_k, kpoints; kwargs...)
 end
 
@@ -273,11 +294,14 @@ See [`compute_D_matrix`](@ref).
 end
 
 @inline function compute_J_matrix(
-    hamiltonian::TBOperator, kpoints::AbstractVector, fermi_energy::Real; kwargs...
+    hamiltonian::TBOperator,
+    hamiltonian_gradient::TBOperator,
+    kpoints::AbstractVector,
+    fermi_energy::Real;
+    kwargs...,
 )
     H_k = invfourier(hamiltonian, kpoints)
     # Rα * < m0 | H | nR >
-    RH_R = compute_hamiltonian_gradient_Rspace(hamiltonian)
-    RH_k = invfourier(hamiltonian.Rspace, RH_R, kpoints)
+    RH_k = invfourier(hamiltonian_gradient, kpoints)
     return compute_J_matrix(H_k, RH_k, kpoints, fermi_energy; kwargs...)
 end

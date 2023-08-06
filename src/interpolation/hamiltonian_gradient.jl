@@ -11,6 +11,14 @@ $(FIELDS)
 struct HamiltonianGradientInterpolator <: AbstractTBInterpolator
     """R-space Hamiltonian"""
     hamiltonian::TBOperator
+
+    """R-space Hamiltonian gradient, Rα * < m0 | H | nR >, i.e., RHS of YWVS Eq. 38.
+    Can be computed from hamiltonian operator by [`TBHamiltonianGradient`](@ref)."""
+    hamiltonian_gradient::TBOperator
+end
+
+function HamiltonianGradientInterpolator(hamiltonian::TBOperator)
+    return HamiltonianGradientInterpolator(hamiltonian, TBHamiltonianGradient(hamiltonian))
 end
 
 """
@@ -25,7 +33,9 @@ function (interp::HamiltonianGradientInterpolator)(
     # since `KPathInterpolant` is also a `AbstractVector{<:AbstractVector}`,
     # we call the `get_kpoints` so that this function also works for `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
-    eigvals, _, dH, D_matrices = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
+    eigvals, _, dH, D_matrices = compute_D_matrix(
+        interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
+    )
 
     # dH is the gauge-covariant part, now compute non-diagonal part, to build the full dHᴴ
     # Here we allocate a buffer for permutedims!, which is faster than permutedims
@@ -59,6 +69,14 @@ $(FIELDS)
 struct VelocityInterpolator <: AbstractTBInterpolator
     """R-space Hamiltonian"""
     hamiltonian::TBOperator
+
+    """R-space Hamiltonian gradient, Rα * < m0 | H | nR >, i.e., RHS of YWVS Eq. 38.
+    Can be computed from hamiltonian operator by [`TBHamiltonianGradient`](@ref)."""
+    hamiltonian_gradient::TBOperator
+end
+
+function VelocityInterpolator(hamiltonian::TBOperator)
+    return VelocityInterpolator(hamiltonian, TBHamiltonianGradient(hamiltonian))
 end
 
 abstract type AbstractVelocityAlgorithm end
@@ -93,7 +111,9 @@ function (interp::VelocityInterpolator)(
 )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
-    _, _, dH, _ = compute_D_matrix(interp.hamiltonian, kpoints; kwargs...)
+    _, _, dH, _ = compute_D_matrix(
+        interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
+    )
     # velocity is the diagonal part, not affected by the D matrices
     return map(dH) do dHₖ
         # YWVS Eq.27
