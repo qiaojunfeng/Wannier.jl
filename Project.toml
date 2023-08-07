@@ -33,6 +33,9 @@ WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
 [weakdeps]
 PlotlyJS = "f0f68f2c-4968-5e81-91da-67840de0976a"
 
+[extras]
+PlotlyJS = "f0f68f2c-4968-5e81-91da-67840de0976a"
+
 [extensions]
 WannierPlotlyJSExt = ["PlotlyJS"]
 
@@ -56,5 +59,5 @@ ProgressMeter = "1.7"
 Reexport = "1.2"
 Spglib = "0.6, 0.7"
 StaticArrays = "1"
-WannierIO = "0.2.1"
+WannierIO = "0.2.2"
 julia = "1.8.4"
