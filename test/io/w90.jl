@@ -76,9 +76,7 @@ end
 
 @testitem "read_w90_tb MDRS" begin
     using Wannier.Datasets
-    hamiltonian, position = Wannier.read_w90_tb(
-        dataset"Si2_valence/reference/MDRS/Si2_valence"
-    )
+    hamiltonian, position = read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence")
 
     R1 = [-4, 0, 2]
     @test hamiltonian.Rvectors[1] == R1
@@ -90,17 +88,47 @@ end
 
 @testitem "write_w90_tb" begin
     using Wannier.Datasets
-    hamiltonian, position = Wannier.read_w90_tb(
-        dataset"Si2_valence/reference/MDRS/Si2_valence"
-    )
+    hamiltonian, position = read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence")
 
     outdir = mktempdir(; cleanup=true)
     outprefix = joinpath(outdir, "Si2_valence")
     write_w90_tb(outprefix, hamiltonian, position)
 
-    hamiltonian2, position2 = Wannier.read_w90_tb(outprefix)
+    hamiltonian2, position2 = read_w90_tb(outprefix)
     @test hamiltonian ≈ hamiltonian2
     @test position ≈ position2
+end
+
+@testitem "read_w90_hr WS" begin
+    using Wannier.Datasets
+    ref_hamiltonian = read_w90_tb(dataset"Si2_valence/reference/WS/Si2_valence").hamiltonian
+    hamiltonian = read_w90_hr(
+        dataset"Si2_valence/reference/WS/Si2_valence", ref_hamiltonian.Rspace.lattice
+    )
+    @test isapprox(hamiltonian, ref_hamiltonian; atol=1e-5)
+end
+
+@testitem "read_w90_hr MDRS" begin
+    using Wannier.Datasets
+    ref_hamiltonian =
+        read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence").hamiltonian
+    hamiltonian = read_w90_hr(
+        dataset"Si2_valence/reference/MDRS/Si2_valence", ref_hamiltonian.Rspace.lattice
+    )
+    @test isapprox(hamiltonian, ref_hamiltonian; atol=1e-5)
+end
+
+@testitem "write_w90_hr" begin
+    using Wannier.Datasets
+    ref_hamiltonian =
+        read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence").hamiltonian
+
+    outdir = mktempdir(; cleanup=true)
+    outprefix = joinpath(outdir, "Si2_valence")
+    write_w90_hr(outprefix, ref_hamiltonian)
+
+    hamiltonian = read_w90_hr(outprefix, ref_hamiltonian.Rspace.lattice)
+    @test isapprox(ref_hamiltonian, hamiltonian; atol=1e-5)
 end
 
 @testitem "read_w90_tb_chk_spn" begin
