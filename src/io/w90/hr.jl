@@ -6,7 +6,8 @@ export read_w90_hr, write_w90_hr
 Read `prefix_hr.dat` and `prefix_wsvec.dat` and construct tight-binding models.
 
 # Arguments
-- `prefix`: the prefix of `prefix_hr.dat` and `prefix_wsvec.dat`
+- `prefix`: the prefix of `prefix_hr.dat` and `prefix_wsvec.dat`. If the latter
+    does not exist, it will be ignored.
 - `lattice`: the lattice vectors, column-wise in Å
 
 # Return
@@ -29,14 +30,17 @@ end
 
 """Only read hr files, without further processing"""
 function _raw_read_w90_hr(prefix::AbstractString, lattice::AbstractMatrix)
-    wsvec = read_w90_wsvec(prefix * "_wsvec.dat")
     hrdat = read_w90_hrdat(prefix * "_hr.dat")
-    @assert wsvec.Rvectors ≈ hrdat.Rvectors "R-vectors in hr.dat and wsvec.dat are not identical"
-
-    if wsvec.mdrs
-        Rspace = MDRSRspace(
-            lattice, hrdat.Rvectors, hrdat.Rdegens, wsvec.Tvectors, wsvec.Tdegens
-        )
+    if isfile(prefix * "_hr.dat")
+        wsvec = read_w90_wsvec(prefix * "_wsvec.dat")
+        @assert wsvec.Rvectors ≈ hrdat.Rvectors "R-vectors in hr.dat and wsvec.dat are not identical"
+        if wsvec.mdrs
+            Rspace = MDRSRspace(
+                lattice, hrdat.Rvectors, hrdat.Rdegens, wsvec.Tvectors, wsvec.Tdegens
+            )
+        else
+            Rspace = WignerSeitzRspace(lattice, hrdat.Rvectors, hrdat.Rdegens)
+        end
     else
         Rspace = WignerSeitzRspace(lattice, hrdat.Rvectors, hrdat.Rdegens)
     end
@@ -49,12 +53,20 @@ end
 
 Write a tight-binding model of Hamiltonian into
 `prefix_hr.dat` and `prefix_wsvec.dat` files.
+
+# Keyword Arguments
+- `skip_wsvec`: whether to skip writing `prefix_wsvec.dat`. Since the `hamiltonian.Rspace`
+    is always `BareRspace`, the `prefix_wsvec.dat` file is not necessary.
 """
-function write_w90_hr(prefix::AbstractString, hamiltonian::TBOperator)
+function write_w90_hr(prefix::AbstractString, hamiltonian::TBOperator; skip_wsvec=false)
     # the operators are always BareRspace
-    WannierIO.write_w90_wsvec(
-        prefix * "_wsvec.dat"; hamiltonian.Rspace.Rvectors, n_wann=n_wannier(hamiltonian)
-    )
+    if !skip_wsvec
+        WannierIO.write_w90_wsvec(
+            prefix * "_wsvec.dat";
+            hamiltonian.Rspace.Rvectors,
+            n_wann=n_wannier(hamiltonian),
+        )
+    end
 
     return WannierIO.write_w90_hrdat(
         prefix * "_hr.dat";
