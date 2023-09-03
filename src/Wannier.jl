@@ -60,6 +60,7 @@ include("interpolation/operator.jl")
 # these are files for interpolation only, put them here since
 # they need structs defined in previous files
 include("io/w90/tb.jl")
+include("io/w90/hr.jl")
 include("io/w90/spn.jl")
 include("io/volume/xsf.jl")
 include("io/volume/cube.jl")
