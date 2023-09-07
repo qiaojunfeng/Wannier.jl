@@ -17,5 +17,5 @@
     nk = (5, 5, 5)
     exch = Wannier.calc_exchanges(hami, atoms, model_up.lattice, 0.01; R = Vec3(0,0,1), n_ωh=n_ωh, nk=nk)
 
-    @test isapprox(sum(exch[1].J), 15.887277040995567)
+    @test isapprox(sum(exch[1].J), 0.02541964326559294)
 end

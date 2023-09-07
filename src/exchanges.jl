@@ -502,7 +502,6 @@ function exchange_kgrid(hami::TBOperator{T}, kpoints::Vector{<:Vec3}, R::Vec3) w
         next!(p)
     end
     D = reduce(+, Ds)
-    @show size(D)
     
     return (; Hk, eigvals, eigvecs, D=Array(D[Up()]-D[Down()])/nk, phases)
 end
@@ -583,7 +582,7 @@ function integrate_Gk!(G::ColinMatrix, ω, μ, kpoints, caches)
             G[i, j+dim] += cache1[i, j+dim] * tp
         end
     end
-    return G ./= length(kpoints)
+    return G ./= length(kpoints[1])
 end
 
 function integrate_Gk!(G_forward::ThreadCache, G_backward::ThreadCache, ω, μ, Hvecs, Hvals,
@@ -606,8 +605,8 @@ function integrate_Gk!(G_forward::ThreadCache, G_backward::ThreadCache, ω, μ, 
         G_forward  .+= cache1 .* t
         G_backward .+= cache1 .* t'
     end
-    G_forward.caches ./= length(kgrid)
-    return G_backward.caches ./= length(kgrid)
+    G_forward.caches ./= length(kgrid[1])
+    return G_backward.caches ./= length(kgrid[1])
 end
 
 abstract type Exchange{T<:AbstractFloat} end
