@@ -5,6 +5,7 @@ version = "0.4.0"
 
 [deps]
 Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
+AtomsBase = "a963bdd2-2df7-4f54-a1ee-49d51e6be12a"
 Bravais = "ada6cbde-b013-4edf-aa94-f6abe8bd6e6b"
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
 Comonicon = "863f3e99-da2a-4334-8734-de3dacbe5542"
@@ -25,15 +26,14 @@ PeriodicTable = "7b2266bf-644c-5ea3-82d8-af4bbd25a884"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+SpecialPolynomials = "a25cea48-d430-424a-8ee7-0d3ad3742e9e"
 Spglib = "f761d5c5-86db-4880-b97f-9680a7cccfb5"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
 
 [weakdeps]
-PlotlyJS = "f0f68f2c-4968-5e81-91da-67840de0976a"
-
-[extras]
 PlotlyJS = "f0f68f2c-4968-5e81-91da-67840de0976a"
 
 [extensions]
@@ -61,3 +61,6 @@ Spglib = "0.6, 0.7"
 StaticArrays = "1"
 WannierIO = "0.2.2"
 julia = "1.8.4"
+
+[extras]
+PlotlyJS = "f0f68f2c-4968-5e81-91da-67840de0976a"

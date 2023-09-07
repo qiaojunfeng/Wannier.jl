@@ -615,14 +615,13 @@ mutable struct Exchange2ndOrder{T<:AbstractFloat} <: Exchange{T}
 end
 
 function Base.show(io::IO, e::Exchange)
-    print(io, "atom1:")
-    println(io, "name: $(e.atom1.atomic_symbol), pos: $(e.atom1.position)")
-    print(io, " atom2:")
-    println(io, "name: $(e.atom2.atomic_symbol), pos: $(e.atom2.position)")
-
-    return print(io, " J: $(tr(e.J))")
+    println(io, "atom1: $(e.atom1.atomic_symbol), pos: $(e.atom1.position)")
+    println(io, " atom2: $(e.atom2.atomic_symbol), pos: $(e.atom2.position)")
+    println(io, "dist: $(norm(e.atom2.position - e.atom1.position))")
+    return println(io, " J: $(sum(e.J))")
 end
 
+# Not in use really
 """
     Exchange4thOrder{T <: AbstractFloat}
 
@@ -651,22 +650,7 @@ returned exchange matrices hold the exchanges between well-defined orbitals. If 
 the exchange matrices entries don't mean anything on themselves and a trace should be performed to
 find the exchange between the spins on sites `i` and `j`.
 """ 
-"""
-    calc_exchanges(hamiltonian::TBHamiltonian, atoms::Vector{<:Atom}, fermi, exchange_type; kwargs...)
-
-Calculates the magnetic exchange parameters between the `atoms`. `exchange_type` can be [`Exchange2ndOrder`](@ref) or [`Exchange4thOrder`](@ref). The `kwargs` control various numerical parameters for the calculation:
-- `nk = (10,10,10)`: the amount of _k_-points to be used for the uniform interpolation grid.
-- `R = (0,0,0)`: the unit cell index to which the exchange parameters are calculated.
-- `ωh = -30.0`: the lower bound of the energy integration
-- `ωv = 0.15`: the height of the contour in complex space to integrate the Green's functions
-- `n_ωh = 3000`: number of integration points along the horizontal contour direction
-- `n_ωv = 500`: number of integration points along the vertical contour direction
-- `site_diagonal = false`: if `true` the hamiltonians and `Δ` will diagonalized on-site and the
-returned exchange matrices hold the exchanges between well-defined orbitals. If this is not done,
-the exchange matrices entries don't mean anything on themselves and a trace should be performed to
-find the exchange between the spins on sites `i` and `j`.
-""" 
-function calc_exchanges(hami, structure::DFControl.Structures.Structure, atsyms::Vector{Symbol}, fermi::T, ::Type{E} = Exchange2ndOrder;
+function calc_exchanges(hami, atoms::Vector{<:Atom}, cell, fermi::T, ::Type{E} = Exchange2ndOrder;
                         nk::NTuple{3,Int} = (10, 10, 10),
                         R = Vec3(0, 0, 0),
                         ωh::T = T(-30.0), # starting energy
@@ -677,12 +661,15 @@ function calc_exchanges(hami, structure::DFControl.Structures.Structure, atsyms:
     ω_grid = ω_grid(ωh, n_ωh, emax)
 
     exchanges = E{T}[]
-    for at1 in Iterators.flatten(map(x->structure[element(x)], atsyms))
-        for at2 in Iterators.flatten(map(x->structure[element(x)], atsyms))
+    for at1 in atoms
+        for at2 in atoms
+
+            if !haskey(at2,:projections) || !haskey(at1, :projections)
+                continue
+            end
             at2_ = deepcopy(at2)
-            at2_.position_cart =  at2_.position_cart .+ structure.cell * Vec3(R...)
-            push!(exchanges, E(at1, at2_))
-        end
+            at2_.position =  at2_.position .+ cell * Vec3(R...)
+            push!(exchanges, E(at1, at2_)) end
     end
     kpoints = ExchangeKGrid(hami, uniform_shifted_kgrid(nk...), R_)
 
@@ -734,88 +721,6 @@ spin_sign(D::Vector) = sign(real(sum(D))) # up = +1, down = -1
                        G_backward[j, i]
     end
     return t
-end
-
-mutable struct AnisotropicExchange2ndOrder{T<:AbstractFloat} <: Exchange{T}
-    J::Matrix{Matrix{T}}
-    atom1::Atom
-    atom2::Atom
-end
-
-function AnisotropicExchange2ndOrder(at1::Atom, at2::Atom)
-    return AnisotropicExchange2ndOrder{Float64}([zeros(length(range(at1)),
-                                                       length(range(at1)))
-                                                 for i in 1:3, j in 1:3], at1, at2)
-end
-
-function calc_anisotropic_exchanges(hami, atoms, fermi::T;
-                                    nk::NTuple{3,Int} = (10, 10, 10),
-                                    R = Vec3(0, 0, 0),
-                                    ωh::T = T(-30.0), # starting energy
-                                    ωv::T = T(0.1), # height of vertical contour
-                                    n_ωh::Int = 3000,
-                                    n_ωv::Int = 500,
-                                    temp::T = T(0.01)) where {T<:AbstractFloat}
-    μ         = fermi
-    k_grid    = uniform_shifted_kgrid(nk...)
-    ω_grid    = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
-    exchanges = setup_anisotropic_exchanges(atoms)
-
-    Hvecs, Hvals, D = DHvecvals(hami, k_grid, atoms)
-
-    calc_anisotropic_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, D)
-    return exchanges
-end
-
-function calc_anisotropic_exchanges!(exchanges::Vector{AnisotropicExchange2ndOrder{T}},
-                                     μ::T,
-                                     R::Vec3,
-                                     k_grid::AbstractArray{Vec3{T}},
-                                     ω_grid::AbstractArray{Complex{T}},
-                                     Hvecs::Vector{Matrix{Complex{T}}},
-                                     Hvals::Vector{Vector{T}},
-                                     D::Vector{Vector{Matrix{Complex{T}}}}) where {T<:AbstractFloat}
-    dim = size(Hvecs[1])
-    J_caches = [ThreadCache([zeros(T, size(e.J[i, j])) for i in 1:3, j in 1:3])
-                for e in exchanges]
-    g_caches = [ThreadCache(zeros(Complex{T}, dim)) for i in 1:3]
-    G_forward, G_backward = [ThreadCache(zeros(Complex{T}, dim)) for i in 1:2]
-
-    function iGk!(ω)
-        fill!(G_forward, zero(Complex{T}))
-        fill!(G_backward, zero(Complex{T}))
-        return integrate_Gk!(G_forward, G_backward, ω, μ, Hvecs, Hvals, R, k_grid, g_caches)
-    end
-
-    for j in 1:length(ω_grid[1:end-1])
-        ω  = ω_grid[j]
-        dω = ω_grid[j+1] - ω
-        iGk!(ω)
-        # The two kind of ranges are needed because we calculate D only for the projections we care about 
-        # whereas G is calculated from the full Hamiltonian, the is needed. 
-        for (eid, exch) in enumerate(exchanges)
-            rm = range(exch.atom1)
-            rn = range(exch.atom2)
-            for i in 1:3, j in 1:3 # x,y,z 
-                J_caches[eid][i, j] .+= imag.((view(D[eid][i], 1:length(rm), 1:length(rm)) *
-                                               view(G_forward, rm, rn) *
-                                               view(D[eid][j], 1:length(rn), 1:length(rn)) *
-                                               view(G_backward, rn, rm)) .* dω)
-            end
-        end
-    end
-
-    for (eid, exch) in enumerate(exchanges)
-        exch.J = 1e3 / 2π * reduce(+, J_caches[eid])
-    end
-end
-
-function setup_anisotropic_exchanges(atoms::Vector{Atom})
-    exchanges = AnisotropicExchange2ndOrder{Float64}[]
-    for (i, at1) in enumerate(atoms), at2 in atoms[i:end]
-        push!(exchanges, AnisotropicExchange2ndOrder(at1, at2))
-    end
-    return exchanges
 end
 
 @doc raw"""
