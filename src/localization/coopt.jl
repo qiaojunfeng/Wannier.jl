@@ -424,3 +424,5 @@ function disentangle(
 
     return Uupmin, Udnmin
 end
+
+Atoms(m::MagModel) = Atoms(m.up)

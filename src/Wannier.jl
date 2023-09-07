@@ -3,7 +3,7 @@ module Wannier
 using Printf: @printf, @sprintf
 using LinearAlgebra
 using DocStringExtensions
-
+using AtomsBase
 using Reexport: @reexport
 @reexport using WannierIO
 
@@ -78,6 +78,8 @@ include("interpolation/orbital_magnetization.jl")
 # include("interpolation/magmom.jl")
 
 # include("cli/main.jl")
+
+include("exchanges.jl")
 
 ## package extensions for plotting
 include("plot.jl")
