@@ -13,12 +13,9 @@
 
     atoms = Wannier.Atoms(model)
 
-    n_ωh = 300
-    n_ωv = 50
+    n_ωh = 100
     nk = (5, 5, 5)
-    exch = Wannier.calc_exchanges(hami, atoms, model.lattice, 0.01; R = Vec3(0,0,1), n_ωh, n_ωv, nk)
+    exch = Wannier.calc_exchanges(hami, atoms, model_up.lattice, 0.01; R = Vec3(0,0,1), n_ωh=n_ωh, nk=nk)
 
-    @code_warntype Wannier.ExchangeKGrid(hami, Wannier.uniform_shifted_kgrid(nk...), R)
-    maxJ = maximum([tr(e.J) for e in exch])
-    @test isapprox(maxJ, -158.90552565580805)
+    @test isapprox(sum(exch[1].J), 15.887277040995567)
 end

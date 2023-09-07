@@ -370,19 +370,15 @@ for op in (:*, :-, :+, :/)
         MagneticVector($op(c1.data, c2.data))
 end
 
-import FastLapackInterface: HermitianEigenWs
+import FastLapackInterface: HermitianEigenWs, sy
 HermitianEigenWs(c::ColinMatrix) = HermitianEigenWs(c[Up()])
 HermitianEigenWs(c::NonColinMatrix) = HermitianEigenWs(c.data)
 
 @inline function eigen!(vals::AbstractVector, vecs::ColinMatrix, c::HermitianEigenWs)
     n = div(length(vals),2)
     n2 = div(length(vecs),2)
-    te = eigen!(up(vecs), c)
-    copyto!(vals, te.values)
-    copyto!(vecs, te.vectors)
-    te = eigen!(down(vecs), c)
-    copyto!(vals, n+1, te.values, 1, n)
-    copyto!(vecs, n2+1, te.vectors, 1, n2)
+    te = eigen!(view(vals, 1:n), up(vecs), c)
+    te = eigen!(view(vals, n+1:2n), down(vecs), c)
     return Eigen(vals, vecs)
 end
 
@@ -478,29 +474,53 @@ function integrate_simpson(f, x)
     return result
 end
 
-# struct ExchangeKGrid{T,MT, VT} <: AbstractKGrid{T}
-#     hamiltonian_kgrid::HamiltonianKGrid{T,MT, VT}
-#     phases::Vector{Complex{T}}
-#     D::Matrix{Complex{T}}
-# end
+function exchange_kgrid(hami::TBOperator{T}, kpoints::Vector{<:Vec3}, R::Vec3) where {T}
 
-# core_kgrid(x::ExchangeKGrid) = core_kgrid(x.hamiltonian_kgrid)
-# eigvecs(x::ExchangeKGrid) = eigvecs(x.hamiltonian_kgrid)
-# eigvals(x::ExchangeKGrid) = eigvals(x.hamiltonian_kgrid)
-
-# function ExchangeKGrid(hami::TBHamiltonian, kpoints::Vector{Vec3{T}}, R = zero(Vec3{T})) where {T}
-#     D = ThreadCache(zeros_block(hami))
+    # kpoints = [KPoint(k, blocksize(hami), R, zeros_block(hami)) for k in k_grid]
+    n_eigvals = max(size(hami.operator[1])...)
+    eigvals = hami.operator[1] isa AbstractMagneticMatrix ?
+              [MagneticVector(zeros(eltype(T), n_eigvals)) for k in kpoints] :
+              [zeros(eltype(T), n_eigvals) for k in kpoints]
+    eigvecs = [(s = similar(hami.operator[1]); s.=0; s) for k in kpoints]
+    Hk = [(s = similar(hami.operator[1]); s.=0; s) for k in kpoints]
+              
+    nk = length(kpoints)
+    calc_caches = [HermitianEigenWs(hami.operator[1]) for i in 1:Threads.nthreads()]
+    p = Progress(nk, 1, "Calculating H(k)...")
+    
+    Ds = ThreadCache((s = similar(hami.operator[1]); s.=0; s))
+    phases = zeros(eltype(T), nk) 
 #     hami_kpoints = HamiltonianKGrid(hami, kpoints, x -> D .+= x)
 #     nk = length(hami_kpoints)
-#     Ds = reduce(+, D)
-#     return ExchangeKGrid(hami_kpoints, phases(kpoints, R),
-#                          Array(Ds[Up()] - Ds[Down()]) / nk)
-# end
+    @inbounds Threads.@threads for i in 1:nk
+        phases[i] = exp(im * 2π * (kpoints[i] ⋅ R))
+        
+        Hk!(eigvecs[i], hami, kpoints[i])
+        copy!(Hk[i], eigvecs[i])
+        Ds .+= Hk[i]
+        eigen!(eigvals[i], eigvecs[i], calc_caches[Threads.threadid()])
+        next!(p)
+    end
+    D = reduce(+, Ds)
+    @show size(D)
+    
+    return (; Hk, eigvals, eigvecs, D=Array(D[Up()]-D[Down()])/nk, phases)
+end
+
+function Hk!(out::AbstractMatrix, tbhami::TBOperator, kpoint::Vec3)
+    fill!(out, zero(eltype(out)))
+
+    for (iR, R) in enumerate(tbhami.Rspace.Rvectors)
+        phase = exp(im * 2π * (kpoint ⋅ R))
+        out .+= phase .* tbhami.operator[iR]
+    end
+    out ./= length(tbhami.Rspace.Rvectors)
+end
 
 function calc_greens_functions(ω_grid, kpoints, μ::T) where {T}
-    g_caches = [ThreadCache(fill!(similar(eigvecs(kpoints)[1]), zero(Complex{T})))
+    g_caches = [ThreadCache(fill!(similar(kpoints.eigvecs[1]), zero(Complex{T})))
                 for i in 1:3]
-    Gs = [fill!(similar(eigvecs(kpoints)[1]), zero(Complex{T})) for i in 1:length(ω_grid)]
+    Gs = [fill!(similar(kpoints.eigvecs[1]), zero(Complex{T})) for i in 1:length(ω_grid)]
     function iGk!(G, ω)
         fill!(G, zero(Complex{T}))
         return integrate_Gk!(G, ω, μ, kpoints, cache.(g_caches))
@@ -517,16 +537,16 @@ function integrate_Gk!(G::AbstractMatrix, ω, μ, kpoints, caches)
     dim = blockdim(G)
     cache1, cache2, cache3 = caches
 
-    @inbounds for ik in 1:length(kpoints)
+    @inbounds for ik in 1:length(kpoints[1])
         # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(eltype(cache1)))
         for x in 1:2dim
-            cache1[x, x] = 1.0 / (μ + ω - eigvals(kpoints)[ik][x])
+            cache1[x, x] = 1.0 / (μ + ω - kpoints.eigvals[ik][x])
         end
         # Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
 
-        mul!(cache2,     eigvecs(kpoints)[ik], cache1)
-        adjoint!(cache3, eigvecs(kpoints)[ik])
+        mul!(cache2,     kpoints.eigvecs[ik], cache1)
+        adjoint!(cache3, kpoints.eigvecs[ik])
         mul!(cache1,     cache2, cache3)
         t = kpoints.phases[ik]
         tp = t'
@@ -537,24 +557,24 @@ function integrate_Gk!(G::AbstractMatrix, ω, μ, kpoints, caches)
             G[i, j+dim]      = cache1[i, j+dim]
         end
     end
-    return G ./= length(kpoints)
+    return G ./= length(kpoints[1])
 end
 
 function integrate_Gk!(G::ColinMatrix, ω, μ, kpoints, caches)
     dim = size(G, 1)
     cache1, cache2, cache3 = caches
 
-    @inbounds for ik in 1:length(kpoints)
+    @inbounds for ik in 1:length(kpoints[1])
         # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(eltype(cache1)))
         for x in 1:dim
-            cache1[x, x]     = 1.0 / (μ + ω - kpoints.hamiltonian_kgrid.eigvals[ik][x])
-            cache1[x, x+dim] = 1.0 / (μ + ω - kpoints.hamiltonian_kgrid.eigvals[ik][x+dim])
+            cache1[x, x]     = 1.0 / (μ + ω - kpoints.eigvals[ik][x])
+            cache1[x, x+dim] = 1.0 / (μ + ω - kpoints.eigvals[ik][x+dim])
         end
         # Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
 
-        mul!(cache2, kpoints.hamiltonian_kgrid.eigvecs[ik], cache1)
-        adjoint!(cache3, kpoints.hamiltonian_kgrid.eigvecs[ik])
+        mul!(cache2, kpoints.eigvecs[ik], cache1)
+        adjoint!(cache3, kpoints.eigvecs[ik])
         mul!(cache1, cache2, cache3)
         t = kpoints.phases[ik]
         tp = t'
@@ -658,22 +678,19 @@ function calc_exchanges(hami, atoms::Vector{<:Atom}, cell, fermi::T, ::Type{E} =
                         emax::T = T(0.001)) where {T<:AbstractFloat,E<:Exchange}
     R_     = Vec3(R...)
     μ      = fermi
-    ω_grid = ω_grid(ωh, n_ωh, emax)
 
     exchanges = E{T}[]
     for at1 in atoms
         for at2 in atoms
-
-            if !haskey(at2,:projections) || !haskey(at1, :projections)
+            if !haskey(at2,:indices) || !haskey(at1, :indices)
                 continue
             end
-            at2_ = deepcopy(at2)
-            at2_.position =  at2_.position .+ cell * Vec3(R...)
+            at2_ = Atom(at2.atomic_symbol,at2.position .+ cell * Vec3(R...) .* AtomsBase.Unitful.unit(at2.position[1]), indices=at2[:indices])
             push!(exchanges, E(at1, at2_)) end
     end
-    kpoints = ExchangeKGrid(hami, uniform_shifted_kgrid(nk...), R_)
+    kpoints = exchange_kgrid(hami, uniform_shifted_kgrid(nk...), R_)
 
-    calc_exchanges!(exchanges, μ, ω_grid, kpoints, kpoints.D)
+    calc_exchanges!(exchanges, μ, ω_grid(ωh, n_ωh, emax), kpoints, kpoints.D)
 
     return exchanges
 end
@@ -683,7 +700,7 @@ function calc_exchanges!(exchanges::Vector{<:Exchange{T}},
                          ω_grid::AbstractArray{Complex{T}},
                          kpoints,
                          D::Matrix{Complex{T}}) where {T<:AbstractFloat}
-    dim = size(kpoints.hamiltonian_kgrid.eigvecs[1])
+    dim = size(kpoints.eigvecs[1])
     d2 = div(dim[1], 2)
     J_caches = [ThreadCache(zeros(T, size(e.J))) for e in exchanges]
     Gs = calc_greens_functions(ω_grid, kpoints, μ)
@@ -721,46 +738,4 @@ spin_sign(D::Vector) = sign(real(sum(D))) # up = +1, down = -1
                        G_backward[j, i]
     end
     return t
-end
-
-@doc raw"""
-    DHvecvals(hami::TBHamiltonian{T, Matrix{T}}, k_grid::Vector{Vec3{T}}, atoms::Atom{T}) where T <: AbstractFloat
-
-Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
-`hami` should be the full Hamiltonian containing both spin-diagonal and off-diagonal blocks.
-"""
-function DHvecvals(hami, k_grid::AbstractArray{Vec3{T}},
-                   atoms::Vector{Atom}) where {T<:AbstractFloat}
-    nk = length(k_grid)
-    Hvecs = [zeros_block(hami) for i in 1:nk]
-    Hvals = [Vector{T}(undef, blocksize(hami, 1)) for i in 1:nk]
-    δH_onsite = ThreadCache([[zeros(Complex{T}, 2length(range(at)), 2length(range(at)))
-                              for i in 1:3] for at in atoms])
-    calc_caches = [HermitianEigenWs(block(hami[1])) for i in 1:nthreads()]
-    for i in 1:nk
-        # for i=1:nk
-        tid = threadid()
-        # Hvecs[i] is used as a temporary cache to store H(k) in. Since we
-        # don't need H(k) but only Hvecs etc, this is ok.
-        Hk!(Hvecs[i], hami, k_grid[i])
-
-        for (δh, at) in zip(δH_onsite, atoms)
-            rat = range(at)
-            lr  = length(rat)
-            δh .+= commutator.((view(Hvecs[i], rat, rat),), at[:operator_block].J) # in reality this should be just range(at)
-            # δh .+= commutator.(([Hvecs[i][rat, rat] zeros(Complex{T},lr, lr); zeros(Complex{T}, lr, lr) Hvecs[i][div(blocksize(hami, 1), 2) .+ rat, div(blocksize(hami, 1), 2) .+ rat]],), at[:operator_block].J) #in reality this should be just range(at)
-        end
-        eigen!(Hvals[i], Hvecs[i], calc_caches[tid])
-    end
-    return Hvecs, Hvals, reduce(+, δH_onsite) ./ nk
-end
-
-commutator(A1, A2) = A1 * A2 - A2 * A1
-
-function totocc(Hvals, fermi::T, temp::T) where {T}
-    totocc = zero(Complex{T})
-    for i in 1:length(Hvals)
-        totocc += reduce(+, 1 ./ (exp.((Hvals[i] .- fermi) ./ temp) .+ 1))
-    end
-    return totocc / length(Hvals)
 end

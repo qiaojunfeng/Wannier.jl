@@ -43,6 +43,18 @@ function TBHamiltonian(model::Model, gauges::AbstractVector=model.gauges; kwargs
     return TBHamiltonian(Rspace, model.kpoints, model.eigenvalues, gauges)
 end
 
+function TBHamiltonian(model_up::Model, model_down::Model, gauges_up::AbstractVector = model_up.gauges, gauges_down::AbstractVector = model_down.gauges; kwargs...)
+    uphami = TBHamiltonian(model_up, gauges_up; kwargs...)
+    downhami = TBHamiltonian(model_down, gauges_down; kwargs...)
+
+    blocks = map(zip(uphami.operator, downhami.operator)) do (up_block, down_block)
+        ColinMatrix(up_block, down_block)
+    end
+
+    TBOperator{eltype(blocks)}("Hamiltonian", uphami.Rspace, blocks)
+end
+TBHamiltonian(model::MagModel; kwargs...) = TBHamiltonian(model.up, model.dn; kwargs...)
+
 """
     $(TYPEDEF)
 

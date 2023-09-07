@@ -8,4 +8,5 @@
 using TestItemRunner
 
 # TODO enable everything once the refactor is done
-@run_package_tests verbose = true filter = ti -> occursin("interpolation/", ti.filename)
+# @run_package_tests verbose = true filter = ti -> occursin("exchanges", ti.filename)
+@run_package_tests verbose = true filter = ti -> occursin("interpolation/", ti.filename) || occursin("exchanges", ti.filename)
