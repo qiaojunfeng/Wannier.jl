@@ -1,3 +1,4 @@
+
 using Printf: @sprintf
 using LazyGrids: ndgrid
 
@@ -43,11 +44,16 @@ Read `UNK` files, rotate gauge, and generate real space WFs.
 function read_realspace_wf(
     U::Vector{Matrix{Complex{T}}},
     kpoints::Vector{Vec3{T}},
+    lattice,
     n_supercells::AbstractVector{Int},
     unkdir::AbstractString;
     R::AbstractVector{Int}=[0, 0, 0],
+    wan_plot_list=1:size(U[1], 2),
 ) where {T<:Real}
     n_bands, n_wann = size(U[1])
+
+    nwfun = length(wan_plot_list)
+
     n_kpts = length(U)
     length(n_supercells) == 3 || error("n_supercells must be 3-vector")
 
@@ -70,11 +76,11 @@ function read_realspace_wf(
     ik = 1
     _, Ψₖ = read_unk(unkname(ik))
 
-    n_gx, n_gy, n_gz, _ = size(Ψₖ)
-    size(Ψₖ, 4) == n_bands || error("incompatible n_bands")
+    n_gx, n_gy, n_gz, nb, ns = size(Ψₖ)
+    nb == n_bands || error("incompatible n_bands")
 
     # WF in realspace
-    W = zeros(eltype(U[1]), n_gx * n_sx, n_gy * n_sy, n_gz * n_sz, n_wann)
+    W = zeros(eltype(U[1]), n_gx * n_sx, n_gy * n_sy, n_gz * n_sz, ns, nwfun)
 
     # generate X, Y, Z fractional coordinates relative to lattice (here unknown)
     # actually X./n_gx, Y./n_gy, Z./n_gz are the fractional coordinates w.r.t lattice
@@ -89,34 +95,44 @@ function read_realspace_wf(
     # X = X .- 1
     # Y = Y .- 1
     # Z = Z .- 1
-
     """Modify W"""
-    function add_k!(ik, Ψₖ)
+    @inbounds function add_k!(ik, Ψₖ)
         k = kpoints[ik]
         # rotate Ψ
         # * does not support high dimensional matrix multiplication,
         # I need to reshape it to 2D matrix
-        ΨUₖ = reshape(reshape(Ψₖ, :, n_bands) * U[ik], n_gx, n_gy, n_gz, n_wann)
-        # make sure Ψ is normalized to 1 in unit cell
-        # the QE output UNK needs this factor to be normalized
-        # Note in QE, the r->G FFT has a factor 1/N,
-        # while the G->r IFFT has factor 1,
-        # but FFT/IFFT is unitary only if they have factor sqrt(1/N)
-        f0 = 1 / sqrt(n_gx * n_gy * n_gz)
-        for (iz, z) in enumerate(Z)
-            # ΨUₖ is only defined in the home unit cell, find corresponding indexes
-            # e.g. x=0 -> W[1,1,1], x=1 -> W[2,1,1], x=n_gx -> W[1,1,1], x=-1 -> W[end,1,1]
-            jz = mod(z, n_gz) + 1
-            for (iy, y) in enumerate(Y)
-                jy = mod(y, n_gy) + 1
-                for (ix, x) in enumerate(X)
-                    jx = mod(x, n_gx) + 1
-                    # r grid in fractional coordinates
-                    r = [x / n_gx, y / n_gy, z / n_gz]
-                    # UNK file (and ΨUₖ) is the periodic part of Bloch wavefunction,
-                    # need a factor exp(ikr)
-                    f = f0 * exp(2π * im * k' * (r - R))
-                    W[ix, iy, iz, :] += f * ΨUₖ[jx, jy, jz, :]
+        for is in 1:ns
+            ΨUₖ = reshape(
+                reshape(view(Ψₖ, :, :, :, :, is), :, n_bands) *
+                view(U[ik], :, wan_plot_list),
+                n_gx,
+                n_gy,
+                n_gz,
+                nwfun,
+            )
+            for iw in 1:nwfun
+                # make sure Ψ is normalized to 1 in unit cell
+                # the QE output UNK needs this factor to be normalized
+                # Note in QE, the r->G FFT has a factor 1/N,
+                # while the G->r IFFT has factor 1,
+                # but FFT/IFFT is unitary only if they have factor sqrt(1/N)
+                Threads.@threads for iz in 1:length(Z)
+                    z = Z[iz]
+                    # ΨUₖ is only defined in the home unit cell, find corresponding indexes
+                    # e.g. x=0 -> W[1,1,1], x=1 -> W[2,1,1], x=n_gx -> W[1,1,1], x=-1 -> W[end,1,1]
+                    jz = mod(z, n_gz) + 1
+                    for (iy, y) in enumerate(Y)
+                        jy = mod(y, n_gy) + 1
+                        for (ix, x) in enumerate(X)
+                            jx = mod(x, n_gx) + 1
+                            # r grid in fractional coordinates
+                            r = Vec3(x / n_gx, y / n_gy, z / n_gz)
+                            # UNK file (and ΨUₖ) is the periodic part of Bloch wavefunction,
+                            # need a factor exp(ikr)
+                            f = exp(2π * im * (k ⋅ (r - R)))
+                            W[ix, iy, iz, is, iw] += f * ΨUₖ[jx, jy, jz, iw]
+                        end
+                    end
                 end
             end
         end
@@ -132,21 +148,57 @@ function read_realspace_wf(
         add_k!(ik, Ψₖ)
     end
 
-    W ./= n_kpts
+    # if ns == 1
+    #     for i in 1:nwfun
+    #         f = fix_global_phase(W[:, :, :, 1, i])
+    #         @views W[:, :, :, 1, i] .*= f
+    #     end
+    # end
+
+    # for i in 1:nwfun
+    #     for is in 1:ns
+    #         r = compute_imre_ratio(W[:, :, :, is, i])
+    #         @printf("Max Im/Re ratio of WF %4d; spin %4d = %10.4f\n", i, is, r)
+    #     end
+    # end
+
     # to fractional coordinates
     Xg, Yg, Zg = ndgrid(X ./ n_gx, Y ./ n_gy, Z ./ n_gz)
-    return Xg, Yg, Zg, W
+    rgrid = RGrid(lattice, Xg, Yg, Zg)
+
+    X, Y, Z = cartesianize_xyz(rgrid)
+
+    points = [Vec3(x, y, z) for (x, y, z) in zip(X, Y, Z)]
+
+    if ns == 1
+        wfuncs_out = Vector{WannierFunction{1,eltype(W).parameters[1]}}(undef, nwfun)
+        Threads.@threads for i in 1:nwfun
+            wfuncs_out[i] = WannierFunction{1,eltype(W).parameters[1]}(
+                points, map(x -> SVector(x), view(W, :, :, :, 1, i))
+            )
+        end
+    else
+        wfuncs_out = Vector{WannierFunction{2,eltype(W).parameters[1]}}(undef, nwfun)
+        Threads.@threads for i in 1:size(wfuncs_all, 1)
+            wfuncs_out[i] = WannierFunction{2,eltype(W).parameters[1]}(
+                points,
+                map(x -> SVector(x), zip(view(W, :, :, :, 1, i), view(W, :, :, :, 2, i))),
+            )
+        end
+    end
+    return Xg, Yg, Zg, normalize!.(wfuncs_out)
 end
 
 function read_realspace_wf(
     U::Vector{Matrix{Complex{T}}},
     kpoints::Vector{Vec3{T}},
+    lattice,
     n_supercells::Int,
     unkdir::AbstractString;
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
     return read_realspace_wf(
-        U, kpoints, [n_supercells, n_supercells, n_supercells], unkdir; R=R
+        U, kpoints, lattice, [n_supercells, n_supercells, n_supercells], unkdir; R=R
     )
 end
 
@@ -170,7 +222,7 @@ function read_realspace_wf(
     unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
-    X, Y, Z, W = read_realspace_wf(U, kpoints, n_supercells, unkdir; R=R)
+    X, Y, Z, W = read_realspace_wf(U, kpoints, lattice, n_supercells, unkdir; R=R)
     rgrid = RGrid(lattice, X, Y, Z)
     return rgrid, W
 end
@@ -216,7 +268,7 @@ function read_realspace_wf(
     unkdir::AbstractString=".";
     R::AbstractVector{Int}=[0, 0, 0],
 ) where {T<:Real}
-    return read_realspace_wf(model, model.U, n_supercells, unkdir; R=R)
+    return read_realspace_wf(model, model.gauges, n_supercells, unkdir; R=R)
 end
 
 """
@@ -266,7 +318,8 @@ function write_realspace_wf(
     format ∈ [:xsf, :cube] || error("format must be :xsf or :cube")
 
     rgrid, W = read_realspace_wf(lattice, U, kpoints, n_supercells, unkdir)
-    n_wann = size(W, 4)
+    n_wann = length(W)
+    ns = nspin(W[1])
     if format == :cube && wf_center === nothing
         # if not given, compute in realspace, lower accuracy. in fractional coordinates
         wf_center = map(c -> inv(lattice) * c, center(rgrid, W))
@@ -283,39 +336,47 @@ function write_realspace_wf(
     else
         n_supcells = prod(n_supercells)
     end
-    W .*= sqrt(length(W) / n_wann / n_supcells)
-
-    for i in 1:n_wann
-        f = fix_global_phase(W[:, :, :, i])
-        W[:, :, :, i] .*= f
-        r = compute_imre_ratio(W[:, :, :, i])
-        @printf("Max Im/Re ratio of WF %4d = %10.4f\n", i, r)
-    end
+    W .*= sqrt(length(W[1].values) / n_supcells)
 
     # seems W90 always write the real part, so I use real as default
-    W2 = part.(W)
-
     atom_numbers = get_atom_number(atom_labels)
 
     if format == :xsf
         for i in 1:n_wann
-            filename = @sprintf("%s_%05d.%s", seedname, i, "xsf")
-            write_xsf(
-                filename, lattice, atom_positions, atom_numbers, rgrid, W2[:, :, :, i]
-            )
+            for is in 1:ns
+                filename = if ns == 1
+                    @sprintf("%s_%05d.%s", seedname, i, "xsf")
+                else
+                    @sprintf("%s_%05d_%05d.%s", seedname, i, is, "xsf")
+                end
+                write_xsf(
+                    filename,
+                    lattice,
+                    atom_positions,
+                    atom_numbers,
+                    rgrid,
+                    map(x -> part(x[is]), W[i].values),
+                )
+            end
         end
     elseif format == :cube
         for i in 1:n_wann
-            filename = @sprintf("%s_%05d.%s", seedname, i, "cube")
-            write_cube(
-                filename,
-                lattice,
-                atom_positions,
-                atom_numbers,
-                wf_center[i],
-                rgrid,
-                W2[:, :, :, i],
-            )
+            for is in 1:ns
+                filename = if ns == 1
+                    @sprintf("%s_%05d.%s", seedname, i, "cube")
+                else
+                    @sprintf("%s_%05d_%05d.%s", seedname, i, is, "cube")
+                end
+                write_cube(
+                    filename,
+                    lattice,
+                    atom_positions,
+                    atom_numbers,
+                    wf_center[i],
+                    rgrid,
+                    map(x -> part(x[is]), W[i].values),
+                )
+            end
         end
     end
 
@@ -340,11 +401,11 @@ function write_realspace_wf(
     wf_center = nothing
     if format == :cube
         # compute in recip space, more accurate than realspace
-        wf_center = map(c-> inv(model.lattice) * c, center(model))
+        wf_center = map(c -> inv(model.lattice) * c, center(model))
     end
     return write_realspace_wf(
         seedname,
-        model.U,
+        model.gauges,
         model.kpoints,
         model.lattice,
         model.atom_positions,
@@ -355,4 +416,215 @@ function write_realspace_wf(
         format,
         wf_center,
     )
+end
+
+"""
+Real space WannierFunction defined on a uniformly (in crystal coordinates) spaced r-grid.
+"""
+struct WannierFunction{N,T<:AbstractFloat} <: AbstractArray{SVector{N,Complex{T}},3}
+    points::Array{Vec3{T},3}
+    values::Array{SVector{N,Complex{T}},3}
+end
+
+function WannierFunction(point_func::Function, points::Array)
+    return WannierFunction(points, point_func.(points))
+end
+
+for f in (:size, :getindex, :setindex!)
+    @eval @inline Base.@propagate_inbounds function Base.$f(x::WannierFunction, i...)
+        return Base.$f(x.values, i...)
+    end
+end
+
+for f in (:length, :stride, :ndims, :axes, :strides)
+    @eval @inline Base.$f(w::WannierFunction) = Base.$f(w.values)
+end
+
+function Base.similar(x::WannierFunction, ::Type{S}) where {S}
+    return WannierFunction(x.points, similar(x.values, S))
+end
+
+Base.unsafe_convert(T::Type{<:Ptr}, x::WannierFunction) = Base.unsafe_convert(T, x.values)
+
+Base.Broadcast.broadcastable(w::WannierFunction) = w.values
+
+nspin(w::WannierFunction{N}) where {N} = N
+
+#### LinearAlgebra overloads
+function LinearAlgebra.adjoint(w::WannierFunction)
+    out = WannierFunction(w.points, similar(w.values))
+    return adjoint!(out, w)
+end
+
+LinearAlgebra.adjoint!(w1::WannierFunction, w2::WannierFunction) = w1 .= adjoint.(w2)
+
+function LinearAlgebra.dot(w1::WannierFunction{T}, w2::WannierFunction{T}) where {T}
+    s = zero(T)
+    for (v1, v2) in zip(w1.values, w2.values)
+        s += v1' * v2
+    end
+    return real(s)
+end
+
+function LinearAlgebra.dot(v::Vector, wfs::Vector{<:WannierFunction})
+    res = WannierFunction(wfs[1].points, zeros(eltype(wfs[1].values), size(wfs[1].values)))
+    for ic in 1:length(v)
+        res .+= v[ic] .* wfs[ic]
+    end
+    return res
+end
+LinearAlgebra.dot(wfs::Vector{<:WannierFunction}, v::Vector) = dot(v, wfs)
+
+LinearAlgebra.norm(wfc::WannierFunction) = dot(wfc, wfc)
+
+LinearAlgebra.normalize!(wfc::WannierFunction) = wfc ./= sqrt(norm(wfc))
+
+same_grid(w1::WannierFunction, w2::WannierFunction) = w1.points === w2.points
+
+function wan_op(op::Function, w1::W, w2::W) where {W<:WannierFunction}
+    @assert same_grid(w1, w2) "Wannier functions are not defined on the same grid"
+    return WannierFunction(w1.points, op(w1.values, w2.values))
+end
+
+Base.:(+)(w1::WannierFunction, w2::WannierFunction) = wan_op(+, w1, w2)
+Base.:(*)(w1::WannierFunction, w2::WannierFunction) = wan_op(*, w1, w2)
+Base.:(-)(w1::WannierFunction, w2::WannierFunction) = wan_op(-, w1, w2)
+function Base.:(*)(w1::WannierFunction, n::Number)
+    return WannierFunction(w1.points, map(x -> x .* n, w1.values))
+end
+function Base.:(*)(n::Number, w1::WannierFunction)
+    return WannierFunction(w1.points, map(x -> n .* x, w1.values))
+end
+function Base.:(/)(w1::WannierFunction, n::Number)
+    return WannierFunction(w1.points, map(x -> n ./ x, w1.values))
+end
+function Base.:(/)(n::Number, w1::WannierFunction)
+    return WannierFunction(w1.points, map(x -> x ./ n, w1.values))
+end
+
+LinearAlgebra.dot(w1::WannierFunction, n::Number) = w1 * n
+LinearAlgebra.dot(n::Number, w1::WannierFunction) = n * w1
+
+function generate_wannierfunctions(
+    model,
+    unkdir::AbstractString,
+    wannier_plot_supercell::NTuple{3,Int}=(3, 3, 3),
+    wan_plot_list=1:size(U[1], 2);
+    R::Vec3{Int}=Vec3(0, 0, 0),
+)
+    return read_realspace_wf(
+        model.gauges,
+        model.kpoints,
+        model.lattice,
+        wannier_plot_supercell,
+        unkdir;
+        R,
+        wan_plot_list,
+    )[2]
+end
+
+# TODO clean up
+function bloch_sum(wfunc, kpoint; i_pos_offset=(0, 0, 0), i_neg_offset=(0, 0, 0))
+    cell_boundaries = div.(size(wfunc.points), 3) .+ 1
+    x = wfunc.points[cell_boundaries[1] + 1, 1, 1] .- wfunc.points[1]
+    y = wfunc.points[1, cell_boundaries[2] + 1, 1] .- wfunc.points[1]
+    z = wfunc.points[1, 1, cell_boundaries[3] + 1] .- wfunc.points[1]
+    bloch = WannierFunction(wfunc.points, zeros(eltype(wfunc.values), size(wfunc.values)))
+    dims = size(wfunc.values)
+    for i1 in -3:1:3, i2 in -3:1:3, i3 in -3:1:3
+        R_cryst = Vec3(i1, i2, i3)
+        o1, o2, o3 = cell_boundaries .* R_cryst
+        shiftvec = x * R_cryst[1] .+ y * R_cryst[2] .+ z * R_cryst[3]
+        phase = ℯ^(2im * π * (R_cryst ⋅ kpoint))
+        if i1 + i2 + i3 == 0
+            continue
+        end
+        if i1 < 0
+            o1 += i_neg_offset[1]
+        elseif i1 > 0
+            o1 += i_pos_offset[1]
+        end
+        if i2 < 0
+            o2 += i_neg_offset[2]
+        elseif i2 > 0
+            o2 += i_pos_offset[2]
+        end
+        if i3 < 0
+            o3 += i_neg_offset[3]
+        elseif i3 > 0
+            o3 += i_pos_offset[3]
+        end
+
+        for j3 in 1:dims[3]
+            oid3 = mod1(j3 - o3, dims[3])
+            for j2 in 1:dims[2]
+                oid2 = mod1(j2 - o2, dims[2])
+                for j1 in 1:dims[1]
+                    oid1 = mod1(j1 - o1, dims[1])
+
+                    bloch.values[j1, j2, j3] += phase * wfunc.values[oid1, oid2, oid3]
+                end
+            end
+        end
+    end
+    return bloch
+end
+
+"Calculates the angular momentum between two wavefunctions and around the center."
+function calc_angmom(
+    wfc1::WannierFunction{N,T}, wfc2::WannierFunction{N,T}, center::Vec3{T}, cutoff=Inf
+) where {N,T<:AbstractFloat}
+    points = wfc1.points
+    origin = points[1, 1, 1]
+    da = points[2, 1, 1] - origin
+    db = points[1, 2, 1] - origin
+    dc = points[1, 1, 2] - origin
+    V = SMatrix{3,3}(inv([convert(Array, da) convert(Array, db) convert(Array, dc)])')
+    L = zero(Vec3{Complex{T}})
+    c2 = cutoff^2
+    @inbounds for i2 in 2:size(wfc1, 3)
+        for i1 in 2:size(wfc1, 2)
+            for i in 2:size(wfc1, 1)
+                r = points[i, i1, i2] - center
+                if dot(r, r) < c2
+                    dw_cryst = Vec3(
+                        wfc2.values[i, i1, i2] - wfc2.values[i - 1, i1, i2],
+                        wfc2.values[i, i1, i2] - wfc2.values[i, i1 - 1, i2],
+                        wfc2.values[i, i1, i2] - wfc2.values[i, i1, i2 - 1],
+                    )
+
+                    dw_cart = V * dw_cryst
+                    L += (wfc1.values[i, i1, i2]',) .* cross(r, dw_cart)
+                end
+            end
+        end
+    end
+    return -1im * L
+end
+
+function calc_spin(
+    wfc1::WannierFunction{2,T}, wfc2::WannierFunction{2,T}
+) where {T<:AbstractFloat}
+    S = Vec3(
+        SMatrix{2,2}(0, 1, 1, 0) / 2,
+        SMatrix{2,2}(0, -1im, 1im, 0) / 2,
+        SMatrix{2,2}(1, 0, 0, -1) / 2,
+    )
+
+    outS = zero(Vec3{Complex{T}})
+    for (w1, w2) in zip(wfc1.values, wfc2.values)
+        outS += (w1',) .* S .* (w2,)
+    end
+    return outS
+end
+
+"Calculates the dipole term between two wavefunctions. Make sure the wavefunctions are normalized!"
+function calc_dipole(
+    wfc1::WannierFunction{N,T}, wfc2::WannierFunction{N,T}
+) where {N,T<:AbstractFloat}
+    out = zero(Vec3{Complex{T}})
+    for (w1, w2, p) in zip(wfc1, wfc2, wfc1.points)
+        out += w1' * w2 * p
+    end
+    return real(out)
 end

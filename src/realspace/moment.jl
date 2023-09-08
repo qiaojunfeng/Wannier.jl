@@ -39,6 +39,14 @@ function moment(rgrid::RGrid, W::AbstractArray{T,4}, n::U) where {T<:Complex,U<:
     end
 end
 
+function moment(W::WannierFunction{N, T}, n) where {N, T}
+    out = zero(Vec3{Complex{T}})
+    for (w1, p) in zip(W, W.points)
+        out += w1' * w1 * p.^n
+    end
+    return real(out)
+end
+    
 """
     center(rgrid::RGrid, W::AbstractArray)
 
@@ -49,6 +57,7 @@ Returned value in Cartesian coordinates.
 See also [`moment`](@ref moment).
 """
 center(rgrid::RGrid, W::AbstractArray) = moment(rgrid, W, 1)
+center(W::WannierFunction) = moment(W, 1)
 
 """
     omega(rgrid::RGrid, W::AbstractArray)
@@ -61,6 +70,9 @@ See also [`moment`](@ref moment).
 """
 function omega(rgrid::RGrid, W::AbstractArray)
     return map(x-> sum(x[1] .- x[2].^2), zip(moment(rgrid, W, 2), center(rgrid, W)))
+end
+function omega(W::WannierFunction)
+    return sum(moment(W, 2) .- center(W).^2)
 end
 
 """
