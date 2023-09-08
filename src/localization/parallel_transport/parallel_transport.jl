@@ -28,8 +28,8 @@ function parallel_transport(
     end
 
     n_kx, n_ky, n_kz = model.kgrid_size
-    n_kpts = model.n_kpts
-    n_wann = model.n_wann
+    n_kpts = n_kpoints(model)
+    n_wann = n_wannier(model)
     kpoints = model.kpoints
 
     # start from 0
@@ -40,12 +40,12 @@ function parallel_transport(
     k_xyz, xyz_k = get_kpoint_mappings(kpoints, model.kgrid_size)
 
     # for overlap matrices
-    M = model.M
+    M = model.overlaps
     bvectors = model.kstencil
 
     # the new gauge
     if use_U
-        U = deepcopy(model.U)
+        U = deepcopy(model.gauges)
     else
         U = identity_gauge(Complex{T}, n_kpts, n_wann)
     end
@@ -331,8 +331,8 @@ function compute_error(model::Model{T}, U::Vector{Matrix{Complex{T}}}) where {T<
     kpoints = model.kpoints
     k_xyz, xyz_k = get_kpoint_mappings(kpoints, model.kgrid_size)
 
-    M = model.M
-    U0 = model.U
+    M = model.overlaps
+    U0 = model.gauges
 
     epsilon(i, j, b, B) = begin
         ib = index_bvector(model.kstencil, i, j, b)
@@ -391,8 +391,8 @@ function compute_error(model::Model{T}, U::Vector{Matrix{Complex{T}}}) where {T<
         ϵ1 += epsilon(k1, k2, b, U)
     end
 
-    ϵ0 = sqrt(ϵ0) / model.n_kpts
-    ϵ1 = sqrt(ϵ1) / model.n_kpts
+    ϵ0 = sqrt(ϵ0) / n_kpoints(model)
+    ϵ1 = sqrt(ϵ1) / n_kpoints(model)
 
     println("initial error = ", round(ϵ0; digits=4))
     println("final error   = ", round(ϵ1; digits=4))

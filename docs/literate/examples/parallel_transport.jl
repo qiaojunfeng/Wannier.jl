@@ -100,9 +100,14 @@ However, to make the tutorial reproducible, we will use a fixed random seed.
 =#
 using Random
 Random.seed!(12345)
-R = Wannier.rand_U(eltype(model_val.U), size(model_val.U)...)
+R = Wannier.rand_gauge(
+    eltype(model_val.gauges[1]),
+    n_kpoints(model_val),
+    n_bands(model_val),
+    n_wannier(model_val),
+)
 # and assign it to the `model_val`
-model_val.U .= R;
+model_val.gauges .= R;
 # of course now we have totally destroyed the gauge 😈
 omega(model_val)
 # and we will ask `parallel_transport` to explicitly use our random matrices,
@@ -123,7 +128,7 @@ However, the [`parallel_transport`](@ref) itself does not fix the gauge of the f
 which is arbitrary. We can fix it by maximal localizing w.r.t. a single (i.e. independent of kpoints)
 `n_wann * n_wann` rotation matrix `W`, by calling [`opt_rotate`](@ref),
 =#
-model_val.U .= U2;
+model_val.gauges .= U2;
 W = opt_rotate(model_val)
 #=
 This is convenient since the calculation is cheap, and helps evade local minimum.
@@ -142,7 +147,7 @@ omega(model_val, U3)
 Often it is helpful to run a final maximal localization that could further
 smoothen the gauge,
 =#
-model_val.U .= U3;
+model_val.gauges .= U3;
 U4 = max_localize(model_val);
 # and inspect the final gauge
 omega(model_val, U4)
@@ -154,15 +159,24 @@ Finally, let's have a look at the band interpolation.
 
 Valence + conduction bands,
 =#
-model.U .= U;
-interp_model = Wannier.InterpModel(model)
-kpi, E = interpolate(interp_model)
+kpath = Wannier.generate_kpath(
+    model_val.lattice, model_val.atom_positions, model_val.atom_labels
+)
+kpi = Wannier.generate_w90_kpoint_path(kpath)
+
+model.gauges .= U;
+H = TBHamiltonian(model)
+interp = HamiltonianInterpolator(H)
+E = interp(kpi)[1]
+
 # and top valence band,
-model_val.U .= U4;
-interp_model_val = Wannier.InterpModel(model_val)
-kpi2, E2 = interpolate(interp_model_val)
+model_val.gauges .= U4;
+H_val = TBHamiltonian(model_val)
+interp_val = HamiltonianInterpolator(H_val)
+
+E_val = interp_val(kpi)[1]
 # and plot the band structure
-P = plot_band_diff(kpi, E, E2)
+P = plot_band_diff(kpi, E, E_val)
 Main.HTMLPlot(P, 500)  # hide
 
 #=
@@ -191,14 +205,15 @@ omega(model_top, U_top)
 In the single-band case, there is no need to run optimal rotation.
 But we can still run maximal localization,
 =#
-model_top.U .= U_top;
+model_top.gauges .= U_top;
 U_top2 = max_localize(model_top)
 omega(model_top, U_top2)
 # and band interpolation
-interp_model_top = Wannier.InterpModel(model_top)
-kpi3, E3 = interpolate(interp_model_top)
+H_top = TBHamiltonian(model_top)
+interp_top = HamiltonianInterpolator(H_top)
+E_top = interp_top(kpi)[1]
 # and compare
-P = plot_band_diff(kpi, E, E3)
+P = plot_band_diff(kpi, E, E_top)
 Main.HTMLPlot(P, 500)  # hide
 
 #=

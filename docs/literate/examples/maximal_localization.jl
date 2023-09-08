@@ -136,7 +136,7 @@ Since we have very good initial guess, the spreads only decrease a little bit.
 
 You can assign the new gauge back to the `Model` by
 =#
-model.U .= U;
+model.gauges .= U;
 #=
 !!! tip
 

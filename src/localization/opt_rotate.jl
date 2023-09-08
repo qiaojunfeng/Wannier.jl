@@ -11,15 +11,15 @@ Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_rotate(model::Model)
     function f(W)
-        U = merge_gauge(model.U, W)
-        return omega(model.kstencil, model.M, U).Ω
+        U = merge_gauge(model.gauges, W)
+        return omega(model.kstencil, model.overlaps, U).Ω
     end
 
     function g!(G, W)
         n_wann = size(W, 1)
-        M = model.M
+        M = model.overlaps
         n_bvecs = length(M[1])
-        n_kpts = model.n_kpts
+        n_kpts = n_kpoints(model)
 
         bvectors = model.kstencil
         kpb_k = bvectors.kpb_k
@@ -33,7 +33,7 @@ function get_fg!_rotate(model::Model)
         MWᵏᵇ = zeros(eltype(W), n_wann, n_wann)
         Nᵏᵇ = zeros(eltype(W), n_wann, n_wann)
 
-        UW = merge_gauge(model.U, W)
+        UW = merge_gauge(model.gauges, W)
         r = center(bvectors, M, UW)
         # actually I can just call this, equivalent to the for loop below.
         # G_U = omega_grad(bvectors, M, UW, r)
@@ -97,8 +97,8 @@ Maximally localize spread functional w.r.t. single unitary matrix `W`.
 function opt_rotate(
     model::Model{T}; f_tol::T=1e-7, g_tol::T=1e-5, max_iter::Int=200, history_size::Int=3
 ) where {T<:Real}
-    n_wann = model.n_wann
-    model.n_bands == n_wann || error("n_bands != n_wann, run instead disentanglement?")
+    n_wann = n_wannier(model)
+    n_bands(model) == n_wann || error("n_bands != n_wann, run instead disentanglement?")
 
     Ωⁱ = omega(model)
     @info "Initial spread"
@@ -110,15 +110,17 @@ function opt_rotate(
     # note I cannot use `rotate_gauge(model, model.U)` because the rotated Hamiltonian
     # might not be diagonal, however in this case I don't care about eigenvalues
     model2 = deepcopy(model)
-    model2.M .= transform_gauge(model2.M, model2.bvectors.kpb_k, model2.U)
-    model2.U .= identity_gauge(eltype(model2.U[1]), model2.n_kpts, n_wann)
+    model2.overlaps .= transform_gauge(
+        model2.overlaps, model2.kstencil.kpb_k, model2.gauges
+    )
+    model2.gauges .= identity_gauge(eltype(model2.gauges[1]), n_kpoints(model2), n_wann)
 
     wManif = Optim.Stiefel_SVD()
 
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
-    W0 = Matrix{eltype(model2.U[1])}(I, n_wann, n_wann)
+    W0 = Matrix{eltype(model2.gauges[1])}(I, n_wann, n_wann)
 
     f, g! = get_fg!_rotate(model2)
 
@@ -142,7 +144,7 @@ function opt_rotate(
     Wmin = Optim.minimizer(opt)
 
     # model2.U is actually identity
-    U = merge_gauge(model2.U, Wmin)
+    U = merge_gauge(model2.gauges, Wmin)
     Ωᶠ = omega(model2, U)
     @info "Final spread"
     show(Ωᶠ)
