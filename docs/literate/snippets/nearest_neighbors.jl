@@ -43,7 +43,7 @@ atom1_cart = lattice * atom1
 
 # find 4 nearest neighbors of `atom1`,
 # I use 5 because the 1st returned neighbor is the `atom1` itself
-distances, indices, translations = Wannier.find_nearests(atom1, 5, lattice, atom_positions)
+distances, indices, translations = Wannier.find_neighbors(atom1, 5, lattice, atom_positions)
 # print the nearest atom and bond center, in Cartesian coordinates
 for i in 2:5
     idx = indices[i]

@@ -16,7 +16,7 @@ Truncate number of bands of `mmn` and `eig` files.
     lower number of bands again.
 """
 function truncate_mmn_eig(
-    seedname::AbstractString,
+    prefix::AbstractString,
     keep_bands::AbstractVector{Int},
     outdir::AbstractString="truncate",
 )
@@ -24,19 +24,19 @@ function truncate_mmn_eig(
 
     # for safety, in case seedname = "../si" then joinpath(outdir, seedname)
     # will overwrite the original file
-    seedname_base = basename(seedname)
+    prefix_base = basename(prefix)
 
-    E = read_eig("$seedname.eig")
+    E = read_eig("$prefix.eig")
     E1 = map(e -> e[keep_bands], E)
-    write_eig(joinpath(outdir, "$seedname_base.eig"), E1)
+    write_eig(joinpath(outdir, "$prefix_base.eig"), E1)
 
-    M, kpb_k, kpb_G = read_mmn("$seedname.mmn")
+    M, kpb_k, kpb_G = read_mmn("$prefix.mmn")
     M1 = map(M) do Mk
         map(Mk) do Mkb
             Mkb[keep_bands, keep_bands]
         end
     end
-    write_mmn(joinpath(outdir, "$seedname_base.mmn"), M1, kpb_k, kpb_G)
+    write_mmn(joinpath(outdir, "$prefix_base.mmn"), M1, kpb_k, kpb_G)
 
     return nothing
 end
@@ -75,8 +75,8 @@ function truncate_unk(
         ik1, Ψ = read_unk(joinpath(dir, unk))
         @assert ik == ik1
 
-        Ψ1 = Ψ[:, :, :, keep_bands]
-        write_unk(joinpath(outdir, unk), ik, Ψ1; binary=binary)
+        Ψ1 = Ψ[:, :, :, keep_bands, :]
+        write_unk(joinpath(outdir, unk_base), ik, Ψ1; binary=binary)
     end
 
     return nothing
@@ -94,7 +94,7 @@ Truncate `mmn`, `eig`, and optionally `UNK` files.
 - outdir: folder for output files.
 """
 function truncate_w90(
-    seedname::AbstractString,
+    prefix::AbstractString,
     keep_bands::AbstractVector{Int},
     outdir::AbstractString="truncate",
     unk::Bool=false,
@@ -107,9 +107,9 @@ function truncate_w90(
     # n_bands = size(E, 1)
     # keep_bands = [i for i = 1:n_bands if i ∉ exclude_bands]
 
-    truncate_mmn_eig(seedname, keep_bands, outdir)
+    truncate_mmn_eig(prefix, keep_bands, outdir)
 
-    dir = dirname(seedname)
+    dir = dirname(prefix)
     isempty(dir) && (dir = ".")
 
     if unk
@@ -138,19 +138,21 @@ Truncate `U`, `M`, `E` matrices in `model`.
 function truncate(
     model::Model, keep_bands::T, keep_wfs::Union{T,Nothing}=nothing; orthonorm_U::Bool=true
 ) where {T<:AbstractVector{Int}}
-    all(1 .<= keep_bands .<= model.n_bands) || error("Invalid band index")
+    nbands = n_bands(model)
+    nwann = n_wannier(model)
+    all(1 .<= keep_bands .<= nbands) || error("Invalid band index")
     if !isnothing(keep_wfs)
-        all(1 .<= keep_wfs .<= model.n_wann) || error("Invalid WF index")
+        all(1 .<= keep_wfs .<= nwann) || error("Invalid WF index")
         length(keep_wfs) <= length(keep_bands) || error("Number of WFs > number of bands")
     end
 
-    E = map(e -> e[keep_bands], model.E)
-    M = map(model.M) do Mk
+    E = map(e -> e[keep_bands], model.eigenvalues)
+    M = map(model.overlaps) do Mk
         map(Mk) do Mkb
             Mkb[keep_bands, keep_bands]
         end
     end
-    U = map(u -> u[keep_bands, :], model.U)
+    U = map(u -> u[keep_bands, :], model.gauges)
 
     if !isnothing(keep_wfs)
         U = map(u -> u[:, keep_wfs], U)
@@ -159,16 +161,18 @@ function truncate(
         U = orthonorm_lowdin(U)
     end
     frozen_bands = map(f -> f[keep_bands], model.frozen_bands)
+    entanged_bands = map(e -> e[keep_bands], model.entangled_bands)
 
     model2 = Model(
         model.lattice,
         model.atom_positions,
         model.atom_labels,
         model.kstencil,
-        frozen_bands,
         M,
         U,
         E,
+        frozen_bands,
+        entanged_bands,
     )
     return model2
 end

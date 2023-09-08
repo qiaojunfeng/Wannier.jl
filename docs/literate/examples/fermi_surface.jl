@@ -21,7 +21,7 @@ the copper and then compute the Fermi surface.
 using WannierIO
 using Wannier
 using Wannier.Datasets
-using WannierPlots
+# using WannierPlots
 
 #=
 !!! tip
@@ -61,7 +61,7 @@ omega(model)
 omega(model, U)
 
 # save the new gauge to the model
-model.U .= U;
+model.gauges .= U;
 
 #=
 !!! note
@@ -75,22 +75,25 @@ model.U .= U;
 # load QE band structure
 kpoints_qe, E_qe = WannierIO.read_qe_band(dataset"Cu/reference/qe_bands.dat");
 # the Fermi energy from scf calculation
-ef = 16.8985
+εF = 16.8985
 
 #=
 ## Generate an [`InterpModel`](@ref)
 =#
 # Force using `kpoint_path` in `win` file
 win = read_win(dataset"Cu/Cu.win")
-kpath = Wannier.get_kpath(win.unit_cell, win.kpoint_path)
+kpath = Wannier.generate_kpath(win.unit_cell_cart, win.kpoint_path)
+kpi = Wannier.generate_w90_kpoint_path(kpath)
 
-interp_model = Wannier.InterpModel(model; kpath=kpath)
+H = TBHamiltonian(model)
+interp = HamiltonianInterpolator(H)
 
 # interpolate band structure
-kpi, E = Wannier.interpolate(interp_model)
+E, V = interp(kpi);
 
 # plot band difference
-P = plot_band_diff(kpi, E_qe, E; fermi_energy=ef)
+using PlotlyJS
+P = plot_band_diff(kpi, E_qe, E; fermi_energy=εF)
 Main.HTMLPlot(P, 500)  # hide
 
 #=
@@ -103,7 +106,7 @@ save to a `bxsf` file
 =#
 # origin of the grid, always zeros
 origin = zeros(Float64, 3)
-WannierIO.write_bxsf("Cu.bxsf", ef, origin, interp_model.recip_lattice, E_fs)
+WannierIO.write_bxsf("Cu.bxsf", εF, origin, interp_model.recip_lattice, E_fs)
 
 # show the Brillouin zone
 using Brillouin

@@ -35,7 +35,7 @@ omega(model)
 # Now construct a tight-binding Hamiltonian, the [`TBHamiltonian`](@ref) function
 # returns a [`TBOperator`](@ref) struct, which contains the ``\mathbf{R}``-space
 # Wannier Hamiltonian, ``H(\mathbf{R})``.
-hamiltonian = TBHamiltonian(model)
+H = TBHamiltonian(model)
 
 #=
 !!! tip
@@ -106,7 +106,7 @@ to the interpolator and it will return the interpolated eigenvalues and eigenvec
 We can either pass a vector of 3-vectors for fractional coordinates, or directly
 a `KPathInterpolant` object,
 =#
-eigenvalues, eigenvectors = interp(kpi)
+E, V = interp(kpi)
 
 #=
 ## Plotting band structure
@@ -116,7 +116,7 @@ eigenvalues, eigenvectors = interp(kpi)
 You can save the result to the same format
 as `Wannier90` `band.dat`, by
 =#
-write_w90_band("wjl", kpi, eigenvalues)
+write_w90_band("wjl", kpi, E)
 #=
 where `wjl` is the prefix of the output,
 i.e., written files are
@@ -136,16 +136,16 @@ To activate the `plot_band` function, we need to first load `PlotlyJS` package,
 using PlotlyJS
 
 # then we can plot the band structure by
-P = plot_band(kpi, eigenvalues; win.fermi_energy)
+P = plot_band(kpi, E; win.fermi_energy)
 Main.HTMLPlot(P, 500) # hide
 #=
 Or, you can use the plotting functions provided by
 [`Brillouin.jl`](https://thchr.github.io/Brillouin.jl/stable/kpaths/#Band-structure),
-but requires a little bit transposation to a vector of length-`n_kpoints`, each
+but requires a different memory layout: a vector of length-`n_kpoints`, each
 elmenet is a length-`n_bands` vector
 =#
-eigenvalue_reshuffled = eachrow(reduce(hcat, eigenvalues))
-P = plot(kpi, eigenvalue_reshuffled)
+E_t = eachrow(reduce(hcat, E))
+P = plot(kpi, E_t)
 Main.HTMLPlot(P, 500) # hide
 
 #=
@@ -154,9 +154,7 @@ Main.HTMLPlot(P, 500) # hide
 Now we load the `Wannier90` interpolated band,
 to compare between the two codes,
 =#
-kpi_w90, eigenvalues_w90 = read_w90_band(
-    dataset"Si2/reference/Si2", reciprocal_lattice(model)
-)
+kpi_w90, E_w90 = read_w90_band(dataset"Si2/reference/MDRS/Si2", reciprocal_lattice(model))
 #=
 !!! tip
 
@@ -168,13 +166,13 @@ kpi_w90, eigenvalues_w90 = read_w90_band(
 =#
 
 # and compare the two band structures,
-P = plot_band_diff(kpi, eigenvalues_w90, eigenvalues)
+P = plot_band_diff(kpi, E_w90, E)
 Main.HTMLPlot(P, 500) # hide
 
 # Finally, we can also compare with DFT bands
 using WannierIO
 qe = WannierIO.read_qe_xml(dataset"Si2/reference/qe_bands.xml")
-P = plot_band_diff(kpi, qe.eigenvalues, eigenvalues)
+P = plot_band_diff(kpi, qe.eigenvalues, E)
 Main.HTMLPlot(P, 500) # hide
 #=
 As expected, the Wannier-interpolated band structures nicely reproduce

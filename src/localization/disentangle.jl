@@ -37,7 +37,7 @@ In some cases, we might want to freeze the whole set of degenerated eigen vector
 function set_frozen_degen!(
     frozen_bands::AbstractMatrix{Bool}, E::Vector, atol::T=1e-4
 ) where {T<:Real}
-    n_bands = length(E[1])
+    nbands = length(E[1])
     n_kpts = length(E)
     atol <= 0 && error("atol must be positive")
 
@@ -48,7 +48,7 @@ function set_frozen_degen!(
         if degen && count(frozen_k) > 0
             ib = findlast(frozen_k)
 
-            while ib < n_bands
+            while ib < nbands
                 if E[ik][ib + 1] < E[ik][ib] + atol
                     ib += 1
                     frozen_k[ib] .= true
@@ -74,9 +74,9 @@ Sanity check that the number of frozen bands at each kpoint <= `n_wann`.
 - `n_wann`: the number of wannier functions
 """
 function check_frozen_bands(frozen_bands::AbstractVector{AbstractVector{Bool}}, n_wann::Int)
-    n_bands = length(frozen_bands[1])
+    nbands = length(frozen_bands[1])
     n_kpts = length(frozen_bands)
-    n_wann > n_bands && error("n_wann > n_bands")
+    n_wann > nbands && error("n_wann > nbands")
 
     for ik in 1:n_kpts
         frozen_k = frozen_bands[ik]
@@ -145,12 +145,12 @@ function get_frozen_proj(
     U::AbstractVector{AbstractMatrix{Complex{T}}},
     dis_proj_max::T,
 ) where {T<:Real}
-    n_bands = length(E[1])
+    nbands = length(E[1])
     n_kpts = length(E)
-    frozen_bands = [falses(n_bands) for i in 1:n_kpts]
+    frozen_bands = [falses(nbands) for i in 1:n_kpts]
 
     # For each kpoint
-    frozen_k = falses(n_bands)
+    frozen_k = falses(nbands)
 
     for ik in 1:n_kpts
         fill!(frozen_k, false)
@@ -221,7 +221,7 @@ Strategy:
 - `frozen`: the `BitVector` specifying which bands are frozen
 """
 function orthonorm_freeze(U::Matrix{T}, frozen::BitVector) where {T<:Complex}
-    n_bands, n_wann = size(U)
+    nbands, nwann = size(U)
     non_frozen = .!frozen
 
     # Make sure Uf can fully represent frozen bands.
@@ -261,7 +261,7 @@ function orthonorm_freeze(U::Matrix{T}, frozen::BitVector) where {T<:Complex}
     # Use Lowdin normalization but needs to limit the number of independent vectors.
     A, S, B = svd(Ur)
     atol = 1e-10
-    @assert count(x -> x > atol, S) == n_wann - count(frozen)
+    @assert count(x -> x > atol, S) == nwann - count(frozen) "S = $S"
     S[S .> atol] .= 1
     S[S .< atol] .= 0
     Ur = A * Diagonal(S) * B'
@@ -271,9 +271,9 @@ function orthonorm_freeze(U::Matrix{T}, frozen::BitVector) where {T<:Complex}
     V[non_frozen, :] .= Ur
 
     # Semiunitary
-    @assert isapprox(V' * V, I; atol=atol)
+    @assert isapprox(V' * V, I; atol)
     # Frozen
-    @assert isapprox(V[frozen, :] * V[frozen, :]', I; atol=atol)
+    @assert isapprox(V[frozen, :] * V[frozen, :]', I; atol)
     # Independent
     @assert norm(Uf * Ur') < atol
 
@@ -369,13 +369,13 @@ See also [`X_Y_to_U`](@ref).
 function U_to_X_Y(
     U::AbstractVector{<:AbstractMatrix{T}}, frozen::Vector{BitVector}
 ) where {T<:Complex}
-    n_bands, n_wann = size(U[1])
-    n_kpts = length(U)
+    nkpts = length(U)
+    nbands, nwann = size(U[1])
 
-    X = [zeros(T, n_wann, n_wann) for i in 1:n_kpts]
-    Y = [zeros(T, n_bands, n_wann) for i in 1:n_kpts]
+    X = [zeros(T, nwann, nwann) for i in 1:nkpts]
+    Y = [zeros(T, nbands, nwann) for i in 1:nkpts]
 
-    @inbounds for ik in 1:n_kpts
+    @inbounds for ik in 1:nkpts
         idx_f = frozen[ik]
         idx_nf = .!idx_f
         n_froz = count(idx_f)
@@ -387,11 +387,11 @@ function U_to_X_Y(
         # determine Y
         Y[ik][idx_f, 1:n_froz] .= Matrix{T}(I, n_froz, n_froz)
 
-        if n_froz != n_wann
+        if n_froz != nwann
             Pr = Ur * Ur'
             Pr = Hermitian((Pr + Pr') / 2)
             D, V = eigen(Pr) # sorted by increasing eigenvalue
-            Y[ik][idx_nf, (n_froz + 1):end] .= V[:, (end - n_wann + n_froz + 1):end]
+            Y[ik][idx_nf, (n_froz + 1):end] .= V[:, (end - nwann + n_froz + 1):end]
         end
 
         # determine X
@@ -413,11 +413,11 @@ See also [`X_Y_to_U`](@ref).
 - `n_bands`: number of bands, to be used to reshape `XY`
 - `n_wann`: number of wannier functions, to be used to reshape `XY`
 """
-function XY_to_X_Y(XY::AbstractMatrix{T}, n_bands::Int, n_wann::Int) where {T<:Complex}
-    n_kpts = size(XY, 2)
+function XY_to_X_Y(XY::AbstractMatrix{T}, nbands::Int, nwann::Int) where {T<:Complex}
+    nkpts = size(XY, 2)
 
-    X = [zeros(T, n_wann, n_wann) for i in 1:n_kpts]
-    Y = [zeros(T, n_bands, n_wann) for i in 1:n_kpts]
+    X = [zeros(T, nwann, nwann) for i in 1:nkpts]
+    Y = [zeros(T, nbands, nwann) for i in 1:nkpts]
     return XY_to_X_Y!(X, Y, XY)
 end
 
@@ -444,10 +444,10 @@ See also [`X_Y_to_U`](@ref).
 function X_Y_to_XY(
     X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:AbstractMatrix{T}}
 ) where {T<:Complex}
-    n_bands, n_wann = size(Y[1])
-    n_kpts = length(Y)
-    n = n_wann^2
-    XY = zeros(T, n + n_bands * n_wann, n_kpts)
+    nkpts = length(Y)
+    nbands, nwann = size(Y[1])
+    n = nwann^2
+    XY = zeros(T, n + nbands * nwann, nkpts)
     return X_Y_to_XY!(XY, X, Y)
 end
 
@@ -559,16 +559,16 @@ This is used in test.
 - `frozen`: `BitMatrix` for frozen bands, `n_bands * n_kpts`
 """
 function zero_froz_grad!(G::AbstractMatrix, frozen::Vector)
-    n_bands = length(frozen[1])
-    n_kpts = length(frozen)
-    size(G, 2) == n_kpts || error("length(G) != n_kpts")
+    nbands = length(frozen[1])
+    nkpts = length(frozen)
+    size(G, 2) == nkpts || error("length(G) != n_kpts")
     # I need to find n_wann, solving the following polynomial equation:
     # size(G, 1) = n_wann * n_wann + n_bands * n_wann
     # just use quadratic formula
-    n_wann = round(Int, (-n_bands + sqrt(n_bands^2 + 4 * size(G, 1))) / 2)
+    nwann = round(Int, (-nbands + sqrt(nbands^2 + 4 * size(G, 1))) / 2)
 
-    GX, GY = Wannier.XY_to_X_Y(G, n_bands, n_wann)
-    @inbounds @views for ik in 1:n_kpts
+    GX, GY = Wannier.XY_to_X_Y(G, nbands, nwann)
+    @inbounds @views for ik in 1:nkpts
         idx_f = frozen[ik]
         n_froz = count(idx_f)
         GY[ik][idx_f, :] .= 0
@@ -589,15 +589,15 @@ function get_fg!_disentangle(p::AbstractPenalty, model::Model{T}) where {T}
     function fg!(Ω, G, XY)
         X, Y = XY_to_X_Y!(cache.X, cache.Y, XY)
         U = X_Y_to_U!(cache.U, X, Y)
-        compute_MU_UtMU!(cache, model.kstencil, model.M, U)
+        compute_MU_UtMU!(cache, model.kstencil, model.overlaps, U)
 
         if G !== nothing
-            G_ = omega_grad!(p, cache, model.kstencil, model.M)
+            G_ = omega_grad!(p, cache, model.kstencil, model.overlaps)
             GX, GY = GU_to_GX_GY(G_, X, Y, model.frozen_bands)
 
-            n = model.n_wann^2
+            n = n_wannier(model)^2
 
-            @inbounds for ik in 1:(model.n_kpts)
+            @inbounds for ik in 1:n_kpoints(model)
                 for i in eachindex(GX[ik])
                     G[i, ik] = GX[ik][i]
                 end
@@ -607,7 +607,7 @@ function get_fg!_disentangle(p::AbstractPenalty, model::Model{T}) where {T}
             end
         end
         if Ω !== nothing
-            return omega!(p, cache, model.kstencil, model.M).Ω
+            return omega!(p, cache, model.kstencil, model.overlaps).Ω
         end
     end
     return fg!
@@ -637,59 +637,57 @@ function disentangle(
     max_iter::Int=200,
     history_size::Int=3,
 ) where {T<:Real}
-    n_bands = model.n_bands
-    n_wann = model.n_wann
-    n_kpts = model.n_kpts
+    nbands = n_bands(model)
+    nwann = n_wannier(model)
+    nkpts = n_kpoints(model)
 
     # initial X, Y
     if random_gauge
-        X0 = [zeros(Complex{T}, n_wann, n_wann) for i in 1:n_kpts]
-        Y0 = [zeros(Complex{T}, n_bands, n_wann) for i in 1:n_kpts]
+        X0 = [zeros(Complex{T}, nwann, nwann) for i in 1:nkpts]
+        Y0 = [zeros(Complex{T}, nbands, nwann) for i in 1:nkpts]
 
         for ik in 1:n_kpts
             idx_f = model.frozen_bands[ik]
             idx_nf = .!idx_f
             n_froz = count(idx_f)
 
-            m = n_wann
-            n = n_wann
+            m = nwann
+            n = nwann
             M = randn(T, m, n) + im * randn(T, m, n)
             X0[ik] = orthonorm_lowdin(M)
 
             Y0[ik][idx_f, 1:n_froz] = I
-            m = n_bands - n_froz
+            m = nbands - n_froz
             n = n_wann - n_froz
             N = randn(T, m, n) + im * randn(m, n)
             Y0[ik][idx_nf, (n_froz + 1):n_wann] = orthonorm_lowdin(N)
         end
     else
-        X0, Y0 = U_to_X_Y(model.U, model.frozen_bands)
+        X0, Y0 = U_to_X_Y(model.gauges, model.frozen_bands)
     end
 
     # compact storage
     XY0 = X_Y_to_XY(X0, Y0)
 
     # We have three storage formats:
-    # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
-    # U: n_bands * n_wann * n_kpts
-    # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
+    # (X, Y): n_wann * n_wann * n_kpts, nbands * n_wann * n_kpts
+    # U: nbands * n_wann * n_kpts
+    # XY: (n_wann * n_wann + nbands * n_wann) * n_kpts
     fg! = get_fg!_disentangle(p, model)
 
-    Ωⁱ = omega(p, model, model.U)
-    @info "Initial spread"
-    show(Ωⁱ)
+    Ωⁱ = omega(p, model, model.gauges)
+    @info "Initial spread" Ωⁱ
     println("\n")
 
     Ωⁱ = omega(p, model, X_Y_to_U(X0, Y0))
-    @info "Initial spread (with states frozen)"
-    show(Ωⁱ)
+    @info "Initial spread (with states frozen)" Ωⁱ
     println("\n")
 
     # need QR orthogonalization rather than SVD to preserve the sparsity structure of Y
     XYkManif = Optim.ProductManifold(
-        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (n_wann, n_wann), (n_bands, n_wann)
+        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nwann, nwann), (nbands, nwann)
     )
-    XYManif = Optim.PowerManifold(XYkManif, (n_wann^2 + n_bands * n_wann,), (n_kpts,))
+    XYManif = Optim.PowerManifold(XYkManif, (nwann^2 + nbands * nwann,), (nkpts,))
 
     # stepsize_mult = 1
     # step = 0.5/(4*8*p.wb)*(p.N1*p.N2*p.N3)*stepsize_mult
@@ -717,12 +715,11 @@ function disentangle(
 
     XYmin = Optim.minimizer(opt)
 
-    Xmin, Ymin = XY_to_X_Y(XYmin, n_bands, n_wann)
+    Xmin, Ymin = XY_to_X_Y(XYmin, nbands, nwann)
     Umin = X_Y_to_U(Xmin, Ymin)
 
     Ωᶠ = omega(p, model, Umin)
-    @info "Final spread"
-    show(Ωᶠ)
+    @info "Final spread" Ωᶠ
     println("\n")
 
     return Umin
