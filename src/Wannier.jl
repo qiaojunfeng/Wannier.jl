@@ -49,8 +49,8 @@ include("localization/split.jl")
 include("localization/coopt.jl")
 include("localization/constrain_center/coopt.jl")
 
-# include("realspace/wavefunction.jl")
-# include("realspace/moment.jl")
+include("realspace/wavefunction.jl")
+include("realspace/moment.jl")
 
 ## Wannier interpolation
 include("interpolation/kpath.jl")
