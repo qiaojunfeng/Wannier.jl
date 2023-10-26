@@ -61,7 +61,7 @@ Return a PlotlyJS `Plot` struct for the band structure.
     For a full customization, directly manipulate the returned `Plot` struct.
     See [PlotlyJS documentation](http://juliaplots.org/PlotlyJS.jl/stable/syncplots/).
 """
-function get_band_plot(
+function Wannier.get_band_plot(
     x::AbstractVector{<:Real},
     eigenvalues::AbstractVector;
     fermi_energy::Union{Nothing,Real}=nothing,
@@ -183,7 +183,9 @@ function get_band_plot(
     return Plot(traces, layout)
 end
 
-function get_band_plot(kpi::KPathInterpolant, eigenvalues::AbstractVector; kwargs...)
+function Wannier.get_band_plot(
+    kpi::KPathInterpolant, eigenvalues::AbstractVector; kwargs...
+)
     x = Wannier.get_linear_path(kpi)
     symm_point_indices, symm_point_labels = Wannier.get_symm_point_indices_labels(kpi)
     return get_band_plot(x, eigenvalues; symm_point_indices, symm_point_labels, kwargs...)
