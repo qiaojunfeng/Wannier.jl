@@ -262,7 +262,7 @@ Return a vector of PlotlyJS traces for atoms.
 
 - `lattice`: columnwise lattice vectors
 - `atom_positions`: atomic positions in fractional coordinates
-- `atom_numbers`: can be either `:H` or `1`
+- `atom_numbers`: can be either `:H`, `1`, or `"H"`
 """
 function _atoms(
     lattice::AbstractMatrix, atom_positions::AbstractVector, atom_numbers::AbstractVector
@@ -278,7 +278,7 @@ function _atoms(
         # c = ele["cpkHexColor"]
         # r = ele["radius"] / elements[1]["radius"] / 10  # normalized by Hydrogen radius
         # these from PeriodicTable
-        ele = elements[atom]
+        ele = elements[Symbol(atom)]
         s = ele.symbol
         push!(label, s)
         c = ele.cpk_hex
