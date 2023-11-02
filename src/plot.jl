@@ -15,6 +15,7 @@ Need to `using PlotlyJS` to activate this function.
 function plot_band_diff end
 
 function get_band_plot end
+function get_band_diff_plot end
 
 function get_crystal_structure_plot end
 

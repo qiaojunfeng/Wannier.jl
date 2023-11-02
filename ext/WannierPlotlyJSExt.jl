@@ -216,6 +216,18 @@ function Wannier.plot_band(k, eigenvalues::AbstractVector; kwargs...)
     return PlotlyJS.plot(P)
 end
 
+function Wannier.get_band_diff_plot(
+    k, eigenvalues_1::AbstractArray, eigenvalues_2::AbstractArray; kwargs...
+)
+    P1 = Wannier.get_band_plot(k, eigenvalues_1; color="grey", kwargs...)
+    # red and slightly thinner
+    P2 = Wannier.get_band_plot(
+        k, eigenvalues_2; color="red", dash="dash", width=0.9, kwargs...
+    )
+    addtraces!(P1, P2.data...)
+    return P1
+end
+
 """
     $(SIGNATURES)
 
@@ -236,13 +248,8 @@ See [`plot_band`](@ref)
 function Wannier.plot_band_diff(
     k, eigenvalues_1::AbstractArray, eigenvalues_2::AbstractArray; kwargs...
 )
-    P1 = Wannier.get_band_plot(k, eigenvalues_1; color="grey", kwargs...)
-    # red and slightly thinner
-    P2 = Wannier.get_band_plot(
-        k, eigenvalues_2; color="red", dash="dash", width=0.9, kwargs...
-    )
-    addtraces!(P1, P2.data...)
-    return plot(P1)
+    P = Wannier.get_band_diff_plot(k, eigenvalues_1, eigenvalues_2; kwargs...)
+    return plot(P)
 end
 
 """A plotly sphere."""
