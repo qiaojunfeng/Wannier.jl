@@ -1,4 +1,4 @@
-export plot_band, plot_band_diff, plot_crystal_structure
+export plot_band, plot_band_diff, plot_crystal_structure, plot_dos
 
 """
 Plot band structure.
@@ -18,5 +18,7 @@ function get_band_plot end
 function get_band_diff_plot end
 
 function get_crystal_structure_plot end
-
 function plot_crystal_structure end
+
+function get_dos_plot end
+function plot_dos end
