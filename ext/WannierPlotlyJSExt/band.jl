@@ -1,8 +1,4 @@
-module WannierPlotlyJSExt
-using DocStringExtensions
 using Brillouin: KPathInterpolant
-using Wannier
-using PlotlyJS
 
 """
     $(SIGNATURES)
@@ -61,7 +57,7 @@ Return a PlotlyJS `Plot` struct for the band structure.
     For a full customization, directly manipulate the returned `Plot` struct.
     See [PlotlyJS documentation](http://juliaplots.org/PlotlyJS.jl/stable/syncplots/).
 """
-function get_band_plot(
+function Wannier.get_band_plot(
     x::AbstractVector{<:Real},
     eigenvalues::AbstractVector;
     fermi_energy::Union{Nothing,Real}=nothing,
@@ -183,10 +179,14 @@ function get_band_plot(
     return Plot(traces, layout)
 end
 
-function get_band_plot(kpi::KPathInterpolant, eigenvalues::AbstractVector; kwargs...)
+function Wannier.get_band_plot(
+    kpi::KPathInterpolant, eigenvalues::AbstractVector; kwargs...
+)
     x = Wannier.get_linear_path(kpi)
     symm_point_indices, symm_point_labels = Wannier.get_symm_point_indices_labels(kpi)
-    return get_band_plot(x, eigenvalues; symm_point_indices, symm_point_labels, kwargs...)
+    return Wannier.get_band_plot(
+        x, eigenvalues; symm_point_indices, symm_point_labels, kwargs...
+    )
 end
 
 """
@@ -202,11 +202,23 @@ Plot band structure.
     length-`n_bands` vector
 
 # Keyword Arguments
-See also the keyword arguments of [`get_band_plot`](@ref).
+See also the keyword arguments of [`Wannier.get_band_plot`](@ref).
 """
 function Wannier.plot_band(k, eigenvalues::AbstractVector; kwargs...)
-    P = get_band_plot(k, eigenvalues; kwargs...)
+    P = Wannier.get_band_plot(k, eigenvalues; kwargs...)
     return PlotlyJS.plot(P)
+end
+
+function Wannier.get_band_diff_plot(
+    k, eigenvalues_1::AbstractArray, eigenvalues_2::AbstractArray; kwargs...
+)
+    P1 = Wannier.get_band_plot(k, eigenvalues_1; color="grey", kwargs...)
+    # red and slightly thinner
+    P2 = Wannier.get_band_plot(
+        k, eigenvalues_2; color="red", dash="dash", width=0.9, kwargs...
+    )
+    addtraces!(P1, P2.data...)
+    return P1
 end
 
 """
@@ -229,11 +241,6 @@ See [`plot_band`](@ref)
 function Wannier.plot_band_diff(
     k, eigenvalues_1::AbstractArray, eigenvalues_2::AbstractArray; kwargs...
 )
-    P1 = get_band_plot(k, eigenvalues_1; color="grey", kwargs...)
-    # red and slightly thinner
-    P2 = get_band_plot(k, eigenvalues_2; color="red", dash="dash", width=0.9, kwargs...)
-    addtraces!(P1, P2.data...)
-    return plot(P1)
-end
-
+    P = Wannier.get_band_diff_plot(k, eigenvalues_1, eigenvalues_2; kwargs...)
+    return plot(P)
 end
