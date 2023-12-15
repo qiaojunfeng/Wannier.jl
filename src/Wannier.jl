@@ -80,9 +80,6 @@ include("interpolation/fermi_energy.jl")
 
 # include("cli/main.jl")
 
-## package extensions for plotting
-include("plot.jl")
-
 # ensure package extensions are loaded in Julia 1.8 and earlier
 using PackageExtensionCompat
 function __init__()
