@@ -73,15 +73,6 @@ makedocs(;
             "Interpolation" => "api/interpolation.md",
             "Command line" => "api/cli.md",
         ],
-        # "WannierPlots" => [
-        #     "Home" => "WannierPlots/index.md",
-        #     "API" => [
-        #         "Band" => "WannierPlots/api/band.md",
-        #         "Real space" => "WannierPlots/api/realspace.md",
-        #         "B vector" => "WannierPlots/api/bvector.md",
-        #         "Fermi surface" => "WannierPlots/api/fermisurf.md",
-        #     ],
-        # ],
     ],
 )
 
