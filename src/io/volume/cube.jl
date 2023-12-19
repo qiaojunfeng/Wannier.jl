@@ -15,7 +15,7 @@ Read `cube` file.
 """
 function read_cube(filename::AbstractString)
     cube = WannierIO.read_cube(filename)
-    rgrid = RGrid(cube.span_vectors, cube.origin, cube.X, cube.Y, cube.Z)
+    rgrid = RGrid(cube.voxel_vectors, cube.origin, cube.X, cube.Y, cube.Z)
     return (; cube.atom_positions, cube.atom_numbers, rgrid, cube.W)
 end
 
