@@ -24,6 +24,8 @@ struct NoneSmearing <: SmearingFunction end
 
 occupation(x, ::NoneSmearing) = x > 0 ? zero(x) : one(x)
 
+default_occupation_prefactor() = 2
+
 @doc raw"""
 Compute occupation given eigenvalues and Fermi energy.
 
@@ -36,7 +38,11 @@ Compute occupation given eigenvalues and Fermi energy.
 - `prefactor`: 1 for collinear calculation, 2 for spinless
 """
 function occupation(
-    eigenvalues::AbstractVector, εF, kBT, smearing::SmearingFunction; prefactor
+    eigenvalues::AbstractVector,
+    εF::Real,
+    kBT::Real,
+    smearing::SmearingFunction;
+    prefactor::Real=default_occupation_prefactor(),
 )
     T = promote_type(eltype(eltype(eigenvalues)), typeof(εF), typeof(kBT))
     inv_kBT = iszero(kBT) ? T(Inf) : 1 / kBT
@@ -57,7 +63,7 @@ Compute the number of electrons with a given density of states.
 - `dos`: density of states on energy grid, in states/eV unit
 - `εF`: Fermi energy, in eV unit
 
-# Returns
+# Return
 - `n_electrons`: number of electrons
 """
 function compute_n_electrons(energy::AbstractVector, dos::AbstractVector, εF::Number)
@@ -73,7 +79,7 @@ function compute_n_electrons(energy::AbstractVector, dos::AbstractVector, εF::N
     return cum_dos[idx]
 end
 
-default_kweights(eigenvalues) = 1 / length(eigenvalues)
+default_kweights(eigenvalues::AbstractVector) = 1 / length(eigenvalues)
 
 function compute_n_electrons(
     occupation::AbstractVector, kweights=default_kweights(occupation)
@@ -86,9 +92,9 @@ function compute_fermi_energy(
     n_electrons::Real,
     kBT::Real,
     smearing::SmearingFunction;
-    prefactor=2,
+    prefactor::Real=default_occupation_prefactor(),
     kweights=default_kweights(eigenvalues),
-    tol_n_electrons=1e-6,
+    tol_n_electrons::Real=1e-6,
 )
     # Get rough bounds to bracket εF
     min_ε = minimum(minimum, eigenvalues) - 1
@@ -108,8 +114,83 @@ function compute_fermi_energy(
     return εF
 end
 
+struct Kvoxel{T,VT<:AbstractVector{T}}
+    """fractional coordinates of kpoint"""
+    point::VT
+
+    """length of the kvoxel along three dimensions"""
+    dv::VT
+
+    """weight of the kpoint"""
+    weight::T
+end
+
+struct AdaptiveKgrid{KV<:Kvoxel,VT}
+    kvoxels::Vector{KV}
+    vals::Vector{VT}
+end
+
+Base.length(ag::AdaptiveKgrid) = length(ag.kvoxels)
+
+function occupation(
+    adpt_grid::AdaptiveKgrid,
+    εF::Real,
+    kBT::Real,
+    smearing::SmearingFunction;
+    prefactor::Real=default_occupation_prefactor(),
+)
+    T = promote_type(eltype(adpt_grid.vals), typeof(εF), typeof(kBT))
+    inv_kBT = iszero(kBT) ? T(Inf) : 1 / kBT
+
+    occ = map(adpt_grid.vals) do εk
+        prefactor * occupation.((εk .- εF) .* inv_kBT, smearing)
+    end
+    return occ
+end
+
+default_kweights(adpt_grid::AdaptiveKgrid) = [kv.weight for kv in adpt_grid.kvoxels]
+
+"""
+Refine the kgrid by splitting the kvoxels into subvoxels.
+
+# Arguments
+- `ag`: `AdaptiveKgrid`
+- `iks`: indices of kvoxels to be refined
+
+# Keyword arguments
+- `n_subvoxels`: number of subvoxels along each dimension. 2 -> split into 8 subvoxels
+"""
+function refine!(ag::AdaptiveKgrid, iks::AbstractVector, interp::Function; n_subvoxels=2)
+    new_kvoxels = eltype(ag.kvoxels)[]
+
+    # split the current kvoxel into 8 sub kvoxels, so 7 new kvoxels are added
+    range_subs = 0:(n_subvoxels - 1)
+    add_points = [Vec3(i, j, k) for i in range_subs for j in range_subs for k in range_subs]
+    deleteat!(add_points, 1)
+
+    for ik in iks
+        # split the current kvoxel into 8 sub kvoxels
+        vx0 = ag.kvoxels[ik]
+        voxel = Kvoxel(vx0.point, vx0.dv ./ n_subvoxels, vx0.weight / n_subvoxels^3)
+        ag.kvoxels[ik] = voxel
+        sub_voxels = map(add_points) do pt
+            Kvoxel(voxel.point + pt .* voxel.dv, voxel.dv, voxel.weight)
+        end
+        append!(new_kvoxels, sub_voxels)
+    end
+
+    new_vals = interp([v.point for v in new_kvoxels])
+    append!(ag.kvoxels, new_kvoxels)
+    append!(ag.vals, new_vals)
+    return nothing
+end
+
 """
 Compute Fermi energy by recursively refining the kgrid when interpolating the Hamiltonian.
+
+# Return
+- `εF`: Fermi energy
+- `adpt_kgrid`: `AdaptiveKgrid`
 """
 function compute_fermi_energy(
     interp::HamiltonianInterpolator,
@@ -117,10 +198,10 @@ function compute_fermi_energy(
     n_electrons::Real,
     kBT::Real,
     smearing::SmearingFunction;
-    prefactor=2,
-    tol_n_electrons=1e-6,
-    tol_εF=1e-3,
-    max_refine=10,
+    prefactor::Real=default_occupation_prefactor(),
+    tol_n_electrons::Real=1e-6,
+    tol_εF::Real=5e-3,
+    max_refine::Integer=10,
 )
     kpoints = get_kpoints(kgrid)
     eigenvals, _ = interp(kpoints)
@@ -159,7 +240,7 @@ function compute_fermi_energy(
             kBT,
             smearing;
             prefactor,
-            kweights=[kv.weight for kv in adpt_kgrid.kvoxels],
+            kweights=default_kweights(adpt_kgrid),
             tol_n_electrons,
         )
         # gradually reduce width_εF to save computation
@@ -177,57 +258,49 @@ function compute_fermi_energy(
         # set next search range according to ΔεF
         width_εF = min(width_εF, abs(ΔεF) * 5)
     end
-    return εF
+    return εF, adpt_kgrid
 end
-
-struct Kvoxel{T,VT<:AbstractVector{T}}
-    """fractional coordinates of kpoint"""
-    point::VT
-
-    """length of the kvoxel along three dimensions"""
-    dv::VT
-
-    """weight of the kpoint"""
-    weight::T
-end
-
-struct AdaptiveKgrid{KV<:Kvoxel,VT}
-    kvoxels::Vector{KV}
-    vals::Vector{VT}
-end
-
-Base.length(ag::AdaptiveKgrid) = length(ag.kvoxels)
 
 """
+Find the valence band maximum.
 
 # Arguments
-- `ag`: AdaptiveKgrid
-- `iks`: indices of kvoxels to be refined
+- `eigenvalues`: eigenvalues
+- `εF`: Fermi energy
 
-# Keyword arguments
-- `n_subvoxels`: number of subvoxels along each dimension. 2 -> split into 8 subvoxels
+# Return
+- `vbm`: valence band maximum
+- `ik`: index of kpoint for the vbm
+- `n`: index of band for the vbm
 """
-function refine!(ag::AdaptiveKgrid, iks::AbstractVector, interp::Function; n_subvoxels=2)
-    new_kvoxels = eltype(ag.kvoxels)[]
+function find_vbm(eigenvalues::AbstractVector, εF::Real)
+    # convert to a n_bands x n_kpoints matrix
+    E = reduce(hcat, eigenvalues)
+    # mask the conduction bands
+    E[E .> εF] .= -Inf
+    n, ik = argmax(E).I
+    vbm = E[n, ik]
+    return vbm, ik, n
+end
 
-    # split the current kvoxel into 8 sub kvoxels, so 7 new kvoxels are added
-    range_subs = 0:(n_subvoxels - 1)
-    add_points = [Vec3(i, j, k) for i in range_subs for j in range_subs for k in range_subs]
-    deleteat!(add_points, 1)
+"""
+Find the conduction band minimum.
 
-    for ik in iks
-        # split the current kvoxel into 8 sub kvoxels
-        vx0 = ag.kvoxels[ik]
-        voxel = Kvoxel(vx0.point, vx0.dv ./ n_subvoxels, vx0.weight / n_subvoxels^3)
-        ag.kvoxels[ik] = voxel
-        sub_voxels = map(add_points) do pt
-            Kvoxel(voxel.point + pt .* voxel.dv, voxel.dv, voxel.weight)
-        end
-        append!(new_kvoxels, sub_voxels)
-    end
+# Arguments
+- `eigenvalues`: eigenvalues
+- `εF`: Fermi energy
 
-    new_vals = interp([v.point for v in new_kvoxels])
-    append!(ag.kvoxels, new_kvoxels)
-    append!(ag.vals, new_vals)
-    return nothing
+# Return
+- `cbm`: conduction band minimum
+- `ik`: index of kpoint for the cbm
+- `n`: index of band for the cbm
+"""
+function find_cbm(eigenvals::AbstractVector, εF::Real)
+    # convert to a n_bands x n_kpoints matrix
+    E = reduce(hcat, eigenvals)
+    # mask the valence bands
+    E[E .< εF] .= Inf
+    n, ik = argmin(E).I
+    cbm = E[n, ik]
+    return cbm, ik, n
 end
