@@ -185,16 +185,47 @@ function refine!(ag::AdaptiveKgrid, iks::AbstractVector, interp::Function; n_sub
     return nothing
 end
 
+function AdaptiveKgrid(kgrid::AbstractVector, interp::HamiltonianInterpolator)
+    kpoints = get_kpoints(kgrid)
+    eigenvals, _ = interp(kpoints)
+
+    dv = Vec3(1 ./ kgrid)
+    kweight = default_kweights(eigenvals)
+    kvoxels = map(kpoints) do kpt
+        Kvoxel(kpt, dv, kweight)
+    end
+    return AdaptiveKgrid(kvoxels, eigenvals)
+end
+
 """
 Compute Fermi energy by recursively refining the kgrid when interpolating the Hamiltonian.
 
 # Return
 - `εF`: Fermi energy
-- `adpt_kgrid`: `AdaptiveKgrid`
 """
 function compute_fermi_energy(
-    interp::HamiltonianInterpolator,
     kgrid::AbstractVector,
+    interp::HamiltonianInterpolator,
+    n_electrons::Real,
+    kBT::Real,
+    smearing::SmearingFunction;
+    kwargs...,
+)
+    adpt_kgrid = AdaptiveKgrid(kgrid, interp)
+    return compute_fermi_energy!(adpt_kgrid, interp, n_electrons, kBT, smearing; kwargs...)
+end
+
+"""
+Compute Fermi energy by recursively refining the kgrid when interpolating the Hamiltonian.
+
+On output, the input variable `adpt_kgrid` contains the refined kgrid and eigenvalues.
+
+# Return
+- `εF`: Fermi energy
+"""
+function compute_fermi_energy!(
+    adpt_kgrid::AdaptiveKgrid,
+    interp::HamiltonianInterpolator,
     n_electrons::Real,
     kBT::Real,
     smearing::SmearingFunction;
@@ -203,20 +234,17 @@ function compute_fermi_energy(
     tol_εF::Real=5e-3,
     max_refine::Integer=10,
 )
-    kpoints = get_kpoints(kgrid)
-    eigenvals, _ = interp(kpoints)
     # the initial guessing Fermi energy
     εF = compute_fermi_energy(
-        eigenvals, n_electrons, kBT, smearing; prefactor, tol_n_electrons
+        adpt_kgrid.vals,
+        n_electrons,
+        kBT,
+        smearing;
+        prefactor,
+        kweights=default_kweights(adpt_kgrid),
+        tol_n_electrons,
     )
     @printf("εF on input kgrid   : %15.9f eV, n_kpoints = %8d\n", εF, length(kpoints))
-
-    dv = Vec3(1 ./ kgrid)
-    kweight = default_kweights(eigenvals)
-    kvoxels = map(kpoints) do kpt
-        Kvoxel(kpt, dv, kweight)
-    end
-    adpt_kgrid = AdaptiveKgrid(kvoxels, eigenvals)
 
     εF_prev = εF - 1
     iter = 1
@@ -258,7 +286,7 @@ function compute_fermi_energy(
         # set next search range according to ΔεF
         width_εF = min(width_εF, abs(ΔεF) * 5)
     end
-    return εF, adpt_kgrid
+    return εF
 end
 
 """
