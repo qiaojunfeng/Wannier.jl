@@ -21,6 +21,18 @@ function TBSpin(Rspace::BareRspace, operator::AbstractVector)
     return TBOperator{M}("Spin", Rspace, operator)
 end
 
+function TBSpin(
+    Rspace::AbstractRspace,
+    kpoints::AbstractVector,
+    spins::AbstractVector,
+    gauges::AbstractVector,
+)
+    Sᵏ = transform_gauge(spins, gauges)
+    Sᴿ = fourier(kpoints, Sᵏ, Rspace)
+    bare_Rspace, bare_S = simplify(Rspace, Sᴿ)
+    return TBSpin(bare_Rspace, bare_S)
+end
+
 """
     $(TYPEDEF)
 
