@@ -79,7 +79,7 @@ function compute_n_electrons(energy::AbstractVector, dos::AbstractVector, εF::N
     return cum_dos[idx]
 end
 
-default_kweights(eigenvalues::AbstractVector) = 1 / length(eigenvalues)
+default_kweights(eigenvalues::AbstractVector) = fill(1 / length(eigenvalues), length(eigenvalues))
 
 function compute_n_electrons(
     occupation::AbstractVector, kweights=default_kweights(occupation)
@@ -185,16 +185,19 @@ function refine!(ag::AdaptiveKgrid, iks::AbstractVector, interp::Function; n_sub
     return nothing
 end
 
-function AdaptiveKgrid(kgrid::AbstractVector, interp::HamiltonianInterpolator)
-    kpoints = get_kpoints(kgrid)
-    eigenvals, _ = interp(kpoints)
-
+"""
+The input kpoints should be in fractional coordinates, uniformally spaced, and
+do not contain periodically repeated points (i.e., if 0 is included, then 1
+should be excluded).
+"""
+function AdaptiveKgrid(kpoints::AbstractVector, eigenvalues::AbstractVector)
+    kgrid = guess_kgrid_size(kpoints)
     dv = Vec3(1 ./ kgrid)
-    kweight = default_kweights(eigenvals)
+    kweight = default_kweights(eigenvalues)[1]
     kvoxels = map(kpoints) do kpt
         Kvoxel(kpt, dv, kweight)
     end
-    return AdaptiveKgrid(kvoxels, eigenvals)
+    return AdaptiveKgrid(kvoxels, eigenvalues)
 end
 
 """
@@ -211,7 +214,9 @@ function compute_fermi_energy(
     smearing::SmearingFunction;
     kwargs...,
 )
-    adpt_kgrid = AdaptiveKgrid(kgrid, interp)
+    kpoints = get_kpoints(kgrid)
+    eigenvals, _ = interp(kpoints)
+    adpt_kgrid = AdaptiveKgrid(kpoints, eigenvals)
     return compute_fermi_energy!(adpt_kgrid, interp, n_electrons, kBT, smearing; kwargs...)
 end
 
@@ -244,7 +249,7 @@ function compute_fermi_energy!(
         kweights=default_kweights(adpt_kgrid),
         tol_n_electrons,
     )
-    @printf("εF on input kgrid   : %15.9f eV, n_kpoints = %8d\n", εF, length(kpoints))
+    @printf("εF on input kgrid   : %15.9f eV, n_kpoints = %8d\n", εF, length(adpt_kgrid))
 
     εF_prev = εF - 1
     iter = 1
