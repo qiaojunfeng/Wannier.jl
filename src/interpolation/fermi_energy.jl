@@ -220,10 +220,26 @@ function compute_fermi_energy(
     return compute_fermi_energy!(adpt_kgrid, interp, n_electrons, kBT, smearing; kwargs...)
 end
 
-"""
+@doc raw"""
 Compute Fermi energy by recursively refining the kgrid when interpolating the Hamiltonian.
 
-On output, the input variable `adpt_kgrid` contains the refined kgrid and eigenvalues.
+# Arguments
+- `adpt_kgrid`: on input, usually a uniformally-spaced kpoint grid and its eigenvalues;
+    on output, it is modified and contains the refined kgrid and eigenvalues.
+- `interp`: interpolator for Hamiltonian
+- `n_electrons`: number of electrons
+- `kBT`: smearing with in eV
+- `smearing`: type of Smearing
+- `prefactor`: the prefactor before the occupation function, 2 for no-spin system,
+    1 for spin-orbit calculation
+
+# Keyword arguments
+- `tol_n_electrons`: the tolerance on number of electrons in the bisection method
+- `tol_εF`: the convergence tolerance for Fermi energy
+- `max_refine`: the max number of iterations for refining kgrid
+- `width_εF`: the search range for eigenvalues. If the eigenvalue ``\varepsilon_{n\mathbf{k}}``
+    is inside the energy range `[εF - width_εF, εF + width_εF]`, the kpoint
+    will be refined
 
 # Return
 - `εF`: Fermi energy
@@ -238,6 +254,7 @@ function compute_fermi_energy!(
     tol_n_electrons::Real=1e-6,
     tol_εF::Real=5e-3,
     max_refine::Integer=10,
+    width_εF::Real = 0.5,
 )
     # the initial guessing Fermi energy
     εF = compute_fermi_energy(
@@ -253,8 +270,6 @@ function compute_fermi_energy!(
 
     εF_prev = εF - 1
     iter = 1
-    # search range
-    width_εF = 0.5
     while abs(εF - εF_prev) > tol_εF && iter <= max_refine
         refine_iks = filter(1:length(adpt_kgrid)) do ik
             any(abs.(adpt_kgrid.vals[ik] .- εF) .<= width_εF)
