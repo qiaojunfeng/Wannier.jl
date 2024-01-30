@@ -78,12 +78,4 @@ include("interpolation/fermi_energy.jl")
 
 # include("interpolation/magmom.jl")
 
-# include("cli/main.jl")
-
-# ensure package extensions are loaded in Julia 1.8 and earlier
-using PackageExtensionCompat
-function __init__()
-    @require_extensions
-end
-
 end

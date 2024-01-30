@@ -71,7 +71,6 @@ makedocs(;
             "Localization" => "api/wannierize.md",
             "Real space" => "api/realspace.md",
             "Interpolation" => "api/interpolation.md",
-            "Command line" => "api/cli.md",
         ],
     ],
 )
