@@ -56,35 +56,76 @@ end
 """
     $(SIGNATURES)
 
-Compute the number of electrons with a given density of states.
+Compute number of electrons with given density of states and Fermi energy.
 
 # Arguments
 - `energy`: Vector of energy, in eV unit
 - `dos`: density of states on energy grid, in states/eV unit
 - `εF`: Fermi energy, in eV unit
 
+# Keyword arguments
+- `tol_energy`: tolerance on Fermi energy
+
 # Return
 - `n_electrons`: number of electrons
 """
-function compute_n_electrons(energy::AbstractVector, dos::AbstractVector, εF::Number)
+function compute_n_electrons(
+    energy::AbstractVector, dos::AbstractVector, εF::Real; tol_energy::Real=5e-3
+)
     dE = energy[2] - energy[1]
     cum_dos = cumsum(dos) * dE
 
     idx = argmin(abs.(energy .- εF))
-    tol_energy = 1e-5
-    if abs(energy[idx] - εF) > tol_energy
-        error("Fermi energy not found in energy grid")
+    err = energy[idx] - εF
+    if abs(err) > tol_energy
+        error("Fermi energy not found in energy grid: err = $err")
     end
 
     return cum_dos[idx]
 end
 
-default_kweights(eigenvalues::AbstractVector) = fill(1 / length(eigenvalues), length(eigenvalues))
+function default_kweights(eigenvalues::AbstractVector)
+    return fill(1 / length(eigenvalues), length(eigenvalues))
+end
 
 function compute_n_electrons(
     occupation::AbstractVector, kweights=default_kweights(occupation)
 )
     return sum(kweights .* sum.(occupation))
+end
+
+"""
+    $(SIGNATURES)
+
+Compute Fermi energy with given density of states and number of electrons.
+
+# Arguments
+- `energy`: Vector of energy, in eV unit
+- `dos`: density of states on energy grid, in states/eV unit
+- `n_electrons`: number of electrons
+
+# Keyword arguments
+- `tol_n_electrons`: tolerance on number of electrons
+
+# Return
+- `εF`: Fermi energy, in eV unit
+"""
+function compute_fermi_energy(
+    energy::AbstractVector,
+    dos::AbstractVector,
+    n_electrons::Real;
+    tol_n_electrons::Real=1e-5,
+)
+    dE = energy[2] - energy[1]
+    cum_dos = cumsum(dos) * dE
+
+    idx = argmin(abs.(cum_dos .- n_electrons))
+    err = cum_dos[idx] - n_electrons
+    if abs(err) > tol_n_electrons
+        error("n_electrons not found in the cumulative DOS: err = $err")
+    end
+
+    return energy[idx]
 end
 
 function compute_fermi_energy(
@@ -254,7 +295,7 @@ function compute_fermi_energy!(
     tol_n_electrons::Real=1e-6,
     tol_εF::Real=5e-3,
     max_refine::Integer=10,
-    width_εF::Real = 0.5,
+    width_εF::Real=0.5,
 )
     # the initial guessing Fermi energy
     εF = compute_fermi_energy(
