@@ -161,7 +161,7 @@ Is isolated manifold?
 """
 isisolated(model::Model) = n_bands(model) == n_wannier(model)
 
-function Base.show(io::IO, ::MIME"text/plain", model::Model)
+function Base.show(io::IO, mime::MIME"text/plain", model::Model)
     show_lattice(io, model.lattice)
     println(io)
 
@@ -171,7 +171,7 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     end
     println(io, repeat("-", 80))
 
-    show(io, MIME"text/plain"(), model.kstencil)
+    show(io, mime, model.kstencil)
     println(io)
     println(io, repeat("-", 80))
 

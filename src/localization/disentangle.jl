@@ -677,11 +677,9 @@ function disentangle(
 
     Ωⁱ = omega(p, model, model.gauges)
     @info "Initial spread" Ωⁱ
-    println("\n")
 
     Ωⁱ = omega(p, model, X_Y_to_U(X0, Y0))
     @info "Initial spread (with states frozen)" Ωⁱ
-    println("\n")
 
     # need QR orthogonalization rather than SVD to preserve the sparsity structure of Y
     XYkManif = Optim.ProductManifold(
@@ -720,7 +718,6 @@ function disentangle(
 
     Ωᶠ = omega(p, model, Umin)
     @info "Final spread" Ωᶠ
-    println("\n")
 
     return Umin
 end

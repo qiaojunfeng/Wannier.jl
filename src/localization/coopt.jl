@@ -16,17 +16,18 @@ struct MagModel{T<:Real}
     M::Vector{Matrix{Complex{T}}}
 end
 
-function Base.show(io::IO, ::MIME"text/plain", model::MagModel)
+function Base.show(io::IO, mime::MIME"text/plain", model::MagModel)
     # TODO not sure why but this breaks REPL
     # every time I run any command, it will show this info message?
     # @info "spin up:"
     println(io, "spin up:")
-    show(io, model.up)
-    println(io, "\n")
+    show(io, mime, model.up)
+    println(io)
+    println(io, "="^80)
 
     # @info "spin down:"
     println(io, "spin down:")
-    return show(io, model.dn)
+    return show(io, mime, model.dn)
 end
 
 # function MagModel(up::Model{T}, dn::Model{T}) where {T<:Real}
@@ -62,7 +63,7 @@ struct SpreadMag{T<:Real,S<:AbstractSpread} <: AbstractSpread
     λ::T
 end
 
-function omega(model::MagModel, Uup, Udn, λ::Real)
+function omega(model::MagModel, Uup::AbstractVector, Udn::AbstractVector, λ::Real)
     up = omega(model.up, Uup)
     dn = omega(model.dn, Udn)
     M = overlap_updn(model, Uup, Udn)
@@ -72,27 +73,26 @@ function omega(model::MagModel, Uup, Udn, λ::Real)
 end
 
 function omega(model::MagModel, λ::Real)
-    return omega(model, model.up.U, model.dn.U, λ)
+    return omega(model, model.up.gauges, model.dn.gauges, λ)
 end
 
-function Base.show(io::IO, ::MIME"text/plain", Ω::SpreadMag)
-    @info "spin up:"
-    show(io, Ω.up)
-    println(io, "\n")
+function Base.show(io::IO, mime::MIME"text/plain", Ω::SpreadMag)
+    println(io, "spin up:")
+    show(io, mime, Ω.up)
+    println(io, '='^80)
+    println(io, "spin down:")
+    show(io, mime, Ω.dn)
 
-    @info "spin down:"
-    show(io, Ω.dn)
-    println(io, "\n")
-
-    n_wann = size(Ω.M, 1)
-    @info "overlap between up and down WFs:"
+    println(io, '='^80)
+    nwann = size(Ω.M, 1)
+    println(io, "overlap between up and down WFs:")
     @printf(io, "  WF     <↑|↓>/Å²\n")
-    for i in 1:n_wann
+    for i in 1:nwann
         @printf(io, "%4d %11.5f\n", i, Ω.M[i, i])
     end
-    println(io, "")
+    println(io, '='^80)
 
-    @info "Sum spread: Ωt = Ω↑ + Ω↓ + λ * Ω↑↓"
+    println(io, "Sum spread: Ωt = Ω↑ + Ω↓ + λ * Ω↑↓")
     @printf(io, "   Ω↑  = %11.5f\n", Ω.up.Ω)
     @printf(io, "   Ω↓  = %11.5f\n", Ω.dn.Ω)
     @printf(io, "   Ω↑↓ = %11.5f\n", Ω.Ωupdn)
@@ -250,19 +250,19 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_disentangle(model::MagModel, λ::Real=1.0)
-    n_bands = model.up.n_bands
-    n_wann = model.up.n_wann
-    n_kpts = model.up.n_kpts
-    n_inner = n_bands * n_wann + n_wann^2  # size of XY at each k-point
+    nbands = n_bands(model.up)
+    nwann = n_wannier(model.up)
+    nkpts = n_kpoints(model.up)
+    ninner = nbands * nwann + nwann^2  # size of XY at each k-point
 
     function f(XY)
-        XY = reshape(XY, (2 * n_inner, n_kpts))  # *2 for spin up and down
-        XYup = @view XY[1:n_inner, :]
-        XYdn = @view XY[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, n_bands, n_wann)
-        Xdn, Ydn = XY_to_X_Y(XYdn, n_bands, n_wann)
-        Ωup = omega(model.up.kstencil, model.up.M, Xup, Yup).Ω
-        Ωdn = omega(model.dn.kstencil, model.dn.M, Xdn, Ydn).Ω
+        XY = reshape(XY, (2 * ninner, nkpts))  # *2 for spin up and down
+        XYup = @view XY[1:ninner, :]
+        XYdn = @view XY[(ninner + 1):end, :]
+        Xup, Yup = XY_to_X_Y(XYup, nbands, nwann)
+        Xdn, Ydn = XY_to_X_Y(XYdn, nbands, nwann)
+        Ωup = omega(model.up.kstencil, model.up.overlaps, Xup, Yup).Ω
+        Ωdn = omega(model.dn.kstencil, model.dn.overlaps, Xdn, Ydn).Ω
         if λ == 0
             Ωupdn = 0
         else
@@ -273,16 +273,16 @@ function get_fg!_disentangle(model::MagModel, λ::Real=1.0)
 
     """size(G) == size(XY)"""
     function g!(G, XY)
-        XY = reshape(XY, (2 * n_inner, n_kpts))  # *2 for spin up and down
-        XYup = @view XY[1:n_inner, :]
-        XYdn = @view XY[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, n_bands, n_wann)
-        Xdn, Ydn = XY_to_X_Y(XYdn, n_bands, n_wann)
+        XY = reshape(XY, (2 * ninner, nkpts))  # *2 for spin up and down
+        XYup = @view XY[1:ninner, :]
+        XYdn = @view XY[(ninner + 1):end, :]
+        Xup, Yup = XY_to_X_Y(XYup, nbands, nwann)
+        Xdn, Ydn = XY_to_X_Y(XYdn, nbands, nwann)
         GXup, GYup = omega_grad(
-            model.up.kstencil, model.up.M, Xup, Yup, model.up.frozen_bands
+            model.up.kstencil, model.up.overlaps, Xup, Yup, model.up.frozen_bands
         )
         GXdn, GYdn = omega_grad(
-            model.dn.kstencil, model.dn.M, Xdn, Ydn, model.dn.frozen_bands
+            model.dn.kstencil, model.dn.overlaps, Xdn, Ydn, model.dn.frozen_bands
         )
 
         # gradient of ↑↓ overlap term
@@ -294,9 +294,9 @@ function get_fg!_disentangle(model::MagModel, λ::Real=1.0)
             GYdn += λ * GOYdn
         end
 
-        n = n_wann^2
+        n = nwann^2
 
-        for ik in 1:n_kpts
+        for ik in 1:nkpts
             for (i, v) in enumerate(GXup[ik])
                 G[i, ik] = v
             end
@@ -306,11 +306,11 @@ function get_fg!_disentangle(model::MagModel, λ::Real=1.0)
             end
 
             for (i, v) in enumerate(GXdn[ik])
-                G[n_inner + i, ik] = v
+                G[ninner + i, ik] = v
             end
 
             for (i, v) in enumerate(GYdn[ik])
-                G[n_inner + n + i, ik] = v
+                G[ninner + n + i, ik] = v
             end
         end
 
@@ -343,26 +343,26 @@ function disentangle(
     max_iter::Int=200,
     history_size::Int=3,
 ) where {T<:Real}
-    n_bands = model.up.n_bands
-    n_wann = model.up.n_wann
-    n_kpts = model.up.n_kpts
+    nbands = n_bands(model.up)
+    nwann = n_wannier(model.up)
+    nkpts = n_kpoints(model.up)
 
-    @assert model.dn.n_bands == n_bands
-    @assert model.dn.n_wann == n_wann
-    @assert model.dn.n_kpts == n_kpts
+    @assert n_bands(model.dn) == nbands
+    @assert n_wannier(model.dn) == nwann
+    @assert n_kpoints(model.dn) == nkpts
 
     XYk_up_Manif = Optim.ProductManifold(
-        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (n_wann, n_wann), (n_bands, n_wann)
+        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nwann, nwann), (nbands, nwann)
     )
     XYk_dn_Manif = Optim.ProductManifold(
-        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (n_wann, n_wann), (n_bands, n_wann)
+        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nwann, nwann), (nbands, nwann)
     )
-    n_inner = n_wann^2 + n_bands * n_wann
+    n_inner = nwann^2 + nbands * nwann
     XYkManif = Optim.ProductManifold(XYk_up_Manif, XYk_dn_Manif, (n_inner,), (n_inner,))
-    XYManif = Optim.PowerManifold(XYkManif, (2 * n_inner,), (n_kpts,))
+    XYManif = Optim.PowerManifold(XYkManif, (2 * n_inner,), (nkpts,))
 
-    Xup0, Yup0 = U_to_X_Y(model.up.U, model.up.frozen_bands)
-    Xdn0, Ydn0 = U_to_X_Y(model.dn.U, model.dn.frozen_bands)
+    Xup0, Yup0 = U_to_X_Y(model.up.gauges, model.up.frozen_bands)
+    Xdn0, Ydn0 = U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
     # compact storage
     XYup0 = X_Y_to_XY(Xup0, Yup0)
     XYdn0 = X_Y_to_XY(Xdn0, Ydn0)
@@ -374,15 +374,11 @@ function disentangle(
     # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
     f, g! = get_fg!_disentangle(model, λ)
 
-    @info "Initial spread"
     Ω = omega(model, λ)
-    show(Ω)
-    println("\n")
+    @info "Initial spread" Ω
 
-    @info "Initial spread (with states freezed)"
     Ω = omega(model, X_Y_to_U(Xup0, Yup0), X_Y_to_U(Xdn0, Ydn0), λ)
-    show(Ω)
-    println("\n")
+    @info "Initial spread (with states freezed)" Ω
 
     # stepsize_mult = 1
     # step = 0.5/(4*8*p.wb)*(p.N1*p.N2*p.N3)*stepsize_mult
@@ -413,14 +409,13 @@ function disentangle(
 
     XYupmin = XYmin[1:n_inner, :]
     XYdnmin = XYmin[(n_inner + 1):end, :]
-    Xupmin, Yupmin = XY_to_X_Y(XYupmin, n_bands, n_wann)
-    Xdnmin, Ydnmin = XY_to_X_Y(XYdnmin, n_bands, n_wann)
+    Xupmin, Yupmin = XY_to_X_Y(XYupmin, nbands, nwann)
+    Xdnmin, Ydnmin = XY_to_X_Y(XYdnmin, nbands, nwann)
     Uupmin = X_Y_to_U(Xupmin, Yupmin)
     Udnmin = X_Y_to_U(Xdnmin, Ydnmin)
 
-    @info "Final spread"
     Ω = omega(model, Uupmin, Udnmin, λ)
-    show(Ω)
+    @info "Final spread" Ω
 
     return Uupmin, Udnmin
 end

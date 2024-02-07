@@ -135,31 +135,28 @@ mutable struct Cache{T}
     MU::Vector{Vector{Matrix{Complex{T}}}}
 end
 
-# TODO remove 1st arg?
-function Cache(
-    bvectors::KspaceStencil{FT}, M::Vector{Vector{Matrix{Complex{FT}}}}, U
-) where {FT}
-    n_kpts = length(M)
-    n_bands, n_wann = U isa Vector ? size(U[1]) : size.((U,), (1, 2))
-    n_bvecs = length(M[1])
+function Cache(M::Vector{Vector{Matrix{Complex{FT}}}}, U) where {FT}
+    nkpts = length(M)
+    nbands, nwann = U isa Vector ? size(U[1]) : size.((U,), (1, 2))
+    nbvecs = length(M[1])
 
-    X = [zeros(Complex{FT}, n_wann, n_wann) for i in 1:n_kpts]
-    Y = [zeros(Complex{FT}, n_bands, n_wann) for i in 1:n_kpts]
-    U = [zeros(Complex{FT}, n_bands, n_wann) for i in 1:n_kpts]
-    G = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
-    r = zeros(Vec3{FT}, n_wann)
+    X = [zeros(Complex{FT}, nwann, nwann) for i in 1:nkpts]
+    Y = [zeros(Complex{FT}, nbands, nwann) for i in 1:nkpts]
+    U = [zeros(Complex{FT}, nbands, nwann) for i in 1:nkpts]
+    G = zeros(Complex{FT}, nbands, nwann, nkpts)
+    r = zeros(Vec3{FT}, nwann)
 
-    UtMU = [[zeros(Complex{FT}, n_wann, n_wann) for ib in 1:n_bvecs] for i in 1:n_kpts]
-    MU = [[zeros(Complex{FT}, n_bands, n_wann) for ib in 1:n_bvecs] for i in 1:n_kpts]
+    UtMU = [[zeros(Complex{FT}, nwann, nwann) for ib in 1:nbvecs] for i in 1:nkpts]
+    MU = [[zeros(Complex{FT}, nbands, nwann) for ib in 1:nbvecs] for i in 1:nkpts]
 
     return Cache(X, Y, U, G, r, UtMU, MU)
 end
 
-Cache(model::Model) = Cache(model.kstencil, model.overlaps, model.gauges)
+Cache(model::Model) = Cache(model.overlaps, model.gauges)
 
 n_bands(c::Cache) = size(c.G, 1)
-n_wann(c::Cache) = size(c.G, 2)
-n_kpts(c::Cache) = size(c.G, 3)
+n_wannier(c::Cache) = size(c.G, 2)
+n_kpoints(c::Cache) = size(c.G, 3)
 
 function compute_MU_UtMU!(MU, UtMU, bvectors::KspaceStencil, M, U::Vector)
     kpb_k = bvectors.kpb_k
@@ -217,8 +214,8 @@ struct CenterSpreadPenalty{T} <: AbstractPenalty
 end
 
 # TODO probably omega should always just return a value not the spread struct
-omega!(p::CenterSpreadPenalty, args...) = (Ω=omega_center(omega!(args...); p.r₀, p.λ).Ωt,)
-omega(p::CenterSpreadPenalty, args...) = omega_center(omega(args...); p.r₀, p.λ)
+omega!(p::CenterSpreadPenalty, args...) = (Ω=_omega_center(omega!(args...); p.r₀, p.λ).Ωt,)
+omega(p::CenterSpreadPenalty, args...) = _omega_center(omega(args...); p.r₀, p.λ)
 
 function omega_grad!(p::CenterSpreadPenalty, args...)
     return omega_grad!(center_penalty(p.r₀, p.λ), args...)
@@ -238,13 +235,13 @@ Compute WF spread with center penalty, for maximal localization.
 - `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
-function omega_center(args...; kwargs...)
+function _omega_center(args...; kwargs...)
     Ω = omega(args...)
-    return omega_center(Ω; kwargs...)
+    return _omega_center(Ω; kwargs...)
 end
 
-function omega_center(Ω::Spread; r₀::Vector{Vec3{T}}, λ::T) where {T<:Real}
-    ωc = λ .* map(i -> (t = Ω.r[i] - r₀[i]; sum(t .^ 2)), 1:length(r₀))
+function _omega_center(Ω::Spread; r₀::AbstractVector{Vec3}, λc::Real)
+    ωc = λc .* map(i -> (t = Ω.r[i] - r₀[i]; sum(t .^ 2)), 1:length(r₀))
     ωt = Ω.ω + ωc
     Ωc = sum(ωc)
     Ωt = Ω.Ω + Ωc
@@ -258,8 +255,8 @@ function omega!(cache::Cache, bvectors::KspaceStencil{FT}, M) where {FT<:Real}
     UtMU = cache.UtMU
     MU = cache.MU
 
-    nw = n_wann(cache)
-    nk = n_kpts(cache)
+    nw = n_wannier(cache)
+    nk = n_kpoints(cache)
 
     n_bvecs = length(M[1])
 
@@ -375,7 +372,7 @@ function omega(bvectors::KspaceStencil, M, X, Y)
 end
 
 function omega(bvectors::KspaceStencil, M, U)
-    cache = Cache(bvectors, M, U)
+    cache = Cache(M, U)
     compute_MU_UtMU!(cache, bvectors, M, U)
     return omega!(cache, bvectors, M)
 end
@@ -494,7 +491,7 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
 - `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
 """
 function omega_grad(penalty::Function, bvectors::KspaceStencil, M, U)
-    cache = Cache(bvectors, M, U)
+    cache = Cache(M, U)
     compute_MU_UtMU!(cache, bvectors, M, U)
     return omega_grad!(penalty, cache, bvectors, M)
 end
@@ -558,7 +555,7 @@ Compute WF center in reciprocal space.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 function center(bvectors::KspaceStencil, M, U)
-    cache = Cache(bvectors, M, U)
+    cache = Cache(M, U)
     compute_MU_UtMU!(cache, bvectors, M, U)
     return center!(cache.r, cache.UtMU, bvectors)
 end

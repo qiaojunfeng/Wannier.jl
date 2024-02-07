@@ -1,22 +1,22 @@
 
 function omega(
     model::MagModel,
-    Uup::AbstractArray3{T},
-    Udn::AbstractArray3{T},
-    r₀::Matrix{R},
-    λc::R,
-    λs::R,
-) where {T<:Complex,R<:Real}
-    up = omega_center(model.up, Uup, r₀, λc)
-    dn = omega_center(model.dn, Udn, r₀, λc)
+    Uup::AbstractVector,
+    Udn::AbstractVector,
+    r₀::AbstractVector,
+    λc::Real,
+    λs::Real,
+)
+    up = omega_center(model.up, Uup; r₀, λc)
+    dn = omega_center(model.dn, Udn; r₀, λc)
     M = overlap_updn(model, Uup, Udn)
     Ωupdn = omega_updn(M)
     Ωt = up.Ω + dn.Ω + λs * Ωupdn
     return SpreadMag(up, dn, Ωupdn, Ωt, M, λs)
 end
 
-function omega(model::MagModel{T}, r₀::Matrix{T}, λc::T, λs::T) where {T<:Real}
-    return omega(model, model.up.U, model.dn.U, r₀, λc, λs)
+function omega(model::MagModel, r₀::AbstractVector, λc::Real, λs::Real)
+    return omega(model, model.up.gauges, model.dn.gauges, r₀, λc, λs)
 end
 
 """
@@ -27,19 +27,19 @@ Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 function get_fg!_center_disentangle(
     model::MagModel{T}, r₀::Vector{Vec3{T}}, λc::T, λs::T
 ) where {T<:Real}
-    n_bands = model.up.n_bands
-    n_wann = model.up.n_wann
-    n_kpts = model.up.n_kpts
-    n_inner = n_bands * n_wann + n_wann^2  # size of XY at each k-point
+    nbands = n_bands(model.up)
+    nwann = n_wannier(model.up)
+    nkpts = n_kpoints(model.up)
+    ninner = nbands * nwann + nwann^2  # size of XY at each k-point
 
     function f(XY)
-        XY = reshape(XY, (2 * n_inner, n_kpts))  # *2 for spin up and down
-        XYup = @view XY[1:n_inner, :]
-        XYdn = @view XY[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, n_bands, n_wann)
-        Xdn, Ydn = XY_to_X_Y(XYdn, n_bands, n_wann)
-        Ωup = omega_center(model.up.kstencil, model.up.M, Xup, Yup, r₀, λc).Ω
-        Ωdn = omega_center(model.dn.kstencil, model.dn.M, Xdn, Ydn, r₀, λc).Ω
+        XY = reshape(XY, (2 * ninner, nkpts))  # *2 for spin up and down
+        XYup = @view XY[1:ninner, :]
+        XYdn = @view XY[(ninner + 1):end, :]
+        Xup, Yup = XY_to_X_Y(XYup, nbands, nwann)
+        Xdn, Ydn = XY_to_X_Y(XYdn, nbands, nwann)
+        Ωup = omega_center(model.up.kstencil, model.up.overlaps, Xup, Yup, r₀, λc).Ω
+        Ωdn = omega_center(model.dn.kstencil, model.dn.overlaps, Xdn, Ydn, r₀, λc).Ω
         if λs == 0
             Ωupdn = 0
         else
@@ -50,16 +50,16 @@ function get_fg!_center_disentangle(
 
     """size(G) == size(XY)"""
     function g!(G, XY)
-        XY = reshape(XY, (2 * n_inner, n_kpts))  # *2 for spin up and down
-        XYup = @view XY[1:n_inner, :]
-        XYdn = @view XY[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, n_bands, n_wann)
-        Xdn, Ydn = XY_to_X_Y(XYdn, n_bands, n_wann)
+        XY = reshape(XY, (2 * ninner, nkpts))  # *2 for spin up and down
+        XYup = @view XY[1:ninner, :]
+        XYdn = @view XY[(ninner + 1):end, :]
+        Xup, Yup = XY_to_X_Y(XYup, nbands, nwann)
+        Xdn, Ydn = XY_to_X_Y(XYdn, nbands, nwann)
         GXup, GYup = omega_center_grad(
-            model.up.kstencil, model.up.M, Xup, Yup, model.up.frozen_bands, r₀, λc
+            model.up.kstencil, model.up.overlaps, Xup, Yup, model.up.frozen_bands, r₀, λc
         )
         GXdn, GYdn = omega_center_grad(
-            model.dn.kstencil, model.dn.M, Xdn, Ydn, model.dn.frozen_bands, r₀, λc
+            model.dn.kstencil, model.dn.overlaps, Xdn, Ydn, model.dn.frozen_bands, r₀, λc
         )
 
         # gradient of ↑↓ overlap term
@@ -71,13 +71,13 @@ function get_fg!_center_disentangle(
             GYdn += λs * GOYdn
         end
 
-        n = n_wann^2
+        n = nwann^2
 
-        for ik in 1:n_kpts
+        for ik in 1:nkpts
             G[1:n, ik] = vec(GXup[:, :, ik])
-            G[(n + 1):n_inner, ik] = vec(GYup[:, :, ik])
-            G[(n_inner + 1):(n_inner + n), ik] = vec(GXdn[:, :, ik])
-            G[(n_inner + n + 1):end, ik] = vec(GYdn[:, :, ik])
+            G[(n + 1):ninner, ik] = vec(GYup[:, :, ik])
+            G[(ninner + 1):(ninner + n), ik] = vec(GXdn[:, :, ik])
+            G[(ninner + n + 1):end, ik] = vec(GYdn[:, :, ik])
         end
 
         return nothing
@@ -113,26 +113,26 @@ function disentangle_center(
     max_iter::Int=200,
     history_size::Int=3,
 ) where {T<:Real}
-    n_bands = model.up.n_bands
-    n_wann = model.up.n_wann
-    n_kpts = model.up.n_kpts
+    nbands = n_bands(model.up)
+    nwann = n_wannier(model.up)
+    nkpts = n_kpoints(model.up)
 
-    @assert model.dn.n_bands == n_bands
-    @assert model.dn.n_wann == n_wann
-    @assert model.dn.n_kpts == n_kpts
+    @assert n_bands(model.dn) == nbands
+    @assert n_wannier(model.dn) == nwann
+    @assert n_kpoints(model.dn) == nkpts
 
     XYk_up_Manif = Optim.ProductManifold(
-        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (n_wann, n_wann), (n_bands, n_wann)
+        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nwann, nwann), (nbands, nwann)
     )
     XYk_dn_Manif = Optim.ProductManifold(
-        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (n_wann, n_wann), (n_bands, n_wann)
+        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nwann, nwann), (nbands, nwann)
     )
-    n_inner = n_wann^2 + n_bands * n_wann
+    n_inner = nwann^2 + nbands * nwann
     XYkManif = Optim.ProductManifold(XYk_up_Manif, XYk_dn_Manif, (n_inner,), (n_inner,))
-    XYManif = Optim.PowerManifold(XYkManif, (2 * n_inner,), (n_kpts,))
+    XYManif = Optim.PowerManifold(XYkManif, (2 * n_inner,), (nkpts,))
 
-    Xup0, Yup0 = U_to_X_Y(model.up.U, model.up.frozen_bands)
-    Xdn0, Ydn0 = U_to_X_Y(model.dn.U, model.dn.frozen_bands)
+    Xup0, Yup0 = U_to_X_Y(model.up.gauges, model.up.frozen_bands)
+    Xdn0, Ydn0 = U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
     # compact storage
     XYup0 = X_Y_to_XY(Xup0, Yup0)
     XYdn0 = X_Y_to_XY(Xdn0, Ydn0)
@@ -144,14 +144,12 @@ function disentangle_center(
     # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
     f, g! = get_fg!_center_disentangle(model, r₀, λc, λs)
 
-    @info "Initial spread"
     Ω = omega(model, r₀, λc, λs)
-    show(Ω)
+    @info "Initial spread" Ω
     println("\n")
 
-    @info "Initial spread (with states freezed)"
     Ω = omega(model, X_Y_to_U(Xup0, Yup0), X_Y_to_U(Xdn0, Ydn0), r₀, λc, λs)
-    show(Ω)
+    @info "Initial spread (with states freezed)" Ω
     println("\n")
 
     # stepsize_mult = 1
@@ -183,8 +181,8 @@ function disentangle_center(
 
     XYupmin = XYmin[1:n_inner, :]
     XYdnmin = XYmin[(n_inner + 1):end, :]
-    Xupmin, Yupmin = XY_to_X_Y(XYupmin, n_bands, n_wann)
-    Xdnmin, Ydnmin = XY_to_X_Y(XYdnmin, n_bands, n_wann)
+    Xupmin, Yupmin = XY_to_X_Y(XYupmin, nbands, nwann)
+    Xdnmin, Ydnmin = XY_to_X_Y(XYdnmin, nbands, nwann)
     Uupmin = X_Y_to_U(Xupmin, Yupmin)
     Udnmin = X_Y_to_U(Xdnmin, Ydnmin)
 

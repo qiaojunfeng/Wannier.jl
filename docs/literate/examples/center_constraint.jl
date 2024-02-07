@@ -56,23 +56,29 @@ omega(model, U)
 As has been done in the [1. Maximal localization of isolated manifold](@ref) tutorial,
 we can use the [`find_nearests`](@ref) function to find the bond centers, which are
 =#
-r₀ = [
-    0.67882 -0.67882 -0.67882 0.67882 0.67882 -0.67882 -0.67882 0.67882
-    -0.67882 -0.67882 0.67882 0.67882 -0.67882 -0.67882 0.67882 0.67882
-    -0.67882 0.67882 -0.67882 0.67882 -0.67882 0.67882 -0.67882 0.67882
+r₀ = Wannier.Vec3{Float64}[
+    [0.67882, -0.67882, -0.67882],
+    [-0.67882, -0.67882, 0.67882],
+    [-0.67882, 0.67882, -0.67882],
+    [0.67882, 0.67882, 0.67882],
+    [0.67882, -0.67882, -0.67882],
+    [-0.67882, -0.67882, 0.67882],
+    [-0.67882, 0.67882, -0.67882],
+    [0.67882, 0.67882, 0.67882],
 ]
 #=
 note each column is a target center.
 
 We use `1.0` as the Lagrange multiplier,
 =#
-λ = 1.0
+λc = 1.0
 
 #=
 First, we calculate the initial spread with WF center penalty,
 now we need to use [`omega_center`](@ref) instead of [`omega`](@ref),
 =#
-Wannier.omega_center(model, r₀, λ)
+penalty = Wannier.CenterSpreadPenalty(r₀, λc)
+Wannier.omega(penalty, model)
 #=
 where the last three columns, `ω`, `ωc`, `ωt` are the
 MV spread, the penalty, and the total spread for each WF.

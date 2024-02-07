@@ -41,6 +41,7 @@ as the starting guess (computed by QE).
 # Load the packages
 using WannierIO
 using Wannier
+using Wannier.Datasets
 using WannierPlots
 
 #=
@@ -50,7 +51,7 @@ It's always good to check band-structure-interpolation qualities
 of WFs against DFT bands.
 To do this, let's first load QE band structure
 =#
-qe = WannierIO.read_qe_xml("qe_bands.xml")
+qe = WannierIO.read_qe_xml(dataset"CrI3/reference/qe_bands.xml")
 
 #=
 Note that I used Wannier90 generated kpath for QE bands calculation, to be
@@ -59,18 +60,18 @@ To generate a kpath equivalent to Wannier90, here we use the [`get_kpath`](@ref)
 function, with `unit_cell` and `kpoint_path` parsed from `win` file
 by [`read_win`](@ref) function.
 =#
-win = read_win("up/cri3_up.win")
-kpath = Wannier.get_kpath(win.unit_cell, win.kpoint_path)
+win = read_win(dataset"CrI3/CrI3_up.win")
+kpath = Wannier.generate_kpath(win.unit_cell_cart, win.kpoint_path)
 
 #=
 then we construct an [`KPathInterpolant`](@ref) object which stores the exact
 kpoint coordinates to be interpolated, using 100 points in the 1st kpath segment
 (equivalent to Wannier90 input `bands_num_points`).
 =#
-kpi = Wannier.generate_w90_kpoint_path(kpath, 100)
+kpi = Wannier.generate_w90_kpoint_path(kpath)
 
 # Now we can plot the QE bands for two spin channels
-P = plot_band_diff(kpi, qe.E_up, qe.E_dn; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, qe.eigenvalues_up, qe.eigenvalues_dn; qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 #=
@@ -84,8 +85,8 @@ according to the `dis_froz_max` inside the two `win` files, respectively;
 in our case, they are both `dis_froz_max = -2 eV` since there are gaps
 in both spin channels.
 =#
-model_up = read_w90("up/cri3_up")
-model_dn = read_w90("dn/cri3_dn")
+model_up = read_w90(dataset"CrI3/CrI3_up")
+model_dn = read_w90(dataset"CrI3/CrI3_dn")
 
 #=
 ## Projection-only WFs
@@ -112,19 +113,23 @@ using the `kpoint_path` from `win` file (otherwise, by default the `InterpModel`
 will use `Brillouin.jl` to auto generate a kpath, which might be different
 from user's input)
 =#
-interpModel_up = Wannier.InterpModel(model_up; kpath=kpath)
-interpModel_dn = Wannier.InterpModel(model_dn; kpath=kpath)
+H_up = TBHamiltonian(model_up)
+H_dn = TBHamiltonian(model_dn)
+
+# construct `Interpolator` struct
+interp_up = HamiltonianInterpolator(H_up)
+interp_dn = HamiltonianInterpolator(H_dn)
 
 # then interpolate eigenvalues
-E_up_projonly = Wannier.interpolate(interpModel_up, kpi)
-E_dn_projonly = Wannier.interpolate(interpModel_dn, kpi)
+E_up_projonly = interp_up(kpi)[1]
+E_dn_projonly = interp_dn(kpi)[1]
 
 # and plot the spin-up bands compared with QE
-P = plot_band_diff(kpi, qe.E_up, E_up_projonly; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, qe.eigenvalues_up, E_up_projonly; qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 # and the spin-down bands
-P = plot_band_diff(kpi, qe.E_dn, E_dn_projonly; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, qe.eigenvalues_dn, E_dn_projonly; qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 #=
@@ -136,7 +141,7 @@ calculations.
 As a side node, we can also plot the Wannier-interpolated spin-up and down bands
 in one figure,
 =#
-P = plot_band_diff(kpi, E_up_projonly, E_dn_projonly; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, E_up_projonly, E_dn_projonly; qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 #=
@@ -155,8 +160,8 @@ with `win` file.
     to be able to restart from the written binary `chk` file for other codes.
 =#
 exclude_bands = collect(1:8)
-Wannier.write_chk("up/wjl_up_projonly.chk", model_up; exclude_bands)
-Wannier.write_chk("dn/wjl_dn_projonly.chk", model_dn; exclude_bands)
+Wannier.write_chk("wjl_up_projonly.chk", model_up; exclude_bands)
+Wannier.write_chk("wjl_dn_projonly.chk", model_dn; exclude_bands)
 
 #=
 ## Independent Wannierizations of two spin channels
@@ -176,15 +181,12 @@ omega(model_up, U_up_mlwf)
 # For band interpolations, we explicitly construct [`InterpModel`](@ref)s by
 # reusing previous ``\bm{R}`` vectors, and compute Hamiltonian ``H(\bm{R})``.
 # This skips ``\bm{R}`` vector generation, a bit faster
-interpModel_up_mlwf = Wannier.InterpModel(
-    interpModel_up.kRvectors,
-    interpModel_up.kpath,
-    fourier(interpModel_up.kRvectors, Wannier.rotate_gauge(model_up.E, U_up_mlwf)),
-)
-E_up_mlwf = Wannier.interpolate(interpModel_up_mlwf, kpi)
+H_up_mlwf = TBHamiltonian(model_up, U_up_mlwf)
+interp_up_mlwf = HamiltonianInterpolator(H_up_mlwf)
+E_up_mlwf = interp_up_mlwf(kpi)[1]
 
 # Now the MLWF bands are very accurate, much better than projection-only
-P = plot_band_diff(kpi, qe.E_up, E_up_mlwf; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, qe.eigenvalues_up, E_up_mlwf; qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 # similarly, for spin-down channel
@@ -192,18 +194,15 @@ U_dn_mlwf = disentangle(model_dn);
 # and WF centers and spreads
 omega(model_dn, U_dn_mlwf)
 # and the interpolated bands
-interpModel_dn_mlwf = Wannier.InterpModel(
-    interpModel_dn.kRvectors,
-    interpModel_dn.kpath,
-    fourier(interpModel_dn.kRvectors, Wannier.rotate_gauge(model_dn.E, U_dn_mlwf)),
-)
-E_dn_mlwf = Wannier.interpolate(interpModel_dn_mlwf, kpi)
-P = plot_band_diff(kpi, qe.E_dn, E_dn_mlwf; fermi_energy=qe.fermi_energy)
+H_dn_mlwf = TBHamiltonian(model_dn, U_dn_mlwf)
+interp_dn_mlwf = HamiltonianInterpolator(H_dn_mlwf)
+E_dn_mlwf = interp_dn_mlwf(kpi)[1]
+P = plot_band_diff(kpi, qe.eigenvalues_dn, E_dn_mlwf; qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 # Save the gauge into `chk` files
-Wannier.write_chk("up/wjl_up_mlwf.chk", model_up, U_up_mlwf; exclude_bands)
-Wannier.write_chk("dn/wjl_dn_mlwf.chk", model_dn, U_dn_mlwf; exclude_bands)
+Wannier.write_chk("wjl_up_mlwf.chk", model_up, U_up_mlwf; exclude_bands)
+Wannier.write_chk("wjl_dn_mlwf.chk", model_dn, U_dn_mlwf; exclude_bands)
 
 #=
 Although the two sets of MLWFs accurately reproduce the band structures,
@@ -226,7 +225,7 @@ using the previous two `Model`s and an additional overlap matrix.
 
 The spin-up and down overlap matrices is written in the same format as `amn`
 =#
-Mud = read_amn("updn/cri3_updn.mud");
+Mud = read_amn(dataset"CrI3/CrI3_updn.mud");
 
 # then assemble into a [`MagModel`](@ref)
 model = Wannier.MagModel(model_up, model_dn, Mud)
@@ -248,8 +247,8 @@ omega(model, U_up, U_dn, λs)
 omega(model, U_up_mlwf, U_dn_mlwf, λs)
 
 # Save the gauge into `chk` files
-Wannier.write_chk("up/wjl_up_cowf.chk", model_up, U_up; exclude_bands)
-Wannier.write_chk("dn/wjl_dn_cowf.chk", model_dn, U_dn; exclude_bands)
+Wannier.write_chk("wjl_up_cowf.chk", model_up, U_up; exclude_bands)
+Wannier.write_chk("wjl_dn_cowf.chk", model_dn, U_dn; exclude_bands)
 
 #=
 As can be seen from the above spin-up-down overlaps `<↑|↓>`,
@@ -275,22 +274,30 @@ calculations, i.e., constructing a Heisenberg model with
 Since we want atom-centered WFs, our target centers are just atom positions.
 We store our target WF centers in a column-wise matrix,
 =#
-r₀ = zeros(3, model.up.n_wann)
+r₀ = [zeros(3) for _ in 1:n_wannier(model.up)]
 # the first 6 WFs are the `4s,3d` orbitals of the 1st `Cr` atom
-r₀[:, 1:6] .= model_up.atom_positions[:, 1]
+r₀[1:6] .= Ref(model_up.atom_positions[1])
+#=
+!!! note
+    Here I am using julia's `Ref` to treat the `atom_positions[1]` as a scaler
+    when broadcasting to the 1th to 6th elements of vector `r₀`. The result is
+    the same as writing a `for` loop over the first six elements.
+=#
 # the next 6 WFs are the `4s,3d` orbitals of the 2nd `Cr` atom
-r₀[:, 7:12] .= model_up.atom_positions[:, 2]
+r₀[7:12] .= Ref(model_up.atom_positions[2])
 # the next 4 WFs are the `5s,5p` orbitals of `I` atom
-r₀[:, 13:16] .= model_up.atom_positions[:, 3]
+r₀[13:16] .= Ref(model_up.atom_positions[3])
 # and similarly for the remaining 5 `I` atoms
-r₀[:, 17:20] .= model_up.atom_positions[:, 4]
-r₀[:, 21:24] .= model_up.atom_positions[:, 5]
-r₀[:, 25:28] .= model_up.atom_positions[:, 6]
-r₀[:, 29:32] .= model_up.atom_positions[:, 7]
-r₀[:, 33:36] .= model_up.atom_positions[:, 8]
+r₀[17:20] .= Ref(model_up.atom_positions[4])
+r₀[21:24] .= Ref(model_up.atom_positions[5])
+r₀[25:28] .= Ref(model_up.atom_positions[6])
+r₀[29:32] .= Ref(model_up.atom_positions[7])
+r₀[33:36] .= Ref(model_up.atom_positions[8])
 
 # convert to Cartesian coordinates
-r₀ = model.up.lattice * r₀
+r₀ = map(r₀) do v
+    model.up.lattice * v
+end
 
 #=
 Now we need to choose the Lagrange multiplier factors for the two constraints.
@@ -305,7 +312,7 @@ target position r₀.
 =#
 λc = 10.0
 λs = 10.0
-U_up, U_dn = disentangle_center(model, r₀, λc, λs);
+U_up, U_dn = Wannier.disentangle_center(model, r₀, λc, λs);
 
 # the final centers and spreads are
 omega(model, U_up, U_dn, r₀, λc, λs)
