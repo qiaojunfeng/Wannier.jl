@@ -224,8 +224,8 @@ Split the `Model` into several `Model`s.
 function split_model(
     model::Model, eig_groups::AbstractVector{R}
 ) where {R<:AbstractVector{Int}}
-    E = model.E
-    U = model.U
+    E = model.eigenvalues
+    U = model.gauges
     EVs = split_eig(E, U, eig_groups)
 
     UVs = []
@@ -234,8 +234,8 @@ function split_model(
         UV = merge_gauge(U, EV[2])
         push!(UVs, UV)
 
-        m = rotate_gauge(model, UV)
-        @assert m.E ≈ EV[1]
+        m = transform_gauge(model, UV)
+        @assert m.eigenvalues ≈ EV[1]
         push!(models, m)
     end
 
@@ -281,7 +281,7 @@ function split_wannierize(
 
     for (model, _) in model_Us
         U, _ = parallel_transport(model)
-        model.U .= U
+        model.gauges .= U
     end
 
     return model_Us

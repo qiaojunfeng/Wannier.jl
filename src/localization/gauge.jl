@@ -133,25 +133,25 @@ function rotate_gauge!(model::Model, U::AbstractVector; ensure_bloch_gauge::Bool
 function transform_gauge(
     model::Model, U::Vector{Matrix{T}}; ensure_bloch_gauge::Bool=false
 ) where {T<:Number}
-    n_bands = model.n_bands
-    n_kpts = model.n_kpts
-    (size(U[1], 1), length(U)) == (n_bands, n_kpts) ||
-        error("U must have size (n_bands, :, n_kpts)")
+    nbands = n_bands(model)
+    nkpts = n_kpoints(model)
+    (size(U[1], 1), length(U)) == (nbands, nkpts) ||
+        error("inconsistent size between U and model")
     # The new n_wann
-    n_wann = size(U[1], 2)
+    nwann = size(U[1], 2)
 
     # the new gauge is just identity
-    U2 = identity_U(eltype(U[1]), n_kpts, n_wann)
+    U2 = identity_gauge(eltype(U[1]), nkpts, nwann)
 
     # EIG
-    E = model.E
+    E = model.eigenvalues
     E2 = map(m -> similar(m), E)
-    H = zeros(eltype(model.U[1]), n_wann, n_wann)
+    H = zeros(eltype(model.gauges[1]), nwann, nwann)
     # tolerance for checking Hamiltonian
     atol = 1e-8
     # all the diagonalized kpoints, used if diag_H = true
     diag_kpts = Int[]
-    for ik in 1:n_kpts
+    for ik in 1:nkpts
         Uₖ = U[ik]
         H .= Uₖ' * diagm(0 => E[ik]) * Uₖ
         ϵ = diag(H)
@@ -172,8 +172,8 @@ function transform_gauge(
     end
 
     # MMN
-    M = model.M
-    kpb_k = model.bvectors.kpb_k
+    M = model.overlaps
+    kpb_k = model.kstencil.kpb_k
     M2 = transform_gauge(M, kpb_k, U)
     if ensure_bloch_gauge && length(diag_kpts) > 0
         M2 = transform_gauge(M2, kpb_k, U2)
@@ -187,13 +187,11 @@ function transform_gauge(
         model.lattice,
         model.atom_positions,
         model.atom_labels,
-        model.kgrid_size,
-        model.kpoints,
-        model.bvectors,
-        [falses(n_wann) for i in 1:n_kpts],
+        model.kstencil,
         M2,
         U2,
         E2,
+        [falses(nwann) for i in 1:nkpts],
     )
     return model2
 end

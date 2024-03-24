@@ -278,6 +278,27 @@ end
 """
     $(SIGNATURES)
 
+Delete negetive bvectors for Γ-point calculation.
+
+Since bvectors are symmetric, this removes half of the bvectors.
+"""
+function delete_shells_Γ(shells::KspaceStencilShells)
+    bvectors = map(shells.bvectors) do bvecs  # for each shell
+        bvecs_new = filter(v -> all(v .>= 0), bvecs)
+        if length(bvecs_new) != length(bvecs)//2
+            error("Non-symmetric bvectors for Γ-point calculation: ", bvecs)
+        end
+        bvecs_new
+    end
+    bweights = [2w for w in shells.bweights]
+    return KspaceStencilShells(
+        shells.recip_lattice, shells.kgrid_size, shells.kpoints, bvectors, bweights
+    )
+end
+
+"""
+    $(SIGNATURES)
+
 Try to guess bvector bweights from MV1997 Eq. (B1).
 
 The input bvectors are overcomplete vectors found during shell search, i.e., from

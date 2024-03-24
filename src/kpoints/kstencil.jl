@@ -451,6 +451,11 @@ function generate_kspace_stencil(
     shells = delete_shells(shells, keep_shells)
     shells.bweights .= bweights
 
+    # Γ-point calculation only keep half of the bvectors
+    if all(kgrid_size .== 1)
+        shells = delete_shells_Γ(shells)
+    end
+
     check_completeness(shells; atol)
     # generate bvectors for each kpoint
     return sort_bvectors(shells; atol)
