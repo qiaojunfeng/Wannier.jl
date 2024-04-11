@@ -110,6 +110,16 @@ Then this command split WFs into two independent groups.
         !isdir(outdir) && mkdir(outdir)
         seedname_i = joinpath(outdir, basename(seedname))
         write_w90(seedname_i, m; binary=binary)
+
+        #= Write the diagonalization matrices (before parallel transport,
+        for spliting valcond to val/cond) into `seedname.diagmat.amn` files.
+        Note that this is different from the matrices due to parallel transport,
+        which are written in the val/cond `seedname.amn` files.
+        Steps:
+        1. VCB diagonalization <- diagmat, written to seedname.diagmat.amn here
+        2. Parallel transport <- stored in model.U, written to seedname.amn in write_w90
+        =#
+        write_amn(seedname_i * ".diagmat.amn", U; binary)
     end
 
     # UNK files for plotting WFs
