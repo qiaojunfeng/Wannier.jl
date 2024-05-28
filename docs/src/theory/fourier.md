@@ -20,10 +20,10 @@ included. Therefore, we have some special algorithms to generate the
 ``\\mathbf{R}``-space domain.
 
 Th function [`generate_Rspace`] can generate two kinds of R-space domains, by providing an argument
-of type [`WannierInterpolationAlgorithm`](@ref):
-- [`WSInterpolation`](@ref): Wigner-Seitz interpolation,
+of type [`AbstractRspace`](@ref):
+- [`WignerSeitzRspace`](@ref): Wigner-Seitz interpolation,
     returns a [`WignerSeitzRspace`](@ref)
-- [`MDRSInterpolation`](@ref): minimal-distance replica selection interpolation,
+- [`MDRSRspace`](@ref): minimal-distance replica selection interpolation,
     returns a [`MDRSRspace`](@ref)
 
 However, the details of how to place the R-vectors and setting their degeneracies

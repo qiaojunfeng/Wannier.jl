@@ -16,9 +16,9 @@ This ensures that we have the same order as `mmn` file.
     Note the `kmesh_tol` in the `win` file also influence the search of bvectors.
 
 !!! tip
-    In most cases, the user only need to call [`generate_bvectors`](@ref generate_bvectors) to generate
+    In most cases, the user only need to call [`generate_kspace_stencil`](@ref) to generate
     bvectors having the same order as `Wannier90`. Other functions are intermediate steps that are
-    called inside `generate_bvectors`.
+    called inside `generate_kspace_stencil`.
 
 ```@meta
 CurrentModule = Wannier
