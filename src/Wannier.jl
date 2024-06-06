@@ -75,6 +75,7 @@ include("interpolation/spin.jl")
 include("interpolation/berry_curvature.jl")
 include("interpolation/orbital_magnetization.jl")
 include("interpolation/fermi_energy.jl")
+include("interpolation/wilson_loop.jl")
 
 # include("interpolation/magmom.jl")
 
