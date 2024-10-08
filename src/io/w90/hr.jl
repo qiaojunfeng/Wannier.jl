@@ -31,7 +31,7 @@ end
 """Only read hr files, without further processing"""
 function _raw_read_w90_hr(prefix::AbstractString, lattice::AbstractMatrix)
     hrdat = read_w90_hrdat(prefix * "_hr.dat")
-    if isfile(prefix * "_hr.dat")
+    if isfile(prefix * "_wsvec.dat")
         wsvec = read_w90_wsvec(prefix * "_wsvec.dat")
         @assert wsvec.Rvectors ≈ hrdat.Rvectors "R-vectors in hr.dat and wsvec.dat are not identical"
         if wsvec.mdrs
