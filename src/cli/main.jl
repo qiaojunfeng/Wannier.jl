@@ -16,4 +16,4 @@ include("fermisurf.jl")
 """
 Julia package for Wannier functions.
 """
-@main
+@Comonicon.main
