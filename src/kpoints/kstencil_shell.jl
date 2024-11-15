@@ -284,7 +284,26 @@ Since bvectors are symmetric, this removes half of the bvectors.
 """
 function delete_shells_Γ(shells::KspaceStencilShells)
     bvectors = map(shells.bvectors) do bvecs  # for each shell
-        bvecs_new = filter(v -> all(v .>= 0), bvecs)
+        bvecs_new = empty(bvecs)
+        for b in bvecs
+            is_duplicate = false
+            
+            # Compare with vectors already in bvecs_new
+            for b_new in bvecs_new
+                # Check if b == -b_new
+                is_duplicate = sum((b .+ b_new).^2) == 0.0
+        
+                if is_duplicate
+                    break
+                end
+            end
+        
+            # Add the vector if it is not a duplicate
+            if !is_duplicate
+                push!(bvecs_new, b)
+            end
+        end
+
         if length(bvecs_new) != length(bvecs)//2
             error("Non-symmetric bvectors for Γ-point calculation: ", bvecs)
         end

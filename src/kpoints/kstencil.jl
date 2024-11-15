@@ -398,6 +398,53 @@ function sort_bvectors(
     )
 end
 
+"""
+    $(SIGNATURES)
+
+Delete negetive bvectors for Γ-point calculation.
+
+Since bvectors are symmetric, this removes half of the bvectors.
+"""
+function delete_shells_Γ(shells::KspaceStencil)
+    @assert all(shells.kgrid_size .== 1)
+
+    bvectors = shells.bvectors
+    bvecs_new = empty(bvectors)
+    bvecs_indices = Int[]
+
+    for (i,b) in enumerate(bvectors)
+        is_duplicate = false
+        
+        # Compare with vectors already in bvecs_new
+        for b_new in bvecs_new
+            # Check if b == -b_new
+            is_duplicate = sum((b .+ b_new).^2) == 0.0
+    
+            if is_duplicate
+                break
+            end
+        end
+    
+        # Add the vector if it is not a duplicate
+        if !is_duplicate
+            push!(bvecs_new, b)
+            push!(bvecs_indices, i)
+        end
+    end
+
+    if length(bvecs_indices) != length(bvectors)//2
+        error("Non-symmetric bvectors for Γ-point calculation: ", bvectors)
+    end
+    bweights = [2w for w in shells.bweights[bvecs_indices]]
+    kpb_k = [shells.kpb_k[1][bvecs_indices]]
+    kpb_G = [shells.kpb_G[1][bvecs_indices]]
+
+    return KspaceStencil(
+        shells.recip_lattice, shells.kgrid_size, shells.kpoints,
+        bvecs_new, bweights, kpb_k, kpb_G
+    )
+end
+
 """Abstract type for b-vector generation algorithms"""
 abstract type KspaceStencilAlgorithm end
 
@@ -451,14 +498,16 @@ function generate_kspace_stencil(
     shells = delete_shells(shells, keep_shells)
     shells.bweights .= bweights
 
-    # Γ-point calculation only keep half of the bvectors
-    if all(kgrid_size .== 1)
-        shells = delete_shells_Γ(shells)
-    end
-
     check_completeness(shells; atol)
     # generate bvectors for each kpoint
-    return sort_bvectors(shells; atol)
+    kstencil = sort_bvectors(shells; atol)
+
+    if all(kgrid_size .== 1)
+        # Γ-point calculation only keep half of the bvectors
+        return delete_shells_Γ(kstencil)
+    else
+        return kstencil
+    end
 end
 
 function generate_kspace_stencil(
