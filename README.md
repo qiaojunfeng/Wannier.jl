@@ -54,16 +54,14 @@ The executable will be installed in ```~/.julia/bin/wannier```.
 After appending `~/.julia/bin` to your `$PATH`, you can use the CLI as follows:
 
 ```bash
-$ wannier -h
+$ wjl
 
+  wjl v0.3.4
 
-  wannier v0.1.0
-
-Julia package for Wannier functions.
 
 Usage
 
-  wannier <command>
+  wjl <command>
 ...
 ```
 
