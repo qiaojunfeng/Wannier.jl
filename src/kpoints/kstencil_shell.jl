@@ -63,6 +63,28 @@ function KspaceStencilShells(recip_lattice, kgrid_size, kpoints, bvectors, bweig
     )
 end
 
+function KspaceStencilShells(
+    recip_lattice, kgrid_size, kpoints;
+    atol=default_w90_kmesh_tol(),
+)
+    # find shells
+    shells = search_shells(recip_lattice, kgrid_size, kpoints; atol)
+    keep_shells = check_parallel(shells)
+    shells = delete_shells(shells, keep_shells)
+
+    keep_shells, bweights = compute_bweights(shells; atol)
+    shells = delete_shells(shells, keep_shells)
+    shells.bweights .= bweights
+
+    # Γ-point calculation only keep half of the bvectors
+    if all(kgrid_size .== 1)
+        shells = delete_shells_Γ(shells)
+    end
+
+    check_completeness(shells; atol)
+    return shells
+end
+
 function Base.show(io::IO, ::MIME"text/plain", shells::KspaceStencilShells)
     nshells = n_shells(shells)
     @printf(io, "                 [bx, by, bz] (Å⁻¹)\n")

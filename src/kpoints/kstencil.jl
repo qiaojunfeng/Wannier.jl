@@ -264,6 +264,7 @@ function bvectors_to_kpb(bvectors_frac::AbstractVector, k::Vec3, kpoints::Abstra
     for ib in 1:nbvecs
         kpb = k + bvectors_frac[ib]
         ik = findfirst(k -> isequiv(kpb, k), kpoints)
+        isnothing(ik) && error("No equivalent kpoint found for k=$k ib=$ib")
         kpb_k[ib] = ik
         kpb_G[ib] = round.(Int, kpb - kpoints[ik])
     end
@@ -423,6 +424,10 @@ abstract type KspaceStencilAlgorithm end
 """Generate b-vectors for first-order finite difference, i.e., MV1997 Eq. (B1)"""
 struct FirstOrderKspaceStencil <: KspaceStencilAlgorithm end
 
+"""Similar to `FirstOrderKspaceStencil`, but only sort bvectors at Γ kpoint, and
+bvectors of remaining kpoints use the same order."""
+struct UnsortedFirstOrderKspaceStencil <: KspaceStencilAlgorithm end
+
 """Generate b-vectors for 6 (cubic, ±x, ±y, ±z) nearest neighbors"""
 struct CubicNearestKspaceStencil <: KspaceStencilAlgorithm end
 
@@ -461,30 +466,45 @@ function generate_kspace_stencil(
     ::FirstOrderKspaceStencil;
     atol=default_w90_kmesh_tol(),
 )
-    # find shells
-    shells = search_shells(recip_lattice, kgrid_size, kpoints; atol)
-    keep_shells = check_parallel(shells)
-    shells = delete_shells(shells, keep_shells)
-
-    keep_shells, bweights = compute_bweights(shells; atol)
-    shells = delete_shells(shells, keep_shells)
-    shells.bweights .= bweights
-
-    # Γ-point calculation only keep half of the bvectors
-    if all(kgrid_size .== 1)
-        shells = delete_shells_Γ(shells)
-    end
-
-    check_completeness(shells; atol)
+    shells = KspaceStencilShells(recip_lattice, kgrid_size, kpoints; atol)
     # generate bvectors for each kpoint
     return sort_bvectors(shells; atol)
 end
 
 function generate_kspace_stencil(
+    recip_lattice::Mat3,
+    kgrid_size::AbstractVector,
+    kpoints::AbstractVector,
+    ::UnsortedFirstOrderKspaceStencil;
+    atol=default_w90_kmesh_tol(),
+)
+    # I still sort all the bvectors, since I want the bvector order
+    # at Γ to be the same as wannier90
+    stencil = generate_kspace_stencil(
+        recip_lattice, kgrid_size, kpoints, FirstOrderKspaceStencil(); atol
+    )
+    # now reorder remaining kpoints, to use the same order as Γ
+    inv_recip_lattice = inv(recip_lattice)
+    bvectors_frac = map(stencil.bvectors) do b
+        inv_recip_lattice * b
+    end
+    for (ik, kpt) in enumerate(kpoints)
+        # use fractional coordinates for comparisons
+        ik_equiv, G_equiv = bvectors_to_kpb(bvectors_frac, kpt, kpoints)
+        stencil.kpb_k[ik] = ik_equiv
+        stencil.kpb_G[ik] = G_equiv
+    end
+    return stencil
+end
+
+"""The same as wannier90's default algorithm"""
+default_kstencil_algo() = FirstOrderKspaceStencil()
+
+function generate_kspace_stencil(
     recip_lattice::Mat3, kgrid_size::AbstractVector, kpoints::AbstractVector; kwargs...
 )
     return generate_kspace_stencil(
-        recip_lattice, kgrid_size, kpoints, FirstOrderKspaceStencil(); kwargs...
+        recip_lattice, kgrid_size, kpoints, default_kstencil_algo(); kwargs...
     )
 end
 
