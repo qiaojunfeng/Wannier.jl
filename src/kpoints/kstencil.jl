@@ -65,6 +65,25 @@ function KspaceStencil(recip_lattice, kgrid_size, kpoints, bvectors, bweights, k
     )
 end
 
+function KspaceStencil(recip_lattice, kpoints, kpb_k, kpb_G)
+    n_bvecs = length(kpb_k[1])
+
+    # Generate bvectors from 1st kpoint, in fractional coordinates
+    bvectors = zeros(Vec3{Float64}, n_bvecs)
+    ik = 1
+    for ib in 1:n_bvecs
+        ikpb = kpb_k[ik][ib]
+        G = kpb_G[ik][ib]
+        bvectors[ib] = recip_lattice * (kpoints[ikpb] + G - kpoints[ik])
+    end
+
+    bweights = compute_bweights(bvectors)
+    kgrid_size = guess_kgrid_size(kpoints)
+    return KspaceStencil(
+        recip_lattice, kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G
+    )
+end
+
 n_kpoints(kstencil::KspaceStencil) = length(kstencil.kpoints)
 n_bvectors(kstencil::KspaceStencil) = length(kstencil.bvectors)
 reciprocal_lattice(kstencil::KspaceStencil) = kstencil.recip_lattice

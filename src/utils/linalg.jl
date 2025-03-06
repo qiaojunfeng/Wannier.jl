@@ -247,7 +247,9 @@ function isapprox_struct(a, b; kwargs...)
         va = getproperty(a, f)
         vb = getproperty(b, f)
 
-        if va isa Vector
+        if va isa Vector{String}
+            all(va == vb) || return false
+        elseif va isa Vector
             all(isapprox.(va, vb; kwargs...)) || return false
         elseif va isa String
             va == vb || return false

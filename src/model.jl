@@ -183,3 +183,13 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     @printf(io, "  n_wannier   =  %d", n_wannier(model))
     return nothing
 end
+
+
+"""
+    $(SIGNATURES)
+
+Compare two `Model` objects.
+"""
+function Base.isapprox(a::Model, b::Model; kwargs...)
+    return isapprox_struct(a, b; kwargs...)
+end

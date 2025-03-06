@@ -3,38 +3,41 @@ export read_w90, read_w90_with_chk, write_w90
 """
     $(SIGNATURES)
 
-Read `win` file, and read `amn`, `mmn`, `eig` files if they exist.
+Read `win` and `mmn` files, and read `amn`/`eig` files if they exist.
 
 # Keyword arguments
 - ortho_amn: Lowdin orthonormalization after reading `amn` matrices.
     Should be `true` for most cases, since usually the input `amn` matrices are
     not guaranteed to be unitary or semi-unitary.
+- use_mmn_bvecs: use the b-vectors in `mmn` file instead of regenerating them.
 """
-function read_w90(prefix::AbstractString; ortho_amn::Bool=true)
+function read_w90(prefix::AbstractString; ortho_amn::Bool=true, use_mmn_bvecs::Bool=true)
     win = read_win(prefix * ".win")
     nbands = win.num_bands
     nwann = win.num_wann
     lattice = win.unit_cell_cart
+    recip_lattice = reciprocal_lattice(lattice)
+    nkpts = length(win.kpoints)
 
-    atol = get(win, :kmesh_tol, default_w90_kmesh_tol())
-    kstencil = generate_kspace_stencil(
-        reciprocal_lattice(lattice), win.mp_grid, win.kpoints; atol
-    )
-    nkpts = n_kpoints(kstencil)
-    nbvecs = n_bvectors(kstencil)
+    isfile(prefix * ".mmn") || error("$(prefix).mmn file does not exist")
+    overlaps, kpb_k, kpb_G = read_mmn(prefix * ".mmn")
+    nbvecs = length(overlaps[1])
+    # check consistency for mmn
+    @assert nkpts == length(overlaps) "different n_kpoints in mmn and win files"
+    @assert (nbands, nbands) == size(overlaps[1][1]) "different n_bands in mmn and win files"
 
-    if isfile(prefix * ".mmn")
-        overlaps, kpb_k_mmn, kpb_G_mmn = read_mmn(prefix * ".mmn")
-
-        # check consistency for mmn
-        @assert nkpts == length(overlaps) "different n_kpoints in mmn and win files"
-        @assert nbvecs == length(overlaps[1]) "different n_bvectors in mmn and win files"
-        @assert (nbands, nbands) == size(overlaps[1][1]) "different n_bands in mmn and win files"
-        @assert kstencil.kpb_k == kpb_k_mmn "auto generated kpb_k are different from mmn file"
-        @assert kstencil.kpb_G == kpb_G_mmn "auto generated kpb_G are different from mmn file"
+    if use_mmn_bvecs
+        kstencil = KspaceStencil(recip_lattice, win.kpoints, kpb_k, kpb_G)
     else
-        overlaps = zeros_overlap(ComplexF64, nkpts, nbvecs, nbands)
-        @warn "$prefix.mmn file does not exist, set M to zeros"
+        atol = get(win, :kmesh_tol, default_w90_kmesh_tol())
+        kstencil = generate_kspace_stencil(
+            recip_lattice, win.mp_grid, win.kpoints; atol
+        )
+        @assert n_bvectors(kstencil) == nbvecs "different n_bvectors in mmn and win files"
+        @assert kstencil.kpb_k == kpb_k "auto generated kpb_k are different from mmn file"
+        @assert kstencil.kpb_G == kpb_G "auto generated kpb_G are different from mmn file"
+        # overlaps = zeros_overlap(ComplexF64, nkpts, nbvecs, nbands)
+        # @warn "$prefix.mmn file does not exist, set M to zeros"    
     end
 
     if isfile(prefix * ".amn")
