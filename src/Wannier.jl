@@ -81,4 +81,8 @@ include("interpolation/fermi_energy.jl")
 # Some convenience functions for users
 include("tools/Tools.jl")
 
+include("symmetry/symmetrize.jl")
+include("symmetry/write_full_data.jl")
+include("symmetry/rescale.jl")
+
 end
