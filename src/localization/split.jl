@@ -125,11 +125,11 @@ function split_unk(
     Us::AbstractArray{T},
     outdirs::AbstractVector{R};
     binary::Bool=false,
-) where {T<:AbstractArray{<:Complex,3},R<:AbstractString}
+) where {T<:AbstractArray{<:Matrix},R<:AbstractString}
     length(Us) == length(outdirs) || error("incompatible Us and outdirs")
-    n_kpts = size(Us[1], 3)
-    all(length(U) == n_kpts for U in Us) || error("incompatible n_kpts")
-    len_groups = [size(U[1], 2) for U in Us]
+    nkpts = length(Us[1])
+    all(length(U) == nkpts for U in Us) || error("incompatible n_kpts")
+    nwanns = [size(U[1], 2) for U in Us]
 
     println("UNK files will be written in: ")
     for (i, odir) in enumerate(outdirs)
@@ -158,10 +158,10 @@ function split_unk(
             # rotate
             ΨU = Ψ * Uₖ
             # reshape back
-            ΨU = reshape(ΨU, n_gx, n_gy, n_gz, len_groups[i])
+            ΨU = reshape(ΨU, n_gx, n_gy, n_gz, nwanns[i], 1)
 
             fname = joinpath(outdirs[i], unk)
-            write_unk(fname, ik, ΨU; binary=binary)
+            write_unk(fname, ik, ΨU; binary)
 
             println("ik = ", ik, " files written: ", fname)
         end
