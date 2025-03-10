@@ -32,7 +32,7 @@ WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
 
 [compat]
 Artifacts = "1"
-Bravais = "0.1"
+Bravais = "0.1, 0.2"
 Brillouin = "0.5.8"
 Comonicon = "1"
 DelimitedFiles = "1"
