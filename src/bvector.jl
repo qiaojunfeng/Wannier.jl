@@ -726,9 +726,8 @@ Generate and sort bvectors for all the kpoints.
 # Keyword Arguments
 - `kmesh_tol`: equivalent to `Wannier90` input parameter `kmesh_tol`
 """
-function get_bvectors_nearest(kpoints::Matrix{T}, recip_lattice::Mat3{T}) where {T<:Real}
-    n_kx, n_ky, n_kz = get_kgrid(kpoints)
-    δx, δy, δz = 1 / n_kx, 1 / n_ky, 1 / n_kz
+function get_bvectors_nearest(kpoints::Matrix{T}, kgrid_size::AbstractVector, recip_lattice::Mat3{T}) where {T<:Real}
+    δx, δy, δz = 1 ./ kgrid_size
 
     # only 6 nearest neighbors
     n_bvecs = 6
@@ -758,4 +757,9 @@ function get_bvectors_nearest(kpoints::Matrix{T}, recip_lattice::Mat3{T}) where 
 
     bvecs = recip_lattice * bvecs_frac
     return BVectors(recip_lattice, kpoints, bvecs, bvecs_weight, kpb_k, kpb_b)
+end
+
+function get_bvectors_nearest(kpoints::Matrix, recip_lattice::Mat3)
+    kgrid = get_kgrid(kpoints)
+    return get_bvectors_nearest(kpoints, kgrid, recip_lattice)
 end
