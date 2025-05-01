@@ -98,6 +98,12 @@ function read_realspace_wf(
     """Modify W"""
     @inbounds function add_k!(ik, Ψₖ)
         k = kpoints[ik]
+        # Allocate variables for threads
+        rs = [zeros(Float64, 3) for _ in Threads.nthreads()]
+        fs = zeros(ComplexF64, Threads.nthreads())
+        jxs = zeros(Int64, Threads.nthreads())
+        jys = zeros(Int64, Threads.nthreads())
+        jzs = zeros(Int64, Threads.nthreads())
         # rotate Ψ
         # * does not support high dimensional matrix multiplication,
         # I need to reshape it to 2D matrix
@@ -117,20 +123,24 @@ function read_realspace_wf(
                 # while the G->r IFFT has factor 1,
                 # but FFT/IFFT is unitary only if they have factor sqrt(1/N)
                 Threads.@threads for iz in 1:length(Z)
+                    tid = Threads.threadid()
                     z = Z[iz]
                     # ΨUₖ is only defined in the home unit cell, find corresponding indexes
                     # e.g. x=0 -> W[1,1,1], x=1 -> W[2,1,1], x=n_gx -> W[1,1,1], x=-1 -> W[end,1,1]
-                    jz = mod(z, n_gz) + 1
+                    jzs[tid] = mod(z, n_gz) + 1
                     for (iy, y) in enumerate(Y)
-                        jy = mod(y, n_gy) + 1
+                        jys[tid] = mod(y, n_gy) + 1
                         for (ix, x) in enumerate(X)
-                            jx = mod(x, n_gx) + 1
+                            jxs[tid] = mod(x, n_gx) + 1
                             # r grid in fractional coordinates
-                            r = Vec3(x / n_gx, y / n_gy, z / n_gz)
+                            rs[tid][1] = x / n_gx
+                            rs[tid][2] = y / n_gy
+                            rs[tid][3] = z / n_gz
                             # UNK file (and ΨUₖ) is the periodic part of Bloch wavefunction,
                             # need a factor exp(ikr)
-                            f = exp(2π * im * (k ⋅ (r - R)))
-                            W[ix, iy, iz, is, iw] += f * ΨUₖ[jx, jy, jz, iw]
+                            fs[tid] = exp(2π * im * (k' * (rs[tid] - R)))
+                            W[ix, iy, iz, is, iw] +=
+                                fs[tid] * ΨUₖ[jxs[tid], jys[tid], jzs[tid], iw]
                         end
                     end
                 end
