@@ -1,5 +1,5 @@
 using Spglib
-using Bravais: reciprocalbasis
+using Bravais: ReciprocalBasis, DirectBasis
 using Brillouin:
     KPath,
     KPathInterpolant,
@@ -82,7 +82,7 @@ function generate_kpath(
         end
     end
 
-    basis = reciprocalbasis([v for v in eachcol(lattice)])
+    basis = ReciprocalBasis(DirectBasis([v for v in eachcol(lattice)]))
     setting = Ref(LATTICE)
     kpath = KPath(points, paths, basis, setting)
     return kpath
