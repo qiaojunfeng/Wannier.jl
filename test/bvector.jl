@@ -112,3 +112,11 @@ end
     )
     @test isapprox(kstencil, ref_kstencil; atol=1e-6)
 end
+
+@testitem "has_cubic_neighbors" begin
+    f = dataset"SnSe2/outputs/SnSe2.nnkp"
+    @test Wannier.has_cubic_neighbors(f) == true
+
+    f = dataset"CuBr2/outputs/CuBr2.nnkp"
+    @test Wannier.has_cubic_neighbors(f) == false
+end
