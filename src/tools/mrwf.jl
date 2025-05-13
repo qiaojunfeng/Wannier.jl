@@ -47,8 +47,10 @@ function mrwf(
 
     models_Us = split_wannierize(model_cubic, indices)
     if model != model_cubic
-        models_Us = map(models_Us) do (_, U)
-            (transform_gauge(model, U), U)
+        models_Us = map(models_Us) do (m_cubic, U)
+            m = transform_gauge(model, U)
+            m.gauges .= m_cubic.gauges
+            (m, U)
         end
     end
 

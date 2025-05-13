@@ -132,6 +132,8 @@ or conduction manifolds in the respective folders, `val` or `cond`.
 This can be verified by
 =#
 model_v_test = transform_gauge(model, U_v)
+# and we need to copy the parallel transport gauge matrices
+model_v_test.gauges .= model_v.gauges;
 # the fields of the two models are the same
 model_v_test ≈ model_v
 # and compare the spreads with that of `model_v`
@@ -139,6 +141,8 @@ omega(model_v_test)
 
 # and the conduction bands
 model_c_test = transform_gauge(model, U_c)
+# and we need to copy the parallel transport gauge matrices
+model_c_test.gauges .= model_c.gauges;
 # the fields of the two models are the same
 model_c_test ≈ model_c
 # and compare the spreads with that of `model_c`
@@ -170,7 +174,6 @@ the `cond` directory. The `chk` file contains the final Wannierized
 valence and conduction.
 =#
 U_v2 = Wannier.get_U(read_chk("$path/TiO2/outputs/val/TiO2.chk"));
-
 U_c2 = Wannier.get_U(read_chk("$path/TiO2/outputs/cond/TiO2.chk"));
 
 #=
