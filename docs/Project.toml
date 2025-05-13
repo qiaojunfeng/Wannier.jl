@@ -11,9 +11,10 @@ WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
 #WannierPlots = "aee37571-e66d-4c92-9c5d-c978af507da2"
 
 [compat]
-Documenter = "0.27"
+Brillouin = "0.5"
+Documenter = "1.10"
 JSServe = "2"
 Literate = "2"
 LiveServer = "1.2.2"
 PlotlyJS = "0.18"
-WGLMakie = "0.8"
+WGLMakie = "0.8 - 0.11"

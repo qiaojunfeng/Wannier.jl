@@ -16,8 +16,9 @@ EXAMPLES = [
     "Band structure" => "examples/band_structure.md",
     "Real space WF" => "examples/realspace_wf.md",
     "Parallel transport" => "examples/parallel_transport.md",
-    "Parallel transport with custom b-vectors" => "examples/parallel_transport_bvectors.md",
-    "Split valence/conduction" => "examples/manifold_remixing.md",
+    "Parallel transport with cubic b-vectors" => "examples/parallel_transport_bvectors.md",
+    "Manifold remixed WFs" => "examples/manifold_remixing.md",
+    "Manifold remixed WFs with cubic b-vectors" => "examples/manifold_remixing_bvectors.md",
     "Constrain WF center" => "examples/center_constraint.md",
     "Fermi surface" => "examples/fermi_surface.md",
     # "Spin texture" => "examples/spin_texture.md",
@@ -73,6 +74,7 @@ makedocs(;
             "Interpolation" => "api/interpolation.md",
         ],
     ],
+    warnonly=true,
 )
 
 # Documenter will auto dectect build environment; on local machine it will be

@@ -66,9 +66,31 @@ function KspaceStencil(recip_lattice, kgrid_size, kpoints, bvectors, bweights, k
 end
 
 function KspaceStencil(recip_lattice, kpoints, kpb_k, kpb_G)
-    n_bvecs = length(kpb_k[1])
+    bvectors = get_bvectors(recip_lattice, kpoints, kpb_k, kpb_G)
+    bweights = compute_bweights(bvectors)
+    kgrid_size = guess_kgrid_size(kpoints)
+    return KspaceStencil(
+        recip_lattice, kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G
+    )
+end
 
-    # Generate bvectors from 1st kpoint, in fractional coordinates
+"""
+    $(SIGNATURES)
+
+Generate bvectors from 1st kpoint, in Cartesian coordinates.
+
+!!! warning
+
+    The bvector ordering at different kpoints can be different. Do not assume
+    the bvectors returned by this function are the same as that for other kpoints.
+"""
+function get_bvectors(
+    recip_lattice::Mat3,
+    kpoints::AbstractVector,
+    kpb_k::AbstractVector,
+    kpb_G::AbstractVector,
+)
+    n_bvecs = length(kpb_k[1])
     bvectors = zeros(Vec3{Float64}, n_bvecs)
     ik = 1
     for ib in 1:n_bvecs
@@ -76,12 +98,7 @@ function KspaceStencil(recip_lattice, kpoints, kpb_k, kpb_G)
         G = kpb_G[ik][ib]
         bvectors[ib] = recip_lattice * (kpoints[ikpb] + G - kpoints[ik])
     end
-
-    bweights = compute_bweights(bvectors)
-    kgrid_size = guess_kgrid_size(kpoints)
-    return KspaceStencil(
-        recip_lattice, kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G
-    )
+    return bvectors
 end
 
 n_kpoints(kstencil::KspaceStencil) = length(kstencil.kpoints)

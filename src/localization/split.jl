@@ -118,13 +118,14 @@ inside the function.
 - `outdirs`: a Vector of output directories for each band group
 
 # Keyword arguments
-- `binary`: whether to write in Fortran binary format
+- `binary`: whether to write in Fortran binary format. If `nothing`, it will
+    be the same as the input `UNK` files.
 """
 function split_unk(
     dir::AbstractString,
     Us::AbstractArray{T},
     outdirs::AbstractVector{R};
-    binary::Bool=false,
+    binary::Union{Bool,Nothing}=nothing,
 ) where {T<:AbstractArray{<:Matrix},R<:AbstractString}
     length(Us) == length(outdirs) || error("incompatible Us and outdirs")
     nkpts = length(Us[1])
@@ -138,8 +139,10 @@ function split_unk(
     end
 
     regex = r"UNK(\d{5})\.\d"
+    unk_files = readdir(dir)
+    isnothing(binary) && (binary = WannierIO.isbinary(unk_files[1]))
 
-    for unk in readdir(dir)
+    for unk in unk_files
         m = match(regex, unk)
         m === nothing && continue
 
@@ -194,7 +197,7 @@ function split_unk(
     Uc::Vector{Matrix{T}},
     outdir_val::AbstractString="val",
     outdir_cond::AbstractString="cond";
-    binary::Bool=false,
+    binary::Union{Bool,Nothing}=nothing,
 ) where {T<:Complex}
     # !isdir(outdir_val) && mkdir(outdir_val)
     # !isdir(outdir_cond) && mkdir(outdir_cond)
@@ -203,7 +206,7 @@ function split_unk(
     # println("    valence   : ", outdir_val)
     # println("    conduction: ", outdir_cond)
 
-    return split_unk(dir, [Uv, Uc], [outdir_val, outdir_cond]; binary=binary)
+    return split_unk(dir, [Uv, Uc], [outdir_val, outdir_cond]; binary)
 end
 
 """

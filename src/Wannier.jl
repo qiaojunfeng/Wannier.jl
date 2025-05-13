@@ -78,4 +78,7 @@ include("interpolation/fermi_energy.jl")
 
 # include("interpolation/magmom.jl")
 
+# Some convenience functions for users
+include("tools/Tools.jl")
+
 end

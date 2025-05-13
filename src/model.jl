@@ -139,6 +139,35 @@ function Model(
     )
 end
 
+"""
+    $(SIGNATURES)
+
+Construct a `Model` from an existing `Model`, reuse the lattice and atomic
+information, but change the `kstencil` and `overlaps`.
+
+For instance, use a cubic-6-neighbors `KspaceStencil` for
+[`parallel_transport`](@ref).
+"""
+function Model(
+    model::Model,
+    kstencil::KspaceStencil,
+    overlaps::AbstractVector,
+    gauges::AbstractVector=model.gauges,
+    eigenvalues::AbstractVector=model.eigenvalues,
+    frozen_bands::AbstractVector=model.frozen_bands,
+)
+    return Model(
+        model.lattice,
+        model.atom_positions,
+        model.atom_labels,
+        kstencil,
+        overlaps,
+        gauges,
+        eigenvalues,
+        frozen_bands,
+    )
+end
+
 n_atoms(model::Model) = length(model.atom_positions)
 n_kpoints(model::Model) = n_kpoints(model.kstencil)
 n_bvectors(model::Model) = n_bvectors(model.kstencil)
@@ -183,7 +212,6 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     @printf(io, "  n_wannier   =  %d", n_wannier(model))
     return nothing
 end
-
 
 """
     $(SIGNATURES)

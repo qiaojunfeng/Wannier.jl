@@ -17,6 +17,41 @@ end
 """
     $(SIGNATURES)
 
+# Arguments
+- `filename`: the filename of the `nnkp` file
+- `weights`: the weights of the b-vectors. If `nothing`, the weights are set to 0.0.
+    This is useful for [`parallel_transport`](@ref) using 6 cubic neighbors, where
+    the the ``b``-vectors are not complete, thus not possible to compute the weights.
+"""
+function WannierIO.read_nnkp(
+    filename::AbstractString, weights::Union{AbstractVector,Nothing}
+)
+    nnkp = WannierIO.read_nnkp(filename)
+
+    kpoints = nnkp.kpoints
+    recip_lattice = nnkp.recip_lattice
+    kpb_k = nnkp.kpb_k
+    kpb_G = nnkp.kpb_G
+    kgrid_size = guess_kgrid_size(kpoints)
+    bvectors = get_bvectors(recip_lattice, kpoints, kpb_k, kpb_G)
+
+    n_bvecs = length(kpb_k[1])
+    if isnothing(weights)
+        # If weights are not provided, set them to 0.0
+        weights = zeros(Float64, n_bvecs)
+    else
+        (length(weights) == n_bvecs) ||
+            error("length of weights does not match number of b-vectors")
+    end
+
+    return KspaceStencil{Float64}(
+        recip_lattice, kgrid_size, kpoints, bvectors, weights, kpb_k, kpb_G
+    )
+end
+
+"""
+    $(SIGNATURES)
+
 Write nnkp that can be used by `pw2wannier90`.
 
 # Arguments
@@ -95,4 +130,36 @@ end
 function has_cubic_neighbors(filename::AbstractString; atol::AbstractFloat=1e-6)
     nnkp = read_nnkp(filename)
     return has_cubic_neighbors(nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G; atol)
+end
+
+"""
+    $(SIGNATURES)
+
+Write a nnkp file with 6 cubic neighbors. Useful for [`parallel_transport`](@ref).
+
+!!! note
+
+    `nnkp` file also contains the `exclude_bands` parameters, which will affect
+    the `mmn` file computed by `pw2wannier90.x`.
+
+# Arguments
+- `filename`: the filename of the new `nnkp` file
+- `win`: the Wannier90 parameters, e.g. returned by [`read_win`](@ref)
+"""
+function write_nnkp_cubic(filename::AbstractString, win::Union{NamedTuple,AbstractDict})
+    recip_latt = reciprocal_lattice(win.unit_cell_cart)
+    kstencil = generate_kspace_stencil(
+        recip_latt, win.mp_grid, win.kpoints, Wannier.CubicNearestKspaceStencil()
+    )
+    return write_nnkp(
+        filename,
+        kstencil;
+        exclude_bands=get(win, :exclude_bands, nothing),
+        # Need a fake projections block such that pw2wannier90.x can run
+        projections=WannierIO.HydrogenOrbital[],
+    )
+end
+
+function write_nnkp_cubic(filename::AbstractString, win::AbstractString)
+    return write_nnkp_cubic(filename, read_win(win))
 end
