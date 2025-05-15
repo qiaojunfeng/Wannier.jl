@@ -1,6 +1,41 @@
 """
     $(SIGNATURES)
 
+Compute the so-called `uIu` matrix, LVTS12 Eq. xx:
+``\\langle u_{m, k + b_1} | u_{n, k + b_2} \\rangle``,
+approximately from the overlap matrices
+``\\langle u_{m, k} | u_{n, k + b} \\rangle``.
+
+Use the following formula:
+
+```
+\\langle u_{m, k + b_1} | u_{n, k + b_2} \\rangle
+= \\sum_{i} \\langle u_{m, k + b_1} | u_{i, k} \\rangle
+    \\langle u_{i, k} | u_{n, k + b_2} \\rangle
+= M_{k, b}^{\\dagger} M_{k, b}
+```
+
+This is an approximation to the true `uIu` matrix that should be computed
+e.g. in the DFT plane-wave basis.
+
+Note the `overlaps` should be the outputs from a DFT to Wannier interface code,
+i.e., they should contain `n_bands`-sized matrices instead of Wannier-gauge
+`n_wannier`-sized matrices, to minimize the effect of band truncation.
+"""
+function compute_uIu(
+    overlaps::AbstractVector,
+)
+    uIu = map(overlaps) do Mₖ
+        # note I need to use reshape to convert it into a row vector,
+        # cannot use transpose since that one is recursive
+        adjoint.(Mₖ) * reshape(Mₖ, (1, :))
+    end
+    return uIu
+end
+
+"""
+    $(SIGNATURES)
+
 Compute the so-called `uHu` matrix, LVTS12 Eq. 96:
 ``\\langle u_{m, k + b_1}| H | u_{n, k + b_2} \\rangle``,
 approximately from the overlap matrices
