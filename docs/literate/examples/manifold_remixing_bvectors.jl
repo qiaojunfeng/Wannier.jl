@@ -217,6 +217,44 @@ size(U_c_tot[1])
 #=
 i.e., from 26 Bloch states to 10 conduction MLWFs.
 
+If you prefer to work with the W90's `u.mat` files, you can read them through
+[`read_u_mat`](@ref) function, and they should be identical to that from `chk` files
+=#
+U_v2_test = WannierIO.read_u_mat("$path/TiO2/outputs/val/TiO2_u.mat")[1];
+U_v2_test ≈ U_v2
+# similarly for conduction
+U_c2_test = WannierIO.read_u_mat("$path/TiO2/outputs/cond/TiO2_u.mat")[1];
+U_c2_test ≈ U_c2
+
+#=
+To get a full gauge matrix for the valence and conduction MLWFs together,
+i.e., gauge matrices in the block-diagonal form, we can stack them together, by
+=#
+U_tot = map(zip(U_v_tot, U_c_tot)) do (v, c)
+    [v c]
+end;
+size(U_tot[1])
+# and let's check the spreads--the 1st 16 are valence MLWFs, and the last
+# 10 are conduction MLWFs
+omega(model, U_tot)
+#=
+!!! tip
+
+    For convenience, we also provide a function [`Wannier.Tools.merge_gauge`](@ref)
+    that merges the valence and conduction `TiO2_split.amn` and `TiO2.chk` files
+    into one block-diagonal matrix `TiO2_mrwf.amn`, that maps from the
+    valence+conduction `mmn/eig` files directly to the final MRWFs.
+=#
+outdirs = ["$path/TiO2/val", "$path/TiO2/cond"];
+Utot_test = Wannier.Tools.merge_gauge("TiO2", outdirs);
+Utot_test ≈ U_tot
+# and the file header contains a hint for this
+open("TiO2_mrwf.amn") do io
+    println(readline(io))
+    println(readline(io))
+end
+
+#=
 In summary:
 - `TiO2_split.amn` contains the gauge matrix from valence+conduction
     `mmn`/`eig` to the valence or conduction `mmn`/`eig`

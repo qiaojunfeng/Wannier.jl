@@ -258,3 +258,113 @@ function mrwf(
 
     return mrwf(prefix, indices, outdirs, mmn_cubic; kwargs...)
 end
+
+"""
+    $(SIGNATURES)
+
+# Arguments
+- `Usplits`: gauge matrices from `prefix_split.amn` for val/cond.
+- `Umaxlocs`: gauge matrices from `prefix.chk` or `prefix_u.mat` files for val/cond.
+"""
+function merge_gauge(Usplits::AbstractVector, Umaxlocs::AbstractVector)
+    Us = map(zip(Usplits, Umaxlocs)) do (Usplit, Umaxloc)
+        #=
+        # Usplit
+        From `_split.amn` files, these are the gauge matrices mapping from the
+        val+cond mmn/eig to the val or cond mmn/eig, i.e., including the
+        dis+maxloc gauge of val+cond, and the gauge due to diagonalizing the
+        val+cond Hamiltonian.
+
+        # Umaxloc
+        From the `chk` or `u.mat` file, these are the gauge matrices mapping
+        from the val/cond mmn/eig to the final val/cond MLWFs, i.e., including
+        the parallel transport gauge (which is written in the val/prefix.amn file)
+        and the maximal localization gauge from W90.
+        =#
+        Wannier.merge_gauge(Usplit, Umaxloc)
+    end
+    Utot = map(zip(Us...)) do Uks
+        # Concatenate along the n_wannier indices, at each kpoint
+        reduce(hcat, Uks)
+    end
+    return Utot
+end
+
+"""
+    $(SIGNATURES)
+
+# Arguments
+- `filename`: filename for the output `amn` file. Default is `mrwf.amn`.
+- `split_amns`: a vector of filenames for the `_split.amn` files for each subgroup.
+    The order of the filenames determines the order of the indices of MRWFs in
+    the output total gauge matrix.
+- `maxlocs`: a vector of filenames for the `chk` or `u.mat` files for each subgroup.
+    You must ensure the order matches the order of `split_amns`.
+
+# Keyword Arguments
+- `umat`: if `true`, read the `prefix_u.mat` file instead of the `prefix.chk` file.
+    Default is `false`.
+"""
+function merge_gauge(
+    filename::AbstractString,
+    split_amns::AbstractVector{<:AbstractString},
+    maxlocs::AbstractVector{<:AbstractString};
+    umat::Bool=false,
+)
+    Usplits = map(split_amns) do f
+        read_amn(f)
+    end
+    Umaxlocs = map(maxlocs) do f
+        if umat
+            return WannierIO.read_u_mat(f)[1]
+        else
+            return WannierIO.get_U(read_chk(f))
+        end
+    end
+    Utot = merge_gauge(Usplits, Umaxlocs)
+    header =
+        WannierIO.default_header() *
+        "   Block-diagonal gauge matrix from the original mmn/eig to the final MRWFs"
+    write_amn(filename, Utot; header)
+    return Utot
+end
+
+"""
+    $(SIGNATURES)
+
+# Arguments
+- `filename`: filename for the output `amn` file. Default is `prefix_mrwf.amn`.
+- `prefix`: prefix for the `prefix_split.amn` and `prefix.chk` or `prefix_u.mat` files.
+- `outdirs`: a vector of output directories for each group of isolated band manifold.
+    Note the order determines the order of the indices of MRWFs in the output total
+    gauge matrix.
+
+# Keyword Arguments
+- `umat`: if `true`, read the `prefix_u.mat` file instead of the `prefix.chk` file.
+    Default is `false`.
+"""
+function merge_gauge(
+    filename::AbstractString,
+    prefix::AbstractString,
+    outdirs::AbstractVector{<:AbstractString};
+    umat::Bool=false,
+)
+    split_amns = map(outdirs) do od
+        joinpath(od, "$(prefix)_split.amn")
+    end
+    maxlocs = map(outdirs) do od
+        if umat
+            return joinpath(od, "$(prefix)_u.mat")
+        else
+            return joinpath(od, "$(prefix).chk")
+        end
+    end
+    return merge_gauge(filename, split_amns, maxlocs; umat)
+end
+
+function merge_gauge(
+    prefix::AbstractString, outdirs::AbstractVector{<:AbstractString}; kwargs...
+)
+    filename = "$(prefix)_mrwf.amn"
+    return merge_gauge(filename, prefix, outdirs; kwargs...)
+end
