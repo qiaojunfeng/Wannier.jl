@@ -1,5 +1,4 @@
 [deps]
-Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -10,9 +9,5 @@ TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
 WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
 
 [compat]
-Aqua = "0.5"
-Brillouin = "~0.5"
-DelimitedFiles = "1"
 NLSolversBase = "7"
-TestItemRunner = "0.2"
-WannierIO = "0.2"
+TestItemRunner = "1.1.0"
