@@ -77,7 +77,7 @@ end
 """
     $(SIGNATURES)
 
-Generate bvectors from 1st kpoint, in Cartesian coordinates.
+Generate ``b``-vectors from 1st kpoint, in Cartesian coordinates.
 
 !!! warning
 
@@ -89,10 +89,11 @@ function get_bvectors(
     kpoints::AbstractVector,
     kpb_k::AbstractVector,
     kpb_G::AbstractVector,
+    ik::Integer=1,
 )
+    (0 < ik <= length(kpoints)) || error("ik out of bounds")
     n_bvecs = length(kpb_k[1])
     bvectors = zeros(Vec3{Float64}, n_bvecs)
-    ik = 1
     for ib in 1:n_bvecs
         ikpb = kpb_k[ik][ib]
         G = kpb_G[ik][ib]
@@ -154,7 +155,7 @@ function compute_bweights(bvectors::Vector{Vec3{T}}; atol=default_w90_kmesh_tol(
     # fold them into shells which are ordered by the norm of bvectors
     perm = sortperm(bvectors_norm)
 
-    # permuted bvectors so that they are ordered by norm
+    # permute bvectors so that they are ordered by norm
     bvectors_sorted = bvectors[perm]
     # nest bvectors into equal-norm shells
     bvectors_nested = Vector{Vector{Vec3{T}}}(undef, 0)
@@ -176,14 +177,22 @@ function compute_bweights(bvectors::Vector{Vec3{T}}; atol=default_w90_kmesh_tol(
     @assert keep_shells == 1:length(bvectors_nested) "compute_bweights should be " *
         " idempotent to the bvectors, maybe the input bvectors are not complete?"
 
-    # now remap bweights to the original bvector order
-    # mappings: index of bvectors_sorted -> index of shell
-    mappings = [fill(i, length(sh)) for (i, sh) in enumerate(shells)]
-    # flatten mappings
-    mappings = vcat(mappings...)
-    return map(perm) do p
-        bweights[mappings[p]]
+    # now remap bweights of shells to the sorted bvector order
+    bweights_sorted = zeros(T, nbvecs)
+    # un-nest the shells
+    for (i, sh) in enumerate(shells)
+        for j in sh
+            # map back to the index of bvectors_sorted
+            bweights_sorted[j] = bweights[i]
+        end
     end
+    # now remap back to the original bvector order
+    bweights = zeros(T, nbvecs)
+    for (i, j) in enumerate(perm)
+        bweights[j] = bweights_sorted[i]
+    end
+
+    return bweights
 end
 
 """
