@@ -150,7 +150,7 @@ Finally, let's have a look at the band interpolation.
 
 First load the QE band structure
 =#
-kpoints_qe, E_qe = WannierIO.read_qe_band(dataset"CuBr2/reference/qe_bands.dat");
+kpoints_qe, E_qe = WannierIO.read_qe_band(dataset"CuBr2/outputs/qe_bands.dat");
 # the Fermi energy from scf calculation
 ef = 4.6459
 

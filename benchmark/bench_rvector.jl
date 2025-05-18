@@ -10,7 +10,7 @@ win = read_win(dataset"Si2_valence/Si2_valence.win")
 lattice = win.unit_cell_cart
 kgrid = win.mp_grid
 
-wout = read_wout(dataset"Si2_valence/reference/Si2_valence.wout")
+wout = read_wout(dataset"Si2_valence/outputs/Si2_valence.wout")
 # to fractional coordinates
 centers = map(c -> inv(lattice) * c, wout.centers)
 

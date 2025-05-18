@@ -1,79 +1,95 @@
 [Cu]
-git-tree-sha1 = "26cd04ef4c5290f197a9763ee2b5e315de87ab09"
+git-tree-sha1 = "7a62b6fd9cf0b8414d402bf5109ab1e4e3770812"
 lazy = true
 
     [[Cu.download]]
-    sha256 = "19be07f44405049e6c67d5dbeeb2db678f0616ed8f189c4f2e95c1d562e4618c"
-    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/Cu.tar.gz"
-
-[CuBr2]
-git-tree-sha1 = "b399f867ae5242aacb0059186ac7b28c26ec8e73"
-lazy = true
-
-    [[CuBr2.download]]
-    sha256 = "58f979eca686795761a86d581e776e2f7bd1a1f36d89028d901e7279caaa0f78"
-    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/CuBr2.tar.gz"
-
-[Fe_soc]
-git-tree-sha1 = "7408d03abce1b2a75fa2006fabc94a83499ee5ef"
-lazy = true
-
-    [[Fe_soc.download]]
-    sha256 = "ce47f02ed64b26b90bc73afa772199b35426f00a626b09cdd550c681ad31b4cc"
-    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/Fe_soc.tar.gz"
+    sha256 = "966ffc46f9bae5ea90df9d16f1a6da861cbca36bf1ca0238b72d758975f32106"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Cu.tar.gz"
 
 [Si2_valence]
-git-tree-sha1 = "03635d409d4449351ac87b8069c763de898c03af"
+git-tree-sha1 = "69abcb33e42a08354b68dae0c4ced116b6234d70"
 lazy = true
 
     [[Si2_valence.download]]
-    sha256 = "2da1eb68f753db70623c1f83f1db7940edb52e14dc2bd958684577bd43e73865"
-    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/Si2_valence.tar.gz"
+    sha256 = "76932bf2670ef5b05a650b07d8a16f01e6d99d7c25f2cc18848ef872a17ae684"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Si2_valence.tar.gz"
 
 [CrI3]
-git-tree-sha1 = "f698136fe78b64e96c909a4ac508fd4529610eda"
+git-tree-sha1 = "888fc3a5816e746cf3b7ddd2c469b89ae0f7e7da"
 lazy = true
 
     [[CrI3.download]]
-    sha256 = "7fec0f4de20e204e0dc6667e322124db57c271b0497bc73eced75d72ee13c9d3"
-    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/CrI3.tar.gz"
-
-[SnSe2]
-git-tree-sha1 = "86aa64f5fa8f9262a01d7e0720212332fb4119e2"
-lazy = true
-
-    [[SnSe2.download]]
-    sha256 = "8376f36917a04cc7013a88129b181bb81a9afe820f0e88c6d049cf9082da36e8"
-    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/SnSe2.tar.gz"
-
-[Si2]
-git-tree-sha1 = "341c9869e56314d0154151129eca5c105cdc968e"
-lazy = true
-
-    [[Si2.download]]
-    sha256 = "87ec2d23a06e33dab729ead0241e21f1d610c6ec98258a58b4e84aa9ee0c955b"
-    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/Si2.tar.gz"
-
-[Fe_collinear]
-git-tree-sha1 = "13bfff238b9094b296a162f37d97bb8d81636337"
-lazy = true
-
-    [[Fe_collinear.download]]
-    sha256 = "04bde6911fe12648bc6295458a6ff8e14b00f650028d14a4d834c189eacff725"
-    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/Fe_collinear.tar.gz"
+    sha256 = "d88ef0f6ffcb316bb96465bca4f79228c03486ff05c62c8ac5e640bc841f9e96"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/CrI3.tar.gz"
 
 [MoS2]
 git-tree-sha1 = "2b36703f7e686b5b3e40bcdbd86688e80be4a4d6"
 lazy = true
 
     [[MoS2.download]]
-    sha256 = "09c7cd12a350510ae88f8c2c84e0d511db80c0104386486755477cd717427076"
-    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/MoS2.tar.gz"
+    sha256 = "17f7d1fbdecd472ed497e7b50855147054146387b447e5a7884c1aa395b2f9bb"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/MoS2.tar.gz"
+
+[BN]
+git-tree-sha1 = "5c6644b683c4783271d99973e21156daa2075bac"
+lazy = true
+
+    [[BN.download]]
+    sha256 = "b752c7c106407f365a93c9d2b4811644ca0920214a2cee5b7fa36185a2de01a9"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/BN.tar.gz"
+
+[SnSe2]
+git-tree-sha1 = "b45310314ba59112420850678fa416fcbbd7aa6a"
+lazy = true
+
+    [[SnSe2.download]]
+    sha256 = "bb6bad5142322dc083dd283c60bdc0e1a9442b96a9e828f36bb0ad34a6a83531"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/SnSe2.tar.gz"
+
+[Fe_collinear]
+git-tree-sha1 = "7491f2d773a5f682f83cf46120ae3ef8430c0f99"
+lazy = true
+
+    [[Fe_collinear.download]]
+    sha256 = "3f1ab3c4010a54b9c421faae3de746b9ed1152eac7d20417a9ee42222f709cd2"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Fe_collinear.tar.gz"
+
+[GaAs]
+git-tree-sha1 = "bfdffa9983ba6801e7dec5c197fac959f756b02b"
+lazy = true
+
+    [[GaAs.download]]
+    sha256 = "628d290d507f2ad7ef996cf27aee02feb54fcf973e13644ba9bccfab1ab707a9"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/GaAs.tar.gz"
+
+[Fe_soc]
+git-tree-sha1 = "61ccd2c018e0934c3541b85c32a8bd0ee957e2d7"
+lazy = true
+
+    [[Fe_soc.download]]
+    sha256 = "720cc325681f983aef9348da44e917802663a07226c95fe7efdb760ce96cdca0"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Fe_soc.tar.gz"
 
 [graphene]
-git-tree-sha1 = "41b06ee5668996867a89a911e6b34db102b757b0"
+git-tree-sha1 = "600f801c60eba4eb34c7d6396de079a597bc29cc"
 lazy = true
 
     [[graphene.download]]
-    sha256 = "145bd5bfd3f798cb6b72904a9273907176f65cde382bef9a75f2b19d524ad60b"
-    url = "https://github.com/qiaojunfeng/WannierDatasets/releases/latest/download/graphene.tar.gz"
+    sha256 = "006017f33b1e67a3dba4b309c5d01a300e09d74a85ab0f8750c804f4aa256024"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/graphene.tar.gz"
+
+[CuBr2]
+git-tree-sha1 = "1cb8c060dd58a341f243216ba96932660f7310d4"
+lazy = true
+
+    [[CuBr2.download]]
+    sha256 = "287624671d7c37d0b33d0920fc582729e869b80d0d39753650ad9072198b8dd1"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/CuBr2.tar.gz"
+
+[Si2]
+git-tree-sha1 = "1459f891f478ff64c3d1296c634ad441611778b2"
+lazy = true
+
+    [[Si2.download]]
+    sha256 = "55d0f070e4f253d2f384b9d6e350dc1acd8caad689ca256bc9c539e613538ce7"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Si2.tar.gz"

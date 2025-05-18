@@ -1,12 +1,12 @@
 @testitem "Hamiltonian WS" begin
     using Wannier.Datasets
     model = read_w90_with_chk(
-        dataset"Si2_valence/Si2_valence", dataset"Si2_valence/reference/Si2_valence.chk.fmt"
+        dataset"Si2_valence/Si2_valence", dataset"Si2_valence/outputs/Si2_valence.chk.fmt"
     )
     hamiltonian = TBHamiltonian(model; MDRS=false)
     interp = HamiltonianInterpolator(hamiltonian)
 
-    ref_band = read_w90_band(dataset"Si2_valence/reference/WS/Si2_valence")
+    ref_band = read_w90_band(dataset"Si2_valence/outputs/WS/Si2_valence")
     # if I use the kpoints in ref_band, the difference between eigenvalues is
     # around 2e-5, this is because the kpoints coordinates do not have enough
     # digits. Therefore, I read the win file and construct the kpoints myself.
@@ -20,12 +20,12 @@ end
 @testitem "Hamiltonian MDRS" begin
     using Wannier.Datasets
     model = read_w90_with_chk(
-        dataset"Si2_valence/Si2_valence", dataset"Si2_valence/reference/Si2_valence.chk.fmt"
+        dataset"Si2_valence/Si2_valence", dataset"Si2_valence/outputs/Si2_valence.chk.fmt"
     )
     hamiltonian = TBHamiltonian(model)
     interp = HamiltonianInterpolator(hamiltonian)
 
-    ref_band = read_w90_band(dataset"Si2_valence/reference/MDRS/Si2_valence")
+    ref_band = read_w90_band(dataset"Si2_valence/outputs/MDRS/Si2_valence")
 
     # if I use the kpoints in ref_band, the difference between eigenvalues is
     # around 2e-5, this is because the kpoints coordinates do not have enough

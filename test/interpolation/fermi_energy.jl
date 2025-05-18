@@ -1,7 +1,7 @@
 @testitem "compute_fermi_energy" begin
     using Wannier.Datasets
     model = read_w90_with_chk(
-        dataset"Si2_valence/Si2_valence", dataset"Si2_valence/reference/Si2_valence.chk.fmt"
+        dataset"Si2_valence/Si2_valence", dataset"Si2_valence/outputs/Si2_valence.chk.fmt"
     )
     hamiltonian = TBHamiltonian(model)
     interp = HamiltonianInterpolator(hamiltonian)
@@ -15,7 +15,7 @@ end
 @testitem "compute_fermi_energy graphene" begin
     using Wannier.Datasets
     model = load_dataset("graphene")
-    model.gauges .= read_amn(dataset"graphene/reference/graphene.dis.amn")
+    model.gauges .= read_amn(dataset"graphene/outputs/graphene.dis.amn")
     hamiltonian = TBHamiltonian(model)
     interp = HamiltonianInterpolator(hamiltonian)
     # on purposely choose 5x5x1 since this grid skips the K point, and

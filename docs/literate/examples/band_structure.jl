@@ -27,7 +27,7 @@ using Wannier.Datasets
 We will use the [`read_w90_with_chk`](@ref) function to read the `win`, `mmn`,
 `eig`, and `chk` files, so that the U matrix is already the optimized one.
 =#
-model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/reference/Si2.chk")
+model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/outputs/Si2.chk")
 
 # and check the spread to make sure our `Model` is sensible
 omega(model)
@@ -154,7 +154,7 @@ Main.HTMLPlot(P, 500) # hide
 Now we load the `Wannier90` interpolated band,
 to compare between the two codes,
 =#
-kpi_w90, E_w90 = read_w90_band(dataset"Si2/reference/MDRS/Si2", reciprocal_lattice(model))
+kpi_w90, E_w90 = read_w90_band(dataset"Si2/outputs/MDRS/Si2", reciprocal_lattice(model))
 #=
 !!! tip
 
@@ -171,7 +171,7 @@ Main.HTMLPlot(P, 500) # hide
 
 # Finally, we can also compare with DFT bands
 using WannierIO
-qe = WannierIO.read_qe_xml(dataset"Si2/reference/qe_bands.xml")
+qe = WannierIO.read_qe_xml(dataset"Si2/outputs/qe_bands.xml")
 P = plot_band_diff(kpi, qe.eigenvalues, E)
 Main.HTMLPlot(P, 500) # hide
 #=

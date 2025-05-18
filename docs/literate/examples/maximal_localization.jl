@@ -19,7 +19,7 @@ In general, a Wannierization of a material consists of the following steps:
         a `win` file containing some input parameters, e.g., the crystal structure.
     - We have pre-computed them using Quantum ESPRESSO (QE) code, and the
         results are stored hosted in
-        [WannierDatasets](https://github.com/qiaojunfeng/WannierDatasets) repo.
+        [WannierDatasets](https://huggingface.co/datasets/atomology/WannierDatasets) repo.
         For more details, please refer to [WannierDatasets](@ref) section.
 2. Construct a `Wannier.jl` [`Model`](@ref), by reading the `win`, `amn`, `mmn`,
     and `eig` files
@@ -73,7 +73,7 @@ dataset"Si2_valence"
 !!! tip
 
     Julia's artifact system will automatically download the dataset from the
-    [WannierDatasets](https://github.com/qiaojunfeng/WannierDatasets) repo and
+    [WannierDatasets](https://huggingface.co/datasets/atomology/WannierDatasets) repo and
     place them under the folder `~/.julia/artifacts/`.
 
 You can equivalently load it by calling the [`read_w90`](@ref) function

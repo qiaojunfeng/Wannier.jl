@@ -35,7 +35,7 @@ system allowing us to load binaries or data files easily in Julia script or REPL
 without the need of manually downloading and placing them in the right folder.
 
 In `Wannier.jl`, we use such system to load our pre-computed
-[`WannierDatasets`](https://github.com/qiaojunfeng/WannierDatasets), which
+[`WannierDatasets`](https://huggingface.co/datasets/atomology/WannierDatasets), which
 contains some typical materials, e.g., silicon, copper, graphene, etc.
 This allows easy loading of input files and construct Wannier functions hassle-free.
 

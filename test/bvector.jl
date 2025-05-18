@@ -29,7 +29,7 @@ end
     using Wannier: Vec3
     using Wannier.Datasets
     win = read_win(dataset"graphene/graphene.win")
-    nnkp = read_nnkp_compute_bweights(dataset"graphene/reference/graphene.nnkp")
+    nnkp = read_nnkp_compute_bweights(dataset"graphene/outputs/graphene.nnkp")
 
     recip_lattice = reciprocal_lattice(win.unit_cell_cart)
     kstencil = generate_kspace_stencil(recip_lattice, win.mp_grid, win.kpoints)
@@ -71,7 +71,7 @@ end
     using Wannier: Vec3
     using Wannier.Datasets
     win = read_win(dataset"SnSe2/SnSe2.win")
-    nnkp = read_nnkp_compute_bweights(dataset"SnSe2/reference/SnSe2.nnkp")
+    nnkp = read_nnkp_compute_bweights(dataset"SnSe2/outputs/SnSe2.nnkp")
     recip_lattice = reciprocal_lattice(win.unit_cell_cart)
     kstencil = generate_kspace_stencil(
         recip_lattice, win.mp_grid, win.kpoints; atol=win.kmesh_tol

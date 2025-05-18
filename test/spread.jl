@@ -1,7 +1,7 @@
 @testitem "spread" begin
     using Wannier.Datasets
-    model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/reference/Si2.chk")
-    wout = read_wout(dataset"Si2/reference/Si2.wout")
+    model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/outputs/Si2.chk")
+    wout = read_wout(dataset"Si2/outputs/Si2.wout")
 
     Ω = omega(model)
 
@@ -38,8 +38,8 @@ end
 
 @testitem "center" begin
     using Wannier.Datasets
-    model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/reference/Si2.chk")
-    wout = read_wout(dataset"Si2/reference/Si2.wout")
+    model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/outputs/Si2.chk")
+    wout = read_wout(dataset"Si2/outputs/Si2.wout")
 
     r = center(model)
     @test isapprox(r, wout.centers; atol=1e-5)

@@ -29,7 +29,7 @@ end
 
 @testitem "read_w90_with_chk" begin
     using Wannier.Datasets
-    model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/reference/Si2.chk")
+    model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/outputs/Si2.chk")
 
     @test model isa Wannier.Model
     @test n_wannier(model) == 8
@@ -38,7 +38,7 @@ end
 @testitem "write chk from Model" begin
     using LinearAlgebra
     using Wannier.Datasets
-    model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/reference/Si2.chk.fmt")
+    model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/outputs/Si2.chk.fmt")
     tmpfile = tempname(; cleanup=true)
     write_chk(tmpfile, model)
 
@@ -76,7 +76,7 @@ end
 
 @testitem "Model from chk" begin
     using Wannier.Datasets
-    chk = read_chk(dataset"Si2/reference/Si2.chk")
+    chk = read_chk(dataset"Si2/outputs/Si2.chk")
     model = Wannier.Model(chk)
 
     @test chk.lattice ≈ model.lattice

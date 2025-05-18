@@ -73,7 +73,7 @@ model.gauges .= U;
 =#
 
 # load QE band structure
-kpoints_qe, E_qe = WannierIO.read_qe_band(dataset"Cu/reference/qe_bands.dat");
+kpoints_qe, E_qe = WannierIO.read_qe_band(dataset"Cu/outputs/qe_bands.dat");
 # the Fermi energy from scf calculation
 εF = 16.8985
 
@@ -113,7 +113,7 @@ using Brillouin
 using PlotlyJS
 
 # primitive reciprocal basis associated with k-path
-bxsf = Wannier.read_bxsf(dataset"Cu/reference/Cu.bxsf")
+bxsf = Wannier.read_bxsf(dataset"Cu/outputs/Cu.bxsf")
 fig = WannierPlots.plot_fermisurf_plotly(bxsf.rgrid, bxsf.fermi_energy, bxsf.E; kpath=kpath)
 fig.layout.width = 500
 fig.layout.height = 500

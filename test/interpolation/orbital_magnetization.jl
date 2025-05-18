@@ -3,7 +3,7 @@
     using Wannier: Vec3
     using Wannier.Datasets
 
-    model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/reference/Fe.chk")
+    model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/outputs/Fe.chk")
     hamiltonian_position = TBHamiltonianPosition(model)
 
     Hr_11 = Vec3(
@@ -35,7 +35,7 @@ end
     using Wannier: Vec3
     using Wannier.Datasets
 
-    model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/reference/Fe.chk")
+    model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/outputs/Fe.chk")
     uHu = read_uHu(dataset"Fe_soc/Fe.uHu")
     position_hamiltonian_position = TBPositionHamiltonianPosition(model, uHu)
 
@@ -63,8 +63,8 @@ end
     # the one used in postw90.x, which directly use the overlap matrices for
     # position operator. Therefore, we read directly from chk file to reproduce
     # the same results.
-    # hamiltonian, position = read_w90_tb(dataset"Fe_soc/reference/MDRS/Fe")
-    model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/reference/Fe.chk")
+    # hamiltonian, position = read_w90_tb(dataset"Fe_soc/outputs/MDRS/Fe")
+    model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/outputs/Fe.chk")
     hamiltonian = TBHamiltonian(model)
     Rspace = generate_Rspace(model)
     position = TBPosition(Rspace, model; imlog_diag=false)
@@ -80,8 +80,8 @@ end
         win.fermi_energy,
     )
 
-    ref_kpt = read_w90_band_kpt(dataset"Fe_soc/reference/MDRS/postw90/Fe-path.kpt")
-    ref_dat = readdlm(dataset"Fe_soc/reference/MDRS/postw90/Fe-morb.dat")
+    ref_kpt = read_w90_band_kpt(dataset"Fe_soc/outputs/MDRS/postw90/Fe-path.kpt")
+    ref_dat = readdlm(dataset"Fe_soc/outputs/MDRS/postw90/Fe-morb.dat")
     # w90 actually writes -1/2 * M, where M = LVTS12 Eq. 97
     ref_M = map(eachrow(ref_dat[:, 2:end])) do M
         -2 * Wannier.axialvector_to_antisymmetrictensor(M)

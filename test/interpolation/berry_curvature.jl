@@ -7,15 +7,15 @@
     # the one used in postw90.x, which directly use the overlap matrices for
     # position operator. Therefore, we read directly from chk file to reproduce
     # the same results.
-    # hamiltonian, position = read_w90_tb(dataset"Fe_soc/reference/MDRS/Fe")
-    model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/reference/Fe.chk")
+    # hamiltonian, position = read_w90_tb(dataset"Fe_soc/outputs/MDRS/Fe")
+    model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/outputs/Fe.chk")
     hamiltonian = TBHamiltonian(model)
     position = TBPosition(model; imlog_diag=false)
     win = read_win(dataset"Fe_soc/Fe.win")
     interp = Wannier.BerryCurvatureInterpolator(hamiltonian, position, win.fermi_energy)
 
-    ref_kpt = read_w90_band_kpt(dataset"Fe_soc/reference/MDRS/postw90/Fe-path.kpt")
-    ref_dat = readdlm(dataset"Fe_soc/reference/MDRS/postw90/Fe-curv.dat")
+    ref_kpt = read_w90_band_kpt(dataset"Fe_soc/outputs/MDRS/postw90/Fe-path.kpt")
+    ref_dat = readdlm(dataset"Fe_soc/outputs/MDRS/postw90/Fe-curv.dat")
     # w90 actually writes -Ω, so we need to negate it
     ref_Ω = map(eachrow(ref_dat[:, 2:end])) do Ω
         -Wannier.axialvector_to_antisymmetrictensor(Ω)

@@ -2,17 +2,17 @@
     using LinearAlgebra
     using Wannier.Datasets
     hamiltonian, position, spin = read_w90_tb_chk_spn(
-        dataset"Fe_soc/reference/MDRS/Fe";
+        dataset"Fe_soc/outputs/MDRS/Fe";
         spn=dataset"Fe_soc/Fe.spn",
-        chk=dataset"Fe_soc/reference/Fe.chk",
+        chk=dataset"Fe_soc/outputs/Fe.chk",
     )
     # project onto the z axis
     θ = 0.0
     ϕ = 0.0
     interp = SpinProjectionInterpolator(hamiltonian, spin, θ, ϕ)
 
-    ref_kpt = read_w90_band_kpt(dataset"Fe_soc/reference/MDRS/postw90/Fe-path.kpt")
-    ref_dat = read_w90_band_dat(dataset"Fe_soc/reference/MDRS/postw90/Fe-bands.dat")
+    ref_kpt = read_w90_band_kpt(dataset"Fe_soc/outputs/MDRS/postw90/Fe-path.kpt")
+    ref_dat = read_w90_band_dat(dataset"Fe_soc/outputs/MDRS/postw90/Fe-bands.dat")
 
     # if I use the kpoints in ref_kpt, the difference between eigenvalues is
     # around 1e-4, this is because the kpoints coordinates do not have enough

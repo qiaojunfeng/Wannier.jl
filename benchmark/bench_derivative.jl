@@ -7,7 +7,7 @@ using Wannier.Datasets
 
 SUITE = BenchmarkGroup()
 
-tb = read_w90_tb(dataset"Si2_valence/reference/mdrs/Si2_valence")
+tb = read_w90_tb(dataset"Si2_valence/outputs/mdrs/Si2_valence")
 Rvectors = tb.Rvectors
 H = tb.H
 # choose a random k-point such that there is no degeneracy

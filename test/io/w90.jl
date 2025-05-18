@@ -1,7 +1,7 @@
 @testitem "read nnkp" begin
     using Wannier.Datasets
-    kstencil = read_nnkp_compute_bweights(dataset"Si2_valence/reference/Si2_valence.nnkp")
-    nnkp = read_nnkp(dataset"Si2_valence/reference/Si2_valence.nnkp.toml")
+    kstencil = read_nnkp_compute_bweights(dataset"Si2_valence/outputs/Si2_valence.nnkp")
+    nnkp = read_nnkp(dataset"Si2_valence/outputs/Si2_valence.nnkp.toml")
 
     @test reciprocal_lattice(kstencil) ≈ nnkp.recip_lattice
     @test kstencil.kpoints ≈ nnkp.kpoints
@@ -28,7 +28,7 @@ end
 
 @testitem "read/write nnkp" begin
     using Wannier.Datasets
-    kstencil = read_nnkp_compute_bweights(dataset"Si2_valence/reference/Si2_valence.nnkp")
+    kstencil = read_nnkp_compute_bweights(dataset"Si2_valence/outputs/Si2_valence.nnkp")
     tmpfile = tempname(; cleanup=true)
     n_wann = 4
     write_nnkp(tmpfile, kstencil; n_wann)
@@ -42,7 +42,7 @@ end
     win = read_win(dataset"Si2_valence/Si2_valence.win")
     recip_lattice = reciprocal_lattice(win.unit_cell_cart)
     kpi, eigenvalues = read_w90_band(
-        dataset"Si2_valence/reference/MDRS/Si2_valence", recip_lattice
+        dataset"Si2_valence/outputs/MDRS/Si2_valence", recip_lattice
     )
 
     outdir = mktempdir(; cleanup=true)
@@ -59,7 +59,7 @@ end
 
 @testitem "read_w90_tb WS" begin
     using Wannier.Datasets
-    hamiltonian, position = read_w90_tb(dataset"Si2_valence/reference/WS/Si2_valence")
+    hamiltonian, position = read_w90_tb(dataset"Si2_valence/outputs/WS/Si2_valence")
 
     # just some simple tests
     R1 = [-4, 0, 2]
@@ -76,7 +76,7 @@ end
 
 @testitem "read_w90_tb MDRS" begin
     using Wannier.Datasets
-    hamiltonian, position = read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence")
+    hamiltonian, position = read_w90_tb(dataset"Si2_valence/outputs/MDRS/Si2_valence")
 
     R1 = [-4, 0, 2]
     @test hamiltonian.Rvectors[1] == R1
@@ -88,7 +88,7 @@ end
 
 @testitem "write_w90_tb" begin
     using Wannier.Datasets
-    hamiltonian, position = read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence")
+    hamiltonian, position = read_w90_tb(dataset"Si2_valence/outputs/MDRS/Si2_valence")
 
     outdir = mktempdir(; cleanup=true)
     outprefix = joinpath(outdir, "Si2_valence")
@@ -101,27 +101,25 @@ end
 
 @testitem "read_w90_hr WS" begin
     using Wannier.Datasets
-    ref_hamiltonian = read_w90_tb(dataset"Si2_valence/reference/WS/Si2_valence").hamiltonian
+    ref_hamiltonian = read_w90_tb(dataset"Si2_valence/outputs/WS/Si2_valence").hamiltonian
     hamiltonian = read_w90_hr(
-        dataset"Si2_valence/reference/WS/Si2_valence", ref_hamiltonian.Rspace.lattice
+        dataset"Si2_valence/outputs/WS/Si2_valence", ref_hamiltonian.Rspace.lattice
     )
     @test isapprox(hamiltonian, ref_hamiltonian; atol=1e-5)
 end
 
 @testitem "read_w90_hr MDRS" begin
     using Wannier.Datasets
-    ref_hamiltonian =
-        read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence").hamiltonian
+    ref_hamiltonian = read_w90_tb(dataset"Si2_valence/outputs/MDRS/Si2_valence").hamiltonian
     hamiltonian = read_w90_hr(
-        dataset"Si2_valence/reference/MDRS/Si2_valence", ref_hamiltonian.Rspace.lattice
+        dataset"Si2_valence/outputs/MDRS/Si2_valence", ref_hamiltonian.Rspace.lattice
     )
     @test isapprox(hamiltonian, ref_hamiltonian; atol=1e-5)
 end
 
 @testitem "write_w90_hr" begin
     using Wannier.Datasets
-    ref_hamiltonian =
-        read_w90_tb(dataset"Si2_valence/reference/MDRS/Si2_valence").hamiltonian
+    ref_hamiltonian = read_w90_tb(dataset"Si2_valence/outputs/MDRS/Si2_valence").hamiltonian
 
     outdir = mktempdir(; cleanup=true)
     outprefix = joinpath(outdir, "Si2_valence")
@@ -136,8 +134,8 @@ end
     using Wannier: Vec3
 
     hamiltonian, position, spin = Wannier.read_w90_tb_chk_spn(
-        dataset"Fe_soc/reference/MDRS/Fe";
-        chk=dataset"Fe_soc/reference/Fe.chk",
+        dataset"Fe_soc/outputs/MDRS/Fe";
+        chk=dataset"Fe_soc/outputs/Fe.chk",
         spn=dataset"Fe_soc/Fe.spn",
     )
 

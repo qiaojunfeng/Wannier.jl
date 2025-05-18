@@ -4,7 +4,7 @@ using LinearAlgebra
 using Wannier
 using Wannier.Datasets
 
-prefix = dataset"Fe_soc/reference/MDRS/Fe"
+prefix = dataset"Fe_soc/outputs/MDRS/Fe"
 tb = read_w90_tb(prefix)
 interp = HamiltonianInterpolator(tb.hamiltonian)
 
@@ -84,7 +84,7 @@ is uniformlly-spaced.
 
     This function assumes the input eigenvalues `E` are read from a `bxsf` file.
 """
-function to_adpt_kgrid(E::Array{Float64, 4})
+function to_adpt_kgrid(E::Array{Float64,4})
     nks = collect(size(E)[2:end] .- 1)
     kpoints = Wannier.get_kpoints(nks)
     nbands = size(E, 1)
