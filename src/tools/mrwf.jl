@@ -123,7 +123,7 @@ function mrwf(
     end
 
     if isnothing(mmn_cubic)
-        models_Us = mrwf(model, indices, outdirs; kwargs...)
+        models_Us = mrwf(model, indices; kwargs...)
     else
         # Read mmn file for cubic neighbors
         # I assume the kpoints,
