@@ -189,6 +189,23 @@ function generate_w90_kpoint_path(
     return generate_w90_kpoint_path(kpath, n_points_first_segment)
 end
 
+function generate_kpath(kpi::KPathInterpolant)
+    points = Dict{Symbol,Vec3{Float64}}()
+    paths = Vector{Vector{Symbol}}()
+
+    for (label, path) in zip(kpi.labels, kpi.kpaths)
+        ik_labels = sort(pairs(label); by=first)
+        push!(paths, collect(values(ik_labels)))
+        for (ik, lab) in pairs(ik_labels)
+            points[lab] = path[ik]
+        end
+    end
+
+    kpath = KPath(points, paths, kpi.basis, kpi.setting)
+
+    return kpath
+end
+
 """
     $(SIGNATURES)
 
