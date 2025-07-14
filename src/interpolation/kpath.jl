@@ -147,6 +147,8 @@ function generate_w90_kpoint_path(
             seg_norm = norm(seg)
 
             n_x_seg = Int(round(seg_norm / dk))
+            # ensure at least the two ending points are there, if the seg_norm is too small
+            n_x_seg = max(n_x_seg, 1)
             x_seg = collect(range(0, seg_norm, n_x_seg + 1))
             dvec = seg / seg_norm
 
