@@ -3,6 +3,48 @@ using LinearAlgebra
 export split_wannierize, split_unk, split_model
 
 """
+    group_eigenvalues(eigenvalues::AbstractArray; gap_threshold=1)
+
+Find isolated groups of bands by checking the local gap at each kpoint.
+
+# Arguments
+- `eigenvalues`: eigenvalues should be ordered ascendingly at each kpoint.
+
+# Keyword arguments
+- `gap_threshold`: the threshold for the local gap, default is 0.05 eV.
+"""
+function group_eigenvalues(eigenvalues::AbstractArray; gap_threshold=0.05)
+    nkpts = length(eigenvalues)
+    (nkpts > 0) || error("number of kpoints must be greater than 0")
+    nbands = length(eigenvalues[1])
+    (nbands > 0) || error("number of bands must be greater than 0")
+
+    (nbands == 1) && return [[1]]
+
+    groups = Vector{Vector{Int}}()
+    grp = Int[]
+    for ib in 1:(nbands-1)
+        Δe = [e[ib+1] - e[ib] for e in eigenvalues]
+        # Has local gap at each kpoint, not necessarily a global gap
+        gapped = all(Δe .>= gap_threshold)
+        push!(grp, ib)
+        if gapped
+            push!(groups, grp)
+            grp = Int[]
+            if ib == (nbands - 1)
+                push!(groups, [ib + 1])
+            end
+        else
+            if ib == (nbands - 1)
+                push!(grp, ib + 1)
+                push!(groups, grp)
+            end
+        end
+    end
+    return groups
+end
+
+"""
     split_eig(E, U, eig_groups)
 
 Split eigenvalues into several groups.
