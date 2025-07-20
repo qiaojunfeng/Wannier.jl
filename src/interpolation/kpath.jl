@@ -150,7 +150,7 @@ function generate_w90_kpoint_path(
             # ensure at least the two ending points are there, if the seg_norm is too small
             n_x_seg = max(n_x_seg, 1)
             x_seg = collect(range(0, seg_norm, n_x_seg + 1))
-            dvec = seg / seg_norm
+            dvec = iszero(seg_norm) ? seg : seg / seg_norm
 
             # column vector * row vector = matrix
             kpt_seg = dvec * x_seg'
