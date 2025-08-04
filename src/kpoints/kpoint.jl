@@ -201,13 +201,7 @@ output `[nkx, nky, nkz]`.
 function guess_kgrid_size(kpoints::AbstractVector; atol=1e-5)
     @assert length(kpoints) > 0 "kpoints is empty"
 
-    kgrid_size = zeros(Int, 3)
-    # 3 directions
-    for i in 1:3
-        uniq_kpt = unique(k -> k[i], kpoints)
-        kgrid_size[i] = length(uniq_kpt)
-    end
-
+    kgrid_size = [maximum(k -> denominator(rationalize(k[i]; tol = atol)), kpoints) for i in 1:3]
     if prod(kgrid_size) != length(kpoints)
         error("kgrid_size and kpoints do not match")
     end
