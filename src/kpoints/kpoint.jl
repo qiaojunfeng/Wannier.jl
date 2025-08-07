@@ -187,6 +187,24 @@ end
 """
     $(SIGNATURES)
 
+Rationalize the coordinates of points.
+
+This is useful in cases where the input kpoints coordinates are inexact due to
+floating point representation, e.g.
+`[0.5000000001, 0.0, 0.0]` instead of `[0.5, 0, 0]`.
+
+# Arguments
+- `points`: usually kpoints in fractional coordinates
+"""
+function rationalize_points(points::AbstractVector; atol::Real=1e-5)
+    return map(points) do p
+        rationalize.(p; tol=atol)
+    end
+end
+
+"""
+    $(SIGNATURES)
+
 Guess kgrid_size from list of kpoint coordinates.
 
 Input `kpoints` has size `3 * n_kpts`, where `n_kpts = nkx * nky *  nkz`,
@@ -201,7 +219,10 @@ output `[nkx, nky, nkz]`.
 function guess_kgrid_size(kpoints::AbstractVector; atol=1e-5)
     @assert length(kpoints) > 0 "kpoints is empty"
 
-    kgrid_size = [maximum(k -> denominator(rationalize(k[i]; tol = atol)), kpoints) for i in 1:3]
+    kpoints_rationalized = rationalize_points(kpoints; atol)
+    kgrid_size = map(1:3) do i
+        maximum(denominator.(k[i] for k in kpoints_rationalized))
+    end
     if prod(kgrid_size) != length(kpoints)
         error("kgrid_size and kpoints do not match")
     end
@@ -212,11 +233,15 @@ function guess_kgrid_size(kpoints::AbstractVector; atol=1e-5)
     else
         kpoints_recovered = get_kpoints(kgrid_size; endpoint=false)
     end
-    kpoints_sorted = sort_points(kpoints)
+    # Note that I need to sort the `kpoints_rationalized`, otherwise if
+    # there exists e.g. 1e-10 floating point inexactness, the sort would
+    # take this into account and return different ordering than the
+    # `kpoints_recovered` which is exact.
+    kpoints_rationalized_sorted = sort_points(kpoints_rationalized)
     kpoints_recovered_sorted = sort_points(kpoints_recovered)
 
     # if they are shifted by a constant, then our guess is fine
-    diff = kpoints_sorted .- kpoints_recovered_sorted
+    diff = kpoints_rationalized_sorted .- kpoints_recovered_sorted
     diff .-= Ref(diff[1])
     if !all(isapprox.(diff, Ref([0, 0, 0]); atol))
         error("cannot guess kgrid_size from kpoint coordinates")
