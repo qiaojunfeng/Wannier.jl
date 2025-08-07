@@ -96,3 +96,18 @@ end
     win = read_win(dataset"graphene/graphene.win")
     @test Wannier.guess_kgrid_size(win.kpoints) == win.mp_grid
 end
+
+@testitem "rationalize_points" begin
+    kpoints = [[1e-10, 0.0, 0.0], [0.5, 0.5, 0.5]]
+    rationalized = Wannier.rationalize_points(kpoints)
+    ref_kpoints = [[0//1, 0//1, 0//1], [1//2, 1//2, 1//2]]
+    @test rationalized == ref_kpoints
+end
+
+@testitem "guess_kgrid_size inexact" begin
+    # See issue #54
+    kgrid_size = [2, 2, 2]
+    kpoints = Wannier.get_kpoints(kgrid_size)
+    kpoints[1] = kpoints[1] + [5e-10, 0, 0]
+    @test Wannier.guess_kgrid_size(kpoints) == kgrid_size
+end
