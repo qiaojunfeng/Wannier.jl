@@ -152,7 +152,7 @@ function compute_D_matrix(
     D = [zeros(MVec3{T}, nwann, nwann) for _ in 1:nkpts]
 
     for ik in 1:nkpts
-        # derivative of Hamiltonain dH = [dH/dkx, dH/dky, dH/dkz]
+        # derivative of Hamiltonian dH = [dH/dkx, dH/dky, dH/dkz]
         # in Wannier gauge, at kpoint k
         dHᵂₖ = RH_k[ik]
         # to Bloch gauge, dHₖ = U† dHᵂₖ U
@@ -187,18 +187,18 @@ function compute_D_matrix(
                 # diagonalize the submatrix
                 h = map(x -> x[α], dH[ik][idx, idx])
                 v, u = eigen(h)
-                # update U such that in Hamiltonain gauge both H and dH
+                # update U such that in Hamiltonian gauge both H and dH
                 # are diagonal in the degenerate subspace
                 U[ik][idx, idx] *= u
-                for i in idx
-                    for j in idx
+                for (i0, i) in enumerate((1:nwann)[idx])
+                    for j in (1:nwann)[idx]
                         if i == j
-                            dH[ik][i, j][α] .= v[i]
+                            dH[ik][i, j][α] = v[i0]
                         else
-                            dH[ik][i, j][α] .= 0
+                            dH[ik][i, j][α] = 0
                         end
                         # the D matrix
-                        D[ik][i, j][α] .= 0
+                        D[ik][i, j][α] = 0
                     end
                 end
             end
