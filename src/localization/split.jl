@@ -23,8 +23,8 @@ function group_eigenvalues(eigenvalues::AbstractArray; gap_threshold=0.05)
 
     groups = Vector{Vector{Int}}()
     grp = Int[]
-    for ib in 1:(nbands-1)
-        Δe = [e[ib+1] - e[ib] for e in eigenvalues]
+    for ib in 1:(nbands - 1)
+        Δe = [e[ib + 1] - e[ib] for e in eigenvalues]
         # Has local gap at each kpoint, not necessarily a global gap
         gapped = all(Δe .>= gap_threshold)
         push!(grp, ib)
@@ -177,12 +177,13 @@ function split_unk(
     println("UNK files will be written in: ")
     for (i, odir) in enumerate(outdirs)
         !isdir(odir) && mkdir(odir)
-        @printf("    group %3d : %s", i, odir)
+        @printf("    group %3d : %s\n", i, odir)
     end
 
     regex = r"UNK(\d{5})\.\d"
+    # This might contain non-UNK files, to be filtered later
     unk_files = readdir(dir)
-    isnothing(binary) && (binary = WannierIO.isbinary(unk_files[1]))
+    isnothing(binary) && (binary = WannierIO.isbinary("UNK00001.1"))
 
     for unk in unk_files
         m = match(regex, unk)
