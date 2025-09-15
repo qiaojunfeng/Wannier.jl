@@ -162,6 +162,7 @@ function mrwf(
         :dis_win_max,
         :dis_froz_min,
         :dis_froz_max,
+        :projections,
         :auto_projections,
     ]
         pop!(win, k, nothing)
@@ -192,11 +193,11 @@ function mrwf(
 
     # UNK files for plotting WFs
     if rot_unk
+        dir = dirname(prefix)
+        isempty(dir) && (dir = ".")
         # This writes to the folder of prefix
-        # dir = dirname(prefix)
-        # isempty(dir) && (dir = ".")
         # outdirs = [joinpath(dir, od) for od in outdirs]
-
+        # Probably better just write to the `outdirs` specified by user
         split_unk(dir, [mU[2] for mU in models_Us], outdirs)
     end
     return nothing
