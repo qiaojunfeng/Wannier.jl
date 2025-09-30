@@ -200,19 +200,32 @@ Refine the kgrid by splitting the kvoxels into subvoxels.
 
 # Keyword arguments
 - `n_subvoxels`: number of subvoxels along each dimension. 2 -> split into 8 subvoxels
+- `axes`: which axes to refine, e.g., `[true, true, false]` only refine the first two axes
 """
-function refine!(ag::AdaptiveKgrid, iks::AbstractVector, interp::Function; n_subvoxels=2)
+function refine!(
+    ag::AdaptiveKgrid,
+    iks::AbstractVector,
+    interp::Function;
+    n_subvoxels=2,
+    axes::AbstractVector=[true, true, true],
+)
     new_kvoxels = eltype(ag.kvoxels)[]
 
     # split the current kvoxel into 8 sub kvoxels, so 7 new kvoxels are added
     range_subs = 0:(n_subvoxels - 1)
-    add_points = [Vec3(i, j, k) for i in range_subs for j in range_subs for k in range_subs]
+    range_subs1 = axes[1] ? range_subs : [0]
+    range_subs2 = axes[2] ? range_subs : [0]
+    range_subs3 = axes[3] ? range_subs : [0]
+    add_points = [
+        Vec3(i, j, k) for i in range_subs1 for j in range_subs2 for k in range_subs3
+    ]
     deleteat!(add_points, 1)
+    n_subs = Vec3(length.([range_subs1, range_subs2, range_subs3]))
 
     for ik in iks
         # split the current kvoxel into 8 sub kvoxels
         vx0 = ag.kvoxels[ik]
-        voxel = Kvoxel(vx0.point, vx0.dv ./ n_subvoxels, vx0.weight / n_subvoxels^3)
+        voxel = Kvoxel(vx0.point, vx0.dv ./ n_subs, vx0.weight / prod(n_subs))
         ag.kvoxels[ik] = voxel
         sub_voxels = map(add_points) do pt
             Kvoxel(voxel.point + pt .* voxel.dv, voxel.dv, voxel.weight)
@@ -296,6 +309,7 @@ function compute_fermi_energy!(
     tol_εF::Real=5e-3,
     max_refine::Integer=10,
     width_εF::Real=0.5,
+    axes::AbstractVector=[true, true, true],
 )
     # the initial guessing Fermi energy
     εF = compute_fermi_energy(
@@ -320,7 +334,7 @@ function compute_fermi_energy!(
         # I should iterate odd grid 1st, otherwise it seems the graphene
         # case could still stuck at wrong εF with [8, 8, 1] kgrid
         n_subvoxels = iter % 2 == 0 ? 2 : 3
-        refine!(adpt_kgrid, refine_iks, x -> interp(x)[1]; n_subvoxels)
+        refine!(adpt_kgrid, refine_iks, x -> interp(x)[1]; n_subvoxels, axes)
 
         εF_prev = εF
         εF = compute_fermi_energy(
@@ -342,10 +356,10 @@ function compute_fermi_energy!(
             ΔεF,
         )
         iter += 1
-        # after 10 iters, the width is mutiplied by 0.8^10 ≈ 0.107
-        # width_εF *= 0.8
-        # set next search range according to ΔεF
-        width_εF = min(width_εF, abs(ΔεF) * 5)
+        # After 10 iters, the width is mutiplied by 0.8^10 ≈ 0.107
+        width_εF *= 0.8
+        # Set next search range according to ΔεF, but probably this is too small
+        # width_εF = min(width_εF, abs(ΔεF) * 5)
     end
     return εF
 end
@@ -384,12 +398,27 @@ Find the conduction band minimum.
 - `ik`: index of kpoint for the cbm
 - `n`: index of band for the cbm
 """
-function find_cbm(eigenvals::AbstractVector, εF::Real)
+function find_cbm(eigenvalues::AbstractVector, εF::Real)
     # convert to a n_bands x n_kpoints matrix
-    E = reduce(hcat, eigenvals)
+    E = reduce(hcat, eigenvalues)
     # mask the valence bands
     E[E .< εF] .= Inf
     n, ik = argmin(E).I
     cbm = E[n, ik]
     return cbm, ik, n
+end
+
+"""
+Find VBM and CBM.
+
+To get the indices of kpoints and bands, use [`find_vbm`](@ref) and [`find_cbm`](@ref).
+
+# Return
+- `vbm`: valence band maximum
+- `cbm`: conduction band minimum
+"""
+function find_vbm_cbm(eigenvalues::AbstractVector, εF::Real)
+    vbm = Wannier.find_vbm(eigenvalues, εF)[1]
+    cbm = Wannier.find_cbm(eigenvalues, εF)[1]
+    return vbm, cbm
 end
