@@ -1,4 +1,5 @@
 using FastLapackInterface: HermitianEigenWs, decompose!
+using Base.Iterators: partition
 using ProgressMeter: Progress, next!
 
 export TBHamiltonian, HamiltonianInterpolator, eigen
@@ -88,19 +89,33 @@ function LinearAlgebra.eigen!(
     nwann = size(hamiltonian[1], 1)
 
     n_threads = Threads.nthreads()
-    caches = [HermitianEigenWs(zeros(T, nwann, nwann)) for _ in 1:n_threads]
-    progress = Progress(nkpts, 1, "Diagonalizing matrices using $n_threads threads...")
+    # Partition kpoints into chunks for each tasks
+    # https://julialang.org/blog/2023/07/PSA-dont-use-threadid/#better_fix_work_directly_with_tasks
+    chunk_size = max(1, nkpts ÷ n_threads)
+    kpt_chunks = partition(1:nkpts, chunk_size)
 
-    Threads.@threads for ik in 1:nkpts
-        tid = Threads.threadid()
-        eigenvecs[ik] .= hamiltonian[ik]
-        eigen!(eigenvals[ik], eigenvecs[ik], caches[tid])
-        # this is slower
-        # e = eigen(Hermitian(eigenvecs[ik]))
-        # eigenvals[ik] .= e.values
-        # eigenvecs[ik] .= e.vectors
-        next!(progress)
+    progress = Progress(
+        nkpts; dt=1, desc="Diagonalizing matrices using $n_threads threads..."
+    )
+
+    tasks = map(kpt_chunks) do chunk
+        # Each chunk gets its own spawned task that does its own local,
+        # sequential work and then returns the result
+        Threads.@spawn begin
+            cache = HermitianEigenWs(zeros(T, nwann, nwann))
+            for ik in chunk
+                eigenvecs[ik] .= hamiltonian[ik]
+                eigen!(eigenvals[ik], eigenvecs[ik], cache)
+                # this is slower
+                # e = eigen(Hermitian(eigenvecs[ik]))
+                # eigenvals[ik] .= e.values
+                # eigenvecs[ik] .= e.vectors
+                next!(progress)
+            end
+        end
     end
+    wait.(tasks)
+
     return nothing
 end
 

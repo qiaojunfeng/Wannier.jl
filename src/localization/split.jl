@@ -298,7 +298,7 @@ Split the `Model` into two `Model`s.
 - `n_val`: number of valence WFs
 """
 function split_model(model::Model, n_val::Int)
-    n_wann = model.n_wann
+    n_wann = n_wannier(model)
     !(0 < n_val < n_wann) && error("n_val <= 0 or n_val >= n_wann")
 
     eig_groups = [1:n_val, (n_val + 1):n_wann]
