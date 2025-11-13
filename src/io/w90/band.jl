@@ -11,7 +11,7 @@ Generate a `KPathInterpolant` from `kpoints` in `seedname_band.dat/kpt/labelinfo
 # Arguments
 - kpoints: fractional coordinate, each column is a kpoint.
 """
-function KPathInterpolant(
+function Brillouin.KPathInterpolant(
     kpoints::AbstractMatrix,
     symm_idx::AbstractVector{T},
     symm_label::AbstractVector{R},
