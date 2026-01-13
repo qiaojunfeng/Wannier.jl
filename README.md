@@ -2,6 +2,7 @@
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://qiaojunfeng.github.io/Wannier.jl/stable)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://qiaojunfeng.github.io/Wannier.jl/dev)
+[![DOI](https://zenodo.org/badge/510433962.svg)](https://doi.org/10.5281/zenodo.18229743)
 [![CI](https://github.com/qiaojunfeng/Wannier.jl/workflows/CI/badge.svg)](https://github.com/qiaojunfeng/Wannier.jl/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/qiaojunfeng/Wannier.jl/branch/main/graph/badge.svg?token=J2c9HRdk59)](https://codecov.io/gh/qiaojunfeng/Wannier.jl)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
