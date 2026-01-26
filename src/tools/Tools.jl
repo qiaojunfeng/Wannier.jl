@@ -6,4 +6,6 @@ using ..Wannier: Model
 
 include("mrwf.jl")
 
+include("unfold_ibz.jl")
+
 end
