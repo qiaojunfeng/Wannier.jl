@@ -1,7 +1,7 @@
 """
     $(SIGNATURES)
 
-Get the mappings between kpoint indices and kpoint coordiantes.
+Get the mappings between kpoint indices and kpoint coordinates.
 
 # Arguments
 - `kpoints`: length-`n_kpts` vector of fractional coordinates, e.g. `Vec3`.

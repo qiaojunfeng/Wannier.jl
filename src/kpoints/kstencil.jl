@@ -102,6 +102,20 @@ function get_bvectors(
     return bvectors
 end
 
+"""
+    $(SIGNATURES)
+
+Return ``b``-vectors in fractional coordinates.
+"""
+function get_bvectors(
+    kpoints::AbstractVector,
+    kpb_k::AbstractVector,
+    kpb_G::AbstractVector,
+    ik::Integer=1,
+)
+    return get_bvectors(I(3), kpoints, kpb_k, kpb_G, ik)
+end
+
 n_kpoints(kstencil::KspaceStencil) = length(kstencil.kpoints)
 n_bvectors(kstencil::KspaceStencil) = length(kstencil.bvectors)
 reciprocal_lattice(kstencil::KspaceStencil) = kstencil.recip_lattice
@@ -273,23 +287,15 @@ function bvectors_to_kpb(bvectors_frac::AbstractVector, k::Vec3, kpoints::Abstra
     kpb_k = zeros(Int, nbvecs)
     kpb_G = zeros(Vec3{Int}, nbvecs)
 
-    """
-    Check if two vectors are equivalent apart from some integers.
+    # Check if two vectors are equivalent apart from some integers.
 
-    W90 internally use `kmesh_tol` to compare the norm of (v1 - v2) which are in
-    Cartesian coordinates; while here we compare directly the fractional
-    coordinates so it's safer (does not depend on the actual length of
-    recip_lattice), thus I choose a (somewhat arbitrary) constant `1e-6`.
-    """
-    isequiv(v1, v2; atol=1e-6) = begin
-        d = v1 - v2
-        d -= round.(d)
-        return all(isapprox.(d, 0; atol))
-    end
-
+    # W90 internally use `kmesh_tol` to compare the norm of (v1 - v2) which are
+    # in Cartesian coordinates; while here we compare directly the fractional
+    # coordinates so it's safer (does not depend on the actual length of
+    # recip_lattice), thus I choose a (somewhat arbitrary) constant `1e-6`.
     for ib in 1:nbvecs
         kpb = k + bvectors_frac[ib]
-        ik = findfirst(k -> isequiv(kpb, k), kpoints)
+        ik = findfirst(isequiv(kpb; atol=1e-6), kpoints)
         isnothing(ik) && error("No equivalent kpoint found for k=$k ib=$ib")
         kpb_k[ib] = ik
         kpb_G[ib] = round.(Int, kpb - kpoints[ik])
@@ -335,11 +341,9 @@ function sort_kpb(
     translations::AbstractVector{Vec3{Int}};
     atol=default_w90_kmesh_tol(),
 )
-    # this is for comparing fractional coordinates, 1e-6 should be already safe
-    isequiv(v1, v2) = isapprox(v1, v2; atol=1e-6)
-
     G_idxs = map(Gs) do G
-        findfirst(t -> isequiv(t, G), translations)
+        # this is for comparing fractional coordinates, 1e-6 should be already safe
+        findfirst(isapprox(G; atol=1e-6), translations)
     end
 
     lt(i, j) = begin
@@ -574,8 +578,35 @@ end
 
 See also [`index_bvector`](@ref).
 """
-function index_bvector(kstencil::KspaceStencil, ik, ikpb, G)
+function index_bvector(kstencil::KspaceStencil, ik::Integer, ikpb::Integer, G::AbstractVector)
     return index_bvector(kstencil.kpb_k, kstencil.kpb_G, ik, ikpb, G)
+end
+
+"""
+Get the index of b vector.
+
+# Arguments
+- `kpoints`: fractional coordinates
+- `kpb_k`
+- `kpb_G`
+- `ik`
+- `b`: fractional coordinates
+"""
+function index_bvector(
+    kpoints::AbstractVector,
+    kpb_k::AbstractVector,
+    kpb_G::AbstractVector,
+    ik::Integer,
+    b::AbstractVector,
+)
+    bvecs = get_bvectors(kpoints, kpb_k, kpb_G, ik)
+    return findfirst(isapprox(b), bvecs)
+end
+
+function index_bvector(kstencil::KspaceStencil, ik::Integer, b::AbstractVector)
+    return index_bvector(
+        kstencil.kpoints, kstencil.kpb_k, kstencil.kpb_G, ik, b
+    )
 end
 
 function generate_kspace_stencil(

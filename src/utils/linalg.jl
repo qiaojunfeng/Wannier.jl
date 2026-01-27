@@ -5,7 +5,8 @@ export orthonorm_lowdin,
     merge_gauge,
     zeros_overlap,
     zeros_eigenvalues,
-    isunitary
+    isunitary,
+    isequiv
 
 """
     $(SIGNATURES)
@@ -259,3 +260,34 @@ function isapprox_struct(a, b; kwargs...)
     end
     return true
 end
+
+"""
+    $(SIGNATURES)
+
+Check if two vectors are equivalent within a tolerance, optionally considering periodicity.
+
+# Arguments
+- `v1`: first vector
+- `v2`: second vector
+
+# Keyword Arguments
+- `atol`: absolute tolerance for comparison (default: `1e-6`)
+- `periodic`: whether to consider periodic boundary conditions (default: `true`)
+"""
+function isequiv(v1::AbstractVector, v2::AbstractVector; atol::AbstractFloat=1e-6, periodic::Bool=true)
+    d = v1 - v2
+    if periodic
+        d -= round.(d)
+    end
+    return all(isapprox.(d, 0; atol))
+end
+
+"""
+    $(SIGNATURES)
+
+Create a function that compares its argument to `x` using [`isequiv`](@ref), i.e.
+a function equivalent to `y -> isequiv(y, x)`.
+"""
+isequiv(y; kwargs...) = x -> isequiv(x, y; kwargs...)
+# Cannot use the following as I want to also fix the keyword arguments.
+# isequiv(x) = Base.Fix2(isequiv, x)
