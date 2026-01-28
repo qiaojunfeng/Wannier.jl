@@ -1,4 +1,4 @@
-export generate_kspace_stencil, index_bvector
+export generate_kspace_stencil, index_bvector, get_bvectors
 
 """
     $(TYPEDEF)
@@ -108,12 +108,19 @@ end
 Return ``b``-vectors in fractional coordinates.
 """
 function get_bvectors(
-    kpoints::AbstractVector,
-    kpb_k::AbstractVector,
-    kpb_G::AbstractVector,
-    ik::Integer=1,
+    kpoints::AbstractVector, kpb_k::AbstractVector, kpb_G::AbstractVector, ik::Integer=1
 )
-    return get_bvectors(I(3), kpoints, kpb_k, kpb_G, ik)
+    return get_bvectors(mat3(I(3)), kpoints, kpb_k, kpb_G, ik)
+end
+
+function get_bvectors(kstencil::KspaceStencil, ik::Integer=1; fractional::Bool=false)
+    if fractional
+        return get_bvectors(kstencil.kpoints, kstencil.kpb_k, kstencil.kpb_G, ik)
+    else
+        return get_bvectors(
+            kstencil.recip_lattice, kstencil.kpoints, kstencil.kpb_k, kstencil.kpb_G, ik
+        )
+    end
 end
 
 n_kpoints(kstencil::KspaceStencil) = length(kstencil.kpoints)
@@ -578,7 +585,9 @@ end
 
 See also [`index_bvector`](@ref).
 """
-function index_bvector(kstencil::KspaceStencil, ik::Integer, ikpb::Integer, G::AbstractVector)
+function index_bvector(
+    kstencil::KspaceStencil, ik::Integer, ikpb::Integer, G::AbstractVector
+)
     return index_bvector(kstencil.kpb_k, kstencil.kpb_G, ik, ikpb, G)
 end
 
@@ -604,9 +613,7 @@ function index_bvector(
 end
 
 function index_bvector(kstencil::KspaceStencil, ik::Integer, b::AbstractVector)
-    return index_bvector(
-        kstencil.kpoints, kstencil.kpb_k, kstencil.kpb_G, ik, b
-    )
+    return index_bvector(kstencil.kpoints, kstencil.kpb_k, kstencil.kpb_G, ik, b)
 end
 
 function generate_kspace_stencil(

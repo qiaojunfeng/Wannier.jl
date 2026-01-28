@@ -27,53 +27,39 @@ https://doi.org/10.1016/j.cpc.2022.108645
 function unfold(prefix::AbstractString)
     nnkp = read_nnkp("$prefix.nnkp")
     # kstencil = read_nnkp_compute_bweights("$prefix.nnkp")
-    kstencil = KspaceStencil(nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G)
+    kstencil = Wannier.KspaceStencil(
+        nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
+    )
 
     isym = read_isym("$prefix.isym")
     # TODO really needed?
-    rescale!.(isym.repmat_band)
+    isym.repmat_band = rescale.(isym.repmat_band)
 
-    f2i = get_kpoint_mappings(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
+    kpoints_ibz = isym.kpoints_ibz
+    symops = isym.symops
+    repmat_band = isym.repmat_band
+    repmat_wann = isym.repmat_wann
+
+    f2i = get_kpoint_mappings(kstencil.kpoints, kpoints_ibz, symops)
 
     # eig
     Ei = read_eig("$prefix.ieig")
     Ef = unfold_eigvals(Ei, f2i)
+    write_eig("$prefix.eig", Ef)
 
     # amn
     Ai = read_amn("$prefix.iamn")
     # The factor exp(-i kᵢ R_{n'}) appearing in CPC Eq. 9
     centers = [p.center for p in nnkp.projections]
-    Rs = find_wf_symmetry_translations(centers, isym.symops, isym.repmat_wann)
-    Asymm = symmetrize_gauges(Ai, isym.kpoints_ibz, isym.symops, isym.repmat_band, isym.repmat_wann, Rs)
-    Af = unfold_gauges(Asymm, isym.kpoints_ibz, f2i, isym.symops, isym.repmat_wann, Rs)
+    Rs = find_wf_symmetry_translations(centers, symops, repmat_wann)
+    Asymm = symmetrize_gauges(Ai, kpoints_ibz, symops, repmat_band, repmat_wann, Rs)
+    Af = unfold_gauges(Asymm, kpoints_ibz, f2i, symops, repmat_wann, Rs)
+    write_amn("$prefix.amn", Af)
 
     # mmn
     Mi, kpb_k_i, kpb_G_i = read_mmn("$prefix.immn")
     Mf = unfold_overlaps(
-        Mi, kpb_k_i, kpb_G_i, isym.kpoints_ibz, f2i, kstencil, isym.symops, isym.repmat_band
+        Mi, kpb_k_i, kpb_G_i, kpoints_ibz, f2i, kstencil, symops, repmat_band
     )
-
-    #check Eig with symwannier
-    nk_fbz = n_kpoints(kstencil)
-    eigpy = read_eig("$prefix.eig")
-    for ik in 1:nk_fbz
-        i = findall(>(1e-10), abs.(eigpy[ik]-Ef[ik]))
-        println("ik = ", ik, "    ", i)
-    end
-
-    #check Amn with symwannier
-    Apy = read_amn("$prefix.amn")
-    for ik in 1:nk_fbz
-        i = findall(>(1e-10), abs.(Af[ik]-Apy[ik]))
-        println("ik = ", ik, "    ", i)
-    end
-
-    #check Mmn with symwannier
-    Mpy = read_mmn("$prefix.mmn")
-    for ik in 1:nk_fbz
-        for ib in 1:8
-            i = findall(>(1e-10), abs.(Mf[ik][ib]-Mpy[ik][ib]))
-            println("ik = ", ik, "    ", i)
-        end
-    end
+    return write_mmn("$prefix.mmn", Mf, kstencil)
 end

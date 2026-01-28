@@ -7,6 +7,8 @@ using DocStringExtensions
 using Reexport: @reexport
 @reexport using WannierIO
 
+using WannierIO: vec3, mat3
+
 include("common/const.jl")
 include("common/type.jl")
 include("common/size.jl")

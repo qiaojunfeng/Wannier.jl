@@ -3,16 +3,20 @@ using WannierIO: SymOp, RepMatWann, RepMatBand
 """
 Ensure the eigenvalue of representation matrices are integers when possible.
 """
-function rescale!(rep::RepMatBand)
+function rescale(rep::RepMatBand)
     nbnd = size(rep.d, 1)
+
+    d = zeros(eltype(rep.d), nbnd, nbnd)
+    d .= rep.d
 
     for n in 1:nbnd
         s = sum(abs.(rep.d[n, :]))
-        d = abs(rep.d[n, n])
-        if (abs(s-d) < 1e-8) && (round(d) != 0)
-            rep.d[n, n] = rep.d[n, n]*round(d)/d
+        a = abs(rep.d[n, n])
+        if (abs(s - a) < 1e-8) && (round(a) != 0)
+            d[n, n] = rep.d[n, n] * round(a) / a
         end
     end
+    return RepMatBand{nbnd}(rep.ik_ibz, rep.isym, d)
 end
 
 function rotate_kpoint(k::AbstractVector, symop::SymOp)
@@ -38,12 +42,14 @@ Find the index mappings from kpoint in FBZ to kpoint in IBZ.
     `(ik_ibz, isym)` pairs, indicating that applying the `isym`-th symmetry operation
     to the `ik_ibz`-th kpoint in IBZ brings it to the `ik_fbz`-th kpoint in FBZ.
 """
-function get_kpoint_mappings(kpoints_fbz::AbstractVector, kpoints_ibz::AbstractVector, symops::AbstractVector{SymOp})
+function get_kpoint_mappings(
+    kpoints_fbz::AbstractVector, kpoints_ibz::AbstractVector, symops::AbstractVector{SymOp}
+)
     n_fbz = length(kpoints_fbz)
     n_ibz = length(kpoints_ibz)
     n_sym = length(symops)
     # For each FBZ kpoint, store a list of (ik_ibz, isym) pairs
-    fbz2ibz = [Tuple{Int, Int}[] for _ in 1:n_fbz]
+    fbz2ibz = [Tuple{Int,Int}[] for _ in 1:n_fbz]
 
     for ik in 1:n_ibz
         for is in 1:n_sym
@@ -139,9 +145,16 @@ U_{m n k_f}
 - `R`: vector of translation vectors for each Wannier function, fractional coordinates (integers).
 - `time_reversal`: whether the symmetry operation involves time-reversal.
 """
-function unfold_gauge(Ui::AbstractMatrix, ki::AbstractVector, D::AbstractMatrix, R::AbstractVector, time_reversal::Bool)
+function unfold_gauge(
+    Ui::AbstractMatrix,
+    ki::AbstractVector,
+    D::AbstractMatrix,
+    R::AbstractVector,
+    time_reversal::Bool,
+)
     # These all = n_wann
-    size(Ui, 2) == size(D, 1) == size(D, 2) == length(R) || error("Mismatch in size of Ui, D, R")
+    size(Ui, 2) == size(D, 1) == size(D, 2) == length(R) ||
+        error("Mismatch in size of Ui, D, R")
 
     phase = [exp(-im * 2π * dot(ki, Ri)) for Ri in R]
     Uf = Ui * (phase .* D)
@@ -224,9 +237,7 @@ function symmetrize_gauges(
     U_sym = zeros_gauge(ComplexF64, nk_ibz, nband, nwann)
 
     idx_repmat_band = WannierIO.build_mapping_ik_isym(
-        repmat_band;
-        nkpts_ibz=nk_ibz,
-        n_symops=nsym,
+        repmat_band; nkpts_ibz=nk_ibz, n_symops=nsym
     )
 
     for ik in 1:nk_ibz
@@ -278,7 +289,11 @@ This is used for CPC Eq. 19.
 - `T`: translation vector, the difference between the l.h.s and r.h.s. of the
     previous equation.
 """
-function merge_symops(symops::AbstractVector{SymOp}, ops::AbstractVector{<:Integer}, invs::AbstractVector{Bool})
+function merge_symops(
+    symops::AbstractVector{SymOp},
+    ops::AbstractVector{<:Integer},
+    invs::AbstractVector{Bool},
+)
     # Initialize everything to identity
     s0 = Matrix(1.0I, 3, 3)
     t0 = zeros(3)
@@ -301,7 +316,7 @@ function merge_symops(symops::AbstractVector{SymOp}, ops::AbstractVector{<:Integ
         # r' = r*s0 - t0
         # r''= r'*s1 - t1 = (r*s0 - t0)*s1 - t1 = r*s0*s1 - t0*s1 - t1
         s0 *= s1
-        t0 = ((t0')*s1)' + t1
+        t0 = ((t0') * s1)' + t1
         t_rev = xor(t_rev, symops[isym].time_reversal)
     end
 
@@ -315,7 +330,7 @@ function merge_symops(symops::AbstractVector{SymOp}, ops::AbstractVector{<:Integ
             return isym, T
         end
     end
-    error("No equivalent symmetry operation found")
+    return error("No equivalent symmetry operation found")
 end
 
 """
@@ -359,9 +374,7 @@ function unfold_overlaps(
     Mf = zeros_overlap(ComplexF64, nk_fbz, nbvec, nband)
 
     ikisym2ih = WannierIO.build_mapping_ik_isym(
-        repmat_band;
-        nkpts_ibz=length(kpoints_ibz),
-        n_symops=length(symops),
+        repmat_band; nkpts_ibz=length(kpoints_ibz), n_symops=length(symops)
     )
 
     for ikf in 1:nk_fbz
@@ -409,9 +422,7 @@ function unfold_overlaps(
             end
 
             kbi_ibz = kpoints_ibz[ikbi_ibz]
-            Mf[ikf][ibf] *= exp(
-                im*2π*(dot(bi, symops[isym_ikf].t) + dot(kbi_ibz, T))
-            )
+            Mf[ikf][ibf] *= exp(im * 2π * (dot(bi, symops[isym_ikf].t) + dot(kbi_ibz, T)))
         end
     end
     return Mf
