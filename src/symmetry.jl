@@ -45,18 +45,35 @@ Find the index mappings from kpoint in FBZ to kpoint in IBZ.
 function get_kpoint_mappings(
     kpoints_fbz::AbstractVector, kpoints_ibz::AbstractVector, symops::AbstractVector{SymOp}
 )
-    n_fbz = length(kpoints_fbz)
-    n_ibz = length(kpoints_ibz)
-    n_sym = length(symops)
-    # For each FBZ kpoint, store a list of (ik_ibz, isym) pairs
-    fbz2ibz = [Tuple{Int,Int}[] for _ in 1:n_fbz]
+    # For each FBZ kpoint, store a [ik_ibz, isym] pair
+    fbz2ibz = [[0, 0] for _ in 1:length(kpoints_fbz)]
 
-    for ik in 1:n_ibz
-        for is in 1:n_sym
-            r = rotate_kpoint(kpoints_ibz[ik], symops[is])
-            ik_fbz = findfirst(isequiv(r), kpoints_fbz)
-            push!(fbz2ibz[ik_fbz], (ik, is))
+    for (ikf, kf) in enumerate(kpoints_fbz)
+        for (iki, ki) in enumerate(kpoints_ibz)
+            for (is, S) in enumerate(symops)
+                Sk = rotate_kpoint(ki, S)
+                if isequiv(Sk, kf)
+                    j = fbz2ibz[ikf][1]
+                    if j == 0
+                        fbz2ibz[ikf] = [iki, is]
+                    elseif j == iki
+                        continue
+                    else
+                        error(
+                            "Multiple IBZ kpoints map to the same FBZ kpoint ($ikf, $iki, $is)",
+                        )
+                    end
+                end
+            end
         end
+    end
+
+    idxs = first.(fbz2ibz)
+    if 0 in idxs
+        error("Some FBZ kpoints cannot be mapped to IBZ kpoints")
+    end
+    if sort(unique(idxs)) != collect(1:length(kpoints_ibz))
+        error("Some IBZ kpoints are not mapped from any FBZ kpoints")
     end
     return fbz2ibz
 end
