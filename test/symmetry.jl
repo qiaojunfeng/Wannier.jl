@@ -24,6 +24,22 @@ end
     @test f2i == eachrow(ref)
 end
 
+@testitem "unfold_eigvals" begin
+    using WannierIO
+    using Wannier.Datasets
+
+    win = read_win(dataset"Si2_hse/Si2.win")
+    isym = read_isym(dataset"Si2_hse/Si2.isym")
+    kpoints_fbz = win.kpoints
+    f2i = get_kpoint_mappings(kpoints_fbz, isym.kpoints_ibz, isym.symops)
+
+    Ei = read_eig(dataset"Si2_hse/Si2.ieig")
+    Ef = Wannier.unfold_eigvals(Ei, f2i)
+    ref = read_eig(dataset"Si2_hse/Si2.eig")
+
+    @test isapprox(Ef, ref)
+end
+
 @testitem "find_wf_symmetry_translations" begin
     using WannierIO, Wannier.Datasets
     # sym = read_isym(dataset"Si2_hse/Si2.isym")

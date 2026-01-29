@@ -86,6 +86,9 @@ Unfold eigenvalues from IBZ to FBZ.
 # Arguments
 - `eigvals_ibz`: vector of eigenvalues at each IBZ kpoint.
 - `fbz2ibz`: output of `get_kpoint_mappings`.
+
+# Return
+- `eigvals_fbz`: vector of eigenvalues at each FBZ kpoint.
 """
 function unfold_eigvals(eig_ibz::AbstractVector, fbz2ibz::AbstractVector)
     nkpts_fbz = length(fbz2ibz)
