@@ -115,6 +115,16 @@ The WFs are transformed according to the ``D`` matrices (around CPC Eq. 9):
 \\sum_{n^\\prime} D_{n^\\prime n}(\\hat{g})
 w_{n^\\prime \\mathbf{0}}( \\mathbf{r} - \\mathbf{R}_{n^\\prime} )
 ```
+
+# Arguments
+- `centers`: vector of Wannier function centers in fractional coordinates.
+- `symops`: vector of symmetry operations.
+- `repmat`: vector of representation matrices acting on Wannier functions.
+
+# Return
+- `Rs`: a vector of length `n_symops`, each element is a vector of length `n_wann`,
+    where `Rs[is][iw]` is the translation vector for the `iw`-th Wannier function
+    under the `is`-th symmetry operation.
 """
 function find_wf_symmetry_translations(
     centers::AbstractVector,
@@ -124,23 +134,35 @@ function find_wf_symmetry_translations(
     nwann = length(centers)
     nsymm = length(symops)
 
-    # Find where D sends the Wannier center
-    Rs = [[zeros(3) for _ in 1:nwann] for _ in 1:nsymm]
+    # Find where D rotates the Wannier centers
+    # The translation vectors of Wannier centers, rotated WF - original WF
+    Rs = [[zeros(Int, 3) for _ in 1:nwann] for _ in 1:nsymm]
     for is in 1:nsymm
         for iw in 1:nwann
-            # Let's say the symmetry operation ĝ = {S|t},
+            # Let's say the symmetry operation is ĝ = {S|t},
             # the Wannier centers as w,
-            # we calculate rotated center S * w
-            # TODO check if QE source code is this convention
-            # Note that the transformation on a vector r, is
-            # ĝ r = r S - t
-            Sw = symops[is].R' * centers[iw]' - symops[is].t
-            # Find indices of the WFs we are jumping into
-            jws = findall(>(1e-7), abs.(repmat[is].D[:, iw]))
+            # we calculate rotated center S * w .
+            #
+            # First, find indices of the starting WFs that have connections
+            # to the target iw-th WF
+            jws = findall(!iszero, repmat[is].D[:, iw])
             # These WFs should have the same centers
             c = centers[jws[1]]
             @assert all(isapprox(c), [centers[jw] for jw in jws])
-            Rs[is][iw] = Sw - c
+            # Then compute the rotated center
+            # TODO check if QE source code is this convention
+            # Note that the transformation on a vector r, is
+            # ĝ r = r S - t
+            Sw = symops[is].R' * centers[iw] - symops[is].t  # TODO very strange
+            # Sw = symops[is].R * (centers[iw] + symops[is].t)
+            d = Sw - c
+            if all(isinteger.(d))
+                Rs[is][iw] = round.(d)
+            else
+                error(
+                    "Cannot find integer translation vector for WF $iw under symmetry $is"
+                )
+            end
         end
     end
     return Rs
@@ -176,8 +198,10 @@ function unfold_gauge(
     size(Ui, 2) == size(D, 1) == size(D, 2) == length(R) ||
         error("Mismatch in size of Ui, D, R")
 
-    phase = [exp(-im * 2π * dot(ki, Ri)) for Ri in R]
-    Uf = Ui * (phase .* D)
+    phases = [exp(-im * 2π * dot(ki, Ri)) for Ri in R]
+    # TODO multiply phases on row or column?
+    # Uf = Ui * (phases .* D)
+    Uf = Ui * (D .* transpose(phases))
     if time_reversal
         Uf = conj.(Uf)
     end
@@ -190,11 +214,17 @@ end
 Unfold *all* the gauge matrices from IBZ to FBZ.
 
 CPC Eq. 9.
+```math
+U_{m n k_f}
+= \\braket{\\psi_{m k_i} | g_{0}^{-1}(k_f) | g_n}
+= \\sum_j U_{m j k_i} e^{-i k_i R_j} D_{j n}(g_{0}^{-1})
+```
+
 """
 function unfold_gauges(
     U_ibz::AbstractVector{<:AbstractMatrix},
     kpoints_ibz::AbstractVector,
-    fbz2ibz::AbstractVector{<:Tuple},
+    fbz2ibz::AbstractVector,
     symops::AbstractVector{SymOp},
     repmat_wann::AbstractVector{<:RepMatWann},
     Rs::AbstractVector,
