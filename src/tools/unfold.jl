@@ -33,7 +33,7 @@ function unfold(prefix::AbstractString)
 
     isym = read_isym("$prefix.isym")
     # TODO really needed?
-    isym.repmat_band = rescale.(isym.repmat_band)
+    Wannier.rescale!(isym.repmat_band)
 
     kpoints_ibz = isym.kpoints_ibz
     symops = isym.symops
@@ -57,9 +57,13 @@ function unfold(prefix::AbstractString)
     write_amn("$prefix.amn", Af)
 
     # mmn
-    Mi, kpb_k_i, kpb_G_i = read_mmn("$prefix.immn")
-    Mf = unfold_overlaps(
-        Mi, kpb_k_i, kpb_G_i, kpoints_ibz, f2i, kstencil, symops, repmat_band
-    )
-    return write_mmn("$prefix.mmn", Mf, kstencil)
+    Mi = read_mmn("$prefix.immn")[1]
+    # TODO not sure if this is needed
+    Wannier.force_order!(kstencil)
+    Mf = unfold_overlaps(Mi, kpoints_ibz, f2i, kstencil, isym.spinors, symops, repmat_band)
+    # TODO maybe we also need to reorder the b according to nnkp, to be safe
+    # across different versions of Wannier90?
+    write_mmn("$prefix.mmn", Mf, kstencil)
+
+    return nothing
 end

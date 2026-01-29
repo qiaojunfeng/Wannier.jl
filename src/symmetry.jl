@@ -19,6 +19,10 @@ function rescale(rep::RepMatBand)
     return RepMatBand{nbnd}(rep.ik_ibz, rep.isym, d)
 end
 
+function rescale!(reps::AbstractVector{<:RepMatBand})
+    reps .= rescale.(reps)
+end
+
 function rotate_kpoint(k::AbstractVector, symop::SymOp)
     Rk = symop.R * k
     if symop.time_reversal
@@ -37,18 +41,27 @@ Find the index mappings from kpoint in FBZ to kpoint in IBZ.
 - `kpoints_ibz`: vector of fractional coordinates in irreducible Brillouin zone.
 - `symops`: vector of symmetry operations.
 
+# Keyword Arguments
+- `check`: whether to check the completeness and uniqueness of the mapping.
+
 # Return
-- `fbz2ibz`: a length-`nk_fbz` vector, where the `ik_fbz`-th element is a vector of
-    `(ik_ibz, isym)` pairs, indicating that applying the `isym`-th symmetry operation
-    to the `ik_ibz`-th kpoint in IBZ brings it to the `ik_fbz`-th kpoint in FBZ.
+- `fbz2ibz`: a length-`nk_fbz` vector, where the `ik_fbz`-th element is a vector
+    of `fbz2ibz[ik_fbz] = [ik_ibz, isym]` pairs, indicating that applying the
+    `isym`-th symmetry operation to the `ik_ibz`-th kpoint in IBZ brings it to
+    the `ik_fbz`-th kpoint in FBZ.
 """
 function get_kpoint_mappings(
-    kpoints_fbz::AbstractVector, kpoints_ibz::AbstractVector, symops::AbstractVector{SymOp}
+    kpoints_fbz::AbstractVector,
+    kpoints_ibz::AbstractVector,
+    symops::AbstractVector{SymOp};
+    check::Bool=true,
 )
     # For each FBZ kpoint, store a [ik_ibz, isym] pair
     fbz2ibz = [[0, 0] for _ in 1:length(kpoints_fbz)]
 
+    # kf: FBZ kpoint
     for (ikf, kf) in enumerate(kpoints_fbz)
+        # ki: IBZ kpoint
         for (iki, ki) in enumerate(kpoints_ibz)
             for (is, S) in enumerate(symops)
                 Sk = rotate_kpoint(ki, S)
@@ -68,6 +81,8 @@ function get_kpoint_mappings(
         end
     end
 
+    check || return fbz2ibz
+
     idxs = first.(fbz2ibz)
     if 0 in idxs
         error("Some FBZ kpoints cannot be mapped to IBZ kpoints")
@@ -76,6 +91,38 @@ function get_kpoint_mappings(
         error("Some IBZ kpoints are not mapped from any FBZ kpoints")
     end
     return fbz2ibz
+end
+
+"""
+    $(SIGNATURES)
+
+For each kpoint, store a `equiv[ik, isym]` mapping such that
+`symops[isym] * kpoints[equiv[ik][isym]] = kpoints[ik]`.
+
+# Arguments
+- `kpoints`: vector of fractional coordinates.
+- `symops`: vector of symmetry operations.
+"""
+function get_equivalence_mappings(kpoints::AbstractVector, symops::AbstractVector{SymOp})
+    equiv = zeros(Int, length(kpoints), length(symops))
+
+    # kf: final kpoint
+    for (ikf, kf) in enumerate(kpoints)
+        # ki: initial kpoint
+        for (iki, ki) in enumerate(kpoints)
+            for (is, S) in enumerate(symops)
+                Sk = rotate_kpoint(ki, S)
+                # Compare strictly without periodicity
+                if isapprox(Sk, kf)
+                    equiv[ikf, is] = iki
+                end
+            end
+        end
+    end
+    if any(iszero, equiv)
+        error("Some kpoints do not have equivalent mappings under all symmetry operations")
+    end
+    return equiv
 end
 
 """
@@ -328,6 +375,7 @@ This is used for CPC Eq. 19.
 ```
 
 # Arguments
+- `spinors`: whether spinors symmetry operations are used.
 - `symops`: vector of all the symmetry operations.
 - `ops`: list of operations to be merged, each element is a `isym`,
     the index of symmetry operation in `symops`.
@@ -340,44 +388,76 @@ This is used for CPC Eq. 19.
     previous equation.
 """
 function merge_symops(
+    spinors::Bool,
     symops::AbstractVector{SymOp},
     ops::AbstractVector{<:Integer},
     invs::AbstractVector{Bool},
 )
     # Initialize everything to identity
-    s0 = Matrix(1.0I, 3, 3)
+    s0 = Matrix{Float64}(I, 3, 3)
     t0 = zeros(3)
+    u0 = Matrix{ComplexF64}(I, 2, 2)
     t_rev = false
 
-    for (isym, inv_op) in zip(ops, invs)
-        t1 = zeros(3)
+    # -i * σ_y, also need conjugate
+    Trev = [0 1; -1 0]
+    # (-i σ_y)^-1
+    Trev_inv = [0 -1; 1 0]
 
+    for (isym, inv_op) in zip(ops, invs)
         if inv_op
-            # inv(r*s-t) = (r+t)*s^-1 = r*s^-1 + t*s^-1
+            # inv(r*S-t) = (r+t)*S^-1 = r*S^-1 + t*S^-1
             s1 = symops[symops[isym].isym_inv].R
-            t1 = ((symops[isym].t') * s1)'
+            t1 = - transpose(s1) * symops[isym].t
+            u1 = symops[isym].u'
+            if symops[isym].time_reversal
+                u1 = u1 * Trev_inv
+            end
         else
-            # r*s-t
+            # r*S-t
             s1 = symops[isym].R
             t1 = symops[isym].t
+            u1 = symops[isym].u
+            if symops[isym].time_reversal
+                u1 = Trev * conj.(u1)
+            end
         end
 
         # Now we merge operation 0 and 1
-        # r' = r*s0 - t0
-        # r''= r'*s1 - t1 = (r*s0 - t0)*s1 - t1 = r*s0*s1 - t0*s1 - t1
+        # r' = r*S0 - t0
+        # r''= r'*S1 - t1 = (r*S0 - t0)*S1 - t1 = r*S0*S1 - t0*S1 - t1
         s0 *= s1
-        t0 = ((t0') * s1)' + t1
+        t0 = transpose(s1) * t0 + t1
+        if t_rev
+            u1 = conj.(u1)
+        end
+        u0 *= u1
         t_rev = xor(t_rev, symops[isym].time_reversal)
     end
 
     # Find operation in symops
-    for isym in 1:length(symops)
-        op = symops[isym]
+    for (isym, op) in enumerate(symops)
         T = t0 - op.t
         if isapprox(s0, op.R; atol=1e-6) &&
             isapprox(T, round.(T); atol=1e-6) &&
             (t_rev == op.time_reversal)
-            return isym, T
+            T = Int.(T)
+            if spinors
+                if t_rev
+                    us = Trev * conj.(symops[isym].u)
+                else
+                    us = symops[isym].u
+                end
+                if isapprox(u0, us; atol=1e-5)
+                    return isym, 1, T
+                elseif isapprox(u0, -us; atol=1e-5)
+                    return isym, -1, T
+                else
+                    error("u does not match")
+                end
+            else
+                return isym, 1, T
+            end
         end
     end
     return error("No equivalent symmetry operation found")
@@ -396,23 +476,23 @@ M_{m n}^{k_f, b_f} = \\sum_l M_{m l}^{k_i, b_i} d_{l n}(\\hat{h}, k_i)
 
 # Arguments
 - `M_ibz`: overlap matrices at each IBZ kpoint.
-- `kpb_k_ibz`: index of k+b points for each IBZ kpoint.
-- `kpb_G_ibz`: G-vector that translates to the true k+b.
 - `kpoints_ibz`: fractional coordinates of IBZ kpoints.
 - `fbz2ibz`: output of `get_kpoint_mappings`.
 - `kstencil`: k-space stencil for the FBZ.
+- `spinors`: whether spinors symmetry operations are used.
 - `symops`: vector of symmetry operations.
 - `repmat_band`: representation matrices acting on the Bloch states.
 
 # Return
+- `M_fbz`: overlap matrices at each FBZ kpoint. The b vectors are ordered
+    according to `kstencil`.
 """
 function unfold_overlaps(
     M_ibz::AbstractVector,
-    kpb_k_ibz::AbstractVector,
-    kpb_G_ibz::AbstractVector,
     kpoints_ibz::AbstractVector,
-    fbz2ibz::AbstractVector{<:Tuple},
+    fbz2ibz::AbstractVector,
     kstencil::KspaceStencil,
+    spinors::Bool,
     symops::AbstractVector{SymOp},
     repmat_band::AbstractVector{<:RepMatBand},
 )
@@ -427,52 +507,66 @@ function unfold_overlaps(
         repmat_band; nkpts_ibz=length(kpoints_ibz), n_symops=length(symops)
     )
 
-    for ikf in 1:nk_fbz
-        kf = kpoints_fbz[ikf]
+    for (ikf, kf) in enumerate(kpoints_fbz)
         # isym: from ki to kf
         iki, isym_kf = fbz2ibz[ikf]
         ki = kpoints_ibz[iki]
+        bvecs = get_bvectors(kstencil, ikf; fractional=true)
+        # Get mapping between equivalent b vectors
+        b2b = get_equivalence_mappings(bvecs, symops)
 
-        for ibf in 1:nbvec
-            ikbf = kstencil.kpb_k[ikf][ibf]
-            bf = kpoints_fbz[ikbf] + kstencil.kpb_G[ikf][ibf] - kf
+        for (ibf, bf) in enumerate(bvecs)
             # In CPC Eq. 6, g_0(k_f) is from ki to kf, we need its inverse
             # g_0^{-1}(k_f) to go from kf to ki, to obtain b_i
             # b_i = R^{-1} b_f where g_0 = {R|t}
-            bi = rotate_kpoint(bf, symops[symops[isym].isym_inv])
-            ibi = index_bvector(kpoints_ibz, kpb_k_ibz, kpb_G_ibz, iki, bi)
-            isnothing(ibi) && error("No bvector found for ik = $(iki), bi = $(bi)")
+            # bi = rotate_kpoint(bf, symops[symops[isym_kf].isym_inv])
+            # ibi = index_bvector(kpoints_ibz, kpb_k_ibz, kpb_G_ibz, iki, bi)
+            # isnothing(ibi) && error("No bvector found for ik = $(iki), bi = $(bi)")
+            ibi = b2b[ibf, isym_kf]
+            bi = bvecs[ibi]
 
             # We need symmetries at ki + bi:
             # 1. find the index of ki + bi in the FBZ
             ikbi_fbz = findfirst(isequiv(ki + bi), kpoints_fbz)
-            # 2. find the index of ki + bi in the IBZ, and symmetry to ki+bi
+            # 2. find the index of ki+bi in the IBZ, and symmetry to get ki+bi in IBZ
             ikbi_ibz, isym_kbi = fbz2ibz[ikbi_fbz]
-            # symmetry to get kf+bf in IBZ
-            isym_kbf = fbz2ibz[ikbf][2]
+            # 3. find the index of kf + bf in the FBZ
+            ikbf_fbz = findfirst(isequiv(kf + bf), kpoints_fbz)
+            # 4. find the index of kf+bf in the IBZ, and symmetry to get kf+bf in IBZ
+            isym_kbf = fbz2ibz[ikbf_fbz][2]
 
             # get equivalent operation of h = g₀⁻¹(ki+bi) * g₀⁻¹(kf) * g₀(kf+bf)
-            isym_h, T = merge_symops(
-                symops, [isym_kbi, isym_kf, isym_kbf], [true, true, false]
+            isym_h, factor, T = merge_symops(
+                spinors, symops, [isym_kbi, isym_kf, isym_kbf], [true, true, false]
             )
 
-            # TODO changes with spinors
-            factor = 1
-
             ih = ikisym2ih[ikbi_ibz][isym_h]
-            d = repmat_band[ikbi_ibz].h[ih]
-            if symops[isym_ikbi].time_reversal
-                Mf[ikf][ibf] = M[iki][ibi] * conj.(d) * factor
+            d = repmat_band[ih].d
+            if symops[isym_kbi].time_reversal
+                Mf[ikf][ibf] = M_ibz[iki][ibi] * conj.(d) * factor
             else
-                Mf[ikf][ibf] = M[iki][ibi] * d * factor
+                Mf[ikf][ibf] = M_ibz[iki][ibi] * d * factor
             end
 
-            if symops[isym_ikf].time_reversal
+            if symops[isym_kf].time_reversal
                 Mf[ikf][ibf] = conj.(Mf[ikf][ibf])
             end
 
             kbi_ibz = kpoints_ibz[ikbi_ibz]
-            Mf[ikf][ibf] *= exp(im * 2π * (dot(bi, symops[isym_ikf].t) + dot(kbi_ibz, T)))
+            θ1 = dot(bi, symops[isym_kf].t)
+            θ2 = dot(kbi_ibz, T)
+            if symops[isym_kbi].time_reversal
+                θ2 *= -1
+            end
+            if symops[isym_kf].time_reversal
+                θ1 *= -1
+                θ2 *= -1
+            end
+            if symops[isym_h].time_reversal
+                θ2 *= -1
+            end
+            phase = exp(-im * 2π * (θ1 + θ2))
+            Mf[ikf][ibf] *= phase
         end
     end
     return Mf

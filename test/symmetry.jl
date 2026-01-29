@@ -72,7 +72,7 @@ end
         nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    isym.repmat_band .= Wannier.rescale.(isym.repmat_band)
+    Wannier.rescale!(isym.repmat_band)
 
     centers = [p.center for p in nnkp.projections]
     Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.repmat_wann)
@@ -95,7 +95,7 @@ end
         nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    isym.repmat_band .= Wannier.rescale.(isym.repmat_band)
+    Wannier.rescale!(isym.repmat_band)
     f2i = get_kpoint_mappings(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
 
     centers = [p.center for p in nnkp.projections]
@@ -109,4 +109,62 @@ end
     ref = read_amn(dataset"Si2_hse/Si2.amn")
 
     @test isapprox(Af, ref; atol=1e-10)
+end
+
+@testitem "get_equivalence_mappings" begin
+    using WannierIO, Wannier.Datasets
+    using DelimitedFiles
+
+    nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
+    symops = read_isym(dataset"Si2_hse/Si2.isym").symops
+    kstencil = Wannier.KspaceStencil(
+        nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
+    )
+    bvecs = get_bvectors(kstencil; fractional=true)
+
+    equiv = Wannier.get_equivalence_mappings(bvecs, symops)
+    ref = readdlm(dataset"Si2_hse/outputs/test/b_equivalence.txt", ' ', Int)
+    @test equiv == ref
+end
+
+@testitem "merge_symops" begin
+    using WannierIO, Wannier.Datasets
+
+    isym = read_isym(dataset"Si2_hse/Si2.isym")
+    isym_kbi, isym_kf, isym_kbf = 6, 11, 2
+
+    isym_h, factor, T = Wannier.merge_symops(
+        isym.spinors, isym.symops, [isym_kbi, isym_kf, isym_kbf], [true, true, false]
+    )
+
+    @test isym_h == 24
+    @test factor == 1
+    @test T == [0, 0, 0]
+end
+
+@testitem "unfold_overlaps" begin
+    using LinearAlgebra
+    using WannierIO, Wannier, Wannier.Datasets
+
+    nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
+    kstencil = Wannier.KspaceStencil(
+        nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
+    )
+    isym = read_isym(dataset"Si2_hse/Si2.isym")
+    Wannier.rescale!(isym.repmat_band)
+    f2i = get_kpoint_mappings(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
+
+    Mi, kpb_k_i, kpb_G_i = read_mmn(dataset"Si2_hse/Si2.immn")
+    # The test reference file were generated with a fixed b vector ordering
+    # across the kpoints, let's reorder the stencil here to match that.
+    Wannier.force_order!(kstencil)
+    Mf = Wannier.unfold_overlaps(
+        Mi, isym.kpoints_ibz, f2i, kstencil, isym.spinors, isym.symops, isym.repmat_band
+    );
+
+    Mref, kpb_k_ref, kpb_G_ref = read_mmn(dataset"Si2_hse/Si2.mmn")
+
+    # TODO still small numerical differences to investigate
+    d = norm.(Mf - Mref)
+    @test all(isapprox(0; atol=1e-6), d)
 end
