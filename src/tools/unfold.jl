@@ -11,6 +11,7 @@ https://doi.org/10.1016/j.cpc.2022.108645
 
 # Arguments
 - `prefix`: prefix of the input files, e.g. `wannier`.
+- `out_prefix`: prefix of the output files, default to be the same as `prefix`.
 
 # Keyword Arguments
 - `force_bvec_order`: Whether to force the b vector ordering in the output
@@ -29,9 +30,10 @@ https://doi.org/10.1016/j.cpc.2022.108645
 - `prefix.amn`: projection matrix in FBZ.
 - `prefix.mmn`: overlap matrix in FBZ.
 """
-function unfold(prefix::AbstractString; force_bvec_order::Bool=false)
+function unfold(
+    prefix::AbstractString, out_prefix::AbstractString=prefix; force_bvec_order::Bool=false
+)
     nnkp = read_nnkp("$prefix.nnkp")
-    # kstencil = read_nnkp_compute_bweights("$prefix.nnkp")
     kstencil = Wannier.KspaceStencil(
         nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
     )
@@ -50,7 +52,7 @@ function unfold(prefix::AbstractString; force_bvec_order::Bool=false)
     # eig
     Ei = read_eig("$prefix.ieig")
     Ef = unfold_eigvals(Ei, f2i)
-    write_eig("$prefix.eig", Ef)
+    write_eig("$out_prefix.eig", Ef)
 
     # amn
     Ai = read_amn("$prefix.iamn")
@@ -59,13 +61,13 @@ function unfold(prefix::AbstractString; force_bvec_order::Bool=false)
     Rs = find_wf_symmetry_translations(centers, symops, repmat_wann)
     Asymm = symmetrize_gauges(Ai, kpoints_ibz, symops, repmat_band, repmat_wann, Rs)
     Af = unfold_gauges(Asymm, kpoints_ibz, f2i, symops, repmat_wann, Rs)
-    write_amn("$prefix.amn", Af)
+    write_amn("$out_prefix.amn", Af)
 
     # mmn
     Mi = read_mmn("$prefix.immn")[1]
     force_bvec_order && Wannier.force_order!(kstencil)
     Mf = unfold_overlaps(Mi, kpoints_ibz, f2i, kstencil, isym.spinors, symops, repmat_band)
-    write_mmn("$prefix.mmn", Mf, kstencil)
+    write_mmn("$out_prefix.mmn", Mf, kstencil)
 
     return nothing
 end
