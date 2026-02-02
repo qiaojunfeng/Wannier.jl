@@ -20,7 +20,7 @@ function rescale(rep::RepMatBand)
 end
 
 function rescale!(reps::AbstractVector{<:RepMatBand})
-    reps .= rescale.(reps)
+    return reps .= rescale.(reps)
 end
 
 function rotate_kpoint(k::AbstractVector, symop::SymOp)
@@ -203,11 +203,12 @@ function find_wf_symmetry_translations(
             Sw = symops[is].R' * centers[iw] - symops[is].t  # TODO very strange
             # Sw = symops[is].R * (centers[iw] + symops[is].t)
             d = Sw - c
-            if all(isinteger.(d))
+            # They should be integer translations, but `all(isinteger.(d))` is too strict
+            if isapprox(d, round.(d); atol=1e-8)
                 Rs[is][iw] = round.(d)
             else
                 error(
-                    "Cannot find integer translation vector for WF $iw under symmetry $is"
+                    "Cannot find integer translation vector for WF $iw under symmetry $is, d = $d",
                 )
             end
         end
@@ -408,7 +409,7 @@ function merge_symops(
         if inv_op
             # inv(r*S-t) = (r+t)*S^-1 = r*S^-1 + t*S^-1
             s1 = symops[symops[isym].isym_inv].R
-            t1 = - transpose(s1) * symops[isym].t
+            t1 = -transpose(s1) * symops[isym].t
             u1 = symops[isym].u'
             if symops[isym].time_reversal
                 u1 = u1 * Trev_inv
@@ -441,7 +442,7 @@ function merge_symops(
         if isapprox(s0, op.R; atol=1e-6) &&
             isapprox(T, round.(T); atol=1e-6) &&
             (t_rev == op.time_reversal)
-            T = Int.(T)
+            T = Int.(round.(T))
             if spinors
                 if t_rev
                     us = Trev * conj.(symops[isym].u)
@@ -476,9 +477,13 @@ M_{m n}^{k_f, b_f} = \\sum_l M_{m l}^{k_i, b_i} d_{l n}(\\hat{h}, k_i)
 
 # Arguments
 - `M_ibz`: overlap matrices at each IBZ kpoint.
+- `kpb_k_ibz`: index of k+b at each IBZ kpoint.
+- `kpb_G_ibz`: G-vector part of k+b at each IBZ kpoint.
 - `kpoints_ibz`: fractional coordinates of IBZ kpoints.
+- `bvectors`: b vectors in fractional coordinates.
+    The IBZ mmn has the same b vectors ordering for all the kpoints.
+- `kpoints_fbz`: fractional coordinates of FBZ kpoints.
 - `fbz2ibz`: output of `get_kpoint_mappings`.
-- `kstencil`: k-space stencil for the FBZ.
 - `spinors`: whether spinors symmetry operations are used.
 - `symops`: vector of symmetry operations.
 - `repmat_band`: representation matrices acting on the Bloch states.
@@ -489,33 +494,36 @@ M_{m n}^{k_f, b_f} = \\sum_l M_{m l}^{k_i, b_i} d_{l n}(\\hat{h}, k_i)
 """
 function unfold_overlaps(
     M_ibz::AbstractVector,
+    kpb_k_ibz::AbstractVector,
+    kpb_G_ibz::AbstractVector,
     kpoints_ibz::AbstractVector,
+    bvectors::AbstractVector,
+    kpoints_fbz::AbstractVector,
     fbz2ibz::AbstractVector,
-    kstencil::KspaceStencil,
     spinors::Bool,
     symops::AbstractVector{SymOp},
     repmat_band::AbstractVector{<:RepMatBand},
 )
-    nk_fbz = n_kpoints(kstencil)
+    nk_fbz = length(kpoints_fbz)
     length(fbz2ibz) == nk_fbz || error("Mismatch in number of FBZ kpoints")
     nband = size(M_ibz[1][1], 1)
-    nbvec = n_bvectors(kstencil)
-    kpoints_fbz = kstencil.kpoints
+    nbvec = length(bvectors)
     Mf = zeros_overlap(ComplexF64, nk_fbz, nbvec, nband)
+    kpb_k_fbz = [zeros(Int, nbvec) for _ in 1:nk_fbz]
+    kpb_G_fbz = [[zeros(Int, 3) for _ in 1:nbvec] for _ in 1:nk_fbz]
 
     ikisym2ih = WannierIO.build_mapping_ik_isym(
         repmat_band; nkpts_ibz=length(kpoints_ibz), n_symops=length(symops)
     )
+    # Get mapping between equivalent b vectors
+    b2b = get_equivalence_mappings(bvectors, symops)
 
     for (ikf, kf) in enumerate(kpoints_fbz)
         # isym: from ki to kf
         iki, isym_kf = fbz2ibz[ikf]
         ki = kpoints_ibz[iki]
-        bvecs = get_bvectors(kstencil, ikf; fractional=true)
-        # Get mapping between equivalent b vectors
-        b2b = get_equivalence_mappings(bvecs, symops)
 
-        for (ibf, bf) in enumerate(bvecs)
+        for (ibf, bf) in enumerate(bvectors)
             # In CPC Eq. 6, g_0(k_f) is from ki to kf, we need its inverse
             # g_0^{-1}(k_f) to go from kf to ki, to obtain b_i
             # b_i = R^{-1} b_f where g_0 = {R|t}
@@ -523,7 +531,7 @@ function unfold_overlaps(
             # ibi = index_bvector(kpoints_ibz, kpb_k_ibz, kpb_G_ibz, iki, bi)
             # isnothing(ibi) && error("No bvector found for ik = $(iki), bi = $(bi)")
             ibi = b2b[ibf, isym_kf]
-            bi = bvecs[ibi]
+            bi = bvectors[ibi]
 
             # We need symmetries at ki + bi:
             # 1. find the index of ki + bi in the FBZ
@@ -534,6 +542,19 @@ function unfold_overlaps(
             ikbf_fbz = findfirst(isequiv(kf + bf), kpoints_fbz)
             # 4. find the index of kf+bf in the IBZ, and symmetry to get kf+bf in IBZ
             isym_kbf = fbz2ibz[ikbf_fbz][2]
+
+            kpb_k_ibz[iki][ibi] == ikbi_ibz ||
+                error("Mismatch in k+b index at iki=$(iki) ibi=$(ibi)")
+            # TODO check this
+            # G = ki + bi - rotate_kpoint(kpoints_ibz[ikbi_ibz], symops[isym_kbi])
+            # kpb_G_ibz[iki][ibi] == G ||
+            #     @warn("Mismatch in G vector at iki=$(iki) ibi=$(ibi)")
+
+            kpb_k_fbz[ikf][ibf] = ikbf_fbz
+            G = kf + bf - kpoints_fbz[ikbf_fbz]
+            isapprox(G, round.(G); atol=1e-8) ||
+                error("Non-integer G vector at ikf=$(ikf) ibf=$(ibf), G=$G")
+            kpb_G_fbz[ikf][ibf] = round.(G)
 
             # get equivalent operation of h = g₀⁻¹(ki+bi) * g₀⁻¹(kf) * g₀(kf+bf)
             isym_h, factor, T = merge_symops(
@@ -568,5 +589,66 @@ function unfold_overlaps(
             Mf[ikf][ibf] *= phase
         end
     end
-    return Mf
+    iszero(kpb_k_fbz) && error("Some k+b points are not assigned in FBZ")
+
+    return Mf, kpb_k_fbz, kpb_G_fbz
+end
+
+function unfold_overlaps(
+    M_ibz::AbstractVector,
+    kstencil_ibz::KspaceStencil,
+    kstencil_fbz::KspaceStencil,
+    fbz2ibz::AbstractVector,
+    spinors::Bool,
+    symops::AbstractVector{SymOp},
+    repmat_band::AbstractVector{<:RepMatBand},
+)
+    return unfold_overlaps(
+        M_ibz,
+        kstencil_ibz.kpb_k,
+        kstencil_ibz.kpb_G,
+        kstencil_ibz.kpoints,
+        get_bvectors(kstencil_fbz; fractional=true),
+        kstencil_fbz.kpoints,
+        fbz2ibz,
+        spinors,
+        symops,
+        repmat_band,
+    )
+end
+
+"""
+    $(SIGNATURES)
+
+Reorder the overlap matrices according to the b vector ordering in the stencil.
+
+# Arguments
+- `M`: overlap matrices at each kpoint.
+- `kpb_k`: k+b index mapping of `M`.
+- `kpb_G`: G-vector part of k+b of `M`.
+- `kstencil`: k-space stencil defining the desired b vector ordering and kpoints.
+
+# Return
+- `M`: reordered overlap matrices at each kpoint.
+"""
+function reorder(
+    M::AbstractVector, kpb_k::AbstractVector, kpb_G::AbstractVector, kstencil::KspaceStencil
+)
+    nbvec = n_bvectors(kstencil)
+    nkpts = n_kpoints(kstencil)
+    nkpts == length(kpb_k) || error("Mismatch in number of kpoints")
+    nbvec == length(kpb_k[1]) || error("Mismatch in number of b vectors")
+
+    M_new = zeros_overlap(eltype(M[1]), nkpts, nbvec, size(M[1], 1))
+
+    for ik in 1:nkpts
+        bvecs = get_bvectors(kstencil, ik; fractional=true)
+        for (ib, b) in enumerate(bvecs)
+            ib0 = index_bvector(kstencil.kpoints, kpb_k, kpb_G, ik, b)
+            isnothing(ib0) && error("No matching bvector found for ik=$ik ib=$ib")
+            M_new[ik][ib] = M[ik][ib0]
+        end
+    end
+
+    return M_new
 end

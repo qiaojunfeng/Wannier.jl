@@ -511,19 +511,24 @@ end
 """
 Reorder b vectors at remaining kpoints to be the same order as those at Γ kpoint.
 """
-function force_order!(stencil::KspaceStencil)
+function reorder(stencil::KspaceStencil)
     kpoints = stencil.kpoints
     inv_recip_lattice = inv(stencil.recip_lattice)
     bvectors_frac = map(stencil.bvectors) do b
         inv_recip_lattice * b
     end
+    kpb_k = deepcopy(stencil.kpb_k)
+    kpb_G = deepcopy(stencil.kpb_G)
     for (ik, kpt) in enumerate(kpoints)
         # use fractional coordinates for comparisons
         ik_equiv, G_equiv = bvectors_to_kpb(bvectors_frac, kpt, kpoints)
-        stencil.kpb_k[ik] = ik_equiv
-        stencil.kpb_G[ik] = G_equiv
+        kpb_k[ik] = ik_equiv
+        kpb_G[ik] = G_equiv
     end
-    return stencil
+    return KspaceStencil(
+        stencil.recip_lattice, stencil.kgrid_size, stencil.kpoints,
+        stencil.bvectors, stencil.bweights, kpb_k, kpb_G
+    )
 end
 
 function generate_kspace_stencil(
@@ -539,7 +544,7 @@ function generate_kspace_stencil(
         recip_lattice, kgrid_size, kpoints, FirstOrderKspaceStencil(); atol
     )
     # now reorder
-    return force_order!(stencil)
+    return reorder(stencil)
 end
 
 """The same as wannier90's default algorithm"""

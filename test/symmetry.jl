@@ -155,12 +155,20 @@ end
     f2i = get_kpoint_mappings(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
 
     Mi, kpb_k_i, kpb_G_i = read_mmn(dataset"Si2_hse/Si2.immn")
-    # The test reference file were generated with a fixed b vector ordering
-    # across the kpoints, let's reorder the stencil here to match that.
-    Wannier.force_order!(kstencil)
-    Mf = Wannier.unfold_overlaps(
-        Mi, isym.kpoints_ibz, f2i, kstencil, isym.spinors, isym.symops, isym.repmat_band
-    );
+
+    bvectors = get_bvectors(kstencil; fractional=true)
+    Mf, kpb_k_f, kpb_G_f = Wannier.unfold_overlaps(
+        Mi,
+        kpb_k_i,
+        kpb_G_i,
+        isym.kpoints_ibz,
+        bvectors,
+        kstencil.kpoints,
+        f2i,
+        isym.spinors,
+        isym.symops,
+        isym.repmat_band,
+    )
 
     Mref, kpb_k_ref, kpb_G_ref = read_mmn(dataset"Si2_hse/Si2.mmn")
 
@@ -176,4 +184,6 @@ end
     end
     dmax = maximum(maximum.(d))
     @test all(isapprox(0; atol=1e-7), dmax)
+    @test kpb_k_f == kpb_k_ref
+    @test kpb_G_f == kpb_G_ref
 end
