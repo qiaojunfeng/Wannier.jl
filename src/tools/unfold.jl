@@ -12,6 +12,11 @@ https://doi.org/10.1016/j.cpc.2022.108645
 # Arguments
 - `prefix`: prefix of the input files, e.g. `wannier`.
 
+# Keyword Arguments
+- `force_bvec_order`: Whether to force the b vector ordering in the output
+    `mmn` file to be the same across all the kpoints (same as the Γ point).
+    Default is `false`, i.e., following the ordering in the input `nnkp` file.
+
 # Input files
 - `prefix.nnkp`: nearest neighbor kpoint file.
 - `prefix.isym`: symmetry operation file.
@@ -24,7 +29,7 @@ https://doi.org/10.1016/j.cpc.2022.108645
 - `prefix.amn`: projection matrix in FBZ.
 - `prefix.mmn`: overlap matrix in FBZ.
 """
-function unfold(prefix::AbstractString)
+function unfold(prefix::AbstractString; force_bvec_order::Bool=false)
     nnkp = read_nnkp("$prefix.nnkp")
     # kstencil = read_nnkp_compute_bweights("$prefix.nnkp")
     kstencil = Wannier.KspaceStencil(
@@ -58,11 +63,8 @@ function unfold(prefix::AbstractString)
 
     # mmn
     Mi = read_mmn("$prefix.immn")[1]
-    # TODO not sure if this is needed
-    Wannier.force_order!(kstencil)
+    force_bvec_order && Wannier.force_order!(kstencil)
     Mf = unfold_overlaps(Mi, kpoints_ibz, f2i, kstencil, isym.spinors, symops, repmat_band)
-    # TODO maybe we also need to reorder the b according to nnkp, to be safe
-    # across different versions of Wannier90?
     write_mmn("$prefix.mmn", Mf, kstencil)
 
     return nothing

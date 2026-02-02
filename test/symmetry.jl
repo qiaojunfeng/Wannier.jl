@@ -164,7 +164,16 @@ end
 
     Mref, kpb_k_ref, kpb_G_ref = read_mmn(dataset"Si2_hse/Si2.mmn")
 
-    # TODO still small numerical differences to investigate
-    d = norm.(Mf - Mref)
-    @test all(isapprox(0; atol=1e-6), d)
+    # There is approx 1e-8 differences compared to the reference mmn, because
+    # the reference mmn was generated with python code, where the b vectors
+    # has slight numerical errors (should be e.g. 0.125 (as in julia) but in
+    # python it was 0.1249999962372273), therefore the phase factor was slightly
+    # wrong.
+    d = map(Mf - Mref) do mk
+        map(mk) do mkb
+            maximum(norm, mkb)
+        end
+    end
+    dmax = maximum(maximum.(d))
+    @test all(isapprox(0; atol=1e-7), dmax)
 end

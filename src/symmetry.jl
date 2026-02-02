@@ -547,7 +547,6 @@ function unfold_overlaps(
             else
                 Mf[ikf][ibf] = M_ibz[iki][ibi] * d * factor
             end
-
             if symops[isym_kf].time_reversal
                 Mf[ikf][ibf] = conj.(Mf[ikf][ibf])
             end
