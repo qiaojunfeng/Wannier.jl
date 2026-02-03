@@ -61,6 +61,23 @@ end
     @test kpoints == ref_kpoints
 end
 
+@testitem "get_kpoints negative" begin
+    using Wannier: Vec3
+    kpoints = Wannier.get_kpoints([2, 2, 2]; negative=true)
+
+    ref_kpoints = Vec3[
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, -0.5],
+        [0.0, -0.5, 0.0],
+        [0.0, -0.5, -0.5],
+        [-0.5, 0.0, 0.0],
+        [-0.5, 0.0, -0.5],
+        [-0.5, -0.5, 0.0],
+        [-0.5, -0.5, -0.5],
+    ]
+    @test kpoints == ref_kpoints
+end
+
 @testitem "sort_points" begin
     using Wannier: Vec3
     ref_kpoints = Vec3[

@@ -148,8 +148,12 @@ Generate list of kpoint coordinates from kpoint grid.
 
 # Arguments
 - `kgrid_size`: length-`3` vector, number of kpoints along each reciprocal lattice vector
-- `endpoint`: whether to the last point is 1.0 or not, e.g. `[0.0, 1.0]` or
+
+# Keyword arguments
+- `endpoint`: whether the last point is 1.0 or not, e.g. `[0.0, 1.0]` instead of
     `[0.0, 0.5]`
+- `negative`: whether to limit the coordinates in the range of `[-0.5, 0.5)`,
+    e.g. `[0.0, 0.25, -0.5, -0.25]` instead of `[0.0, 0.25, 0.5, 0.75]`
 
 See also [`get_kpoint_indices`](@ref).
 
@@ -157,7 +161,7 @@ See also [`get_kpoint_indices`](@ref).
 
     If the default keyword arguments are used, this function works just like `kmesh.pl` of wannier90.
 """
-function get_kpoints(kgrid_size::AbstractVector{<:Integer}; endpoint::Bool=false)
+function get_kpoints(kgrid_size::AbstractVector{<:Integer}; endpoint::Bool=false, negative::Bool=false)
     any(isone, kgrid_size) &&
         endpoint &&
         error("cannot have endpoint when kgrid contains 1")
@@ -168,9 +172,15 @@ function get_kpoints(kgrid_size::AbstractVector{<:Integer}; endpoint::Bool=false
         denom = Vec3(kgrid_size) .- 1
     end
 
-    return map(kpoint_indices) do k
+    kpts = map(kpoint_indices) do k
         k ./ denom
     end
+    if negative
+        kpts = map(kpts) do k
+            Vec3((k .+ 0.5) .% 1 .- 0.5)
+        end
+    end
+    return kpts
 end
 
 """
