@@ -3,7 +3,7 @@ using LinearAlgebra
 export split_wannierize, split_unk, split_model
 
 """
-    group_eigenvalues(eigenvalues::AbstractArray; gap_threshold=1)
+    group_eigenvalues(eigenvalues::AbstractArray; gap_threshold=0.05)
 
 Find isolated groups of bands by checking the local gap at each kpoint.
 
