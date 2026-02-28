@@ -6,8 +6,11 @@ NLSolversBase = "d41bc354-129a-5804-8e4c-c37616107c6c"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
+Wannier = "2b19380a-1f7e-4d7d-b1b8-8aa60b3321c9"
 WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
 
+[sources]
+Wannier = {path = ".."}
+
 [compat]
-NLSolversBase = "7"
-TestItemRunner = "1.1.0"
+TestItemRunner = "1.1"
