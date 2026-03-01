@@ -31,6 +31,12 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
 
+[weakdeps]
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+
+[extensions]
+WannierMakieExt = "Makie"
+
 [compat]
 Artifacts = "1"
 Bravais = "0.2"

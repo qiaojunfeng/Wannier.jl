@@ -71,6 +71,12 @@ end
     @test Symbol(kpi.setting) == Symbol(ref_kpi.setting)
 end
 
+@testitem "merge_symm_indices" begin
+    indices = [1, 2, 4, 5, 6]
+    idx = Wannier.merge_symm_indices(indices)
+    @test idx == [[1, 2], [4, 5, 6]]
+end
+
 @testitem "get_linear_path" begin
     using WannierIO
     using Wannier.Datasets

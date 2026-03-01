@@ -85,4 +85,17 @@ include("symmetry.jl")
 # Some convenience functions for users
 include("tools/Tools.jl")
 
+# Plotting functions, requires Makie
+include("plot.jl")
+
+function __init__()
+    Base.Experimental.register_error_hint(MethodError) do io, exc, argtypes, kwargs
+        if exc.f in [bandplot, bandplot!]
+            if isempty(methods(exc.f))
+                print(io, "\n$(exc.f) has no methods, yet. Makie has to be loaded for the plotting extension to be activated. Run `using Makie`, `using CairoMakie`, `using GLMakie` or any other package that also loads Makie.")
+            end
+        end
+    end
+end
+
 end

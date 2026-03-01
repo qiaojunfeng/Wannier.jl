@@ -13,6 +13,48 @@ using WannierIO: SymbolVec3
 
 export generate_kpath, get_kpoints, generate_w90_kpoint_path
 
+# TODO remove Brillouin.KPath, rename this to KPath
+struct RecipPath{T<:Real}
+    "Reciprocal lattice vectors (in units of 1/L, where L is unit of length)"
+    recip_lattice::Matrix{T}
+
+    "Fractional kpoint coordinates along the kpath"
+    points::Vector{Vector{T}}
+
+    "Indices of high-symmetry kpoints along the kpath"
+    indices::Vector{Int}
+
+    "Labels of high-symmetry kpoints"
+    labels::Vector{String}
+end
+
+struct KSegment{T<:Real}
+    "Reciprocal lattice vectors (in units of 1/L, where L is unit of length)"
+    recip_lattice::Matrix{T}
+
+    """
+    Segments of high-symmetry kpoint path, each segment is a continuous path
+    between high-symmetry kpoints. Different segments are disconnected in the
+    Brillouin zone.
+    """
+    segments::Vector{Vector{String}}
+
+    "Coordinates of high-symmetry kpoints"
+    coords::Dict{String,Vector{T}}
+end
+
+function get_linear_path(kpath::RecipPath)
+    kpts_cart = Ref(kpath.recip_lattice) .* kpath.points
+    return get_linear_path(kpts_cart, kpath.indices)
+end
+
+function RecipPath(kpi::KPathInterpolant)
+    indices, labels = get_symm_point_indices_labels(kpi)
+    recip_lattice = reduce(hcat, kpi.basis)
+    T = eltype(recip_lattice)
+    return RecipPath{T}(recip_lattice, collect(kpi), indices, labels)
+end
+
 function _new_kpath_label(
     label::T, existing_labels::Union{AbstractVector{T},AbstractSet{T}}
 ) where {T<:Symbol}
@@ -205,6 +247,122 @@ function generate_kpath(kpi::KPathInterpolant)
 
     kpath = KPath(points, paths, kpi.basis, kpi.setting)
 
+    return kpath
+end
+
+"""
+    $(SIGNATURES)
+
+Convert labels of high-symmetry kpoints to unicode string.
+
+e.g., `GAMMA` -> `Γ`, `DELTA_0` -> `Δ₀`
+"""
+function symm_label_to_unicode(labels::AbstractVector{<:AbstractString})
+    label_maps = Dict(
+        "GAMMA" => "Γ",
+        "DELTA" => "Δ",
+        "LAMBDA" => "Λ",
+        "SIGMA" => "Σ",
+        "0" => "₀",
+        "1" => "₁",
+        "2" => "₂",
+        "3" => "₃",
+        "4" => "₄",
+        "5" => "₅",
+        "6" => "₆",
+        "7" => "₇",
+        "8" => "₈",
+        "9" => "₉",
+    )
+    return map(labels) do l
+        if occursin("_", l)
+            base, sub = split(l, "_"; limit=2)
+            return get(label_maps, base, base) * get(label_maps, sub, sub)
+        end
+        return get(label_maps, l, l)
+    end
+end
+
+"""
+    $(SIGNATURES)
+
+Merge consecutive high-symmetry points.
+
+If two high-symmetry kpoints are neighbors, merge them into one.
+
+# Arguments
+- `indices`: indices of high-symmetry kpoints, start from 1
+
+# Return
+- `idxs`: a vector of vectors, if the inner vector contains more than 1 index,
+    it means those indices are neighbors and are merged.
+    For example, if the input `indices` is `[1, 2, 4, 5, 6]`, the output will be
+    `[[1, 2], [4, 5, 6]]`.
+"""
+function merge_symm_indices(indices::AbstractVector{<:Integer})
+    idxs = [eltype(indices)[]]
+    isempty(indices) && return idxs
+    push!(idxs[1], indices[1])
+
+    counter = 2
+    for i in eachindex(indices)[2:end]
+        if indices[i] == indices[i - 1] + 1
+            push!(idxs[counter - 1], indices[i])
+        else
+            push!(idxs, [indices[i]])
+            counter += 1
+        end
+    end
+
+    return idxs
+end
+
+"""
+    $(SIGNATURES)
+
+Merge consecutive high-symmetry points.
+
+If two high-symmetry kpoints are neighbors, merge them into one,
+with label `X|Y`, where `X` and `Y` are the original labels of
+the two kpoints, respectively.
+
+# Arguments
+- `indices`: indices of high-symmetry kpoints, start from 1
+- `labels`: labels of high-symmetry kpoints
+"""
+function merge_symm_labels(
+    indices::AbstractVector{<:Integer},
+    labels::AbstractVector{<:AbstractString},
+)
+    idxs = merge_symm_indices(indices)
+    labs = map(idxs) do is
+        js = map(is) do i
+            findfirst(==(i), indices)
+        end
+        join(labels[js], "|")
+    end
+    jdxs = first.(idxs)
+    return jdxs, labs
+end
+
+function merge_linear_path(kpath::AbstractVector{<:Real}, indices::AbstractVector{<:Integer})
+    idxs = merge_symm_indices(indices)
+    for is in idxs
+        (length(is) > 1) || continue
+        for j in is[2:end]
+            δ = kpath[j] - kpath[j - 1]
+            kpath[j:end] .-= δ
+        end
+    end
+    return kpath
+end
+
+function get_linear_path(
+    kpoints_cart::AbstractVector{<:AbstractVector{<:Real}},
+    indices::AbstractVector{<:Integer}=[],
+)
+    kpath = [0.0; accumulate(+, norm.(diff(kpoints_cart)))]
+    kpath = merge_linear_path(kpath, indices)
     return kpath
 end
 
