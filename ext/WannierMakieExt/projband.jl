@@ -18,7 +18,7 @@ function Makie.plot!(
 ) where {
     K<:Wannier.RecipPath,
     E<:AbstractVector{<:AbstractVector{<:Real}},
-    P<:AbstractVector{<:AbstractMatrix{<:Number}},
+    P<:AbstractVector{<:AbstractMatrix{<:Real}},
     L<:AbstractVector{<:AbstractString},
 }
     # Eigenvalues of the bands
@@ -38,11 +38,10 @@ function Makie.plot!(
 
     # Projectability for each eigenstate onto each orbital, accessed by P[ip][ib][ik]
     map!(p.attributes, [:projections], :proj) do projections
-        proj = Wannier.compute_projectability(projections, [[i] for i in 1:nprojs])
         return map(1:nprojs) do ip
             map(1:nbands) do ib
                 map(1:nkpts) do ik
-                    proj[ik][ib, ip]
+                    projections[ik][ib, ip]
                 end
             end
         end
@@ -91,7 +90,7 @@ function Wannier.get_projbandplot(
     kpath::Wannier.RecipPath, eigenvals::E, projections::P, labels::L; kwargs...
 ) where {
     E<:AbstractVector{<:AbstractVector{<:Real}},
-    P<:AbstractVector{<:AbstractMatrix{<:Number}},
+    P<:AbstractVector{<:AbstractMatrix{<:Real}},
     L<:AbstractVector{<:AbstractString},
 }
     fig, ax = fig_ax_bandplot(kpath; kwargs...)

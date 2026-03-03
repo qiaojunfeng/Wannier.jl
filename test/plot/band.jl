@@ -30,6 +30,7 @@ end
     # Fake projections
     nprojs = 2
     projections = rand_gauge(ComplexF64, length(kpi), length(eigenvals[1]), nprojs)
+    projections = Wannier.compute_projectability(projections, [[i] for i in 1:nprojs])
     labels = ["WF $i" for i in 1:nprojs]
 
     kwargs = (; win.fermi_energy, shift_fermi=true)

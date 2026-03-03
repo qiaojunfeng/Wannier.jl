@@ -1,6 +1,5 @@
 """
     bandplot(kpath, eigenvals; kwargs...)
-    bandplot(x, symm_indices, symm_labels, eigenvals; kwargs...)
 
 Plot the band structure given a path of k-points and the corresponding eigenvalues.
 The kpath can be specified in three ways:
@@ -20,6 +19,16 @@ labels and ticks, then call the bandplot! recipe to plot the bands.
 function get_bandplot end
 
 
+"""
+    projbandplot(kpath, eigenvals, projections, labels; kwargs...)
+
+The `projections` is a real-valued vector of matrices, can be obtained from
+the gauge matrices by
+```julia
+nprojs = size(gauges[1], 2)
+projections = Wannier.compute_projectability(gauges, [[i] for i in 1:nprojs])
+```
+"""
 function projbandplot end
 
 function projbandplot! end
