@@ -1,5 +1,3 @@
-export bandplot, bandplot!
-
 """
     bandplot(kpath, eigenvals; kwargs...)
     bandplot(x, symm_indices, symm_labels, eigenvals; kwargs...)
@@ -20,3 +18,10 @@ This is a custom wrapper function to create the FigAxisPlot object and set the
 labels and ticks, then call the bandplot! recipe to plot the bands.
 """
 function get_bandplot end
+
+
+function projbandplot end
+
+function projbandplot! end
+
+function get_projbandplot end

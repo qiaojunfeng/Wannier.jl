@@ -234,12 +234,60 @@ end
     $(SIGNATURES)
 
 Return projectability of each kpoint.
+
+The projections (gauge matrices) are <ψ|ϕ> where |ψ> is the Bloch state and
+|ϕ> is the projection orbital. The projectability ∈ [0, 1] is given by |<ψ|ϕ>|^2.
+The ϕ should be properly normalized, otherwise the projectability can
+be larger than 1.
+
+# Arguments
+- `U`: a series of gauge matrices
+
+# Returns
+- `P`: a series of projectability vectors,
+    ``p_{m k} = \\sum_{n} |U_{k m n}|^2``
+    where `m` is the index of band, `k` is the index of kpoint,
+    and `n` is the index of Wannier function.
 """
 function compute_projectability(U::AbstractVector)
     map(U) do u
         p = u * u'
         return real(diag(p))
     end
+end
+
+"""
+    $(SIGNATURES)
+
+Sum the projectability for the given indices of orbitals.
+
+# Arguments
+- `U`: a series of gauge matrices
+- `indices`: a series of indices of orbitals to be summed over, e.g.,
+    `[[1, 2], [3, 4, 5, 6]]` for summing the first two orbitals into a new one,
+    and the last four orbitals into another new one.
+
+# Returns
+- `P`: a series of projectability vectors, accessed by `P[ik][m, i]`
+    ``p_{m i k} = \\sum_{n \\in indices[i]} |U_{k m n}|^2``
+    where `m` is the index of band, `i` is the index of new orbital,
+    `k` is the index of kpoint, and `n` is the index of Wannier function.
+"""
+function compute_projectability(U::AbstractVector, indices::AbstractVector{<:AbstractVector{<:Integer}})
+    nprojs = size(U[1], 2)
+    1 <= minimum(minimum.(indices)) <= maximum(maximum.(indices)) <= nprojs || error("Indices out of bounds")
+    nkpts = length(U)
+    nbands = size(U[1], 1)
+    T = real(eltype(U[1]))
+    nprojs_new = length(indices)
+    P = [zeros(T, nbands, nprojs_new) for _ in 1:nkpts]
+    for (ik, uk) in enumerate(U)
+        for (i, idx) in enumerate(indices)
+            p = uk[:, idx] * uk[:, idx]'
+            P[ik][:, i] = real(diag(p))
+        end
+    end
+    return P
 end
 
 """Compare two structs recursively using `isapprox`."""

@@ -28,6 +28,10 @@ struct RecipPath{T<:Real}
     labels::Vector{String}
 end
 
+function Base.length(kpath::RecipPath)
+    return length(kpath.points)
+end
+
 struct KSegment{T<:Real}
     "Reciprocal lattice vectors (in units of 1/L, where L is unit of length)"
     recip_lattice::Matrix{T}
