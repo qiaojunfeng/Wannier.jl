@@ -13,3 +13,10 @@ The kpath can be specified in three ways:
 function bandplot end
 
 function bandplot! end
+
+"""
+Current Makie recipe does not allow setting up Axis labels and ticks.
+This is a custom wrapper function to create the FigAxisPlot object and set the
+labels and ticks, then call the bandplot! recipe to plot the bands.
+"""
+function get_bandplot end
