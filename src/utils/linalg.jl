@@ -233,7 +233,7 @@ end
 """
     $(SIGNATURES)
 
-Return projectability of each kpoint.
+The total projectability (summed over all the orbitals) at each kpoint.
 
 The projections (gauge matrices) are <ψ|ϕ> where |ψ> is the Bloch state and
 |ϕ> is the projection orbital. The projectability ∈ [0, 1] is given by |<ψ|ϕ>|^2.
@@ -241,15 +241,13 @@ The ϕ should be properly normalized, otherwise the projectability can
 be larger than 1.
 
 # Arguments
-- `U`: a series of gauge matrices
+- `U`: gauge matrices, indexed by `U[k][m, n]` where `k`, `m`, `n` are the
+    indices of kpoints, bands, and WFs, respectively.
 
 # Returns
-- `P`: a series of projectability vectors,
-    ``p_{m k} = \\sum_{n} |U_{k m n}|^2``
-    where `m` is the index of band, `k` is the index of kpoint,
-    and `n` is the index of Wannier function.
+- `P`: total projectabilities ``p_{m k} = \\sum_{n} |U_{k m n}|^2``
 """
-function compute_projectability(U::AbstractVector)
+function total_projectability(U::AbstractVector)
     map(U) do u
         p = u * u'
         return real(diag(p))
@@ -262,32 +260,41 @@ end
 Sum the projectability for the given indices of orbitals.
 
 # Arguments
-- `U`: a series of gauge matrices
-- `indices`: a series of indices of orbitals to be summed over, e.g.,
+- `U`: gauge matrices, indexed by `U[k][m, n]` where `k`, `m`, `n` are the
+    indices of kpoints, bands, and WFs, respectively.
+- `index_map`: a series of indices of orbitals to be summed over, e.g.,
     `[[1, 2], [3, 4, 5, 6]]` for summing the first two orbitals into a new one,
     and the last four orbitals into another new one.
 
 # Returns
-- `P`: a series of projectability vectors, accessed by `P[ik][m, i]`
-    ``p_{m i k} = \\sum_{n \\in indices[i]} |U_{k m n}|^2``
+- `P`: orbital-resolved projectabilities, indexed by `P[k][m, i]`
+    ``p_{m i k} = \\sum_{n \\in \\text{index\\_map}[i]} |U_{k m n}|^2``
     where `m` is the index of band, `i` is the index of new orbital,
     `k` is the index of kpoint, and `n` is the index of Wannier function.
 """
-function compute_projectability(U::AbstractVector, indices::AbstractVector{<:AbstractVector{<:Integer}})
+function projectability(U::AbstractVector, index_map::AbstractVector{<:AbstractVector{<:Integer}})
     nprojs = size(U[1], 2)
-    1 <= minimum(minimum.(indices)) <= maximum(maximum.(indices)) <= nprojs || error("Indices out of bounds")
+    1 <= minimum(minimum.(index_map)) <= maximum(maximum.(index_map)) <= nprojs || error("Indices out of bounds")
     nkpts = length(U)
     nbands = size(U[1], 1)
     T = real(eltype(U[1]))
-    nprojs_new = length(indices)
+    nprojs_new = length(index_map)
     P = [zeros(T, nbands, nprojs_new) for _ in 1:nkpts]
     for (ik, uk) in enumerate(U)
-        for (i, idx) in enumerate(indices)
+        for (i, idx) in enumerate(index_map)
             p = uk[:, idx] * uk[:, idx]'
             P[ik][:, i] = real(diag(p))
         end
     end
     return P
+end
+
+"""
+Projectability for each eigenstate onto each orbital, accessed by P[ip][ib][ik].
+"""
+function projectability(U::AbstractVector)
+    index_map = [[i] for i in 1:size(U[1], 2)]
+    return projectability(U, index_map)
 end
 
 """Compare two structs recursively using `isapprox`."""

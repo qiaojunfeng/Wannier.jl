@@ -60,13 +60,13 @@ end
 function Makie.plot!(
     p::BandPlot{Tuple{K,E}}
 ) where {K<:Wannier.RecipPath,E<:AbstractVector{<:AbstractVector{<:Real}}}
-    # Eigenvalues of the bands
-    eigenvals = p.eigenvals[]
-
-    nkpts = length(eigenvals)
-    nkpts == length(p.kpath[]) || error("Length of eigenvals does not match length of kpoints")
-    nbands = length(eigenvals[1])
-
+    map!(p.attributes, [:kpath], :nkpts) do kpath
+        return length(kpath)
+    end
+    map!(p.attributes, [:eigenvals], :nbands) do eigenvals
+        p.nkpts[] == length(eigenvals) || error("Length of eigenvals does not match length of kpoints")
+        return length(eigenvals[1])
+    end
     # Cumulative distance along kpath
     map!(p.attributes, [:kpath], :x) do kpath
         return Wannier.get_linear_path(kpath)
@@ -76,7 +76,6 @@ function Makie.plot!(
         xt_idxs = get_xtick_indices_labels(kpath)[1]
         return x[xt_idxs]
     end
-
     vlines!(
         p,
         p.x_ksym[];
@@ -108,8 +107,8 @@ function Makie.plot!(
         # The input eigenvals is a vector of vectors, where the outer vector is
         # over k-points and the inner vector is over bands. We need to reshape
         # it such that it is accessed by bands[ib][ik].
-        bands = map(1:nbands) do ib
-            [eigenvals[ik][ib] for ik in 1:nkpts]
+        bands = map(1:p.nbands[]) do ib
+            [p.eigenvals[][ik][ib] for ik in 1:p.nkpts[]]
         end
         if shift_fermi && !isnothing(fermi_energy)
             return map(x -> x .- fermi_energy, bands)
@@ -136,7 +135,9 @@ function fig_ax_bandplot(kpath::Wannier.RecipPath; kwargs...)
     ylabel = get(kwargs, :ylabel, nothing)
     if isnothing(ylabel)
         if shift_fermi
-            ylabel = rich(rich("E - E"; font=:italic), subscript("F"), " (eV)")
+            # Note below I am using the unicode minus sign (U+2212) instead of
+            # the ASCII hyphen (U+002D)
+            ylabel = rich(rich("E − E"; font=:italic), subscript("F"), " (eV)")
         else
             ylabel = "Energy (eV)"
         end

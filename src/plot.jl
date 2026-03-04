@@ -20,13 +20,13 @@ function get_bandplot end
 
 
 """
-    projbandplot(kpath, eigenvals, projections, labels; kwargs...)
+    projbandplot(kpath, eigenvals, projs, labels; kwargs...)
 
-The `projections` is a real-valued vector of matrices, can be obtained from
-the gauge matrices by
+The `projs` is the projectability onto each orbital, i.e., a real-valued vector
+of matrices, can be obtained from the gauge matrices by
 ```julia
 nprojs = size(gauges[1], 2)
-projections = Wannier.compute_projectability(gauges, [[i] for i in 1:nprojs])
+projs = Wannier.projectability(gauges)
 ```
 """
 function projbandplot end

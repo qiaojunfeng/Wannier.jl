@@ -29,12 +29,12 @@ end
     kpath = Wannier.RecipPath(kpi)
     # Fake projections
     nprojs = 2
-    projections = rand_gauge(ComplexF64, length(kpi), length(eigenvals[1]), nprojs)
-    projections = Wannier.compute_projectability(projections, [[i] for i in 1:nprojs])
+    U = rand_gauge(ComplexF64, length(kpi), length(eigenvals[1]), nprojs)
+    projs = Wannier.projectability(U)
     labels = ["WF $i" for i in 1:nprojs]
 
     kwargs = (; win.fermi_energy, shift_fermi=true)
-    fig, ax, p = Wannier.get_projbandplot(kpath, eigenvals, projections, labels; kwargs...)
+    fig, ax, p = Wannier.get_projbandplot(kpath, eigenvals, projs, labels; kwargs...)
 
     @test all(x -> x isa Plot{Wannier.projbandplot}, ax.scene.plots)
     @test p.attributes[:fermi_energy][] == win.fermi_energy
