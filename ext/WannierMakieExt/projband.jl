@@ -87,7 +87,8 @@ function Makie.plot!(
 end
 
 function Wannier.get_projbandplot(
-    kpath::Wannier.RecipPath, eigenvals::E, projs::P, labels::L; kwargs...
+    kpath::Wannier.RecipPath, eigenvals::E, projs::P, labels::L;
+    show_legend::Bool=true, kwargs...,
 ) where {
     E<:AbstractVector{<:AbstractVector{<:Real}},
     P<:AbstractVector{<:AbstractMatrix{<:Real}},
@@ -96,7 +97,7 @@ function Wannier.get_projbandplot(
     fig, ax = fig_ax_bandplot(kpath; kwargs...)
     p = projbandplot!(ax, kpath, eigenvals, projs, labels; kwargs...)
 
-    if length(labels) > 1
+    if show_legend
         marker = :circle
         markersize = p.markersize[]
         markers = map(p.orbital_colors[]) do color
