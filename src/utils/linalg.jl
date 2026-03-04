@@ -326,10 +326,20 @@ function sum_projectability(P::AbstractVector, labels::AbstractVector)
     for (ik, pk) in enumerate(P)
         for i in 1:nprojs_new
             idx = orb_idxs[i]
-            P_new[ik][:, i] = sum(P[ik][:, idx]; dims=2)
+            P_new[ik][:, i] = sum(pk[:, idx]; dims=2)
         end
     end
     return P_new, labels_new
+end
+
+"""
+Sum projectability over all orbitals.
+"""
+function sum_projectability(P::AbstractVector)
+    nprojs = size(P[1], 2)
+    labels = ["" for _ in 1:nprojs]
+    P = sum_projectability(P, labels)[1]
+    return [p[:, 1] for p in P]
 end
 
 """Compare two structs recursively using `isapprox`."""
