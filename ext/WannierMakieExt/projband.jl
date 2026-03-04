@@ -6,6 +6,9 @@ import Wannier: projbandplot, projbandplot!, get_projbandplot
     "Marker size for the scatter points representing the projectabilities"
     markersize = @inherit markersize 10
 
+    "Colors for the orbitals. If not specified, will be taken from the color scheme."
+    colors = nothing
+
     "Color scheme for the orbitals"
     colorscheme = :Set1_9
     # colorscheme = :tab10
@@ -53,8 +56,8 @@ function Makie.plot!(
         return sum(proj)
     end
     # Get colors for the orbitals from the color scheme
-    map!(p.attributes, [:colorscheme], :orbital_colors) do colorscheme
-        colors = to_colormap(colorscheme)
+    map!(p.attributes, [:colors, :colorscheme], :orbital_colors) do colors, colorscheme
+        colors = isnothing(colors) ? to_colormap(colorscheme) : colors
         # Cycle through the colors if there are more orbitals than colors in the scheme
         return [colors[mod1(ip, length(colors))] for ip in 1:p.nprojs[]]
     end

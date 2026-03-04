@@ -76,13 +76,15 @@ function Makie.plot!(
         xt_idxs = get_xtick_indices_labels(kpath)[1]
         return x[xt_idxs]
     end
-    vlines!(
-        p,
-        p.x_ksym[];
-        color=p.linecolor_ksym[],
-        linewidth=p.linewidth_ksym[],
-        linestyle=p.linestyle_ksym[],
-    )
+    if !isempty(p.x_ksym[])
+        vlines!(
+            p,
+            p.x_ksym[];
+            color=p.linecolor_ksym[],
+            linewidth=p.linewidth_ksym[],
+            linestyle=p.linestyle_ksym[],
+        )
+    end
 
     map!(
         p.attributes, [:fermi_energy, :shift_fermi], :y_fermi

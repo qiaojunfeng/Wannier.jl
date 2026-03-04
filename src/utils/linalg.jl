@@ -297,6 +297,41 @@ function projectability(U::AbstractVector)
     return projectability(U, index_map)
 end
 
+"""
+    $(SIGNATURES)
+
+Sum the projectability over unique labels.
+
+# Arguments
+- `P`: the projectability indexed by `P[k][m, i]` where `k`, `m`, `i` are the indices of
+    kpoints, bands, and orbitals, respectively. Note this is NOT the gauge matrices, they
+    should be real-valued matrices.
+- `labels`: the labels of the orbitals, indexed by `labels[i]` where `i` is the
+    index of orbital. Orbitals with the same label will be summed together.
+    e.g., `["s", "p", "p", "p"]` for keeping the first orbital as "s", and summing the last three orbitals into "p".
+    One can also use `["Si1:s", "Si1:p", "Si1:p", "Si1:p", "Si2:s", "Si2:p", "Si2:p", "Si2:p"]`
+    for summing the orbitals of same angular momentum on the same atom, but
+    keeping the orbitals of different atoms separate.
+"""
+function sum_projectability(P::AbstractVector, labels::AbstractVector)
+    nkpts = length(P)
+    nbands, nprojs = size(P[1])
+    labels_new = unique(labels)
+    nprojs_new = length(labels_new)
+    T = eltype(P[1])
+    P_new = [zeros(T, nbands, nprojs_new) for _ in 1:nkpts]
+    orb_idxs = map(labels_new) do lab
+        findall(==(lab), labels)
+    end
+    for (ik, pk) in enumerate(P)
+        for i in 1:nprojs_new
+            idx = orb_idxs[i]
+            P_new[ik][:, i] = sum(P[ik][:, idx]; dims=2)
+        end
+    end
+    return P_new, labels_new
+end
+
 """Compare two structs recursively using `isapprox`."""
 function isapprox_struct(a, b; kwargs...)
     for f in propertynames(a)

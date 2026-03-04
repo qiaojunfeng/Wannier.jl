@@ -304,8 +304,8 @@ If two high-symmetry kpoints are neighbors, merge them into one.
     `[[1, 2], [4, 5, 6]]`.
 """
 function merge_symm_indices(indices::AbstractVector{<:Integer})
+    isempty(indices) && return indices
     idxs = [eltype(indices)[]]
-    isempty(indices) && return idxs
     push!(idxs[1], indices[1])
 
     counter = 2
@@ -345,7 +345,7 @@ function merge_symm_labels(
         end
         join(labels[js], "|")
     end
-    jdxs = first.(idxs)
+    jdxs = isempty(idxs) ? idxs : first.(idxs)
     return jdxs, labs
 end
 
