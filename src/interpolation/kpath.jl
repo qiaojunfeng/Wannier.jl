@@ -16,10 +16,10 @@ export generate_kpath, get_kpoints, generate_w90_kpoint_path
 # TODO remove Brillouin.KPath, rename this to KPath
 struct RecipPath{T<:Real}
     "Reciprocal lattice vectors (in units of 1/L, where L is unit of length)"
-    recip_lattice::Matrix{T}
+    recip_lattice::Mat3{T}
 
     "Fractional kpoint coordinates along the kpath"
-    points::Vector{Vector{T}}
+    points::Vector{Vec3{T}}
 
     "Indices of high-symmetry kpoints along the kpath"
     indices::Vector{Int}
@@ -34,7 +34,7 @@ end
 
 struct KSegment{T<:Real}
     "Reciprocal lattice vectors (in units of 1/L, where L is unit of length)"
-    recip_lattice::Matrix{T}
+    recip_lattice::Mat3{T}
 
     """
     Segments of high-symmetry kpoint path, each segment is a continuous path
@@ -50,6 +50,16 @@ end
 function get_linear_path(kpath::RecipPath)
     kpts_cart = Ref(kpath.recip_lattice) .* kpath.points
     return get_linear_path(kpts_cart, kpath.indices)
+end
+
+function RecipPath(recip_lattice::AbstractMatrix, points::AbstractVector, indices::AbstractVector, labels::AbstractVector)
+    T = eltype(recip_lattice)
+    return RecipPath{T}(
+        Mat3{T}(recip_lattice),
+        Vector{Vec3{T}}(points),
+        Vector{Int}(indices),
+        string.(labels),
+    )
 end
 
 function RecipPath(kpi::KPathInterpolant)
