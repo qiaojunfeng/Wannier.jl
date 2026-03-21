@@ -1,3 +1,11 @@
+[graphene_xsf]
+git-tree-sha1 = "2d1435c56ee3e078a3a2d5ce247c1f95ee4d86b3"
+lazy = true
+
+    [[graphene_xsf.download]]
+    sha256 = "04d2890d17e94672626a84ee9af2568e2870a90f57959a3c34dd35fd14328387"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/graphene_xsf.tar.gz"
+
 [Cu]
 git-tree-sha1 = "7a62b6fd9cf0b8414d402bf5109ab1e4e3770812"
 lazy = true
@@ -6,12 +14,20 @@ lazy = true
     sha256 = "966ffc46f9bae5ea90df9d16f1a6da861cbca36bf1ca0238b72d758975f32106"
     url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Cu.tar.gz"
 
+[Si2_3d]
+git-tree-sha1 = "685cc8155dd50d125ecd1a0a5146c98b0c111ff0"
+lazy = true
+
+    [[Si2_3d.download]]
+    sha256 = "a421b18c9315c3ca0c03e54619397c32b7e0a2d15ba0b813f75d865cd5534787"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Si2_3d.tar.gz"
+
 [Si2_valence]
-git-tree-sha1 = "69abcb33e42a08354b68dae0c4ced116b6234d70"
+git-tree-sha1 = "38c238af6e47cdb7a03b92fd941ea2e87bf8c2b0"
 lazy = true
 
     [[Si2_valence.download]]
-    sha256 = "76932bf2670ef5b05a650b07d8a16f01e6d99d7c25f2cc18848ef872a17ae684"
+    sha256 = "7319e3a7a0e1acad8a2405d3a7d0f7e17be1ec3ce51ee2ffa220319a93337ad2"
     url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Si2_valence.tar.gz"
 
 [CrI3]
@@ -27,8 +43,16 @@ git-tree-sha1 = "2b36703f7e686b5b3e40bcdbd86688e80be4a4d6"
 lazy = true
 
     [[MoS2.download]]
-    sha256 = "17f7d1fbdecd472ed497e7b50855147054146387b447e5a7884c1aa395b2f9bb"
+    sha256 = "d397cd2f3e685405b2cb3f472ee2ee06924c354eac0090a2b7cd25f4b146f5b3"
     url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/MoS2.tar.gz"
+
+[TiO2]
+git-tree-sha1 = "3d3c25e80ab8c50fa79ab115540b8082a4089475"
+lazy = true
+
+    [[TiO2.download]]
+    sha256 = "b33d501a002a2bccbc3ddc18b996c92ed4676b1607f8acbe45b90997aeaf24e5"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/TiO2.tar.gz"
 
 [BN]
 git-tree-sha1 = "5c6644b683c4783271d99973e21156daa2075bac"
@@ -45,6 +69,14 @@ lazy = true
     [[SnSe2.download]]
     sha256 = "bb6bad5142322dc083dd283c60bdc0e1a9442b96a9e828f36bb0ad34a6a83531"
     url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/SnSe2.tar.gz"
+
+[Si2_hse]
+git-tree-sha1 = "43848afa0e65c18e235f1d5bb939eb2d84155df1"
+lazy = true
+
+    [[Si2_hse.download]]
+    sha256 = "dcfbcc2cb6fcc8dcd037a894753b9b9ade79ff229a70e4cb9dc82282b199b982"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Si2_hse.tar.gz"
 
 [Fe_collinear]
 git-tree-sha1 = "7491f2d773a5f682f83cf46120ae3ef8430c0f99"
@@ -70,20 +102,28 @@ lazy = true
     sha256 = "720cc325681f983aef9348da44e917802663a07226c95fe7efdb760ce96cdca0"
     url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Fe_soc.tar.gz"
 
+[graphene_soc]
+git-tree-sha1 = "557b496c8bf6154ce705443b7ac3abe9ab8b8255"
+lazy = true
+
+    [[graphene_soc.download]]
+    sha256 = "b01d3af716bb158d09b4ec2d3a05e42e7011168890250fc96d3d421336b563bd"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/graphene_soc.tar.gz"
+
 [graphene]
-git-tree-sha1 = "600f801c60eba4eb34c7d6396de079a597bc29cc"
+git-tree-sha1 = "5fe1c4f318328ab36b5228bbbdd56207184d0b6e"
 lazy = true
 
     [[graphene.download]]
-    sha256 = "006017f33b1e67a3dba4b309c5d01a300e09d74a85ab0f8750c804f4aa256024"
+    sha256 = "3de088a5a3fef3777ecbf6fccabe3c48ec4b781343b55d86a900c5c3c779655e"
     url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/graphene.tar.gz"
 
 [CuBr2]
-git-tree-sha1 = "1cb8c060dd58a341f243216ba96932660f7310d4"
+git-tree-sha1 = "576ddcd069f31d62c3b4c55cc17981722f4328fe"
 lazy = true
 
     [[CuBr2.download]]
-    sha256 = "287624671d7c37d0b33d0920fc582729e869b80d0d39753650ad9072198b8dd1"
+    sha256 = "d577c8f89e6118f8dfa883110fcf3777559398447d617ae3c146c081b9ed41c3"
     url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/CuBr2.tar.gz"
 
 [Si2]

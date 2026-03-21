@@ -329,6 +329,10 @@ function compute_fermi_energy!(
         refine_iks = filter(1:length(adpt_kgrid)) do ik
             any(abs.(adpt_kgrid.vals[ik] .- εF) .<= width_εF)
         end
+        if isempty(refine_iks)
+            @printf("No kpoint to refine at iteration %3d, stopping refinement.\n", iter)
+            break
+        end
         # alternate between even and odd refinement, so it works for the
         # K/K' point of graphene as well
         # I should iterate odd grid 1st, otherwise it seems the graphene
