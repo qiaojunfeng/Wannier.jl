@@ -1,21 +1,26 @@
-using Printf
+@testmodule RealspaceEnv begin
+    # This code runs once and the module is cached
+    using Wannier
+    using Wannier.Datasets
 
-const FIXTURE_PATH = joinpath(dirname(pathof(Wannier)), "..", "test", "fixtures")
+    const FIXTURE_PATH = joinpath(dirname(pathof(Wannier)), "..", "test", "fixtures")
 
-# A reusable fixture for a model
-model = read_w90(joinpath(FIXTURE_PATH, "graphene_unk/graphene"))
-model.gauges .= read_amn(joinpath(FIXTURE_PATH, "graphene_unk/graphene.w90.amn"))
-unkdir = joinpath(FIXTURE_PATH, "graphene_unk")
+    # A reusable fixture for a model
+    model = read_w90(joinpath(FIXTURE_PATH, "graphene_unk/graphene"))
+    model.gauges .= read_amn(joinpath(FIXTURE_PATH, "graphene_unk/graphene.w90.amn"))
+    unkdir = joinpath(FIXTURE_PATH, "graphene_unk")
+end
 
-@testitem "realspace xsf" begin
+@testitem "realspace xsf" setup=[RealspaceEnv] begin
+    using Printf
     outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "wjl")
 
-    write_realspace_wf(outseedname, model; n_supercells=2, unkdir=unkdir)
+    write_realspace_wf(outseedname, RealspaceEnv.model; n_supercells=2, RealspaceEnv.unkdir)
 
-    for i in 1:(model.n_wann)
+    for i in 1:(RealspaceEnv.model.n_wann)
         outxsf = read_xsf(joinpath(outdir, @sprintf("wjl_%05d.xsf", i)))
-        refxsf = read_xsf(joinpath(unkdir, @sprintf("wjl_%05d.xsf", i)))
+        refxsf = read_xsf(joinpath(RealspaceEnv.unkdir, @sprintf("wjl_%05d.xsf", i)))
 
         @test isapprox(outxsf.W, refxsf.W; atol=1e-5)
         @test isapprox(outxsf.atom_positions, refxsf.atom_positions; atol=1e-5)
@@ -29,7 +34,8 @@ unkdir = joinpath(FIXTURE_PATH, "graphene_unk")
     end
 end
 
-@testitem "wannier function" begin
+@testitem "wannier function" setup=[RealspaceEnv] begin
+    using LinearAlgebra
     using Wannier: WannierFunction, Vec3, SVector
     x_range = -1:0.01:1
     y_range = -1:0.01:1
@@ -99,8 +105,8 @@ end
     @test norm(Wannier.calc_dipole(px_orb_up, px_orb_dn)) < 1e-17
 end
 
-@testitem "realspace moment" begin
-    rgrid, W = Wannier.read_realspace_wf(model, 2, unkdir)
+@testitem "realspace moment" setup=[RealspaceEnv] begin
+    rgrid, W = Wannier.read_realspace_wf(RealspaceEnv.model, 2, RealspaceEnv.unkdir)
     r = center.(W)
     ref_r = Vec3[
         Vec3(-0.06333672367474275, -0.0759789055814008, -0.45454804121365266),

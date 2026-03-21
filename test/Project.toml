@@ -2,6 +2,7 @@
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 NLSolversBase = "d41bc354-129a-5804-8e4c-c37616107c6c"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"

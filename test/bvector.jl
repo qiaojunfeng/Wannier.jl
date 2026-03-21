@@ -28,8 +28,8 @@ end
 @testitem "generate_kspace_stencil 2D" begin
     using Wannier: Vec3
     using Wannier.Datasets
-    win = read_win(dataset"graphene/graphene.win")
-    nnkp = read_nnkp_compute_bweights(dataset"graphene/outputs/graphene.nnkp")
+    win = read_win(dataset"graphene_xsf/graphene.win")
+    nnkp = read_nnkp_compute_bweights(dataset"graphene_xsf/outputs/graphene.nnkp")
 
     recip_lattice = reciprocal_lattice(win.unit_cell_cart)
     kstencil = generate_kspace_stencil(recip_lattice, win.mp_grid, win.kpoints)
@@ -114,6 +114,7 @@ end
 end
 
 @testitem "has_cubic_neighbors" begin
+    using Wannier.Datasets
     f = dataset"SnSe2/outputs/SnSe2.nnkp"
     @test Wannier.has_cubic_neighbors(f) == true
 

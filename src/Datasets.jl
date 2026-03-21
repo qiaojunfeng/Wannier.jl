@@ -21,12 +21,11 @@ function list_datasets()
     return collect(keys(artifact_dict))
 end
 
-function load_dataset(name)
+function load_dataset(name; prefix=basename(name))
     # the directory of the artifact
     dir = Artifacts.@artifact_str(name)
 
     # I assume the prefix (`prefix.mmn`) is the same as the folder name
-    prefix = name
 
     return read_w90(joinpath(dir, prefix))
 end
