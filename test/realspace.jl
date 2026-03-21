@@ -18,7 +18,7 @@ end
 
     write_realspace_wf(outseedname, RealspaceEnv.model; n_supercells=2, RealspaceEnv.unkdir)
 
-    for i in 1:(RealspaceEnv.model.n_wann)
+    for i in 1:n_wannier(RealspaceEnv.model)
         outxsf = read_xsf(joinpath(outdir, @sprintf("wjl_%05d.xsf", i)))
         refxsf = read_xsf(joinpath(RealspaceEnv.unkdir, @sprintf("wjl_%05d.xsf", i)))
 
@@ -106,6 +106,7 @@ end
 end
 
 @testitem "realspace moment" setup=[RealspaceEnv] begin
+    using Wannier: Vec3
     rgrid, W = Wannier.read_realspace_wf(RealspaceEnv.model, 2, RealspaceEnv.unkdir)
     r = center.(W)
     ref_r = Vec3[
