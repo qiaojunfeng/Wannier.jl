@@ -329,20 +329,20 @@ function omega!(cache::Cache, bvectors::KspaceStencil{FT}, M) where {FT<:Real}
 
     # ΩD requires r, so we need different loops
     # However, since ΩD = Ω - ΩI - ΩOD, we can skip these loops
-    # for ik in 1:n_kpts
-    #     for ib in 1:n_bvecs
-    #         ikpb = kpb_k[ib, ik]
-    #         Nᵏᵇ .= U[:, :, ik]' * M[:, :, ib, ik] * U[:, :, ikpb]
-    #         b .= recip_lattice * (kpoints[:, ikpb] + kpb_G[:, ib, ik] - kpoints[:, ik])
-    #         wᵇ = wb[ib]
+    for ik in 1:nk
+        for ib in 1:n_bvecs
+            ikpb = kpb_k[ik][ib]
+            Nᵏᵇ = UtMU[ik][ib]
+            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
+            wᵇ = wb[ib]
 
-    #         for n in 1:n_wann
-    #             ΩD += wᵇ * (-imaglog(Nᵏᵇ[n, n]) - b' * r[:, n])^2
-    #         end
-    #     end
-    # end
-    # ΩD /= n_kpts
-    # Ω̃ = ΩOD + ΩD
+            for n in 1:nw
+                ΩD += wᵇ * (-imaglog(Nᵏᵇ[n, n]) - b' * r[n])^2
+            end
+        end
+    end
+    ΩD /= nk
+    Ω̃ = ΩOD + ΩD
 
     # @debug "Spread" r r²'
     # @debug "Spread" ΩI ΩOD ΩD
@@ -350,10 +350,11 @@ function omega!(cache::Cache, bvectors::KspaceStencil{FT}, M) where {FT<:Real}
     # Ω of each WF
     ω = r² - map(x -> sum(abs.(x .^ 2)), r)
     # total Ω
-    Ω = sum(ω)
+    # Ω = sum(ω)
     # Ω += w_froz
-    Ω̃ = Ω - ΩI
-    ΩD = Ω̃ - ΩOD
+    # Ω̃ = Ω - ΩI
+    # ΩD = Ω̃ - ΩOD
+    Ω = ΩI + Ω̃
 
     return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r)
     # return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, w_froz)

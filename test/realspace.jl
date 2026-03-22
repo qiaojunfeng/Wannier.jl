@@ -3,12 +3,17 @@
     using Wannier
     using Wannier.Datasets
 
-    const FIXTURE_PATH = joinpath(dirname(pathof(Wannier)), "..", "test", "fixtures")
+    # const FIXTURE_PATH = joinpath(dirname(pathof(Wannier)), "..", "test", "fixtures")
 
-    # A reusable fixture for a model
-    model = read_w90(joinpath(FIXTURE_PATH, "graphene_unk/graphene"))
-    model.gauges .= read_amn(joinpath(FIXTURE_PATH, "graphene_unk/graphene.w90.amn"))
-    unkdir = joinpath(FIXTURE_PATH, "graphene_unk")
+    # # A reusable fixture for a model
+    # model = read_w90(joinpath(FIXTURE_PATH, "graphene_unk/graphene"))
+    # model.gauges .= read_amn(joinpath(FIXTURE_PATH, "graphene_unk/graphene.w90.amn"))
+    # unkdir = joinpath(FIXTURE_PATH, "graphene_unk")
+
+    model = load_dataset("graphene_xsf"; prefix="graphene")
+    # model.gauges .= read_amn(dataset"graphene_xsf/outputs/graphene.dis.amn")
+    model.gauges .= get_U(read_chk(dataset"graphene_xsf/outputs/graphene.chk"))
+    unkdir = dataset"graphene_xsf"
 end
 
 @testitem "realspace xsf" setup=[RealspaceEnv] begin
@@ -16,11 +21,11 @@ end
     outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "wjl")
 
-    write_realspace_wf(outseedname, RealspaceEnv.model; n_supercells=2, RealspaceEnv.unkdir)
+    write_realspace_wf(outseedname, RealspaceEnv.model; n_supercells=3, RealspaceEnv.unkdir)
 
     for i in 1:n_wannier(RealspaceEnv.model)
         outxsf = read_xsf(joinpath(outdir, @sprintf("wjl_%05d.xsf", i)))
-        refxsf = read_xsf(joinpath(RealspaceEnv.unkdir, @sprintf("wjl_%05d.xsf", i)))
+        refxsf = read_xsf(joinpath(RealspaceEnv.unkdir, "outputs", @sprintf("graphene_%05d.xsf", i)))
 
         @test isapprox(outxsf.W, refxsf.W; atol=1e-5)
         @test isapprox(outxsf.atom_positions, refxsf.atom_positions; atol=1e-5)
@@ -34,7 +39,7 @@ end
     end
 end
 
-@testitem "wannier function" setup=[RealspaceEnv] begin
+@testitem "wannier function" begin
     using LinearAlgebra
     using Wannier: WannierFunction, Vec3, SVector
     x_range = -1:0.01:1
