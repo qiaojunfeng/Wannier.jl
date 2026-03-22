@@ -1,28 +1,30 @@
 @testitem "spread" begin
     using Wannier.Datasets
-    model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/outputs/Si2.chk")
-    wout = read_wout(dataset"Si2/outputs/Si2.wout")
+    model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
+    wout = read_wout(dataset"Si2_coarse/outputs/Si2.wout")
 
     Ω = omega(model)
 
-    @test Ω.Ω ≈ 23.583436326
-    @test Ω.ΩI ≈ 16.228844399
-    @test Ω.ΩOD ≈ 7.093383270
-    @test Ω.ΩD ≈ 0.261208658
-    @test Ω.Ω̃ ≈ 7.354591928
+    @test Ω.Ω ≈ wout.Ωtotal
+    @test Ω.ΩI ≈ wout.ΩI
+    @test Ω.ΩOD ≈ wout.ΩOD
+    @test Ω.ΩD ≈ wout.ΩD
+    @test Ω.Ω̃ ≈ wout.ΩD + wout.ΩOD
 
-    @test isapprox(Ω.ω, wout.spreads; atol=1e-5)
-    @test isapprox(Ω.r, wout.centers; atol=1e-5)
+    @test isapprox(Ω.ω, wout.spreads; atol=1e-8)
+    @test all(isapprox.(Ω.r, wout.centers; atol=1e-6))
 end
 
 @testitem "spread gradient" begin
     using NLSolversBase
+    using Wannier.Datasets
+    model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
     fg! = Wannier.get_fg!_maxloc(model)
 
-    n_bands = size(model.U[1], 1)
-    n_wann = size(model.U[1], 2)
-    n_kpts = length(model.U)
-    U = [model.U[ik][ib, ic] for ib in 1:n_bands, ic in 1:n_wann, ik in 1:n_kpts]
+    nb = n_bands(model)
+    nw = n_wannier(model)
+    nk = n_kpoints(model)
+    U = [model.gauges[ik][ib, ic] for ib in 1:nb, ic in 1:nw, ik in 1:nk]
     G = zero(U)
     fg!(nothing, G, U)
 
@@ -38,9 +40,9 @@ end
 
 @testitem "center" begin
     using Wannier.Datasets
-    model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/outputs/Si2.chk")
-    wout = read_wout(dataset"Si2/outputs/Si2.wout")
+    model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
+    wout = read_wout(dataset"Si2_coarse/outputs/Si2.wout")
 
     r = center(model)
-    @test isapprox(r, wout.centers; atol=1e-5)
+    @test all(isapprox.(r, wout.centers; atol=1e-6))
 end
