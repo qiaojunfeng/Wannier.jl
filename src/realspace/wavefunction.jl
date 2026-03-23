@@ -82,8 +82,8 @@ function read_realspace_wf(
     # WF in realspace
     W = zeros(eltype(U[1]), n_gx * n_sx, n_gy * n_sy, n_gz * n_sz, ns, nwfun)
 
-    # generate X, Y, Z fractional coordinates relative to lattice (here unknown)
-    # actually X./n_gx, Y./n_gy, Z./n_gz are the fractional coordinates w.r.t lattice
+    # # generate X, Y, Z fractional coordinates relative to lattice (here unknown)
+    # # actually X./n_gx, Y./n_gy, Z./n_gz are the fractional coordinates w.r.t lattice
     X = (supercells[1][1] * n_gx):((supercells[1][end] + 1) * n_gx - 1)
     Y = (supercells[2][1] * n_gy):((supercells[2][end] + 1) * n_gy - 1)
     Z = (supercells[3][1] * n_gz):((supercells[3][end] + 1) * n_gz - 1)
@@ -92,9 +92,15 @@ function read_realspace_wf(
     # seems subtracting 1 leads to much worse performance
     #  11.015472 seconds (136.09 M allocations: 5.570 GiB, 10.77% gc time)
     #   3.513259 seconds (25.60 M allocations: 2.728 GiB, 24.68% gc time)
-    # X = X .- 1
-    # Y = Y .- 1
-    # Z = Z .- 1
+    # TODO I restored this for the moment, to reproduce W90 output, but check
+    # in the future, most likely we shouldn't shift the origin.
+    X = X .- 1
+    Y = Y .- 1
+    Z = Z .- 1
+    # X = (supercells[1][1] * n_gx - 1):((supercells[1][end] + 1) * n_gx - 2)
+    # Y = (supercells[2][1] * n_gy - 1):((supercells[2][end] + 1) * n_gy - 2)
+    # Z = (supercells[3][1] * n_gz - 1):((supercells[3][end] + 1) * n_gz - 2)
+
     """Modify W"""
     @inbounds function add_k!(ik, Ψₖ)
         k = kpoints[ik]
@@ -147,13 +153,15 @@ function read_realspace_wf(
         _, Ψₖ = read_unk(unk)
         add_k!(ik, Ψₖ)
     end
+    # Normalize by number of kpoints
+    W ./= n_kpts
 
-    # if ns == 1
-    #     for i in 1:nwfun
-    #         f = fix_global_phase(W[:, :, :, 1, i])
-    #         @views W[:, :, :, 1, i] .*= f
-    #     end
-    # end
+    if ns == 1
+        for i in 1:nwfun
+            f = fix_global_phase(W[:, :, :, 1, i])
+            @views W[:, :, :, 1, i] .*= f
+        end
+    end
 
     # for i in 1:nwfun
     #     for is in 1:ns
@@ -186,7 +194,9 @@ function read_realspace_wf(
             )
         end
     end
-    return Xg, Yg, Zg, normalize!.(wfuncs_out)
+    # TODO I disabled normalize! here to reproduce W90 output
+    # return Xg, Yg, Zg, normalize!.(wfuncs_out)
+    return Xg, Yg, Zg, wfuncs_out
 end
 
 function read_realspace_wf(
@@ -325,6 +335,7 @@ function write_realspace_wf(
         wf_center = map(c -> inv(lattice) * c, center(rgrid, W))
     end
 
+    # TODO I disabled normalize! before, so I skip this factor here
     # In principle, since we normalize Bloch wavefunction inside one unit cell,
     # thus the WF is normalized inside the n_kpts times unit cell.
     # However, W90 does not check the normalization of UNK files, it just plainly
@@ -336,7 +347,7 @@ function write_realspace_wf(
     else
         n_supcells = prod(n_supercells)
     end
-    W .*= sqrt(length(W[1].values) / n_supcells)
+    # W .*= sqrt(length(W[1].values) / n_supcells)
 
     # seems W90 always write the real part, so I use real as default
     atom_numbers = get_atom_number(atom_labels)

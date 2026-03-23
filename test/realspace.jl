@@ -3,20 +3,11 @@
     using Wannier
     using Wannier.Datasets
 
-    # const FIXTURE_PATH = joinpath(dirname(pathof(Wannier)), "..", "test", "fixtures")
-
-    # # A reusable fixture for a model
-    # model = read_w90(joinpath(FIXTURE_PATH, "graphene_unk/graphene"))
-    # model.gauges .= read_amn(joinpath(FIXTURE_PATH, "graphene_unk/graphene.w90.amn"))
-    # unkdir = joinpath(FIXTURE_PATH, "graphene_unk")
-
-    model = load_dataset("graphene_xsf"; prefix="graphene")
-    # model.gauges .= read_amn(dataset"graphene_xsf/outputs/graphene.dis.amn")
-    model.gauges .= get_U(read_chk(dataset"graphene_xsf/outputs/graphene.chk"))
-    unkdir = dataset"graphene_xsf"
+    model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
+    unkdir = dataset"Si2_coarse"
 end
 
-@testitem "realspace xsf" setup=[RealspaceEnv] begin
+@testitem "realspace xsf" setup = [RealspaceEnv] begin
     using Printf
     outdir = mktempdir(; cleanup=true)
     outseedname = joinpath(outdir, "wjl")
@@ -25,11 +16,14 @@ end
 
     for i in 1:n_wannier(RealspaceEnv.model)
         outxsf = read_xsf(joinpath(outdir, @sprintf("wjl_%05d.xsf", i)))
-        refxsf = read_xsf(joinpath(RealspaceEnv.unkdir, "outputs", @sprintf("graphene_%05d.xsf", i)))
+        refxsf = read_xsf(
+            joinpath(RealspaceEnv.unkdir, "outputs", @sprintf("Si2_%05d.xsf", i))
+        )
 
-        @test isapprox(outxsf.W, refxsf.W; atol=1e-5)
+        @test all(isapprox.(outxsf.W, refxsf.W; atol=1e-4))
         @test isapprox(outxsf.atom_positions, refxsf.atom_positions; atol=1e-5)
-        @test outxsf.atoms == refxsf.atoms
+        # refxsf.atoms = ["si", "si"], written by wannier90
+        @test parse.(Int, outxsf.atoms) == Wannier.get_atom_number(titlecase.(refxsf.atoms))
         @test isapprox(outxsf.convvec, refxsf.convvec; atol=1e-5)
         @test isapprox(outxsf.primvec, refxsf.primvec; atol=1e-5)
         @test isapprox(outxsf.rgrid.X, refxsf.rgrid.X; atol=1e-5)
@@ -110,26 +104,33 @@ end
     @test norm(Wannier.calc_dipole(px_orb_up, px_orb_dn)) < 1e-17
 end
 
-@testitem "realspace moment" setup=[RealspaceEnv] begin
+@testitem "realspace moment" setup = [RealspaceEnv] begin
     using Wannier: Vec3
     rgrid, W = Wannier.read_realspace_wf(RealspaceEnv.model, 2, RealspaceEnv.unkdir)
+    Wannier.normalize!.(W)
     r = center.(W)
     ref_r = Vec3[
-        Vec3(-0.06333672367474275, -0.0759789055814008, -0.45454804121365266),
-        Vec3(0.45683883364060957, 0.49449360532522013, -0.6334692423594555),
-        Vec3(0.2941315329655411, 0.49055379163535956, 0.21573045041594663),
-        Vec3(0.9742717088741712, 0.006146801998552827, 0.21856691653369997),
-        Vec3(0.30104954709081944, 0.46145949408356657, 0.21606232486371238),
+        [0.05649182474139805, 0.05647898672201181, 0.05648648084336603],
+        [0.006835975305507893, 0.006835714628599313, 0.00683543106836339],
+        [0.0068280451636423736, 0.0068356659075035275, 0.00683581178070572],
+        [0.006835776140180217, 0.006845785639297941, 0.006835766959433606],
+        [1.2086580389311699, 1.2086465413956256, 1.2086532094932414],
+        [1.0968514169399275, 1.0968512556524777, 1.0968511402797747],
+        [1.096844404431083, 1.0968513029064058, 1.0968513855922837],
+        [1.0968516077683101, 1.09686041159614, 1.0968514341399862],
     ]
     @test all(isapprox.(r, ref_r; atol=1e-4))
 
     ω = omega.(W)
     ref_ω = [
-        26.87076039248946,
-        28.335711581587734,
-        25.84537354369948,
-        29.79094574412249,
-        28.9947646543186,
+        1.925692300941864,
+        3.0882234042095624,
+        3.0882244433738033,
+        3.08822217509327,
+        2.488361186325519,
+        4.170739171655333,
+        4.170733540871117,
+        4.170747304039493,
     ]
     @test isapprox(ω, ref_ω; atol=1e-3)
 end
