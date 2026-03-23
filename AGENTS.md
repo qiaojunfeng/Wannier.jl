@@ -26,6 +26,9 @@
 - Prefer explicit, readable linear algebra.
 - Update docstrings and docs pages when changing public APIs in `src/`.
 - Add or update tests for behavior changes, including edge cases for dimensions/units/conventions.
+- If the variable name is the same as the keyword argument of the function, Julia allows you to
+  omit the keyword argument name. For example, for a function `foo(x; y)` and you want to call
+  it with `y=2`, you can simply write `foo(x; y)`. Arguments after `;` are treated as keyword arguments.
 
 ## PR checklist
 - Recommended PR title format: `<short summary>`
