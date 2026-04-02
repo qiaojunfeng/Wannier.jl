@@ -1,12 +1,22 @@
 using LinearAlgebra
 using NLSolversBase
 
-# A reusable fixture for a model
-# no disentanglement
-model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
-f, g! = Wannier.get_fg!_rotate(model)
+@testmodule OptRotEnv begin
+    # This code runs once and the module is cached
+    using Wannier
+    using Wannier.Datasets
+    export model, fg!, FIXTURE_PATH
 
-@testitem "opt_rotate spread gradient" begin
+    # model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
+
+    # A reusable fixture for a model
+    # no disentanglement
+    FIXTURE_PATH = joinpath(@__DIR__, "../fixtures")
+    model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
+    f, g! = Wannier.get_fg!_rotate(model)
+end
+
+@testitem "opt_rotate spread gradient" setup = [OptRotEnv] begin
     W0 = diagm(0 => fill(1.0 + 0 * im, model.n_wann))
 
     # analytical gradient
