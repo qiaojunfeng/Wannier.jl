@@ -2,14 +2,10 @@
     # This code runs once and the module is cached
     using Wannier
     using Wannier.Datasets
-    export model, fg!, FIXTURE_PATH
+    export model, fg!
 
-    # model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
-
-    # A reusable fixture for a model
     # no disentanglement
-    FIXTURE_PATH = joinpath(@__DIR__, "../fixtures")
-    model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
+    model = read_w90_with_chk(dataset"Si2_valence_coarse/Si2", dataset"Si2_valence_coarse/outputs/Si2.chk")
 
     p = SpreadPenalty()
     fg! = Wannier.get_fg!_maxloc(p, model)
@@ -31,8 +27,7 @@ end
     @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
-    # This W1 is generated from opt_rotate after 1st iteration,
-    # I use it here so I don't need to store the input AMN matrices as a file.
+    # A random unitary matrix, I use it here so I don't need to store the input AMN matrices as a file.
     W1 = [
         0.497264+0.129534im -0.281405-0.540402im 0.0625545+0.237438im -0.516272-0.194678im
         0.113245-0.532338im 0.47272+0.0873106im -0.546504+0.19511im -0.36623+0.042955im
@@ -48,15 +43,16 @@ end
 end
 
 @testitem "maxloc valence" setup = [MaxlocEnv] begin
-    # start from parallel transport gauge
-    model.gauges .= read_amn_ortho(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
+    using Wannier.Datasets
+    # reset initial gauge
+    model.gauges .= read_amn_ortho(dataset"Si2_valence_coarse/Si2.amn")
 
     p = SpreadPenalty()
     Umin = max_localize(p, model)
     Ω = omega(p, model.kstencil, model.overlaps, Umin)
 
-    @test isapprox(Ω.Ω, 6.374823673444644; atol=1e-7)
-    @test isapprox(Ω.ΩI, 5.812709709242578; atol=1e-7)
-    @test isapprox(Ω.ΩOD, 0.5621139641912166; atol=1e-7)
-    @test isapprox(Ω.Ω̃, 0.5621139642020658; atol=1e-7)
+    @test isapprox(Ω.Ω, 4.086818459; atol=1e-7)
+    @test isapprox(Ω.ΩI, 3.706376532; atol=1e-7)
+    @test isapprox(Ω.ΩOD, 0.380441928; atol=1e-7)
+    @test isapprox(Ω.Ω̃, 0.3804419269999997; atol=1e-7)
 end
