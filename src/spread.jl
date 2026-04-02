@@ -224,6 +224,10 @@ function omega_grad!(p::CenterSpreadPenalty, args...)
     return omega_grad!(center_penalty(p.r₀, p.λ), args...)
 end
 
+function omega_grad(p::CenterSpreadPenalty, args...)
+    return omega_grad(center_penalty(p.r₀, p.λ), args...)
+end
+
 center_penalty(r₀, λ) = (r, n) -> (r - λ * (r - r₀[n]))
 
 """

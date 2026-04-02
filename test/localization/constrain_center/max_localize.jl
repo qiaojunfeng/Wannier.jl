@@ -1,20 +1,26 @@
-using NLSolversBase
+@testmodule MaxlocCenterEnv begin
+    # This code runs once and the module is cached
+    using Wannier
+    using Wannier: Vec3
+    using Wannier.Datasets
+    export model, fg!, p
 
-using Wannier: Vec3
+    # model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
 
-# A reusable fixture for a model
-# no disentanglement
-model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
-r₀ = [Vec3(0.0, 0.0, 0.0) for i in 1:(model.n_wann)]
-λ = 10.0
-p = CenterSpreadPenalty(r₀, λ)
-fg! = Wannier.get_fg!_maxloc(p, model)
+    # A reusable fixture for a model
+    # no disentanglement
+    FIXTURE_PATH = joinpath(@__DIR__, "../../fixtures")
+    model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
+    r₀ = [Vec3(0.0, 0.0, 0.0) for i in 1:n_wannier(model)]
+    λ = 10.0
+    p = CenterSpreadPenalty(r₀, λ)
+    fg! = Wannier.get_fg!_maxloc(p, model)
+end
 
-@testitem "constraint center maxloc spread gradient" begin
-    U0 = [
-        model.U[ik][ib, ic] for ib in 1:size(model.U[1], 1), ic in 1:size(model.U[1], 2),
-        ik in 1:length(model.U)
-    ]
+@testitem "constraint center maxloc spread gradient" setup=[MaxlocCenterEnv] begin
+    using NLSolversBase
+
+    U0 = stack(model.gauges)
 
     # analytical gradient
     G = similar(U0)
@@ -44,12 +50,15 @@ fg! = Wannier.get_fg!_maxloc(p, model)
     @test isapprox(G, G_ref; atol=1e-6)
 end
 
-@testitem "constraint center maxloc valence" begin
+@testitem "constraint center maxloc valence" setup=[MaxlocCenterEnv] begin
+    using Wannier: Vec3
+
     # start from parallel transport gauge
-    model.U .= read_amn_ortho(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
+    FIXTURE_PATH = joinpath(@__DIR__, "../../fixtures")
+    model.gauges .= read_amn_ortho(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
 
     Umin = Wannier.max_localize(p, model; max_iter=4)
-    Ω = Wannier.omega(p, model.bvectors, model.M, Umin)
+    Ω = Wannier.omega(p, model.kstencil, model.overlaps, Umin)
 
     # display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃

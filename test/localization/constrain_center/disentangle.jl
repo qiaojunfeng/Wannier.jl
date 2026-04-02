@@ -1,18 +1,30 @@
-using NLSolversBase
+@testmodule DisCenterEnv begin
+    # This code runs once and the module is cached
+    using Wannier
+    using Wannier: Vec3
+    using Wannier.Datasets
+    export model, fg!, p
 
-# A reusable fixture for a model
-# no disentanglement
-model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
-r₀ = [
-    [Vec3(1.34940, 1.34940, 1.34940) for i in 1:(model.n_wann / 2)]
-    [Vec3(0.0, 0.0, 0.0) for i in 1:(model.n_wann / 2)]
-]
-λ = 10.0
-p = CenterSpreadPenalty(r₀, λ)
-fg! = Wannier.get_fg!_disentangle(p, model)
+    # model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
 
-@testitem "constraint center disentangle spread gradient" begin
-    U0 = deepcopy(model.U)
+    # A reusable fixture for a model
+    FIXTURE_PATH = joinpath(@__DIR__, "../../fixtures")
+    model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
+    # Note I shift a little bit to avoid the center constraint being zero
+    δ = 0.1
+    r₀ = [
+        [Vec3(1.34940, 1.34940, 1.34940) for i in 1:(n_wannier(model) / 2)]
+        [Vec3(δ, δ, δ) for i in 1:(n_wannier(model) / 2)]
+    ]
+    λ = 10.0
+    p = CenterSpreadPenalty(r₀, λ)
+    fg! = Wannier.get_fg!_disentangle(p, model)
+end
+
+@testitem "constraint center disentangle spread gradient" setup=[DisCenterEnv] begin
+    using NLSolversBase
+
+    U0 = deepcopy(model.gauges)
 
     # analytical gradient
     X, Y = Wannier.U_to_X_Y(U0, model.frozen_bands)
@@ -40,76 +52,77 @@ fg! = Wannier.get_fg!_disentangle(p, model)
     @test isapprox(G, G_ref; atol=1e-6)
 end
 
-@testitem "constraint center disentangle" begin
-    Umin = Wannier.disentangle(p, model; max_iter=4)
-    Ω = Wannier.omega(p, model.bvectors, model.M, Umin)
+@testitem "constraint center disentangle" setup=[DisCenterEnv] begin
+    using Wannier: Vec3
 
-    display(Ω)
+    Umin = Wannier.disentangle(p, model; max_iter=4)
+    Ω = Wannier.omega(p, model.kstencil, model.overlaps, Umin)
+
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
     @test Ω.Ω̃ ≈ Ω.ΩOD + Ω.ΩD
-    @test isapprox(Ω.Ω, 18.13023065207267; atol=1e-7)
-    @test isapprox(Ω.ΩI, 11.672695160371777; atol=1e-7)
-    @test isapprox(Ω.ΩOD, 6.341223286965608; atol=1e-7)
-    @test isapprox(Ω.ΩD, 0.11631220473528359; atol=1e-7)
-    @test isapprox(Ω.Ω̃, 6.457535491700892; atol=1e-7)
+    @test isapprox(Ω.Ω, 18.368092500164014; atol=1e-7)
+    @test isapprox(Ω.ΩI, 11.767244242580883; atol=1e-7)
+    @test isapprox(Ω.ΩOD, 6.479314551713672; atol=1e-7)
+    @test isapprox(Ω.ΩD, 0.12153370586945841; atol=1e-7)
+    @test isapprox(Ω.Ω̃, 6.60084825758313; atol=1e-7)
 
     @test isapprox(
         Ω.ω,
         [
-            1.6720494155597025,
-            2.460415452388486,
-            2.4669444682373154,
-            2.4657363554531777,
-            1.6720635891342623,
-            2.4637620130565874,
-            2.4718181805922725,
-            2.457441177650863,
+            1.709716007908809,
+            2.4661068964146278,
+            2.4718662674188296,
+            2.4714054479442975,
+            1.7395685569804915,
+            2.502800139071625,
+            2.5105486039612495,
+            2.4960805804640596,
         ];
         atol=1e-7,
     )
     @test isapprox(
         Ω.r,
         [
-            Vec3(1.3493218953976438, 1.3493613581763424, 1.3493454033039636),
-            Vec3(1.3487523304656146, 1.3491260454857306, 1.3493415966363236),
-            Vec3(1.349320637608541, 1.3491584356558521, 1.348968696047302),
-            Vec3(1.348788920937121, 1.349359045780774, 1.3489543861927666),
-            Vec3(8.250336965638709e-5, 3.423661589664105e-5, 5.730256938007102e-5),
-            Vec3(0.0006279664190044885, 0.00023781998769869842, 5.6624178504504735e-5),
-            Vec3(8.189201302412916e-5, 0.0002630773899438576, 0.0004277217819759191),
-            Vec3(0.0006247774390737991, 3.728918078729418e-5, 0.0004318068660840961),
+            [1.3664290815080815, 1.36638676095681, 1.3664008302974457],
+            [1.3734774753294627, 1.37368488285987, 1.3663714193162906],
+            [1.3664189673302354, 1.373752246189131, 1.373530735253152],
+            [1.3735406090103803, 1.3663647113226876, 1.3736156191573443],
+            [0.04529565812816302, 0.044922879610335434, 0.04516814752840035],
+            [0.06708089867081801, 0.06662128599309228, 0.05039143477233052],
+            [0.05056920730828514, 0.06683583881766089, 0.06717500634921911],
+            [0.06687922585704462, 0.05001921517720845, 0.06672964951997101],
         ];
         atol=1e-7,
     )
 
     @test Ω.Ωt ≈ Ω.Ω + Ω.Ωc
-    @test isapprox(Ω.Ωc, 2.6352789712419767e-5; atol=1e-7)
-    @test isapprox(Ω.Ωt, 18.130257004862383; atol=1e-7)
+    @test isapprox(Ω.Ωc, 0.28261141089279834; atol=1e-7)
+    @test isapprox(Ω.Ωt, 18.650703911056812; atol=1e-7)
     @test isapprox(
         Ω.ωc,
         [
-            1.0574318662876213e-7,
-            4.979378545481902e-6,
-            2.5067482115453843e-6,
-            5.736665343582181e-6,
-            1.126253633027044e-7,
-            4.541064675376399e-6,
-            2.5886193767347236e-6,
-            5.781945009767707e-6,
+            0.008675678956152481,
+            0.014575094273678646,
+            0.014649695273013859,
+            0.01456966644827729,
+            0.09032586255515693,
+            0.04658815525023828,
+            0.04620745061233267,
+            0.04701980752394818,
         ];
         atol=1e-7,
     )
     @test isapprox(
         Ω.ωt,
         [
-            1.6720495213028892,
-            2.4604204317670315,
-            2.466946974985527,
-            2.4657420921185214,
-            1.6720637017596256,
-            2.4637665541212628,
-            2.471820769211649,
-            2.457446959595873,
+            1.7183916868649614,
+            2.480681990688306,
+            2.4865159626918434,
+            2.485975114392575,
+            1.8298944195356484,
+            2.5493882943218633,
+            2.556756054573582,
+            2.543100387988008,
         ];
         atol=1e-7,
     )

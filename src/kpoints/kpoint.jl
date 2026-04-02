@@ -231,6 +231,11 @@ output `[nkx, nky, nkz]`.
 function guess_kgrid_size(kpoints::AbstractVector; atol=1e-5)
     @assert length(kpoints) > 0 "kpoints is empty"
 
+    # Move negative kpoints to [0, 1) range
+    kpoints = map(kpoints) do k
+        Vec3(mod.(k, 1))
+    end
+
     kpoints_rationalized = rationalize_points(kpoints; atol)
     kgrid_size = map(1:3) do i
         maximum(denominator.(k[i] for k in kpoints_rationalized))

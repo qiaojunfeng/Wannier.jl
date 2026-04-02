@@ -110,8 +110,19 @@ end
     using Wannier: Vec3
     using Wannier.Datasets
     # this kgrid has negative coordinates
-    win = read_win(dataset"graphene/graphene.win")
-    @test Wannier.guess_kgrid_size(win.kpoints) == win.mp_grid
+    mp_grid = [4, 4, 4]
+    kpoints = Wannier.get_kpoints(mp_grid; negative=true)
+    @test Wannier.guess_kgrid_size(kpoints) == mp_grid
+end
+
+@testitem "guess_kgrid_size partially shifted" begin
+    using Wannier: Vec3
+    using Wannier.Datasets
+    # this kgrid has negative coordinates
+    mp_grid = [4, 4, 4]
+    kpoints = Wannier.get_kpoints(mp_grid)
+    kpoints[end-2] = kpoints[end-2] .- 1
+    @test Wannier.guess_kgrid_size(kpoints) == mp_grid
 end
 
 @testitem "rationalize_points" begin

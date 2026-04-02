@@ -1,12 +1,20 @@
-using NLSolversBase
+@testmodule DisentangleEnv begin
+    # This code runs once and the module is cached
+    using Wannier
+    using Wannier.Datasets
+    export model, fg!
 
-# A reusable fixture for a model
-model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
-p = SpreadPenalty()
-fg! = Wannier.get_fg!_disentangle(p, model);
+    # model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
 
-@testitem "U_to_X_Y X_Y_to_U" begin
-    X, Y = Wannier.U_to_X_Y(model.U, model.frozen_bands)
+    # A reusable fixture for a model
+    FIXTURE_PATH = joinpath(@__DIR__, "../fixtures")
+    model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
+    p = SpreadPenalty()
+    fg! = Wannier.get_fg!_disentangle(p, model);
+end
+
+@testitem "U_to_X_Y X_Y_to_U" setup = [DisentangleEnv] begin
+    X, Y = Wannier.U_to_X_Y(model.gauges, model.frozen_bands)
     U1 = Wannier.X_Y_to_U(X, Y)
     # U1 != model.U since some states are frozen
     X1, Y1 = Wannier.U_to_X_Y(U1, model.frozen_bands)
@@ -16,16 +24,18 @@ fg! = Wannier.get_fg!_disentangle(p, model);
     @test isapprox(U1, U2; atol=1e-6)
 end
 
-@testitem "XY_to_X_Y X_Y_to_XY" begin
-    X, Y = Wannier.U_to_X_Y(model.U, model.frozen_bands)
+@testitem "XY_to_X_Y X_Y_to_XY" setup = [DisentangleEnv] begin
+    X, Y = Wannier.U_to_X_Y(model.gauges, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
-    X1, Y1 = Wannier.XY_to_X_Y(XY, model.n_bands, model.n_wann)
+    X1, Y1 = Wannier.XY_to_X_Y(XY, n_bands(model), n_wannier(model))
     @test isapprox(X, X1; atol=1e-6)
     @test isapprox(Y, Y1; atol=1e-6)
 end
 
-@testitem "disentangle spread gradient" begin
-    U0 = deepcopy(model.U)
+@testitem "disentangle spread gradient" setup = [DisentangleEnv] begin
+    using NLSolversBase
+
+    U0 = deepcopy(model.gauges)
 
     # analytical gradient
     X, Y = Wannier.U_to_X_Y(U0, model.frozen_bands)
@@ -42,6 +52,7 @@ end
     @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
+    p = SpreadPenalty()
     U1 = Wannier.disentangle(p, model; max_iter=1)
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
@@ -53,9 +64,11 @@ end
     @test isapprox(G, G_ref; atol=1e-6)
 end
 
-@testitem "disentangle" begin
+@testitem "disentangle" setup = [DisentangleEnv] begin
+    using Wannier: Vec3
+    p = SpreadPenalty()
     Umin = Wannier.disentangle(p, model; max_iter=4)
-    Ω = Wannier.omega(p, model.bvectors, model.M, Umin)
+    Ω = Wannier.omega(p, model.kstencil, model.overlaps, Umin)
 
     # display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
