@@ -72,16 +72,16 @@ function omega(model::MagModel, Uup, Udn, λ::Real)
 end
 
 function omega(model::MagModel, λ::Real)
-    return omega(model, model.up.U, model.dn.U, λ)
+    return omega(model, model.up.gauges, model.dn.gauges, λ)
 end
 
-function Base.show(io::IO, ::MIME"text/plain", Ω::SpreadMag)
+function Base.show(io::IO, M::MIME"text/plain", Ω::SpreadMag)
     @info "spin up:"
-    show(io, Ω.up)
+    show(io, M, Ω.up)
     println(io, "\n")
 
     @info "spin down:"
-    show(io, Ω.dn)
+    show(io, M, Ω.dn)
     println(io, "\n")
 
     n_wann = size(Ω.M, 1)
@@ -131,7 +131,7 @@ function overlap_updn(model::MagModel, Uup, Udn)
 end
 
 function overlap_updn(model::MagModel)
-    return overlap_updn(model, model.up.U, model.dn.U)
+    return overlap_updn(model, model.up.gauges, model.dn.gauges)
 end
 
 """
@@ -250,19 +250,19 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_disentangle(model::MagModel, λ::Real=1.0)
-    n_bands = model.up.n_bands
-    n_wann = model.up.n_wann
-    n_kpts = model.up.n_kpts
-    n_inner = n_bands * n_wann + n_wann^2  # size of XY at each k-point
+    nb = n_bands(model.up)
+    nw = n_wannier(model.up)
+    nk = n_kpoints(model.up)
+    n_inner = nb * nw + nw^2  # size of XY at each k-point
 
     function f(XY)
-        XY = reshape(XY, (2 * n_inner, n_kpts))  # *2 for spin up and down
+        XY = reshape(XY, (2 * n_inner, nk))  # *2 for spin up and down
         XYup = @view XY[1:n_inner, :]
         XYdn = @view XY[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, n_bands, n_wann)
-        Xdn, Ydn = XY_to_X_Y(XYdn, n_bands, n_wann)
-        Ωup = omega(model.up.kstencil, model.up.M, Xup, Yup).Ω
-        Ωdn = omega(model.dn.kstencil, model.dn.M, Xdn, Ydn).Ω
+        Xup, Yup = XY_to_X_Y(XYup, nb, nw)
+        Xdn, Ydn = XY_to_X_Y(XYdn, nb, nw)
+        Ωup = omega(model.up.kstencil, model.up.overlaps, Xup, Yup).Ω
+        Ωdn = omega(model.dn.kstencil, model.dn.overlaps, Xdn, Ydn).Ω
         if λ == 0
             Ωupdn = 0
         else
@@ -273,16 +273,16 @@ function get_fg!_disentangle(model::MagModel, λ::Real=1.0)
 
     """size(G) == size(XY)"""
     function g!(G, XY)
-        XY = reshape(XY, (2 * n_inner, n_kpts))  # *2 for spin up and down
+        XY = reshape(XY, (2 * n_inner, nk))  # *2 for spin up and down
         XYup = @view XY[1:n_inner, :]
         XYdn = @view XY[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, n_bands, n_wann)
-        Xdn, Ydn = XY_to_X_Y(XYdn, n_bands, n_wann)
+        Xup, Yup = XY_to_X_Y(XYup, nb, nw)
+        Xdn, Ydn = XY_to_X_Y(XYdn, nb, nw)
         GXup, GYup = omega_grad(
-            model.up.kstencil, model.up.M, Xup, Yup, model.up.frozen_bands
+            model.up.kstencil, model.up.overlaps, Xup, Yup, model.up.frozen_bands
         )
         GXdn, GYdn = omega_grad(
-            model.dn.kstencil, model.dn.M, Xdn, Ydn, model.dn.frozen_bands
+            model.dn.kstencil, model.dn.overlaps, Xdn, Ydn, model.dn.frozen_bands
         )
 
         # gradient of ↑↓ overlap term
@@ -294,9 +294,9 @@ function get_fg!_disentangle(model::MagModel, λ::Real=1.0)
             GYdn += λ * GOYdn
         end
 
-        n = n_wann^2
+        n = nw^2
 
-        for ik in 1:n_kpts
+        for ik in 1:nk
             for (i, v) in enumerate(GXup[ik])
                 G[i, ik] = v
             end
@@ -343,26 +343,26 @@ function disentangle(
     max_iter::Int=200,
     history_size::Int=3,
 ) where {T<:Real}
-    n_bands = model.up.n_bands
-    n_wann = model.up.n_wann
-    n_kpts = model.up.n_kpts
+    nb = n_bands(model.up)
+    nw = n_wannier(model.up)
+    nk = n_kpoints(model.up)
 
-    @assert model.dn.n_bands == n_bands
-    @assert model.dn.n_wann == n_wann
-    @assert model.dn.n_kpts == n_kpts
+    @assert n_bands(model.dn) == nb
+    @assert n_wannier(model.dn) == nw
+    @assert n_kpoints(model.dn) == nk
 
     XYk_up_Manif = Optim.ProductManifold(
-        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (n_wann, n_wann), (n_bands, n_wann)
+        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw)
     )
     XYk_dn_Manif = Optim.ProductManifold(
-        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (n_wann, n_wann), (n_bands, n_wann)
+        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw)
     )
-    n_inner = n_wann^2 + n_bands * n_wann
+    n_inner = nw^2 + nb * nw
     XYkManif = Optim.ProductManifold(XYk_up_Manif, XYk_dn_Manif, (n_inner,), (n_inner,))
-    XYManif = Optim.PowerManifold(XYkManif, (2 * n_inner,), (n_kpts,))
+    XYManif = Optim.PowerManifold(XYkManif, (2 * n_inner,), (nk,))
 
-    Xup0, Yup0 = U_to_X_Y(model.up.U, model.up.frozen_bands)
-    Xdn0, Ydn0 = U_to_X_Y(model.dn.U, model.dn.frozen_bands)
+    Xup0, Yup0 = U_to_X_Y(model.up.gauges, model.up.frozen_bands)
+    Xdn0, Ydn0 = U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
     # compact storage
     XYup0 = X_Y_to_XY(Xup0, Yup0)
     XYdn0 = X_Y_to_XY(Xdn0, Ydn0)
@@ -413,8 +413,8 @@ function disentangle(
 
     XYupmin = XYmin[1:n_inner, :]
     XYdnmin = XYmin[(n_inner + 1):end, :]
-    Xupmin, Yupmin = XY_to_X_Y(XYupmin, n_bands, n_wann)
-    Xdnmin, Ydnmin = XY_to_X_Y(XYdnmin, n_bands, n_wann)
+    Xupmin, Yupmin = XY_to_X_Y(XYupmin, nb, nw)
+    Xdnmin, Ydnmin = XY_to_X_Y(XYdnmin, nb, nw)
     Uupmin = X_Y_to_U(Xupmin, Yupmin)
     Udnmin = X_Y_to_U(Xdnmin, Ydnmin)
 

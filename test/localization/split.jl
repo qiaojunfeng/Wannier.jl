@@ -1,5 +1,6 @@
 
 @testitem "split_eig" begin
+    FIXTURE_PATH = joinpath(@__DIR__, "../fixtures")
     E = read_eig(joinpath(FIXTURE_PATH, "silicon/silicon.eig"))
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
     n_val = 4
@@ -16,6 +17,7 @@
 end
 
 @testitem "split_mmn" begin
+    FIXTURE_PATH = joinpath(@__DIR__, "../fixtures")
     E = read_eig(joinpath(FIXTURE_PATH, "silicon/silicon.eig"))
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
     n_val = 4
@@ -55,12 +57,12 @@ end
     # write_mmn(joinpath(FIXTURE_PATH, "conduction", "silicon.mmn"), Mc, kpb_k, kpb_G)
 end
 
-@testitem "identity_U" begin
+@testitem "identity_gauge" begin
     n_wann = 4
     n_kpts = 64
+    U = identity_gauge(ComplexF64, n_kpts, n_wann)
 
-    U = identity_U(ComplexF64, n_kpts, n_wann)
-
+    FIXTURE_PATH = joinpath(@__DIR__, "../fixtures")
     Uv = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.amn"))
     Uc = read_amn(joinpath(FIXTURE_PATH, "conduction", "silicon.amn"))
 
@@ -72,9 +74,10 @@ end
 end
 
 @testitem "split_model" begin
+    FIXTURE_PATH = joinpath(@__DIR__, "../fixtures")
     model = read_w90(joinpath(FIXTURE_PATH, "silicon/silicon"))
     chk = read_chk(joinpath(FIXTURE_PATH, "silicon/silicon.chk.fmt"))
-    model.U .= get_U(chk)
+    model.gauges .= get_U(chk)
 
     n_val = 4
 
@@ -83,6 +86,6 @@ end
     Ev_ref = read_eig(joinpath(FIXTURE_PATH, "valence", "silicon.eig"))
     Ec_ref = read_eig(joinpath(FIXTURE_PATH, "conduction", "silicon.eig"))
 
-    @test isapprox(model_v.E, Ev_ref; atol=1e-7)
-    @test isapprox(model_c.E, Ec_ref; atol=1e-7)
+    @test isapprox(model_v.eigenvalues, Ev_ref; atol=1e-7)
+    @test isapprox(model_c.eigenvalues, Ec_ref; atol=1e-7)
 end

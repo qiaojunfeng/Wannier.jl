@@ -607,6 +607,8 @@ function get_fg!_disentangle(p::AbstractPenalty, model::Model{T}) where {T}
             end
         end
         if Ω !== nothing
+            # Note I am actually returning Ωt in function
+            # omega!(p::CenterSpreadPenalty, args...)
             return omega!(p, cache, model.kstencil, model.overlaps).Ω
         end
     end

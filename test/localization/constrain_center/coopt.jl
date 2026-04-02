@@ -1,28 +1,33 @@
-@testmodule CooptEnv begin
+@testmodule CooptCenterEnv begin
     # This code runs once and the module is cached
     using Wannier
     using Wannier.Datasets
-    export model, f, g!, λ
+    export model, f, g!, λs, p
 
     # model_up = read_w90(dataset"Fe_collinear/Fe_up")
     # model_dn = read_w90(dataset"Fe_collinear/Fe_dn")
     # Mupdn = read_amn(joinpath(dataset"Fe_collinear/Fe_updn.mud"))
-    model_up = read_w90(joinpath(@__DIR__, "../fixtures/iron_dftk", "up"))
-    model_dn = read_w90(joinpath(@__DIR__, "../fixtures/iron_dftk", "dn"))
-    Mupdn = read_amn(joinpath(@__DIR__, "../fixtures/iron_dftk", "iron.mud"))
+    model_up = read_w90(joinpath(@__DIR__, "../../fixtures/iron_dftk", "up"))
+    model_dn = read_w90(joinpath(@__DIR__, "../../fixtures/iron_dftk", "dn"))
+    Mupdn = read_amn(joinpath(@__DIR__, "../../fixtures/iron_dftk", "iron.mud"))
     model = Wannier.MagModel(model_up, model_dn, Mupdn)
-    # if λ=0, equivalent to two independent Wannierizations of up and down
-    # λ = 0
-    λ = 1.0
-    f, g! = Wannier.get_fg!_disentangle(model, λ)
+    # if λs=0, equivalent to two independent Wannierizations of up and down
+    # λs = 0
+    λs = 1.0
+    r₀ = [Wannier.Vec3(zeros(3)) for i in 1:n_wannier(model.up)]
+    λc = 10.0
+    p = CenterSpreadPenalty(r₀, λc)
+    f, g! = Wannier.get_fg!_disentangle(p, model, λs)
 end
 
-@testitem "coopt spread" setup=[CooptEnv] begin
-    Ω = Wannier.omega(model, λ)
+@testitem "coopt center spread" setup=[CooptCenterEnv] begin
+    Ω = Wannier.omega(p, model, λs)
     @test isapprox(Ω.up.Ω, 5.926927084598657; atol=1e-10)
+    @test isapprox(Ω.up.Ωt, 193.35456420417805; atol=1e-10)
     @test isapprox(Ω.dn.Ω, 5.857837450506195; atol=1e-10)
+    @test isapprox(Ω.dn.Ωt, 192.08254963648324; atol=1e-10)
     @test isapprox(Ω.Ωupdn, 0.02594482662336972; atol=1e-10)
-    @test isapprox(Ω.Ωt, 11.810709361728222; atol=1e-10)
+    @test isapprox(Ω.Ωt, 385.4630586672846; atol=1e-10)
 
     M = [
         0.9959313044867574     6.25429314670281e-6    2.128513404763234e-7   1.330679062695095e-5   3.3410941167332526e-6  1.9116231862363496e-7
@@ -35,7 +40,7 @@ end
     @test isapprox(Ω.M, M; atol=1e-10)
 end
 
-@testitem "coopt overlap gradient" setup=[CooptEnv] begin
+@testitem "coopt center overlap gradient" setup=[CooptCenterEnv] begin
     using NLSolversBase
 
     function fup(Uup)
@@ -51,8 +56,8 @@ end
 
     # analytical gradient
     Gup, Gdn = Wannier.omega_updn_grad(model, model.up.gauges, model.dn.gauges)
-    Gup *= λ
-    Gdn *= λ
+    Gup *= λs
+    Gdn *= λs
 
     # finite diff gradient
     u_up0 = stack(model.up.gauges)
@@ -75,7 +80,7 @@ end
     )
 end
 
-@testitem "coopt spread gradient" setup=[CooptEnv] begin
+@testitem "coopt center spread gradient" setup=[CooptCenterEnv] begin
     using NLSolversBase
 
     nb, nw = size(model.up.gauges[1])
@@ -106,7 +111,7 @@ end
     @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
-    Uup, Udn = Wannier.disentangle(model, λ; max_iter=1)
+    Uup, Udn = Wannier.disentangle(p, model, λs; max_iter=1)
 
     Xup0, Yup0 = Wannier.U_to_X_Y(Uup, model.up.frozen_bands)
     Xdn0, Ydn0 = Wannier.U_to_X_Y(Udn, model.dn.frozen_bands)

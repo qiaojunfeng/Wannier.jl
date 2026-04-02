@@ -1,15 +1,11 @@
-using LinearAlgebra
-using NLSolversBase
-
 @testmodule OptRotEnv begin
     # This code runs once and the module is cached
     using Wannier
     using Wannier.Datasets
-    export model, fg!, FIXTURE_PATH
+    export model, f, g!
 
     # model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
 
-    # A reusable fixture for a model
     # no disentanglement
     FIXTURE_PATH = joinpath(@__DIR__, "../fixtures")
     model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
@@ -17,7 +13,10 @@ using NLSolversBase
 end
 
 @testitem "opt_rotate spread gradient" setup = [OptRotEnv] begin
-    W0 = diagm(0 => fill(1.0 + 0 * im, model.n_wann))
+    using LinearAlgebra
+    using NLSolversBase
+
+    W0 = diagm(0 => fill(1.0 + 0 * im, n_wannier(model)))
 
     # analytical gradient
     G = similar(W0)
@@ -44,10 +43,12 @@ end
     @test isapprox(G, G_ref; atol=1e-6)
 end
 
-@testitem "opt_rotate valence" begin
-    # start from parallel transport gauge
-    U0 = read_amn_ortho(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
-    model.U .= U0
+@testitem "opt_rotate valence" setup = [OptRotEnv] begin
+    using Wannier.Datasets
+    # reset initial gauge
+    U0 = read_amn_ortho(joinpath(@__DIR__, "../fixtures/valence", "silicon.ptg.amn"))
+    # U0 = read_amn_ortho(dataset"Si2_valence_coarse/Si2.amn")
+    model.gauges .= U0
 
     Wmin = opt_rotate(model)
     Wref = [
@@ -58,10 +59,4 @@ end
     ]
     # display(Wmin)
     @test isapprox(Wmin, Wref; atol=1e-5)
-
-    # Umin = merge_gauge(U0, Wmin)
-    # Uref = read_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.optrot.amn"))
-    # @test isapprox(Umin, Uref; atol=1e-6)
-
-    # write_amn(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.optrot.amn"), Umin)
 end
