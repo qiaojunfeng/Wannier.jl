@@ -1,19 +1,24 @@
-using NLSolversBase
+@testmodule MaxlocEnv begin
+    # This code runs once and the module is cached
+    using Wannier
+    using Wannier.Datasets
+    export model, fg!, FIXTURE_PATH
 
-# A reusable fixture for a model
-# no disentanglement
-model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
+    # model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
 
-p = SpreadPenalty()
+    # A reusable fixture for a model
+    # no disentanglement
+    FIXTURE_PATH = joinpath(@__DIR__, "../fixtures")
+    model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
 
-fg! = Wannier.get_fg!_maxloc(p, model)
+    p = SpreadPenalty()
+    fg! = Wannier.get_fg!_maxloc(p, model)
+end
 
-@testitem "maxloc spread gradient" begin
-    U0 = [
-        model.U[ik][ib, ic] for ib in 1:size(model.U[1], 1), ic in 1:size(model.U[1], 2),
-        ik in 1:length(model.U)
-    ]
+@testitem "maxloc spread gradient" setup = [MaxlocEnv] begin
+    using NLSolversBase
 
+    U0 = stack(model.gauges)
     # analytical gradient
     G = similar(U0)
     fg!(nothing, G, U0)
@@ -42,12 +47,13 @@ fg! = Wannier.get_fg!_maxloc(p, model)
     @test isapprox(G, G_ref; atol=1e-6)
 end
 
-@testitem "maxloc valence" begin
+@testitem "maxloc valence" setup = [MaxlocEnv] begin
     # start from parallel transport gauge
-    model.U .= read_amn_ortho(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
+    model.gauges .= read_amn_ortho(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
 
+    p = SpreadPenalty()
     Umin = max_localize(p, model)
-    Ω = omega(p, model.bvectors, model.M, Umin)
+    Ω = omega(p, model.kstencil, model.overlaps, Umin)
 
     @test isapprox(Ω.Ω, 6.374823673444644; atol=1e-7)
     @test isapprox(Ω.ΩI, 5.812709709242578; atol=1e-7)
