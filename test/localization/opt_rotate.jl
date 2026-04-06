@@ -4,11 +4,10 @@
     using Wannier.Datasets
     export model, f, g!
 
-    # model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
-
     # no disentanglement
-    FIXTURE_PATH = joinpath(@__DIR__, "../fixtures")
-    model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
+    model = read_w90(dataset"Si2_valence_coarse/Si2")
+    # reset initial gauge
+    model.gauges .= identity_gauge(eltype(model.gauges[1]), n_kpoints(model), n_wannier(model))
     f, g! = Wannier.get_fg!_rotate(model)
 end
 
@@ -29,7 +28,7 @@ end
     # I am using a looser tolerance here
     @test isapprox(G, G_ref; atol=1e-6)
 
-    # Test 2nd iteration
+    # Test 2nd iteration, with a random rotation
     W1 = [
         0.497264+0.129534im -0.281405-0.540402im 0.0625545+0.237438im -0.516272-0.194678im
         0.113245-0.532338im 0.47272+0.0873106im -0.546504+0.19511im -0.36623+0.042955im
@@ -46,16 +45,15 @@ end
 @testitem "opt_rotate valence" setup = [OptRotEnv] begin
     using Wannier.Datasets
     # reset initial gauge
-    U0 = read_amn_ortho(joinpath(@__DIR__, "../fixtures/valence", "silicon.ptg.amn"))
-    # U0 = read_amn_ortho(dataset"Si2_valence_coarse/Si2.amn")
+    U0 = read_amn_ortho(dataset"Si2_valence_coarse/outputs/ptg.amn")
     model.gauges .= U0
 
     Wmin = opt_rotate(model)
     Wref = [
-        0.49473+0.0355699im 0.0673789-0.511771im 0.418917+0.104404im -0.478045-0.26946im
-        0.194747-0.371381im 0.71448+0.0268801im -0.419172-0.274175im -0.232225+0.090227im
-        -0.633051-0.179746im 0.360712+0.121724im 0.6137-0.012567im -0.212654-0.000510533im
-        0.26149-0.276926im 0.185667-0.207231im 0.382741-0.198633im 0.768156+0.0388423im
+        0.470784+0.136745im    0.337519-0.159248im  -0.502644-0.281439im   -0.466234+0.266743im
+        -0.106769+0.0365541im   0.755771-0.287907im  -0.137358+0.120947im      0.4286-0.340573im
+        0.147589-0.213364im    0.381346-0.166663im   0.771383-0.0291013im  -0.190455+0.356846im
+        0.605102+0.559885im   -0.173099-0.05895im    0.194089+0.0331043im   0.490533+0.0869002im
     ]
     # display(Wmin)
     @test isapprox(Wmin, Wref; atol=1e-5)
