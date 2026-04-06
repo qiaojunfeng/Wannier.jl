@@ -28,8 +28,8 @@ end
 @testitem "generate_kspace_stencil 2D" begin
     using Wannier: Vec3
     using Wannier.Datasets
-    win = read_win(dataset"graphene_xsf/graphene.win")
-    nnkp = read_nnkp_compute_bweights(dataset"graphene_xsf/outputs/graphene.nnkp")
+    win = read_win(dataset"graphene_coarse/graphene.win")
+    nnkp = read_nnkp_compute_bweights(dataset"graphene_coarse/outputs/graphene.nnkp")
 
     recip_lattice = reciprocal_lattice(win.unit_cell_cart)
     kstencil = generate_kspace_stencil(recip_lattice, win.mp_grid, win.kpoints)

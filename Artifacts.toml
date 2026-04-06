@@ -1,10 +1,10 @@
-[graphene_xsf]
+[graphene_coarse]
 git-tree-sha1 = "2d1435c56ee3e078a3a2d5ce247c1f95ee4d86b3"
 lazy = true
 
-    [[graphene_xsf.download]]
+    [[graphene_coarse.download]]
     sha256 = "04d2890d17e94672626a84ee9af2568e2870a90f57959a3c34dd35fd14328387"
-    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/graphene_xsf.tar.gz"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/graphene_coarse.tar.gz"
 
 [Cu]
 git-tree-sha1 = "7a62b6fd9cf0b8414d402bf5109ab1e4e3770812"
@@ -38,6 +38,14 @@ lazy = true
     sha256 = "d88ef0f6ffcb316bb96465bca4f79228c03486ff05c62c8ac5e640bc841f9e96"
     url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/CrI3.tar.gz"
 
+[Si2_valence_coarse]
+git-tree-sha1 = "ff596cc3588e3b24c1b4d1a352ce6bee9ca8083d"
+lazy = true
+
+    [[Si2_valence_coarse.download]]
+    sha256 = "a5d058a7fdeaac4acd38cba59f90fb16dcf6f016248976b7792c65c000b15e28"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Si2_valence_coarse.tar.gz"
+
 [MoS2]
 git-tree-sha1 = "2b36703f7e686b5b3e40bcdbd86688e80be4a4d6"
 lazy = true
@@ -61,6 +69,14 @@ lazy = true
     [[BN.download]]
     sha256 = "b752c7c106407f365a93c9d2b4811644ca0920214a2cee5b7fa36185a2de01a9"
     url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/BN.tar.gz"
+
+[Si2_coarse]
+git-tree-sha1 = "0e843c7553670d340ffe69765c744ad97af5579f"
+lazy = true
+
+    [[Si2_coarse.download]]
+    sha256 = "0ea12d3ffb620efe7b4f4297a397904864d594dec5cc0d82fc4319182ee1e46f"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Si2_coarse.tar.gz"
 
 [SnSe2]
 git-tree-sha1 = "b45310314ba59112420850678fa416fcbbd7aa6a"
@@ -93,6 +109,14 @@ lazy = true
     [[GaAs.download]]
     sha256 = "628d290d507f2ad7ef996cf27aee02feb54fcf973e13644ba9bccfab1ab707a9"
     url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/GaAs.tar.gz"
+
+[Fe_collinear_coarse]
+git-tree-sha1 = "efd596cfc6551ac2a6d05fc21fcc3589d4040ca1"
+lazy = true
+
+    [[Fe_collinear_coarse.download]]
+    sha256 = "49ead09eefb174867b70d2c38dcc4c7ff86e899f876b574eeb80a2171dc206f5"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Fe_collinear_coarse.tar.gz"
 
 [Fe_soc]
 git-tree-sha1 = "61ccd2c018e0934c3541b85c32a8bd0ee957e2d7"
@@ -133,3 +157,11 @@ lazy = true
     [[Si2.download]]
     sha256 = "55d0f070e4f253d2f384b9d6e350dc1acd8caad689ca256bc9c539e613538ce7"
     url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Si2.tar.gz"
+
+[GaAs_coarse]
+git-tree-sha1 = "3e830980ca5f48411d310b637a8325472de04523"
+lazy = true
+
+    [[GaAs_coarse.download]]
+    sha256 = "7cb9d2a4157e6c1435ff5810272aece0b34da8d6d916d426e86de2698bcb6ea3"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/GaAs_coarse.tar.gz"
