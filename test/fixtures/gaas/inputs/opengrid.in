@@ -1,5 +1,0 @@
-&INPUTPP
-  outdir = './out/'
-  overwrite_prefix = .true.
-  prefix = 'aiida'
-/

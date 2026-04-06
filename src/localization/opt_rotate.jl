@@ -36,7 +36,7 @@ function get_fg!_rotate(model::Model)
         UW = merge_gauge(model.gauges, W)
         r = center(bvectors, M, UW)
         # actually I can just call this, equivalent to the for loop below.
-        # G_U = omega_grad(bvectors, M, UW, r)
+        # G_U = omega_grad(bvectors, M, UW)
         # # sum w.r.t. kpoints
         # G .= dropdims(sum(G_U, dims = 3); dims = 3)
         # return nothing

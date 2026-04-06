@@ -5,19 +5,14 @@
     using Wannier.Datasets
     export model, fg!, p
 
-    # model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
-
-    # A reusable fixture for a model
-    # no disentanglement
-    FIXTURE_PATH = joinpath(@__DIR__, "../../fixtures")
-    model = read_w90(joinpath(FIXTURE_PATH, "valence", "silicon"))
+    model = read_w90(dataset"Si2_valence_coarse/Si2")
     r₀ = [Vec3(0.0, 0.0, 0.0) for i in 1:n_wannier(model)]
     λ = 10.0
     p = CenterSpreadPenalty(r₀, λ)
     fg! = Wannier.get_fg!_maxloc(p, model)
 end
 
-@testitem "constraint center maxloc spread gradient" setup=[MaxlocCenterEnv] begin
+@testitem "constraint center maxloc spread gradient" setup = [MaxlocCenterEnv] begin
     using NLSolversBase
 
     U0 = stack(model.gauges)
@@ -34,8 +29,7 @@ end
     @test isapprox(G, G_ref; atol=1e-6)
 
     # Test 2nd iteration
-    # This W1 is generated from opt_rotate after 1st iteration,
-    # I use it here so I don't need to store the input AMN matrices as a file.
+    # This W1 is a random rotation, I use it here so I don't need to store the input AMN matrices as a file.
     W1 = [
         0.497264+0.129534im -0.281405-0.540402im 0.0625545+0.237438im -0.516272-0.194678im
         0.113245-0.532338im 0.47272+0.0873106im -0.546504+0.19511im -0.36623+0.042955im
@@ -50,57 +44,45 @@ end
     @test isapprox(G, G_ref; atol=1e-6)
 end
 
-@testitem "constraint center maxloc valence" setup=[MaxlocCenterEnv] begin
-    using Wannier: Vec3
-
-    # start from parallel transport gauge
-    FIXTURE_PATH = joinpath(@__DIR__, "../../fixtures")
-    model.gauges .= read_amn_ortho(joinpath(FIXTURE_PATH, "valence", "silicon.ptg.amn"))
-
+@testitem "constraint center maxloc valence" setup = [MaxlocCenterEnv] begin
     Umin = Wannier.max_localize(p, model; max_iter=4)
     Ω = Wannier.omega(p, model.kstencil, model.overlaps, Umin)
 
     # display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
     @test Ω.Ω̃ ≈ Ω.ΩOD + Ω.ΩD
-    @test isapprox(Ω.Ω, 10.79175007994904; atol=1e-7)
-    @test isapprox(Ω.ΩI, 5.8127097092426245; atol=1e-7)
-    @test isapprox(Ω.ΩOD, 4.912331468930677; atol=1e-7)
-    @test isapprox(Ω.ΩD, 0.06670890177573785; atol=1e-7)
-    @test isapprox(Ω.Ω̃, 4.979040370706415; atol=1e-7)
+    @test isapprox(Ω.Ω, 30.11589846146567; atol=1e-7)
+    @test isapprox(Ω.ΩI, 3.706376531801815; atol=1e-7)
+    @test isapprox(Ω.ΩOD, 6.166406390333415; atol=1e-7)
+    @test isapprox(Ω.ΩD, 20.24311553933044; atol=1e-7)
 
     @test isapprox(
         Ω.ω,
-        [1.974272148108204, 2.9590704528882212, 2.957966420231007, 2.9004410587216065];
+        [7.18477647718601, 7.5174589128747575, 8.485999979449879, 6.927663091955029];
         atol=1e-7,
     )
     @test isapprox(
         Ω.r,
         [
-            Vec3(-0.0006371414769181565, 0.0006811595685799503, 0.0300072108960674),
-            Vec3(-0.011666353819322479, -0.0026638301666946987, -0.04279486032530962),
-            Vec3(0.0057784441053171055, -0.0036622860182758767, -0.03176818666470274),
-            Vec3(0.00550194992572012, 0.005763601542074829, 0.04839785532365684),
+            [0.09848736571647632, 0.10105426078948893, -0.3397567359100563],
+            [-0.15843672629787864, -0.7074236628984307, 0.7030443899918356],
+            [-0.12106696606828928, -0.10699898366786562, -0.0775247363763475],
+            [0.007623200427533831, -0.16940228161351428, 0.5054673027513011],
         ];
         atol=1e-7,
     )
 
     @test Ω.Ωt ≈ Ω.Ω + Ω.Ωc
-    @test isapprox(Ω.Ωc, 0.06337765901009804; atol=1e-7)
-    @test isapprox(Ω.Ωt, 10.855127738959137; atol=1e-7)
+    @test isapprox(Ω.Ωc, 14.715367316738073; atol=1e-7)
+    @test isapprox(Ω.Ωt, 44.83126577820374; atol=1e-7)
     @test isapprox(
         Ω.ωc,
-        [
-            0.009013026333805437,
-            0.01974599872857372,
-            0.0105602043912133,
-            0.024058429556505577,
-        ];
+        [1.353463644257367, 10.198218493676137, 0.32116077529158654, 2.8425244035129826];
         atol=1e-7,
     )
     @test isapprox(
         Ω.ωt,
-        [1.9832851744420095, 2.9788164516167948, 2.9685266246222204, 2.924499488278112];
+        [8.538240121443376, 17.715677406550896, 8.807160754741465, 9.770187495468011];
         atol=1e-7,
     )
     @test Ω.ωt ≈ Ω.ω + Ω.ωc

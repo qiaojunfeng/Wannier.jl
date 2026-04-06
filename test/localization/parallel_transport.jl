@@ -1,35 +1,30 @@
 @testitem "parallel_transport valence" begin
+    using Wannier.Datasets
     # the conduction bands poles are chosen randomly, skip test on conduction.
-    model = read_w90(joinpath(@__DIR__, "../fixtures/valence", "silicon"))
+    model = read_w90(dataset"Si2_valence_coarse/Si2")
     Umin, _ = parallel_transport(model)
 
-    Uref = read_amn(joinpath(@__DIR__, "../fixtures/valence", "silicon.ptg.amn"))
-    # println("maxabs ", maximum(abs.(Umin - Uref)))
-    # println("norm ", norm(Umin - Uref))
-    # somehow in GitHub CI, the maxabs = 3.774913572015048e-7,
-    # the norm = norm 4.7457964893612196e-6,
-    # I increase a bit the tolerance here
+    Uref = read_amn(dataset"Si2_valence_coarse/outputs/ptg.amn")
     @test isapprox(Umin, Uref; atol=1e-5)
 
     ϵ0, ϵ1 = Wannier.compute_error(model, Umin)
-
-    ϵ0_ref = 0.6148018374094284
-    ϵ1_ref = 0.16490615880322881
-
+    ϵ0_ref = 0.8166518514231456
+    ϵ1_ref = 0.8914034179176087
     @test isapprox(ϵ0, ϵ0_ref; atol=1e-5)
     @test isapprox(ϵ1, ϵ1_ref; atol=1e-5)
 end
 
 @testitem "parallel_transport neg coord" begin
+    using Wannier.Datasets
     # Test PTG with a kgrid that have negative coordinates, i.e., -0.25 instead of 0.75
     # Before commit a1b05ae, the `parallel_transport` function will fail with at `index_bvector`.
-    model = read_w90(joinpath(@__DIR__, "../fixtures/gaas", "gaas"))
+    model = read_w90(dataset"GaAs_coarse/GaAs")
     # only 4 valence bands as an isolated manifold
     model = Wannier.truncate(model, 1:4, 1:4)
 
     Umin, _ = parallel_transport(model)
 
-    Uref = read_amn(joinpath(@__DIR__, "../fixtures/gaas", "gaas.val.ptg.amn"))
+    Uref = read_amn(dataset"GaAs_coarse/outputs/GaAs.val.ptg.amn")
     @test isapprox(Umin, Uref; atol=1e-5)
 
     ϵ0, ϵ1 = Wannier.compute_error(model, Umin)
@@ -39,6 +34,4 @@ end
 
     @test isapprox(ϵ0, ϵ0_ref; atol=1e-5)
     @test isapprox(ϵ1, ϵ1_ref; atol=1e-5)
-
-    # write_amn(joinpath(FIXTURE_PATH, "gaas", "gaas.val.ptg.amn"), Umin)
 end
