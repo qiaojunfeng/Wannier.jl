@@ -2,17 +2,17 @@
     using Wannier: Vec3
 
     lattice = [
-        -2.698804 0.000000 -2.698804
-        0.000000 2.698804 2.698804
-        2.698804 2.698804 0.000000
+        -2.698804 0.0 -2.698804
+        0.0 2.698804 2.698804
+        2.698804 2.698804 0.0
     ]
     # atom_positions in fractional
-    atom_positions = [[-0.25000, 0.75000, -0.25000], [0.00000, 0.00000, 0.00000]]
+    atom_positions = [[-0.25, 0.75, -0.25], [0.0, 0.0, 0.0]]
     # centers in Cartesian
     centers = [
         [-0.659352, 0.658238, -0.680969],
         [0.669283, 0.695828, 0.666806],
-        [0.682490, -0.683846, -0.683726],
+        [0.68249, -0.683846, -0.683726],
         [-0.701673, -0.656575, 0.703751],
     ]
     centers = map(c -> inv(lattice) * c, centers)  # to fractional
@@ -24,7 +24,7 @@
     ref_indices = [2, 1, 1, 1]
     ref_translations = Vec3[[0, 0, 0], [0, 0, 0], [0, -1, 0], [1, -1, 0]]
 
-    @test all(isapprox.(distances, ref_distances; atol=2e-5))
+    @test all(isapprox.(distances, ref_distances; atol = 2.0e-5))
     @test indices == ref_indices
     @test translations == ref_translations
 end
@@ -33,15 +33,15 @@ end
     using Wannier: Vec3
 
     lattice = [
-        -2.698804 0.000000 -2.698804
-        0.000000 2.698804 2.698804
-        2.698804 2.698804 0.000000
+        -2.698804 0.0 -2.698804
+        0.0 2.698804 2.698804
+        2.698804 2.698804 0.0
     ]
     # centers in Cartesian
     centers = [
         [-0.659352, 0.658238, -0.680969],
         [0.669283, 0.695828, 0.666806],
-        [0.682490, -0.683846, -0.683726],
+        [0.68249, -0.683846, -0.683726],
         [-0.701673, -0.656575, 0.703751],
     ]
     centers = Wannier.wrap_centers(centers, lattice)
@@ -52,5 +52,5 @@ end
         [-4.71512, 4.71376, 4.71388],
         [-3.40048, 4.74103, 3.40255],
     ]
-    @test all(isapprox.(centers, ref_centers; atol=2e-5))
+    @test all(isapprox.(centers, ref_centers; atol = 2.0e-5))
 end

@@ -45,11 +45,11 @@ See [`fourier`](@ref) for other arguments.
 function fourier! end
 
 function fourier!(
-    operator_R::AbstractVector,
-    kpoints::AbstractVector,
-    operator_k::AbstractVector,
-    Rspace::AbstractRspace,
-)
+        operator_R::AbstractVector,
+        kpoints::AbstractVector,
+        operator_k::AbstractVector,
+        Rspace::AbstractRspace,
+    )
     nkpts = length(kpoints)
     @assert nkpts > 0 "empty kpoints"
     @assert length(operator_k) == nkpts "operator has wrong n_kpoints"
@@ -68,8 +68,8 @@ function fourier!(
 end
 
 function fourier(
-    kpoints::AbstractVector, operator_k::AbstractVector, Rspace::AbstractRspace
-)
+        kpoints::AbstractVector, operator_k::AbstractVector, Rspace::AbstractRspace
+    )
     @assert length(operator_k) > 0 "empty operator_k"
     # force type to complex
     T_op = typeof(complex(first(operator_k[1])))
@@ -122,11 +122,11 @@ See [`invfourier`](@ref) for other arguments.
 function invfourier! end
 
 function invfourier!(
-    operator_k::AbstractVector,
-    Rspace::BareRspace,
-    operator_R::AbstractVector,
-    kpoints::AbstractVector,
-)
+        operator_k::AbstractVector,
+        Rspace::BareRspace,
+        operator_R::AbstractVector,
+        kpoints::AbstractVector,
+    )
     nRvecs = n_Rvectors(Rspace)
     @assert length(operator_R) == nRvecs "operator has wrong n_Rvectors"
     nkpts = length(kpoints)
@@ -144,8 +144,8 @@ function invfourier!(
 end
 
 @inline function invfourier!(
-    operator_k::AbstractVector, tb::TBOperator, kpoints::AbstractVector
-)
+        operator_k::AbstractVector, tb::TBOperator, kpoints::AbstractVector
+    )
     return invfourier!(operator_k, tb.Rspace, tb.operator, kpoints)
 end
 
@@ -193,6 +193,7 @@ function fourier(f::Function, kpoints, Rvectors)
             f(ik, iR, phase)
         end
     end
+    return
 end
 
 """
@@ -220,4 +221,5 @@ function invfourier(f::Function, Rvectors, kpoints)
             f(iR, ik, phase)
         end
     end
+    return
 end

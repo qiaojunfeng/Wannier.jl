@@ -3,7 +3,7 @@
     model = read_w90_with_chk(
         dataset"Si2_valence/Si2_valence", dataset"Si2_valence/outputs/Si2_valence.chk.fmt"
     )
-    hamiltonian = TBHamiltonian(model; MDRS=false)
+    hamiltonian = TBHamiltonian(model; MDRS = false)
     interp = HamiltonianInterpolator(hamiltonian)
 
     ref_band = read_w90_band(dataset"Si2_valence/outputs/WS/Si2_valence")
@@ -14,7 +14,7 @@
     win = read_win(dataset"Si2_valence/Si2_valence.win")
     kpi = generate_w90_kpoint_path(win.unit_cell_cart, win.kpoint_path)
     eigenvalues = interp(kpi)[1]
-    @test all(isapprox.(eigenvalues, ref_band.eigenvalues; atol=2e-6))
+    @test all(isapprox.(eigenvalues, ref_band.eigenvalues; atol = 2.0e-6))
 end
 
 @testitem "Hamiltonian MDRS" begin
@@ -34,5 +34,5 @@ end
     win = read_win(dataset"Si2_valence/Si2_valence.win")
     kpi = generate_w90_kpoint_path(win.unit_cell_cart, win.kpoint_path)
     eigenvalues = interp(kpi)[1]
-    @test all(isapprox.(eigenvalues, ref_band.eigenvalues; atol=1e-7))
+    @test all(isapprox.(eigenvalues, ref_band.eigenvalues; atol = 1.0e-7))
 end

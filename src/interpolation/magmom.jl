@@ -1,4 +1,3 @@
-
 """
     fermi_dirac(E, ϵF, T)
 
@@ -9,7 +8,7 @@ Fermi-Dirac distribution function.
 - `ϵF`: Fermi energy, in eV
 - `T`: temperature, in Kelvin
 """
-function fermi_dirac(E::AbstractVector{I}, ϵF::Real, T::Real) where {I<:Real}
+function fermi_dirac(E::AbstractVector{I}, ϵF::Real, T::Real) where {I <: Real}
     # TODO 0/0 returns NaN
     return 1 ./ (1 .+ exp.((E .- ϵF) ./ (kB * T)))
 end
@@ -27,7 +26,7 @@ Occupations for eigenvalues.
 # Returns
 - `occ`: occupations, size `(n_bands, n_kpts)`
 """
-function occupation(E::AbstractMatrix{I}; ϵF::Real, T::Real) where {I<:Real}
+function occupation(E::AbstractMatrix{I}; ϵF::Real, T::Real) where {I <: Real}
     n_bands, n_kpts = size(E)
     occ = zeros(eltype(E), n_bands, n_kpts)
     for (ik, Ek) in enumerate(eachcol(E))
@@ -49,7 +48,7 @@ where ``\hat{P}`` is the occupation operator.
 function occupation_matrix(model::Model, ϵF::Real, T::Real)
     occ = occupation(model.E; ϵF, T)
     P = rotate_gauge(occ, model.U)
-    return dropdims(sum(P; dims=3); dims=3) / model.n_kpts
+    return dropdims(sum(P; dims = 3); dims = 3) / model.n_kpts
 end
 
 # TODO: how

@@ -23,8 +23,8 @@ i.e., they should contain `n_bands`-sized matrices instead of Wannier-gauge
 `n_wannier`-sized matrices, to minimize the effect of band truncation.
 """
 function compute_uIu(
-    overlaps::AbstractVector,
-)
+        overlaps::AbstractVector,
+    )
     uIu = map(overlaps) do Mₖ
         # note I need to use reshape to convert it into a row vector,
         # cannot use transpose since that one is recursive
@@ -61,11 +61,11 @@ instead of Wannier-gauge `n_wannier`-sized matrices, to minimize the effect
 of band truncation.
 """
 function compute_uHu(
-    overlaps::AbstractVector,
-    kpb_k::AbstractVector,
-    kpb_G::AbstractVector,
-    eigenvalues::AbstractVector,
-)
+        overlaps::AbstractVector,
+        kpb_k::AbstractVector,
+        kpb_G::AbstractVector,
+        eigenvalues::AbstractVector,
+    )
     WannierIO._check_dimensions_M_kpb(overlaps, kpb_k, kpb_G)
     nkpts = length(kpb_k)
     @assert nkpts == length(eigenvalues) "wrong n_kpoints in eigenvalues"
@@ -98,11 +98,11 @@ instead of Wannier-gauge `n_wannier`-sized matrices, to minimize the effect
 of band truncation.
 """
 function compute_hamiltonian_times_position_kspace(
-    overlaps::AbstractVector,
-    kpb_k::AbstractVector,
-    kpb_G::AbstractVector,
-    eigenvalues::AbstractVector,
-)
+        overlaps::AbstractVector,
+        kpb_k::AbstractVector,
+        kpb_G::AbstractVector,
+        eigenvalues::AbstractVector,
+    )
     WannierIO._check_dimensions_M_kpb(overlaps, kpb_k, kpb_G)
     nkpts = length(kpb_k)
     @assert nkpts == length(eigenvalues) "wrong n_kpoints in eigenvalues"

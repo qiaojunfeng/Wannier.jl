@@ -1,11 +1,10 @@
-
 function omega(
-    p::CenterSpreadPenalty,
-    model::MagModel,
-    Uup::AbstractVector{<:AbstractMatrix{T}},
-    Udn::AbstractVector{<:AbstractMatrix{T}},
-    λs::R,
-) where {T<:Complex,R<:Real}
+        p::CenterSpreadPenalty,
+        model::MagModel,
+        Uup::AbstractVector{<:AbstractMatrix{T}},
+        Udn::AbstractVector{<:AbstractMatrix{T}},
+        λs::R,
+    ) where {T <: Complex, R <: Real}
     up = omega(p, model.up, Uup)
     dn = omega(p, model.dn, Udn)
     M = overlap_updn(model, Uup, Udn)
@@ -14,7 +13,7 @@ function omega(
     return SpreadMag(up, dn, Ωupdn, Ωt, M, λs)
 end
 
-function omega(p::CenterSpreadPenalty, model::MagModel{T}, λs::T) where {T<:Real}
+function omega(p::CenterSpreadPenalty, model::MagModel{T}, λs::T) where {T <: Real}
     return omega(p, model, model.up.gauges, model.dn.gauges, λs)
 end
 
@@ -24,8 +23,8 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_disentangle(
-    p::AbstractPenalty, model::MagModel{T}, λs::T
-) where {T<:Real}
+        p::AbstractPenalty, model::MagModel{T}, λs::T
+    ) where {T <: Real}
     nb = n_bands(model.up)
     nw = n_wannier(model.up)
     nk = n_kpoints(model.up)
@@ -101,14 +100,14 @@ Run disentangle on a `MagModel`, with center constraints.
 - `history_size`: history size of LBFGS
 """
 function disentangle(
-    p::AbstractPenalty,
-    model::MagModel{T},
-    λs::T=1.0;
-    f_tol::T=1e-7,
-    g_tol::T=1e-5,
-    max_iter::Int=200,
-    history_size::Int=3,
-) where {T<:Real}
+        p::AbstractPenalty,
+        model::MagModel{T},
+        λs::T = 1.0;
+        f_tol::T = 1.0e-7,
+        g_tol::T = 1.0e-5,
+        max_iter::Int = 200,
+        history_size::Int = 3,
+    ) where {T <: Real}
     nb = n_bands(model.up)
     nw = n_wannier(model.up)
     nk = n_kpoints(model.up)
@@ -163,13 +162,13 @@ function disentangle(
         f,
         g!,
         XY0,
-        meth(; manifold=XYManif, linesearch=ls, m=history_size),
+        meth(; manifold = XYManif, linesearch = ls, m = history_size),
         Optim.Options(;
-            show_trace=true,
-            iterations=max_iter,
-            f_tol=f_tol,
-            g_tol=g_tol,
-            allow_f_increases=true,
+            show_trace = true,
+            iterations = max_iter,
+            f_tol = f_tol,
+            g_tol = g_tol,
+            allow_f_increases = true,
         ),
     )
     display(opt)

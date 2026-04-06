@@ -32,14 +32,14 @@ for file in src_files
     outdir = splitdir(replace(file, LITERATE_SRCDIR => LITERATE_OUTDIR))[1]
 
     # generate markdown which will be executed by Documenter.jl
-    Literate.markdown(file, outdir; preprocess=add_badges)
+    Literate.markdown(file, outdir; preprocess = add_badges)
 
     # I skip the execution of the notebook, because
     # 1. it increases the build time
     # 2. somehow ipynb does not show the plots correctly, e.g. bands, WFs, etc.
     # 3. random numbers during execution might cause the notebook output to be different
     # 4. I will let the user download an empty notebook, so that at least they will run once :-)
-    Literate.notebook(file, outdir; execute=false)
+    Literate.notebook(file, outdir; execute = false)
 
     # This generates a cleansed version w/o comments
     Literate.script(file, outdir)

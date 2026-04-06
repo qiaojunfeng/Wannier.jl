@@ -64,8 +64,8 @@ Make a supercell of points by translating it along 3 directions.
     for each point in the `supercell`
 """
 function make_supercell(
-    points::AbstractVector, replica::AbstractVector{R}
-) where {R<:AbstractRange}
+        points::AbstractVector, replica::AbstractVector{R}
+    ) where {R <: AbstractRange}
     n_pts = length(points)
     @assert n_pts > 0 "points is empty"
     @assert length(replica) == 3 "replica must be length-3 vector"
@@ -93,7 +93,7 @@ function make_supercell(
     return supercell, translations
 end
 
-function make_supercell(points::AbstractVector, replica::Integer=5)
+function make_supercell(points::AbstractVector, replica::Integer = 5)
     return make_supercell(
         points, [(-replica):replica, (-replica):replica, (-replica):replica]
     )
@@ -114,7 +114,7 @@ Get the kpoint integer indices from a kpoint grid.
 
 See also [`get_kpoints`](@ref).
 """
-function get_kpoint_indices(kgrid_size::AbstractVector; contain_zero::Bool=false)
+function get_kpoint_indices(kgrid_size::AbstractVector; contain_zero::Bool = false)
     n_kx, n_ky, n_kz = kgrid_size
     n_kpts = prod(kgrid_size)
 
@@ -161,12 +161,12 @@ See also [`get_kpoint_indices`](@ref).
 
     If the default keyword arguments are used, this function works just like `kmesh.pl` of wannier90.
 """
-function get_kpoints(kgrid_size::AbstractVector{<:Integer}; endpoint::Bool=false, negative::Bool=false)
+function get_kpoints(kgrid_size::AbstractVector{<:Integer}; endpoint::Bool = false, negative::Bool = false)
     any(isone, kgrid_size) &&
         endpoint &&
         error("cannot have endpoint when kgrid contains 1")
 
-    kpoint_indices = get_kpoint_indices(kgrid_size; contain_zero=true)
+    kpoint_indices = get_kpoint_indices(kgrid_size; contain_zero = true)
     denom = Vec3(kgrid_size)
     if endpoint
         denom = Vec3(kgrid_size) .- 1
@@ -208,9 +208,9 @@ floating point representation, e.g.
 # Arguments
 - `points`: usually kpoints in fractional coordinates
 """
-function rationalize_points(points::AbstractVector; atol::Real=1e-5)
+function rationalize_points(points::AbstractVector; atol::Real = 1.0e-5)
     return map(points) do p
-        rationalize.(p; tol=atol)
+        rationalize.(p; tol = atol)
     end
 end
 
@@ -228,7 +228,7 @@ output `[nkx, nky, nkz]`.
 # Keyword arguments
 - `atol`: absolute tolerance for comparing kpoint coordinates
 """
-function guess_kgrid_size(kpoints::AbstractVector; atol=1e-5)
+function guess_kgrid_size(kpoints::AbstractVector; atol = 1.0e-5)
     @assert length(kpoints) > 0 "kpoints is empty"
 
     # Move negative kpoints to [0, 1) range
@@ -246,9 +246,9 @@ function guess_kgrid_size(kpoints::AbstractVector; atol=1e-5)
 
     # do some sanity check to be very safe
     if eltype(kpoints[1]) <: Integer
-        kpoints_recovered = get_kpoint_indices(kgrid_size; contain_zero=true)
+        kpoints_recovered = get_kpoint_indices(kgrid_size; contain_zero = true)
     else
-        kpoints_recovered = get_kpoints(kgrid_size; endpoint=false)
+        kpoints_recovered = get_kpoints(kgrid_size; endpoint = false)
     end
     # Note that I need to sort the `kpoints_rationalized`, otherwise if
     # there exists e.g. 1e-10 floating point inexactness, the sort would

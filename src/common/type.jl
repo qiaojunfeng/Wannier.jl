@@ -1,7 +1,7 @@
 using StaticArrays
 using WannierIO: Vec3, Mat3
 
-const AbstractArray3{T} = AbstractArray{T,3} where {T}
+const AbstractArray3{T} = AbstractArray{T, 3} where {T}
 
 # some small type piracy?
 # TODO: check if these are actually needed
@@ -13,14 +13,14 @@ mutable 3 x 3 matrix type.
 
 For lattice and recip_lattice.
 """
-const MMat3{T} = MMatrix{3,3,T,9} where {T}
+const MMat3{T} = MMatrix{3, 3, T, 9} where {T}
 
 """
 Mutable length-3 vector type.
 
 For atom posistions, kpoints, etc.
 """
-const MVec3{T} = MVector{3,T} where {T}
+const MVec3{T} = MVector{3, T} where {T}
 
 """
 `Vector{Vector}` -> `MMat3`

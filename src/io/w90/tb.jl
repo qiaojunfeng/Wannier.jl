@@ -51,7 +51,7 @@ function _raw_read_w90_tb(prefix::AbstractString)
         MVec3.(x, y, z)
     end
 
-    return (; Rspace, hamiltonian=tbdat.H, position)
+    return (; Rspace, hamiltonian = tbdat.H, position)
 end
 
 """
@@ -65,7 +65,7 @@ function write_w90_tb(prefix::AbstractString, hamiltonian::TBOperator, position:
 
     # the operators are always BareRspace
     WannierIO.write_w90_wsvec(
-        prefix * "_wsvec.dat"; hamiltonian.Rspace.Rvectors, n_wann=n_wannier(hamiltonian)
+        prefix * "_wsvec.dat"; hamiltonian.Rspace.Rvectors, n_wann = n_wannier(hamiltonian)
     )
 
     r_x = map(position.operator) do O
@@ -79,10 +79,10 @@ function write_w90_tb(prefix::AbstractString, hamiltonian::TBOperator, position:
     end
     WannierIO.write_w90_tbdat(
         prefix * "_tb.dat";
-        lattice=real_lattice(hamiltonian),
+        lattice = real_lattice(hamiltonian),
         hamiltonian.Rspace.Rvectors,
-        Rdegens=ones(n_Rvectors(hamiltonian)),
-        H=hamiltonian.operator,
+        Rdegens = ones(n_Rvectors(hamiltonian)),
+        H = hamiltonian.operator,
         r_x,
         r_y,
         r_z,

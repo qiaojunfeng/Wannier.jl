@@ -14,7 +14,7 @@ $(FIELDS)
     to [`BareRspace`](@ref), see [`simplify`](@ref).
     Note also that [`invfourier`](@ref) only accepts [`BareRspace`](@ref).
 """
-struct TBOperator{M<:AbstractMatrix}
+struct TBOperator{M <: AbstractMatrix}
     """a concise name for the operator"""
     name::String
 
@@ -38,10 +38,12 @@ real_lattice(tb::TBOperator) = real_lattice(tb.Rspace)
 
 # the Rspace is so simple so we expose it to the user
 function Base.propertynames(tb::TBOperator)
-    return Tuple([
-        collect(fieldnames(typeof(tb.Rspace)))
-        collect(fieldnames(typeof(tb)))
-    ])
+    return Tuple(
+        [
+            collect(fieldnames(typeof(tb.Rspace)))
+            collect(fieldnames(typeof(tb)))
+        ]
+    )
 end
 
 function Base.getproperty(tb::TBOperator, sym::Symbol)
@@ -58,7 +60,7 @@ function Base.show(io::IO, ::MIME"text/plain", tb::TBOperator)
     @printf(io, "Tight-binding operator name  :  %s\n", tb.name)
     show(io, MIME"text/plain"(), tb.Rspace)
     println(io)
-    @printf(io, "n_wannier   =  %d", n_wannier(tb))
+    return @printf(io, "n_wannier   =  %d", n_wannier(tb))
 end
 
 """Index using `i` of Rspace"""
@@ -72,7 +74,7 @@ end
 Base.lastindex(tb::TBOperator) = lastindex(tb.operator)
 Base.length(tb::TBOperator) = length(tb.operator)
 
-function Base.iterate(tb::TBOperator, state=1)
+function Base.iterate(tb::TBOperator, state = 1)
     if state > length(tb.operator)
         return nothing
     else
@@ -119,6 +121,7 @@ function Base.fill!(tb::TBOperator, x)
             O .= x
         end
     end
+    return
 end
 
 function Base.isapprox(a::TBOperator, b::TBOperator; kwargs...)
@@ -262,8 +265,8 @@ Since it interpolates back to Bloch gauge, almost always the 1st field is
 abstract type AbstractTBInterpolator <: Function end
 
 @inline function (interp::AbstractTBInterpolator)(
-    kpoint::AbstractVector{<:Real}, args...; kwargs...
-)
+        kpoint::AbstractVector{<:Real}, args...; kwargs...
+    )
     # unwrap results
     result = interp([kpoint], args...; kwargs...)
     if length(result) == 1
@@ -307,5 +310,5 @@ function Base.show(io::IO, ::MIME"text/plain", interp::AbstractTBInterpolator)
     length(itps) > 0 && @printf(io, "  n_interpolators =  %d\n", length(itps))
     length(ops) > 0 && @printf(io, "  n_operators     =  %d\n", length(ops))
     @printf(io, "  n_Rvectors      =  %d\n", n_Rvectors(interp))
-    @printf(io, "  n_wannier       =  %d", n_wannier(interp))
+    return @printf(io, "  n_wannier       =  %d", n_wannier(interp))
 end

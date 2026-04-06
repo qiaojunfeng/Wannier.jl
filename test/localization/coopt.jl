@@ -16,10 +16,10 @@ end
 
 @testitem "coopt spread" setup = [CooptEnv] begin
     Ω = Wannier.omega(model, λ)
-    @test isapprox(Ω.up.Ω, 5.962059896476422; atol=1e-10)
-    @test isapprox(Ω.dn.Ω, 6.361552430790301; atol=1e-10)
-    @test isapprox(Ω.Ωupdn, 0.6214634458453414; atol=1e-10)
-    @test isapprox(Ω.Ωt, 12.945075773112064; atol=1e-10)
+    @test isapprox(Ω.up.Ω, 5.962059896476422; atol = 1.0e-10)
+    @test isapprox(Ω.dn.Ω, 6.361552430790301; atol = 1.0e-10)
+    @test isapprox(Ω.Ωupdn, 0.6214634458453414; atol = 1.0e-10)
+    @test isapprox(Ω.Ωt, 12.945075773112064; atol = 1.0e-10)
 
     M = [
         0.99979691600997 1.0804427231765106e-20 6.709979456174779e-20 1.4172867197472119e-19 5.4562115775280394e-21 3.447623847355787e-22 3.679953459008748e-22 5.755890238894293e-22 6.411200210202371e-22
@@ -32,7 +32,7 @@ end
         4.5195847621531553e-23 1.1930744532518502e-12 3.1372910651089115e-14 9.301697510058695e-13 2.6089707342721644e-23 4.538841507408542e-24 1.1418418775586505e-24 0.9999488252974881 8.581365868804793e-24
         2.2401277849582583e-22 6.808579760244394e-15 9.892324401437166e-15 4.285861909579054e-15 1.443019694963365e-22 1.7005975766179996e-23 5.073760340439049e-24 2.0913947642096764e-23 0.9999443421189137
     ]
-    @test isapprox(Ω.M, M; atol=1e-10)
+    @test isapprox(Ω.M, M; atol = 1.0e-10)
 end
 
 @testitem "coopt overlap gradient" setup = [CooptEnv] begin
@@ -63,8 +63,8 @@ end
     Gdn_ref = NLSolversBase.gradient!(d, u_dn0)
 
     # I am using a looser tolerance here
-    @test isapprox(stack(Gup), Gup_ref; atol=1e-6)
-    @test isapprox(stack(Gdn), Gdn_ref; atol=1e-6)
+    @test isapprox(stack(Gup), Gup_ref; atol = 1.0e-6)
+    @test isapprox(stack(Gdn), Gdn_ref; atol = 1.0e-6)
 end
 
 @testitem "coopt spread gradient" setup = [CooptEnv] begin
@@ -95,10 +95,10 @@ end
     Wannier.zero_froz_grad!(Gd, model.dn.frozen_bands)
 
     # I am using a looser tolerance here
-    @test isapprox(G, G_ref; atol=1e-6)
+    @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    Uup, Udn = Wannier.disentangle(model, λ; max_iter=1)
+    Uup, Udn = Wannier.disentangle(model, λ; max_iter = 1)
 
     Xup0, Yup0 = Wannier.U_to_X_Y(Uup, model.up.frozen_bands)
     Xdn0, Ydn0 = Wannier.U_to_X_Y(Udn, model.dn.frozen_bands)
@@ -118,5 +118,5 @@ end
     Wannier.zero_froz_grad!(Gd, model.dn.frozen_bands)
 
     # I am using a looser tolerance here
-    @test isapprox(G, G_ref; atol=1e-6)
+    @test isapprox(G, G_ref; atol = 1.0e-6)
 end

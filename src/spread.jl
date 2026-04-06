@@ -27,7 +27,7 @@ From MV:
 - `ω`: Ω of each WF, unit Å², `length(ω) = n_wann`
 - `r`: WF center, Cartesian coordinates, unit Å, `3 * n_wann`
 """
-struct Spread{T<:Real} <: AbstractSpread
+struct Spread{T <: Real} <: AbstractSpread
     # Total spread, unit Å², Ω = ΩI + Ω̃
     Ω::T
 
@@ -120,7 +120,7 @@ function Base.show(io::IO, ::MIME"text/plain", Ω::SpreadCenter)
     @printf(io, "   ΩI  = %11.5f\n", Ω.ΩI)
     @printf(io, "   ΩOD = %11.5f\n", Ω.ΩOD)
     @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
-    @printf(io, "   Ω̃   = %11.5f", Ω.Ω̃)
+    return @printf(io, "   Ω̃   = %11.5f", Ω.Ω̃)
 end
 
 #TODO a bit generic
@@ -129,7 +129,7 @@ mutable struct Cache{T}
     Y::Vector{Matrix{Complex{T}}}
     U::Vector{Matrix{Complex{T}}}
     # n_bands x n_wann x n_kpts
-    G::Array{Complex{T},3}
+    G::Array{Complex{T}, 3}
     r::Vector{Vec3{T}}
     UtMU::Vector{Vector{Matrix{Complex{T}}}}
     MU::Vector{Vector{Matrix{Complex{T}}}}
@@ -137,8 +137,8 @@ end
 
 # TODO remove 1st arg?
 function Cache(
-    bvectors::KspaceStencil{FT}, M::Vector{Vector{Matrix{Complex{FT}}}}, U
-) where {FT}
+        bvectors::KspaceStencil{FT}, M::Vector{Vector{Matrix{Complex{FT}}}}, U
+    ) where {FT}
     n_kpts = length(M)
     n_bands, n_wann = U isa Vector ? size(U[1]) : size.((U,), (1, 2))
     n_bvecs = length(M[1])
@@ -217,7 +217,7 @@ struct CenterSpreadPenalty{T} <: AbstractPenalty
 end
 
 # TODO probably omega should always just return a value not the spread struct
-omega!(p::CenterSpreadPenalty, args...) = (Ω=omega_center(omega!(args...); p.r₀, p.λ).Ωt,)
+omega!(p::CenterSpreadPenalty, args...) = (Ω = omega_center(omega!(args...); p.r₀, p.λ).Ωt,)
 omega(p::CenterSpreadPenalty, args...) = omega_center(omega(args...); p.r₀, p.λ)
 
 function omega_grad!(p::CenterSpreadPenalty, args...)
@@ -247,7 +247,7 @@ function omega_center(args...; kwargs...)
     return omega_center(Ω; kwargs...)
 end
 
-function omega_center(Ω::Spread; r₀::Vector{Vec3{T}}, λ::T) where {T<:Real}
+function omega_center(Ω::Spread; r₀::Vector{Vec3{T}}, λ::T) where {T <: Real}
     ωc = λ .* map(i -> (t = Ω.r[i] - r₀[i]; sum(t .^ 2)), 1:length(r₀))
     ωt = Ω.ω + ωc
     Ωc = sum(ωc)
@@ -255,7 +255,7 @@ function omega_center(Ω::Spread; r₀::Vector{Vec3{T}}, λ::T) where {T<:Real}
     return SpreadCenter(Ω.Ω, Ω.ΩI, Ω.ΩOD, Ω.ΩD, Ω.Ω̃, Ω.ω, Ω.r, Ωc, Ωt, ωc, ωt)
 end
 
-function omega!(cache::Cache, bvectors::KspaceStencil{FT}, M) where {FT<:Real}
+function omega!(cache::Cache, bvectors::KspaceStencil{FT}, M) where {FT <: Real}
     r = cache.r
     fill!(r, zero(eltype(r)))
 
@@ -398,7 +398,7 @@ function Base.show(io::IO, ::MIME"text/plain", Ω::Spread)
     @printf(io, "   Ω̃   = %11.5f\n", Ω.Ω̃)
     @printf(io, "   ΩOD = %11.5f\n", Ω.ΩOD)
     @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
-    @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
+    return @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
 end
 omega_grad!(cache::Cache, bvectors, M) = omega_grad!((r, _) -> r, cache, bvectors, M)
 function omega_grad!(penalty::Function, cache::Cache{T}, bvectors, M) where {T}
@@ -525,8 +525,8 @@ Local part of the contribution to `r^2`.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 function omega_local(
-    bvectors::KspaceStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
-) where {FT<:Real}
+        bvectors::KspaceStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
+    ) where {FT <: Real}
     n_bands, n_wann = size(U[1])
     n_kpts = length(U)
     n_bvecs = length(M[1])
@@ -609,8 +609,8 @@ Compute WF center in reciprocal space.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 function center(
-    bvectors::KspaceStencil{FT}, M::Vector, U::Array{Complex{FT},3}
-) where {FT<:Real}
+        bvectors::KspaceStencil{FT}, M::Vector, U::Array{Complex{FT}, 3}
+    ) where {FT <: Real}
     n_bands, n_wann, n_kpts = size(U)
     n_bvecs = size(M[1], 3)
 
@@ -662,7 +662,7 @@ Compute WF center in reciprocal space for `Model` with given `U` gauge.
 - `model`: the `Model`
 - `U`: `n_wann * n_wann * n_kpts` array
 """
-function center(model::Model, U::Vector{Matrix{T}}) where {T<:Number}
+function center(model::Model, U::Vector{Matrix{T}}) where {T <: Number}
     return center(model.kstencil, model.overlaps, U)
 end
 
@@ -677,8 +677,8 @@ Compute WF postion operator matrix in reciprocal space.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 @views function position_op(
-    bvectors::KspaceStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
-) where {FT<:Real}
+        bvectors::KspaceStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
+    ) where {FT <: Real}
     n_bands, n_wann = size(U[1])
     n_kpts = length(U)
     n_bvecs = length(M[1])
@@ -736,7 +736,7 @@ Compute WF postion operator matrix in reciprocal space for `Model` with given `U
 - `model`: the `Model`
 - `U`: `n_wann * n_wann * n_kpts` array
 """
-function position_op(model::Model, U::Vector{Matrix{T}}) where {T<:Number}
+function position_op(model::Model, U::Vector{Matrix{T}}) where {T <: Number}
     return position_op(model.kstencil, model.overlaps, U)
 end
 
@@ -750,12 +750,12 @@ Wannier-gauge Berry connection in kspace, WYSV Eq. 44 or MV Eq. C14
     MV1997 Eq. 31. wannier90 default is true.
 """
 function compute_berry_connection_kspace(
-    kstencil::KspaceStencil,
-    overlaps::AbstractVector,
-    gauges::AbstractVector;
-    imlog_diag::Bool=true,
-    force_hermiticity::Bool=default_w90_berry_position_force_hermiticity(),
-)
+        kstencil::KspaceStencil,
+        overlaps::AbstractVector,
+        gauges::AbstractVector;
+        imlog_diag::Bool = true,
+        force_hermiticity::Bool = default_w90_berry_position_force_hermiticity(),
+    )
     nkpts = length(gauges)
     @assert nkpts > 0 "empty gauges"
     nwann = size(gauges[1], 2)
@@ -798,8 +798,8 @@ function compute_berry_connection_kspace(
 end
 
 @inline function compute_berry_connection_kspace(
-    model::Model, gauges::AbstractVector=model.gauges; kwargs...
-)
+        model::Model, gauges::AbstractVector = model.gauges; kwargs...
+    )
     return compute_berry_connection_kspace(
         model.kstencil, model.overlaps, gauges; kwargs...
     )

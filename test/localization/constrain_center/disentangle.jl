@@ -36,10 +36,10 @@ end
 
     # The gradient for frozen bands need to be set as 0 explicitly
     Wannier.zero_froz_grad!(G_ref, model.frozen_bands)
-    @test isapprox(G, G_ref; atol=1e-6)
+    @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.disentangle(p, model; max_iter=1)
+    U1 = Wannier.disentangle(p, model; max_iter = 1)
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
@@ -47,21 +47,21 @@ end
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), XY, zero(eltype(real(XY))))
     G_ref = NLSolversBase.gradient!(d, XY)
     Wannier.zero_froz_grad!(G_ref, model.frozen_bands)
-    @test isapprox(G, G_ref; atol=1e-6)
+    @test isapprox(G, G_ref; atol = 1.0e-6)
 end
 
 @testitem "constraint center disentangle" setup = [DisCenterEnv] begin
     using Wannier: Vec3
 
-    Umin = Wannier.disentangle(p, model; max_iter=4)
+    Umin = Wannier.disentangle(p, model; max_iter = 4)
     Ω = Wannier.omega(p, model.kstencil, model.overlaps, Umin)
 
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
     @test Ω.Ω̃ ≈ Ω.ΩOD + Ω.ΩD
-    @test isapprox(Ω.Ω, 12.547748075975804; atol=1e-7)
-    @test isapprox(Ω.ΩI, 7.26151163267514; atol=1e-7)
-    @test isapprox(Ω.ΩOD, 5.053835771792866; atol=1e-7)
-    @test isapprox(Ω.ΩD, 0.2324006715077962; atol=1e-7)
+    @test isapprox(Ω.Ω, 12.547748075975804; atol = 1.0e-7)
+    @test isapprox(Ω.ΩI, 7.26151163267514; atol = 1.0e-7)
+    @test isapprox(Ω.ΩOD, 5.053835771792866; atol = 1.0e-7)
+    @test isapprox(Ω.ΩD, 0.2324006715077962; atol = 1.0e-7)
 
     @test isapprox(
         Ω.ω,
@@ -75,7 +75,7 @@ end
             1.6724422425099998,
             1.6724422522723206,
         ];
-        atol=1e-7,
+        atol = 1.0e-7,
     )
     @test isapprox(
         Ω.r,
@@ -89,12 +89,12 @@ end
             [1.37120626146246, 1.3740755587136024, 1.3740755590792224],
             [1.3740755679738366, 1.3712062621460146, 1.3740755498012156],
         ];
-        atol=1e-7,
+        atol = 1.0e-7,
     )
 
     @test Ω.Ωt ≈ Ω.Ω + Ω.Ωc
-    @test isapprox(Ω.Ωc, 0.09240287146622556; atol=1e-7)
-    @test isapprox(Ω.Ωt, 12.640150947442029; atol=1e-7)
+    @test isapprox(Ω.Ωc, 0.09240287146622556; atol = 1.0e-7)
+    @test isapprox(Ω.Ωt, 12.640150947442029; atol = 1.0e-7)
     @test isapprox(
         Ω.ωc,
         [
@@ -107,7 +107,7 @@ end
             0.007249953719815391,
             0.007249953899540431,
         ];
-        atol=1e-7,
+        atol = 1.0e-7,
     )
     @test isapprox(
         Ω.ωt,
@@ -121,7 +121,7 @@ end
             1.6796921962298152,
             1.679692206171861,
         ];
-        atol=1e-7,
+        atol = 1.0e-7,
     )
     @test Ω.ωt ≈ Ω.ω + Ω.ωc
 end

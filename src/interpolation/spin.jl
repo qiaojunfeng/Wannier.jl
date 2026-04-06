@@ -94,8 +94,8 @@ Interpolate the spin operator and transform it to Bloch gauge.
 - `truncate`: if abs(spin) > 1, truncate them to inside [-1, 1]
 """
 function (interp::SpinProjectionInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}; truncate::Bool=true
-)
+        kpoints::AbstractVector{<:AbstractVector}; truncate::Bool = true
+    )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
     S_k = interp.spin_interpolator(kpoints)

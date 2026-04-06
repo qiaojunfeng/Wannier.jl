@@ -6,7 +6,7 @@
 
     model = read_w90(dataset"Si2_coarse/Si2")
     p = SpreadPenalty()
-    fg! = Wannier.get_fg!_disentangle(p, model);
+    fg! = Wannier.get_fg!_disentangle(p, model)
 end
 
 @testitem "U_to_X_Y X_Y_to_U" setup = [DisentangleEnv] begin
@@ -17,15 +17,15 @@ end
     # X1 != X, Y1 != Y, since the X, Y gauge are arbitrary due to SVD
     # However the U1 should = U2
     U2 = Wannier.X_Y_to_U(X1, Y1)
-    @test isapprox(U1, U2; atol=1e-6)
+    @test isapprox(U1, U2; atol = 1.0e-6)
 end
 
 @testitem "XY_to_X_Y X_Y_to_XY" setup = [DisentangleEnv] begin
     X, Y = Wannier.U_to_X_Y(model.gauges, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
     X1, Y1 = Wannier.XY_to_X_Y(XY, n_bands(model), n_wannier(model))
-    @test isapprox(X, X1; atol=1e-6)
-    @test isapprox(Y, Y1; atol=1e-6)
+    @test isapprox(X, X1; atol = 1.0e-6)
+    @test isapprox(Y, Y1; atol = 1.0e-6)
 end
 
 @testitem "disentangle spread gradient" setup = [DisentangleEnv] begin
@@ -45,11 +45,11 @@ end
 
     # The gradient for frozen bands need to be set as 0 explicitly
     Wannier.zero_froz_grad!(G_ref, model.frozen_bands)
-    @test isapprox(G, G_ref; atol=1e-6)
+    @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
     p = SpreadPenalty()
-    U1 = Wannier.disentangle(p, model; max_iter=1)
+    U1 = Wannier.disentangle(p, model; max_iter = 1)
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
@@ -57,21 +57,21 @@ end
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), XY, zero(eltype(real(XY))))
     G_ref = NLSolversBase.gradient!(d, XY)
     Wannier.zero_froz_grad!(G_ref, model.frozen_bands)
-    @test isapprox(G, G_ref; atol=1e-6)
+    @test isapprox(G, G_ref; atol = 1.0e-6)
 end
 
 @testitem "disentangle" setup = [DisentangleEnv] begin
     p = SpreadPenalty()
-    Umin = Wannier.disentangle(p, model; max_iter=4)
+    Umin = Wannier.disentangle(p, model; max_iter = 4)
     Ω = Wannier.omega(p, model.kstencil, model.overlaps, Umin)
 
     # display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
     @test Ω.Ω̃ ≈ Ω.ΩOD + Ω.ΩD
-    @test isapprox(Ω.Ω, 12.362335109447647; atol=1e-7)
-    @test isapprox(Ω.ΩI, 7.212573765139664; atol=1e-7)
-    @test isapprox(Ω.ΩOD, 4.929849448152594; atol=1e-7)
-    @test isapprox(Ω.ΩD, 0.2199118961553884; atol=1e-7)
+    @test isapprox(Ω.Ω, 12.362335109447647; atol = 1.0e-7)
+    @test isapprox(Ω.ΩI, 7.212573765139664; atol = 1.0e-7)
+    @test isapprox(Ω.ΩOD, 4.929849448152594; atol = 1.0e-7)
+    @test isapprox(Ω.ΩD, 0.2199118961553884; atol = 1.0e-7)
 
     @test isapprox(
         Ω.ω,
@@ -85,7 +85,7 @@ end
             1.6555315134652924,
             1.6555315129852053,
         ];
-        atol=1e-7,
+        atol = 1.0e-7,
     )
     @test isapprox(
         Ω.r,
@@ -99,6 +99,6 @@ end
             [1.357632344302077, 1.3576324993020412, 1.3576325171624346],
             [1.3576324580526173, 1.3576326584763287, 1.3576324408622935],
         ];
-        atol=1e-7,
+        atol = 1.0e-7,
     )
 end

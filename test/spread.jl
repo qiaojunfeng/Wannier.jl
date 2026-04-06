@@ -11,8 +11,8 @@
     @test Ω.ΩD ≈ wout.ΩD
     @test Ω.Ω̃ ≈ wout.ΩD + wout.ΩOD
 
-    @test isapprox(Ω.ω, wout.spreads; atol=1e-8)
-    @test all(isapprox.(Ω.r, wout.centers; atol=1e-6))
+    @test isapprox(Ω.ω, wout.spreads; atol = 1.0e-8)
+    @test all(isapprox.(Ω.r, wout.centers; atol = 1.0e-6))
 end
 
 @testitem "spread gradient" begin
@@ -35,7 +35,7 @@ end
     )
     G_ref = NLSolversBase.gradient!(d, U)
 
-    @test isapprox(G, G_ref; atol=1e-7)
+    @test isapprox(G, G_ref; atol = 1.0e-7)
 end
 
 @testitem "center" begin
@@ -44,5 +44,5 @@ end
     wout = read_wout(dataset"Si2_coarse/outputs/Si2.wout")
 
     r = center(model)
-    @test all(isapprox.(r, wout.centers; atol=1e-6))
+    @test all(isapprox.(r, wout.centers; atol = 1.0e-6))
 end

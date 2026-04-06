@@ -16,10 +16,10 @@ Truncate number of bands of `mmn` and `eig` files.
     lower number of bands again.
 """
 function truncate_mmn_eig(
-    prefix::AbstractString,
-    keep_bands::AbstractVector{Int},
-    outdir::AbstractString="truncate",
-)
+        prefix::AbstractString,
+        keep_bands::AbstractVector{Int},
+        outdir::AbstractString = "truncate",
+    )
     !isdir(outdir) && mkdir(outdir)
 
     # for safety, in case seedname = "../si" then joinpath(outdir, seedname)
@@ -53,11 +53,11 @@ Truncate `UNK` files for specified bands.
 - `binary`: whether to write binary `UNK` files.
 """
 function truncate_unk(
-    dir::AbstractString,
-    keep_bands::AbstractVector{Int},
-    outdir::AbstractString="truncate";
-    binary::Bool=true,
-)
+        dir::AbstractString,
+        keep_bands::AbstractVector{Int},
+        outdir::AbstractString = "truncate";
+        binary::Bool = true,
+    )
     !isdir(outdir) && mkdir(outdir)
 
     regex = r"UNK(\d{5})\.\d"
@@ -76,7 +76,7 @@ function truncate_unk(
         @assert ik == ik1
 
         Ψ1 = Ψ[:, :, :, keep_bands, :]
-        write_unk(joinpath(outdir, unk_base), ik, Ψ1; binary=binary)
+        write_unk(joinpath(outdir, unk_base), ik, Ψ1; binary = binary)
     end
 
     return nothing
@@ -94,11 +94,11 @@ Truncate `mmn`, `eig`, and optionally `UNK` files.
 - outdir: folder for output files.
 """
 function truncate_w90(
-    prefix::AbstractString,
-    keep_bands::AbstractVector{Int},
-    outdir::AbstractString="truncate",
-    unk::Bool=false,
-)
+        prefix::AbstractString,
+        keep_bands::AbstractVector{Int},
+        outdir::AbstractString = "truncate",
+        unk::Bool = false,
+    )
     @info "Truncat AMN/MMN/EIG files"
 
     !isdir(outdir) && mkdir(outdir)
@@ -136,8 +136,8 @@ Truncate `U`, `M`, `E` matrices in `model`.
     The `U` needs to be (semi-)unitary, so it should always be true.
 """
 function truncate(
-    model::Model, keep_bands::T, keep_wfs::Union{T,Nothing}=nothing; orthonorm_U::Bool=true
-) where {T<:AbstractVector{Int}}
+        model::Model, keep_bands::T, keep_wfs::Union{T, Nothing} = nothing; orthonorm_U::Bool = true
+    ) where {T <: AbstractVector{Int}}
     nbands = n_bands(model)
     nwann = n_wannier(model)
     all(1 .<= keep_bands .<= nbands) || error("Invalid band index")

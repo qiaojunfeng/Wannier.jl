@@ -20,23 +20,23 @@ of this function.
 - `symm_point_labels`: labels of the high-symmetry kpoints
 """
 function generate_w90_kpoint_path(
-    recip_lattice::AbstractMatrix,
-    kpoints::AbstractVector,
-    symm_point_indices::AbstractVector,
-    symm_point_labels::AbstractVector,
-)
+        recip_lattice::AbstractMatrix,
+        kpoints::AbstractVector,
+        symm_point_indices::AbstractVector,
+        symm_point_labels::AbstractVector,
+    )
     # kpoints along path
     kpaths = Vector{Vector{Vec3{Float64}}}()
     # symmetry points
-    labels = Vector{Dict{Int,Symbol}}()
+    labels = Vector{Dict{Int, Symbol}}()
 
     i0 = symm_point_indices[1]  # 1st point
-    lab = Dict{Int,Symbol}()  # label of each line
+    lab = Dict{Int, Symbol}()  # label of each line
     push!(lab, i0 => Symbol(symm_point_labels[1]))
     for (i, l) in zip(symm_point_indices[2:end], symm_point_labels[2:end])
         if i == i0 + 1
             push!(labels, lab)
-            lab = Dict{Int,Symbol}()
+            lab = Dict{Int, Symbol}()
         end
         push!(lab, i => Symbol(l))
         i0 = i
@@ -122,8 +122,8 @@ This is a more user-friendly version that works with `KPathInterpolant`;
 the `WannierIO.write_w90_band(prefix; kwargs...)` is the low-level version.
 """
 function write_w90_band(
-    prefix::AbstractString, kpi::KPathInterpolant, eigenvalues::AbstractVector
-)
+        prefix::AbstractString, kpi::KPathInterpolant, eigenvalues::AbstractVector
+    )
     kpoints = get_kpoints(kpi)
     x = get_linear_path(kpi)
     symm_point_indices, symm_point_labels = get_symm_point_indices_labels(kpi)

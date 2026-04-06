@@ -16,7 +16,7 @@ $(FIELDS)
     file, we need to make sure we sort the bvectors in the same ordering as
     wannier90.
 """
-struct KspaceStencil{T<:Real}
+struct KspaceStencil{T <: Real}
     """reciprocal lattice vectors, 3 * 3, each column is a reciprocal lattice
     vector in Å⁻¹ unit"""
     recip_lattice::Mat3{T}
@@ -85,12 +85,12 @@ Generate ``b``-vectors from 1st kpoint, in Cartesian coordinates.
     the bvectors returned by this function are the same as that for other kpoints.
 """
 function get_bvectors(
-    recip_lattice::Mat3,
-    kpoints::AbstractVector,
-    kpb_k::AbstractVector,
-    kpb_G::AbstractVector,
-    ik::Integer=1,
-)
+        recip_lattice::Mat3,
+        kpoints::AbstractVector,
+        kpb_k::AbstractVector,
+        kpb_G::AbstractVector,
+        ik::Integer = 1,
+    )
     (0 < ik <= length(kpoints)) || error("ik out of bounds")
     n_bvecs = length(kpb_k[1])
     bvectors = zeros(Vec3{Float64}, n_bvecs)
@@ -108,12 +108,12 @@ end
 Return ``b``-vectors in fractional coordinates.
 """
 function get_bvectors(
-    kpoints::AbstractVector, kpb_k::AbstractVector, kpb_G::AbstractVector, ik::Integer=1
-)
+        kpoints::AbstractVector, kpb_k::AbstractVector, kpb_G::AbstractVector, ik::Integer = 1
+    )
     return get_bvectors(mat3(I(3)), kpoints, kpb_k, kpb_G, ik)
 end
 
-function get_bvectors(kstencil::KspaceStencil, ik::Integer=1; fractional::Bool=false)
+function get_bvectors(kstencil::KspaceStencil, ik::Integer = 1; fractional::Bool = false)
     if fractional
         return get_bvectors(kstencil.kpoints, kstencil.kpb_k, kstencil.kpb_G, ik)
     else
@@ -137,7 +137,7 @@ function Base.show(io::IO, ::MIME"text/plain", kstencil::KspaceStencil)
     println(io, "\n")
     @printf(io, "kgrid_size  =  %d %d %d\n", kstencil.kgrid_size...)
     @printf(io, "n_kpoints   =  %d\n", n_kpoints(kstencil))
-    @printf(io, "n_bvectors  =  %d", n_bvectors(kstencil))
+    return @printf(io, "n_bvectors  =  %d", n_bvectors(kstencil))
 end
 
 """
@@ -168,7 +168,7 @@ Compute bvector bweights from MV1997 Eq. (B1).
     To reproduce wannier90's behavior,
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
-function compute_bweights(bvectors::Vector{Vec3{T}}; atol=default_w90_kmesh_tol()) where {T}
+function compute_bweights(bvectors::Vector{Vec3{T}}; atol = default_w90_kmesh_tol()) where {T}
     # assume the bvectors are correct: they should be able to be nested into
     # a shell structure
     bvectors_norm = map(norm, bvectors)
@@ -240,10 +240,10 @@ Both input and output `translations` are in fractional coordinates.
     - `atol` should be set to wannier90's internal constant `1e-8`.
 """
 function sort_supercell(
-    translations::AbstractVector,
-    recip_lattice::AbstractMatrix;
-    atol=default_w90_bvectors_sort_supercell_atol(),
-)
+        translations::AbstractVector,
+        recip_lattice::AbstractMatrix;
+        atol = default_w90_bvectors_sort_supercell_atol(),
+    )
     n_cells = length(translations)
     distances = map(translations) do t
         norm(recip_lattice * t)
@@ -302,7 +302,7 @@ function bvectors_to_kpb(bvectors_frac::AbstractVector, k::Vec3, kpoints::Abstra
     # recip_lattice), thus I choose a (somewhat arbitrary) constant `1e-6`.
     for ib in 1:nbvecs
         kpb = k + bvectors_frac[ib]
-        ik = findfirst(isequiv(kpb; atol=1e-6), kpoints)
+        ik = findfirst(isequiv(kpb; atol = 1.0e-6), kpoints)
         isnothing(ik) && error("No equivalent kpoint found for k=$k ib=$ib")
         kpb_k[ib] = ik
         kpb_G[ib] = round.(Int, kpb - kpoints[ik])
@@ -342,15 +342,15 @@ Sorting order:
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
 function sort_kpb(
-    b_norms::AbstractVector,
-    iks::AbstractVector{Int},
-    Gs::AbstractVector{Vec3{Int}},
-    translations::AbstractVector{Vec3{Int}};
-    atol=default_w90_kmesh_tol(),
-)
+        b_norms::AbstractVector,
+        iks::AbstractVector{Int},
+        Gs::AbstractVector{Vec3{Int}},
+        translations::AbstractVector{Vec3{Int}};
+        atol = default_w90_kmesh_tol(),
+    )
     G_idxs = map(Gs) do G
         # this is for comparing fractional coordinates, 1e-6 should be already safe
-        findfirst(isapprox(G; atol=1e-6), translations)
+        findfirst(isapprox(G; atol = 1.0e-6), translations)
     end
 
     lt(i, j) = begin
@@ -400,8 +400,8 @@ to sort bvectors and calculate bweights, since `nnkp` file has no section of bwe
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
 function sort_bvectors(
-    shells::KspaceStencilShells{T}; atol=default_w90_kmesh_tol()
-) where {T}
+        shells::KspaceStencilShells{T}; atol = default_w90_kmesh_tol()
+    ) where {T}
     kpoints = shells.kpoints
     recip_lattice = shells.recip_lattice
 
@@ -497,12 +497,12 @@ Generate bvectors for all the kpoints.
 function generate_kspace_stencil end
 
 function generate_kspace_stencil(
-    recip_lattice::Mat3,
-    kgrid_size::AbstractVector,
-    kpoints::AbstractVector,
-    ::FirstOrderKspaceStencil;
-    atol=default_w90_kmesh_tol(),
-)
+        recip_lattice::Mat3,
+        kgrid_size::AbstractVector,
+        kpoints::AbstractVector,
+        ::FirstOrderKspaceStencil;
+        atol = default_w90_kmesh_tol(),
+    )
     shells = KspaceStencilShells(recip_lattice, kgrid_size, kpoints; atol)
     # generate bvectors for each kpoint
     return sort_bvectors(shells; atol)
@@ -532,12 +532,12 @@ function reorder(stencil::KspaceStencil)
 end
 
 function generate_kspace_stencil(
-    recip_lattice::Mat3,
-    kgrid_size::AbstractVector,
-    kpoints::AbstractVector,
-    ::UnsortedFirstOrderKspaceStencil;
-    atol=default_w90_kmesh_tol(),
-)
+        recip_lattice::Mat3,
+        kgrid_size::AbstractVector,
+        kpoints::AbstractVector,
+        ::UnsortedFirstOrderKspaceStencil;
+        atol = default_w90_kmesh_tol(),
+    )
     # I still sort all the bvectors, since I want the bvector order
     # at Γ to be the same as wannier90
     stencil = generate_kspace_stencil(
@@ -551,8 +551,8 @@ end
 default_kstencil_algo() = FirstOrderKspaceStencil()
 
 function generate_kspace_stencil(
-    recip_lattice::Mat3, kgrid_size::AbstractVector, kpoints::AbstractVector; kwargs...
-)
+        recip_lattice::Mat3, kgrid_size::AbstractVector, kpoints::AbstractVector; kwargs...
+    )
     return generate_kspace_stencil(
         recip_lattice, kgrid_size, kpoints, default_kstencil_algo(); kwargs...
     )
@@ -579,12 +579,12 @@ This is a reverse search of bvector index if you only know the two kpoints
 - `G`: displacement vector from `k1` to `k2`, e.g. `Vec3{Int}`
 """
 function index_bvector(
-    kpb_k::AbstractVector,
-    kpb_G::AbstractVector,
-    ik::Integer,
-    ikpb::Integer,
-    G::AbstractVector,
-)
+        kpb_k::AbstractVector,
+        kpb_G::AbstractVector,
+        ik::Integer,
+        ikpb::Integer,
+        G::AbstractVector,
+    )
     for (jb, (jk, jG)) in enumerate(zip(kpb_k[ik], kpb_G[ik]))
         if jk == ikpb && jG == G
             return jb
@@ -599,8 +599,8 @@ end
 See also [`index_bvector`](@ref).
 """
 function index_bvector(
-    kstencil::KspaceStencil, ik::Integer, ikpb::Integer, G::AbstractVector
-)
+        kstencil::KspaceStencil, ik::Integer, ikpb::Integer, G::AbstractVector
+    )
     return index_bvector(kstencil.kpb_k, kstencil.kpb_G, ik, ikpb, G)
 end
 
@@ -615,12 +615,12 @@ Get the index of b vector.
 - `b`: fractional coordinates
 """
 function index_bvector(
-    kpoints::AbstractVector,
-    kpb_k::AbstractVector,
-    kpb_G::AbstractVector,
-    ik::Integer,
-    b::AbstractVector,
-)
+        kpoints::AbstractVector,
+        kpb_k::AbstractVector,
+        kpb_G::AbstractVector,
+        ik::Integer,
+        b::AbstractVector,
+    )
     bvecs = get_bvectors(kpoints, kpb_k, kpb_G, ik)
     return findfirst(isapprox(b), bvecs)
 end
@@ -630,11 +630,11 @@ function index_bvector(kstencil::KspaceStencil, ik::Integer, b::AbstractVector)
 end
 
 function generate_kspace_stencil(
-    recip_lattice::Mat3,
-    kgrid_size::AbstractVector,
-    kpoints::AbstractVector,
-    ::CubicNearestKspaceStencil,
-)
+        recip_lattice::Mat3,
+        kgrid_size::AbstractVector,
+        kpoints::AbstractVector,
+        ::CubicNearestKspaceStencil,
+    )
     dkx, dky, dkz = 1 ./ kgrid_size
     T = eltype(recip_lattice)
 

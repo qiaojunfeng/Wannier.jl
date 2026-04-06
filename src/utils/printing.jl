@@ -13,6 +13,7 @@ function show_lattice(io, lattice::Mat3)
     for (i, vec) in enumerate(eachcol(lattice))
         @printf(io, "  a%s = %9.6f %9.6f %9.6f\n", to_subscript(i), vec...)
     end
+    return
 end
 
 function show_recip_lattice(io, recip_lattice::Mat3)
@@ -20,4 +21,5 @@ function show_recip_lattice(io, recip_lattice::Mat3)
     for (i, vec) in enumerate(eachcol(recip_lattice))
         @printf(io, "  b%s = %9.6f %9.6f %9.6f\n", to_subscript(i), vec...)
     end
+    return
 end

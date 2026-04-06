@@ -5,7 +5,7 @@ Traditionally, we run two independent Wannierizations for spin up and spin down.
 Here we add a constraint to maximally overlap the spin-up and spin-down WFs,
 so that they map one-by-one to each other.
 """
-struct MagModel{T<:Real}
+struct MagModel{T <: Real}
     # submodel for spin up
     up::Model{T}
 
@@ -42,7 +42,7 @@ end
 #     MagModel(up, dn)
 # end
 
-struct SpreadMag{T<:Real,S<:AbstractSpread} <: AbstractSpread
+struct SpreadMag{T <: Real, S <: AbstractSpread} <: AbstractSpread
     # up spread
     up::S
 
@@ -96,7 +96,7 @@ function Base.show(io::IO, M::MIME"text/plain", Ω::SpreadMag)
     @printf(io, "   Ω↑  = %11.5f\n", Ω.up.Ω)
     @printf(io, "   Ω↓  = %11.5f\n", Ω.dn.Ω)
     @printf(io, "   Ω↑↓ = %11.5f\n", Ω.Ωupdn)
-    @printf(io, "   Ωt  = %11.5f\n", Ω.Ωt)
+    return @printf(io, "   Ωt  = %11.5f\n", Ω.Ωt)
 end
 
 """
@@ -249,7 +249,7 @@ end
 
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
-function get_fg!_disentangle(model::MagModel, λ::Real=1.0)
+function get_fg!_disentangle(model::MagModel, λ::Real = 1.0)
     nb = n_bands(model.up)
     nw = n_wannier(model.up)
     nk = n_kpoints(model.up)
@@ -336,13 +336,13 @@ Run disentangle on a `MagModel`.
 - `history_size`: history size of LBFGS
 """
 function disentangle(
-    model::MagModel{T},
-    λ::T=1.0;
-    f_tol::T=1e-7,
-    g_tol::T=1e-5,
-    max_iter::Int=200,
-    history_size::Int=3,
-) where {T<:Real}
+        model::MagModel{T},
+        λ::T = 1.0;
+        f_tol::T = 1.0e-7,
+        g_tol::T = 1.0e-5,
+        max_iter::Int = 200,
+        history_size::Int = 3,
+    ) where {T <: Real}
     nb = n_bands(model.up)
     nw = n_wannier(model.up)
     nk = n_kpoints(model.up)
@@ -398,13 +398,13 @@ function disentangle(
         f,
         g!,
         XY0,
-        meth(; manifold=XYManif, linesearch=ls, m=history_size),
+        meth(; manifold = XYManif, linesearch = ls, m = history_size),
         Optim.Options(;
-            show_trace=true,
-            iterations=max_iter,
-            f_tol=f_tol,
-            g_tol=g_tol,
-            allow_f_increases=true,
+            show_trace = true,
+            iterations = max_iter,
+            f_tol = f_tol,
+            g_tol = g_tol,
+            allow_f_increases = true,
         ),
     )
     display(opt)

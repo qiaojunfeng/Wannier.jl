@@ -13,7 +13,7 @@ Read `win` and `mmn` files, and read `amn`/`eig` files if they exist.
 - kstencil_algo: algorithm to generate `KspaceStencil` if `use_mmn_bvecs` is `false`.
     Default is `generate_kspace_stencil`.
 """
-function read_w90(prefix::AbstractString; ortho_amn::Bool=true, use_mmn_bvecs::Bool=true, kstencil_algo::KspaceStencilAlgorithm=default_kstencil_algo())
+function read_w90(prefix::AbstractString; ortho_amn::Bool = true, use_mmn_bvecs::Bool = true, kstencil_algo::KspaceStencilAlgorithm = default_kstencil_algo())
     win = read_win(prefix * ".win")
     nbands = win.num_bands
     nwann = win.num_wann
@@ -39,7 +39,7 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool=true, use_mmn_bvecs::B
         @assert kstencil.kpb_k == kpb_k "auto generated kpb_k are different from mmn file"
         @assert kstencil.kpb_G == kpb_G "auto generated kpb_G are different from mmn file"
         # overlaps = zeros_overlap(ComplexF64, nkpts, nbvecs, nbands)
-        # @warn "$prefix.mmn file does not exist, set M to zeros"    
+        # @warn "$prefix.mmn file does not exist, set M to zeros"
     end
 
     if isfile(prefix * ".amn")
@@ -101,7 +101,7 @@ Return a `Model` with U matrix filled by that from a chk file.
 # Arguments
 - chk: path of chk file to get the unitary matrices.
 """
-function read_w90_with_chk(prefix::AbstractString, chk::AbstractString="$prefix.chk")
+function read_w90_with_chk(prefix::AbstractString, chk::AbstractString = "$prefix.chk")
     model = read_w90(prefix)
     fchk = read_chk(chk)
     model.gauges .= get_U(fchk)
@@ -116,7 +116,7 @@ Write `Model` into `eig`, `mmn`, `amn` files.
 # Keyword arguments
 - `binary`: write `eig`, `mmn`, and `amn` in Fortran binary format
 """
-function write_w90(prefix::AbstractString, model::Model; binary::Bool=false)
+function write_w90(prefix::AbstractString, model::Model; binary::Bool = false)
     outname(suffix) = "$prefix.$suffix"
 
     write_eig(outname("eig"), model.eigenvalues; binary)

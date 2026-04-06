@@ -40,20 +40,20 @@ See also [`write_cube(filename, filename, atom_positions, atom_numbers, origin, 
 (@ref write_cube(filename, filename, atom_positions, atom_numbers, origin, span_vectors, W))
 """
 function write_cube(
-    filename::AbstractString,
-    lattice::AbstractMatrix{T},
-    atom_positions::AbstractMatrix{T},
-    atom_numbers::AbstractVector{Int},
-    wf_centers::AbstractVector{T},
-    rgrid::RGrid,
-    W::AbstractArray{T,3};
-    radius::T=4.0,
-) where {T<:Real}
+        filename::AbstractString,
+        lattice::AbstractMatrix{T},
+        atom_positions::AbstractMatrix{T},
+        atom_numbers::AbstractVector{Int},
+        wf_centers::AbstractVector{T},
+        rgrid::RGrid,
+        W::AbstractArray{T, 3};
+        radius::T = 4.0,
+    ) where {T <: Real}
     O = origin(rgrid)
     spanvec = span_vectors(rgrid)
     # move atom closer to WF center
     n_atoms = size(atom_positions, 2)
-    atom_c = sum(atom_positions; dims=2) / n_atoms
+    atom_c = sum(atom_positions; dims = 2) / n_atoms
     # translations for atoms, and to cartesian
     t = round.(wf_centers .- atom_c)
     positions = lattice * (atom_positions .+ t)

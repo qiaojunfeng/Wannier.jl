@@ -3,8 +3,8 @@
     using Wannier.Datasets
     hamiltonian, position, spin = read_w90_tb_chk_spn(
         dataset"Fe_soc/outputs/MDRS/Fe";
-        spn=dataset"Fe_soc/Fe.spn",
-        chk=dataset"Fe_soc/outputs/Fe.chk",
+        spn = dataset"Fe_soc/Fe.spn",
+        chk = dataset"Fe_soc/outputs/Fe.chk",
     )
     # project onto the z axis
     θ = 0.0
@@ -23,11 +23,11 @@
     # postw90.x has a bug, it misses the `H` point at 417
     kpoints = get_kpoints(kpi)
     deleteat!(kpoints, 417)
-    @test all(norm.(kpoints - ref_kpt.kpoints) .< 1e-6)
+    @test all(norm.(kpoints - ref_kpt.kpoints) .< 1.0e-6)
     ##
     eigenvalues = HamiltonianInterpolator(hamiltonian)(kpoints)[1]
-    @test all(norm.(eigenvalues - ref_dat.eigenvalues) .< 2e-6)
+    @test all(norm.(eigenvalues - ref_dat.eigenvalues) .< 2.0e-6)
 
     Sz = interp(kpoints)
-    @test all(isapprox.(Sz, ref_dat.extras; atol=5e-5))
+    @test all(isapprox.(Sz, ref_dat.extras; atol = 5.0e-5))
 end

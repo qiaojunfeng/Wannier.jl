@@ -23,7 +23,7 @@ Using these accronyms,
 the fields are defined as follows:
 $(FIELDS)
 """
-struct Model{T<:Real}
+struct Model{T <: Real}
     """unit cell, 3 * 3, each column is a lattice vector in Å unit"""
     lattice::Mat3{T}
 
@@ -86,16 +86,16 @@ function Base.getproperty(model::Model, sym::Symbol)
 end
 
 function Model(
-    lattice::AbstractMatrix,
-    atom_positions::AbstractVector,
-    atom_labels::AbstractVector,
-    kstencil::KspaceStencil,
-    overlaps::AbstractVector,
-    gauges::AbstractVector,
-    eigenvalues::AbstractVector,
-    frozen_bands::AbstractVector,
-    entangled_bands::AbstractVector=default_entangled_bands(gauges),
-)
+        lattice::AbstractMatrix,
+        atom_positions::AbstractVector,
+        atom_labels::AbstractVector,
+        kstencil::KspaceStencil,
+        overlaps::AbstractVector,
+        gauges::AbstractVector,
+        eigenvalues::AbstractVector,
+        frozen_bands::AbstractVector,
+        entangled_bands::AbstractVector = default_entangled_bands(gauges),
+    )
     # I introduce another set of accronyms for the dimensions of the matrices,
     # natoms -> n_atoms, nkpts -> n_kpoints, nbands -> n_bands, nwann -> n_wannier
     # so that they don't clash with those function names.
@@ -149,13 +149,13 @@ For instance, use a cubic-6-neighbors `KspaceStencil` for
 [`parallel_transport`](@ref).
 """
 function Model(
-    model::Model,
-    kstencil::KspaceStencil,
-    overlaps::AbstractVector,
-    gauges::AbstractVector=model.gauges,
-    eigenvalues::AbstractVector=model.eigenvalues,
-    frozen_bands::AbstractVector=model.frozen_bands,
-)
+        model::Model,
+        kstencil::KspaceStencil,
+        overlaps::AbstractVector,
+        gauges::AbstractVector = model.gauges,
+        eigenvalues::AbstractVector = model.eigenvalues,
+        frozen_bands::AbstractVector = model.frozen_bands,
+    )
     return Model(
         model.lattice,
         model.atom_positions,

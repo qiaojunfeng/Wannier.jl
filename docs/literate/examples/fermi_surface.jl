@@ -93,13 +93,13 @@ E, V = interp(kpi);
 
 # plot band difference
 using PlotlyJS
-P = plot_band_diff(kpi, E_qe, E; fermi_energy=εF)
+P = plot_band_diff(kpi, E_qe, E; fermi_energy = εF)
 Main.HTMLPlot(P, 500)  # hide
 
 #=
 then interpolate the Fermi surface on a ``30 \times 30 \times 30`` mesh
 =#
-kpoints, E_fs = Wannier.fermi_surface(interp_model; n_k=30);
+kpoints, E_fs = Wannier.fermi_surface(interp_model; n_k = 30);
 
 #=
 save to a `bxsf` file
@@ -114,7 +114,7 @@ using PlotlyJS
 
 # primitive reciprocal basis associated with k-path
 bxsf = Wannier.read_bxsf(dataset"Cu/outputs/Cu.bxsf")
-fig = WannierPlots.plot_fermisurf_plotly(bxsf.rgrid, bxsf.fermi_energy, bxsf.E; kpath=kpath)
+fig = WannierPlots.plot_fermisurf_plotly(bxsf.rgrid, bxsf.fermi_energy, bxsf.E; kpath = kpath)
 fig.layout.width = 500
 fig.layout.height = 500
 fig.layout.autosize = false

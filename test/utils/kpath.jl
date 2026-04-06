@@ -33,7 +33,7 @@
     )
     @test ref_kpath["points"] == win_kpath.points
     @test ref_kpath["paths"] == win_kpath.paths
-    @test isapprox(ref_kpath["basis"], win_kpath.basis; atol=1e-5)
+    @test isapprox(ref_kpath["basis"], win_kpath.basis; atol = 1.0e-5)
     @test Symbol(ref_kpath["setting"]) == Symbol(win_kpath.setting)
 end
 
@@ -49,7 +49,7 @@ end
     kpath = generate_kpath(lattice, win.kpoint_path)
     kpi = generate_w90_kpoint_path(kpath, n_points)
 
-    @test all(isapprox.(kpi.kpaths, ref_kpi.kpaths; atol=1e-5))
+    @test all(isapprox.(kpi.kpaths, ref_kpi.kpaths; atol = 1.0e-5))
     # If in the kpath block of win file, there are two kpoints with same label but
     # different coordinates, I will append a number to the repeated label in read_win,
     # so I only compare label without number.
@@ -86,5 +86,5 @@ end
 
     kpoint_path = generate_kpath(lattice, win.kpoint_path)
     kpi = Wannier.generate_w90_kpoint_path(kpoint_path)
-    @test all(isapprox.(banddat.x, Wannier.get_linear_path(kpi); atol=1e-5))
+    @test all(isapprox.(banddat.x, Wannier.get_linear_path(kpi); atol = 1.0e-5))
 end

@@ -19,8 +19,8 @@ Assumptions:
 - `log_interp`: use logarithmic interpolation method
 """
 function parallel_transport(
-    model::Model{T}; use_U::Bool=false, log_interp::Bool=false
-) where {T<:Real}
+        model::Model{T}; use_U::Bool = false, log_interp::Bool = false
+    ) where {T <: Real}
     if log_interp
         println("log interpolation")
     else
@@ -321,7 +321,7 @@ end
 
 Compute the smoothness error of the gauge.
 """
-function compute_error(model::Model{T}, U::Vector{Matrix{Complex{T}}}) where {T<:Real}
+function compute_error(model::Model{T}, U::Vector{Matrix{Complex{T}}}) where {T <: Real}
     # initial error
     ϵ0 = 0.0
     # final error
@@ -394,8 +394,8 @@ function compute_error(model::Model{T}, U::Vector{Matrix{Complex{T}}}) where {T<
     ϵ0 = sqrt(ϵ0) / n_kpoints(model)
     ϵ1 = sqrt(ϵ1) / n_kpoints(model)
 
-    println("initial error = ", round(ϵ0; digits=4))
-    println("final error   = ", round(ϵ1; digits=4))
+    println("initial error = ", round(ϵ0; digits = 4))
+    println("final error   = ", round(ϵ1; digits = 4))
     println()
 
     return ϵ0, ϵ1

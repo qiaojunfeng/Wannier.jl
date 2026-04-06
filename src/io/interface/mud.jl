@@ -1,4 +1,3 @@
-
 @doc raw"""
     compute_mud(dir_up, dir_dn)
 
@@ -28,10 +27,10 @@ space, the difference is on the order of 1e-13.
 """
 function compute_mud(dir_up::AbstractString, dir_dn::AbstractString)
     unk_up = filter(x -> startswith(x, "UNK"), readdir(dir_up))
-    unk_up = sort(unk_up; by=x -> parse(Int, x[4:(end - 2)]))
+    unk_up = sort(unk_up; by = x -> parse(Int, x[4:(end - 2)]))
 
     unk_dn = filter(x -> startswith(x, "UNK"), readdir(dir_dn))
-    unk_dn = sort(unk_dn; by=x -> parse(Int, x[4:(end - 2)]))
+    unk_dn = sort(unk_dn; by = x -> parse(Int, x[4:(end - 2)]))
 
     @assert length(unk_up) == length(unk_dn)
     n_kpts = length(unk_up)

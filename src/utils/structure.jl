@@ -7,7 +7,7 @@ export real_lattice, reciprocal_lattice
 
 Get atom number from symbol.
 """
-function get_atom_number(symbol::Union{AbstractString,Symbol})
+function get_atom_number(symbol::Union{AbstractString, Symbol})
     return get_atom_number([symbol])[1]
 end
 

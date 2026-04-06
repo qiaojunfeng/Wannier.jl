@@ -10,7 +10,7 @@
     # hamiltonian, position = read_w90_tb(dataset"Fe_soc/outputs/MDRS/Fe")
     model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/outputs/Fe.chk")
     hamiltonian = TBHamiltonian(model)
-    position = TBPosition(model; imlog_diag=false)
+    position = TBPosition(model; imlog_diag = false)
     win = read_win(dataset"Fe_soc/Fe.win")
     interp = Wannier.BerryCurvatureInterpolator(hamiltonian, position, win.fermi_energy)
 
@@ -29,11 +29,11 @@
     # postw90.x has a bug, it misses the `H` point at 417
     kpoints = get_kpoints(kpi)
     deleteat!(kpoints, 417)
-    @test all(norm.(kpoints - ref_kpt.kpoints) .< 1e-6)
+    @test all(norm.(kpoints - ref_kpt.kpoints) .< 1.0e-6)
 
     # summed over bands
     Ω = interp(kpoints, Wannier.WYSV06())
-    @test all(isapprox.(Ω, ref_Ω; atol=5e-6))
+    @test all(isapprox.(Ω, ref_Ω; atol = 5.0e-6))
 
     # band-resolved Berry curvature
     Ω_band = interp(kpoints, Wannier.WYSV06BandResolved())
@@ -42,8 +42,8 @@
     Ω_band_sum = map(zip(Ω_band, occupations)) do (Ωₖ, fₖ)
         sum(fₖ .* Ωₖ)
     end
-    @test all(isapprox.(Ω, Ω_band_sum; atol=1e-10))
+    @test all(isapprox.(Ω, Ω_band_sum; atol = 1.0e-10))
 
     Ω = interp(kpoints, Wannier.LVTS12())
-    @test all(isapprox.(Ω, ref_Ω; atol=5e-6))
+    @test all(isapprox.(Ω, ref_Ω; atol = 5.0e-6))
 end

@@ -26,34 +26,34 @@ end
     G_ref = NLSolversBase.gradient!(d, U0)
 
     # I am using a looser tolerance here
-    @test isapprox(G, G_ref; atol=1e-6)
+    @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.max_localize(p, model; max_iter=1)
+    U1 = Wannier.max_localize(p, model; max_iter = 1)
     U1 = stack(U1)
 
     fg!(nothing, G, U1)
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), U1, zero(eltype(real(U1))))
     G_ref = NLSolversBase.gradient!(d, U1)
-    @test isapprox(G, G_ref; atol=1e-6)
+    @test isapprox(G, G_ref; atol = 1.0e-6)
 end
 
 @testitem "constraint center maxloc valence" setup = [MaxlocCenterEnv] begin
-    Umin = Wannier.max_localize(p, model; max_iter=4)
+    Umin = Wannier.max_localize(p, model; max_iter = 4)
     Ω = Wannier.omega(p, model.kstencil, model.overlaps, Umin)
 
     # display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
     @test Ω.Ω̃ ≈ Ω.ΩOD + Ω.ΩD
-    @test isapprox(Ω.Ω, 30.11589846146567; atol=1e-7)
-    @test isapprox(Ω.ΩI, 3.706376531801815; atol=1e-7)
-    @test isapprox(Ω.ΩOD, 6.166406390333415; atol=1e-7)
-    @test isapprox(Ω.ΩD, 20.24311553933044; atol=1e-7)
+    @test isapprox(Ω.Ω, 30.11589846146567; atol = 1.0e-7)
+    @test isapprox(Ω.ΩI, 3.706376531801815; atol = 1.0e-7)
+    @test isapprox(Ω.ΩOD, 6.166406390333415; atol = 1.0e-7)
+    @test isapprox(Ω.ΩD, 20.24311553933044; atol = 1.0e-7)
 
     @test isapprox(
         Ω.ω,
         [7.18477647718601, 7.5174589128747575, 8.485999979449879, 6.927663091955029];
-        atol=1e-7,
+        atol = 1.0e-7,
     )
     @test isapprox(
         Ω.r,
@@ -63,21 +63,21 @@ end
             [-0.12106696606828928, -0.10699898366786562, -0.0775247363763475],
             [0.007623200427533831, -0.16940228161351428, 0.5054673027513011],
         ];
-        atol=1e-7,
+        atol = 1.0e-7,
     )
 
     @test Ω.Ωt ≈ Ω.Ω + Ω.Ωc
-    @test isapprox(Ω.Ωc, 14.715367316738073; atol=1e-7)
-    @test isapprox(Ω.Ωt, 44.83126577820374; atol=1e-7)
+    @test isapprox(Ω.Ωc, 14.715367316738073; atol = 1.0e-7)
+    @test isapprox(Ω.Ωt, 44.83126577820374; atol = 1.0e-7)
     @test isapprox(
         Ω.ωc,
         [1.353463644257367, 10.198218493676137, 0.32116077529158654, 2.8425244035129826];
-        atol=1e-7,
+        atol = 1.0e-7,
     )
     @test isapprox(
         Ω.ωt,
         [8.538240121443376, 17.715677406550896, 8.807160754741465, 9.770187495468011];
-        atol=1e-7,
+        atol = 1.0e-7,
     )
     @test Ω.ωt ≈ Ω.ω + Ω.ωc
 end

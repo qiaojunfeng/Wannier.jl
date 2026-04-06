@@ -28,11 +28,11 @@ n-th nearest neighboring atoms to WF centers.
     periodically repeated atoms which are the actual nearest neighbors of `points`
 """
 function find_neighbors(
-    points::AbstractVector{T},
-    n_neighbors::Integer,
-    lattice::AbstractMatrix,
-    atom_positions::AbstractVector,
-) where {T<:AbstractVector}
+        points::AbstractVector{T},
+        n_neighbors::Integer,
+        lattice::AbstractMatrix,
+        atom_positions::AbstractVector,
+    ) where {T <: AbstractVector}
     @assert n_neighbors > 0
     @assert size(lattice) == (3, 3)
 
@@ -50,7 +50,7 @@ function find_neighbors(
         # in fractional coordinates so that the comparison is independent of lattice length
         atom_wrapped = periodic_atoms[idx] .- translations[i]
         # find indexes of atom in atom_positions
-        map(v -> findfirst(isapprox(v; atol=1e-6), atom_positions), atom_wrapped)
+        map(v -> findfirst(isapprox(v; atol = 1.0e-6), atom_positions), atom_wrapped)
     end
 
     return distances, indices, translations
@@ -64,11 +64,11 @@ Find several neighboring atoms (including its periodic images) to a single `poin
 See also [`find_neighbors`](@ref) for mutliple input points.
 """
 function find_neighbors(
-    point::AbstractVector{T},
-    n_neighbors::Integer,
-    lattice::AbstractMatrix,
-    atom_positions::AbstractVector,
-) where {T<:Real}
+        point::AbstractVector{T},
+        n_neighbors::Integer,
+        lattice::AbstractMatrix,
+        atom_positions::AbstractVector,
+    ) where {T <: Real}
     @assert length(point) == 3
     distances, indices, translations = find_neighbors(
         [point], n_neighbors, lattice, atom_positions
@@ -95,8 +95,8 @@ find_nearest_neighbor(centers, wout.lattice, wout.atom_positions)
 ```
 """
 function find_nearest_neighbor(
-    centers::AbstractVector{T}, lattice::AbstractMatrix, atom_positions::AbstractVector
-) where {T<:AbstractVector}
+        centers::AbstractVector{T}, lattice::AbstractMatrix, atom_positions::AbstractVector
+    ) where {T <: AbstractVector}
     @assert length(centers) > 0 "Empty centers"
     # unwrap the result
     distances, indices, translations = find_neighbors(centers, 1, lattice, atom_positions)

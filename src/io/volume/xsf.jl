@@ -50,13 +50,13 @@ grid origin and spanning vectors.
 See also [`WannierIO.write_xsf`](@ref)
 """
 function write_xsf(
-    filename::AbstractString,
-    lattice::AbstractMatrix,
-    atom_positions::AbstractVector{V},
-    atom_numbers::AbstractVector,
-    rgrid::Union{RGrid,Nothing}=nothing,
-    W::Union{AbstractArray{T,3},Nothing}=nothing,
-) where {V<:AbstractVector,T<:Real}
+        filename::AbstractString,
+        lattice::AbstractMatrix,
+        atom_positions::AbstractVector{V},
+        atom_numbers::AbstractVector,
+        rgrid::Union{RGrid, Nothing} = nothing,
+        W::Union{AbstractArray{T, 3}, Nothing} = nothing,
+    ) where {V <: AbstractVector, T <: Real}
     if isnothing(rgrid) || isnothing(W)
         return WannierIO.write_xsf(filename, lattice, atom_positions, atom_numbers)
     end

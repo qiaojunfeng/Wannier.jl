@@ -30,8 +30,8 @@ Cartesian directions.
 YWVS Eq. 28.
 """
 function (interp::HamiltonianHessianInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}; kwargs...
-)
+        kpoints::AbstractVector{<:AbstractVector}; kwargs...
+    )
     @assert n_Rvectors(interp.hamiltonian) > 0 "empty Hamiltonian"
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
@@ -114,8 +114,8 @@ struct AnalyticEffectiveMass <: AbstractEffectiveMassAlgorithm end
 struct FiniteDifferenceEffectiveMass <: AbstractEffectiveMassAlgorithm end
 
 @inline function (interp::EffectiveMassInterpolator)(
-    kpi::KPathInterpolant, args...; kwargs...
-)
+        kpi::KPathInterpolant, args...; kwargs...
+    )
     kpoints = get_kpoints(kpi)
     return interp(kpoints, args...; kwargs...)
 end
@@ -128,8 +128,8 @@ Compute the inverse of effective mass using Wannier interpolation.
 YWVS Eq.28
 """
 function (interp::EffectiveMassInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}, ::AnalyticEffectiveMass; kwargs...
-)
+        kpoints::AbstractVector{<:AbstractVector}, ::AnalyticEffectiveMass; kwargs...
+    )
     hessian_interp = HamiltonianHessianInterpolator(interp.hamiltonian)
     d²Hᴴ = hessian_interp(kpoints; kwargs...)
 
@@ -150,11 +150,11 @@ Apply twice PRB 93, 205147 (2016)  Eq. 80.
 - `dk`: the finite difference spacing, Å⁻¹ unit, default to `1e-3`
 """
 function (interp::EffectiveMassInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector},
-    ::FiniteDifferenceEffectiveMass;
-    dk=1e-3,
-    kwargs...,
-)
+        kpoints::AbstractVector{<:AbstractVector},
+        ::FiniteDifferenceEffectiveMass;
+        dk = 1.0e-3,
+        kwargs...,
+    )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
     nwann = n_wannier(interp.hamiltonian)

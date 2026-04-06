@@ -9,10 +9,10 @@ end
 
 @testitem "realspace xsf" setup = [RealspaceEnv] begin
     using Printf
-    outdir = mktempdir(; cleanup=true)
+    outdir = mktempdir(; cleanup = true)
     outseedname = joinpath(outdir, "wjl")
 
-    write_realspace_wf(outseedname, RealspaceEnv.model; n_supercells=3, RealspaceEnv.unkdir)
+    write_realspace_wf(outseedname, RealspaceEnv.model; n_supercells = 3, RealspaceEnv.unkdir)
 
     for i in 1:n_wannier(RealspaceEnv.model)
         outxsf = read_xsf(joinpath(outdir, @sprintf("wjl_%05d.xsf", i)))
@@ -20,16 +20,16 @@ end
             joinpath(RealspaceEnv.unkdir, "outputs", @sprintf("Si2_%05d.xsf", i))
         )
 
-        @test all(isapprox.(outxsf.W, refxsf.W; atol=1e-4))
-        @test isapprox(outxsf.atom_positions, refxsf.atom_positions; atol=1e-5)
+        @test all(isapprox.(outxsf.W, refxsf.W; atol = 1.0e-4))
+        @test isapprox(outxsf.atom_positions, refxsf.atom_positions; atol = 1.0e-5)
         # refxsf.atoms = ["si", "si"], written by wannier90
         @test parse.(Int, outxsf.atoms) == Wannier.get_atom_number(titlecase.(refxsf.atoms))
-        @test isapprox(outxsf.convvec, refxsf.convvec; atol=1e-5)
-        @test isapprox(outxsf.primvec, refxsf.primvec; atol=1e-5)
-        @test isapprox(outxsf.rgrid.X, refxsf.rgrid.X; atol=1e-5)
-        @test isapprox(outxsf.rgrid.Y, refxsf.rgrid.Y; atol=1e-5)
-        @test isapprox(outxsf.rgrid.Z, refxsf.rgrid.Z; atol=1e-5)
-        @test isapprox(outxsf.rgrid.basis, refxsf.rgrid.basis; atol=1e-5)
+        @test isapprox(outxsf.convvec, refxsf.convvec; atol = 1.0e-5)
+        @test isapprox(outxsf.primvec, refxsf.primvec; atol = 1.0e-5)
+        @test isapprox(outxsf.rgrid.X, refxsf.rgrid.X; atol = 1.0e-5)
+        @test isapprox(outxsf.rgrid.Y, refxsf.rgrid.Y; atol = 1.0e-5)
+        @test isapprox(outxsf.rgrid.Z, refxsf.rgrid.Z; atol = 1.0e-5)
+        @test isapprox(outxsf.rgrid.basis, refxsf.rgrid.basis; atol = 1.0e-5)
     end
 end
 
@@ -44,7 +44,7 @@ end
 
     px_orb = normalize(
         Wannier.WannierFunction(
-            wfc_grid, [SVector(((p[1] + 0im) * ℯ^(-norm(p)^2)),) for p in wfc_grid]
+            wfc_grid, [SVector(((p[1] + 0im) * ℯ^(-norm(p)^2))) for p in wfc_grid]
         ),
     )
 
@@ -57,13 +57,13 @@ end
 
     py_orb = normalize(
         WannierFunction(
-            wfc_grid, [SVector(((p[2] + 0im) * ℯ^(-norm(p)^2)),) for p in wfc_grid]
+            wfc_grid, [SVector(((p[2] + 0im) * ℯ^(-norm(p)^2))) for p in wfc_grid]
         ),
     )
 
     pz_orb = normalize(
         WannierFunction(
-            wfc_grid, [SVector(((p[3] + 0im) * ℯ^(-norm(p)^2)),) for p in wfc_grid]
+            wfc_grid, [SVector(((p[3] + 0im) * ℯ^(-norm(p)^2))) for p in wfc_grid]
         ),
     )
 
@@ -74,14 +74,14 @@ end
     Ly = zeros(ComplexF64, 3, 3)
     Lz = zeros(ComplexF64, 3, 3)
     for (i1, p1) in enumerate((px_orb, py_orb, pz_orb)),
-        (i2, p2) in enumerate((px_orb, py_orb, pz_orb))
+            (i2, p2) in enumerate((px_orb, py_orb, pz_orb))
 
         Lx[i1, i2], Ly[i1, i2], Lz[i1, i2] = Wannier.calc_angmom(p1, p2, zero(Vec3))
     end
 
-    @test norm(sum(Lx .- [0 0 0; 0 0 -im; 0 im 0])) < 1e-4
-    @test norm(sum(Ly .- [0 0 im; 0 0 0; -im 0 0])) < 1e-4
-    @test norm(sum(Lz .- [0 -im 0; im 0 0; 0 0 0])) < 1e-4
+    @test norm(sum(Lx .- [0 0 0; 0 0 -im; 0 im 0])) < 1.0e-4
+    @test norm(sum(Ly .- [0 0 im; 0 0 0; -im 0 0])) < 1.0e-4
+    @test norm(sum(Lz .- [0 -im 0; im 0 0; 0 0 0])) < 1.0e-4
 
     px_orb_up = normalize(
         WannierFunction(
@@ -100,8 +100,8 @@ end
     @test Wannier.calc_spin(px_orb_up, px_orb_up) ≈
         Vec3(0.0 + 0im, 0.0 + 0.0im, 0.5 + 0.0im)
 
-    @test norm(Wannier.calc_dipole(px_orb, py_orb)) < 1e-17
-    @test norm(Wannier.calc_dipole(px_orb_up, px_orb_dn)) < 1e-17
+    @test norm(Wannier.calc_dipole(px_orb, py_orb)) < 1.0e-17
+    @test norm(Wannier.calc_dipole(px_orb_up, px_orb_dn)) < 1.0e-17
 end
 
 @testitem "realspace moment" setup = [RealspaceEnv] begin
@@ -119,7 +119,7 @@ end
         [1.096844404431083, 1.0968513029064058, 1.0968513855922837],
         [1.0968516077683101, 1.09686041159614, 1.0968514341399862],
     ]
-    @test all(isapprox.(r, ref_r; atol=1e-4))
+    @test all(isapprox.(r, ref_r; atol = 1.0e-4))
 
     ω = omega.(W)
     ref_ω = [
@@ -132,5 +132,5 @@ end
         4.170733540871117,
         4.170747304039493,
     ]
-    @test isapprox(ω, ref_ω; atol=1e-3)
+    @test isapprox(ω, ref_ω; atol = 1.0e-3)
 end

@@ -12,7 +12,7 @@ Read `prefix.chk` and `prefix.spn` to construct Wannier-gauge k-space spin opera
 - `kpoints`: fractional kpoint coordinates
 - `S`: Wannier-gauge spin operator in k-space
 """
-function read_chk_spn(prefix::AbstractString; chk="$prefix.chk", spn="$prefix.spn")
+function read_chk_spn(prefix::AbstractString; chk = "$prefix.chk", spn = "$prefix.spn")
     s_x, s_y, s_z = read_spn(spn)
     spin_vecs = map(zip(s_x, s_y, s_z)) do (x, y, z)
         MVec3.(x, y, z)

@@ -27,7 +27,7 @@
         0.17436896103376767 - 0.0007776111447994936im,
     )
     ref_Hr_001 = [[Hr_11, Hr_21] [Hr_12, Hr_22]]
-    @test isapprox(hamiltonian_position[0, 1, 1][1:2, 1:2], ref_Hr_001; atol=1e-8)
+    @test isapprox(hamiltonian_position[0, 1, 1][1:2, 1:2], ref_Hr_001; atol = 1.0e-8)
 end
 
 @testitem "TBPositionHamiltonianPosition" begin
@@ -41,17 +41,17 @@ end
 
     ref_rHr_011 = [
         [
-            0.1791744538931292+0.0020955816183890405im -0.186068778524343-0.0020362406364252553im -0.09391057298063965-0.0018317497603643198im
-            0.04124275653175067-0.009008304363442845im 0.04282298381236467-0.0029005984505842833im -0.13165388156091815+0.008739659094908092im
-            -0.24195275404031225-0.005679662165088098im 0.13953004528724272+0.0035418448818636747im 0.20921953895157094+0.006034632637907919im
+            0.1791744538931292 + 0.0020955816183890405im -0.186068778524343 - 0.0020362406364252553im -0.09391057298063965 - 0.0018317497603643198im
+            0.04124275653175067 - 0.009008304363442845im 0.04282298381236467 - 0.0029005984505842833im -0.13165388156091815 + 0.008739659094908092im
+            -0.24195275404031225 - 0.005679662165088098im 0.13953004528724272 + 0.0035418448818636747im 0.20921953895157094 + 0.006034632637907919im
         ],
         [
-            0.03957686145822008-0.06685710036635506im -0.003926564560497527+0.0023361688298376535im 0.008057284311593447-0.0030866754673423806im
-            0.001472662662175219+0.0006408293375997858im -0.014179847648214864+0.03323642945856213im -0.0036383288813261407-0.002937128744984542im
-            -0.0027410446394830847+0.0068988661552413285im 0.002527434016376507+0.0033246397145206582im -0.002834534631742737-0.0072179750352187625im
+            0.03957686145822008 - 0.06685710036635506im -0.003926564560497527 + 0.0023361688298376535im 0.008057284311593447 - 0.0030866754673423806im
+            0.001472662662175219 + 0.0006408293375997858im -0.014179847648214864 + 0.03323642945856213im -0.0036383288813261407 - 0.002937128744984542im
+            -0.0027410446394830847 + 0.0068988661552413285im 0.002527434016376507 + 0.0033246397145206582im -0.002834534631742737 - 0.0072179750352187625im
         ],
     ]
-    @test isapprox(position_hamiltonian_position[0, 1, 1][1:2, 1], ref_rHr_011; atol=1e-8)
+    @test isapprox(position_hamiltonian_position[0, 1, 1][1:2, 1], ref_rHr_011; atol = 1.0e-8)
 end
 
 @testitem "OrbitalMagnetizationInterpolator" begin
@@ -67,7 +67,7 @@ end
     model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/outputs/Fe.chk")
     hamiltonian = TBHamiltonian(model)
     Rspace = generate_Rspace(model)
-    position = TBPosition(Rspace, model; imlog_diag=false)
+    position = TBPosition(Rspace, model; imlog_diag = false)
     hamiltonian_position = TBHamiltonianPosition(Rspace, model)
     uHu = read_uHu(dataset"Fe_soc/Fe.uHu")
     position_hamiltonian_position = TBPositionHamiltonianPosition(Rspace, model, uHu)
@@ -95,8 +95,8 @@ end
     # postw90.x has a bug, it misses the `H` point at 417
     kpoints = get_kpoints(kpi)
     deleteat!(kpoints, 417)
-    @test all(norm.(kpoints - ref_kpt.kpoints) .< 1e-6)
+    @test all(norm.(kpoints - ref_kpt.kpoints) .< 1.0e-6)
 
     M = interp(kpoints)
-    @test all(isapprox.(M, ref_M; atol=5e-7))
+    @test all(isapprox.(M, ref_M; atol = 5.0e-7))
 end

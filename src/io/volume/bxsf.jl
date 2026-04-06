@@ -38,8 +38,8 @@ grid origin and spanning vectors.
 See also [`WannierIO.write_bxsf`](@ref)
 """
 function write_bxsf(
-    filename::AbstractString, rgrid::RGrid, fermi_energy::T, E::AbstractArray{T,4}
-) where {T<:Real}
+        filename::AbstractString, rgrid::RGrid, fermi_energy::T, E::AbstractArray{T, 4}
+    ) where {T <: Real}
     O = origin(rgrid)
     spanvec = span_vectors(rgrid)
     return WannierIO.write_bxsf(filename, fermi_energy, O, spanvec, E)

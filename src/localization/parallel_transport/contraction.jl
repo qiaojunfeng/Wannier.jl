@@ -14,14 +14,14 @@ Those must be neighbors, and only the first kpoint is assumed to have been rotat
 - `kpb_G`: `KspaceStencil.kpb_G`
 """
 function propagate!(
-    U::Vector{Matrix{T}},
-    kpts::Vector{Int},
-    dk::Vector{R},
-    M::Vector{Vector{Matrix{T}}},
-    kpoints::Vector{Vec3{R}},
-    kpb_k::Vector{Vector{Int}},
-    kpb_G::Vector{Vector{Vec3{Int}}},
-) where {T<:Complex,R<:Real}
+        U::Vector{Matrix{T}},
+        kpts::Vector{Int},
+        dk::Vector{R},
+        M::Vector{Vector{Matrix{T}}},
+        kpoints::Vector{Vec3{R}},
+        kpb_k::Vector{Vector{Int}},
+        kpb_G::Vector{Vector{Vec3{Int}}},
+    ) where {T <: Complex, R <: Real}
     N = length(kpts)
     n = size(U[1], 1)
     m = size(U[1], 2)
@@ -57,8 +57,8 @@ Choose the column and the target point to contract the
 vector path of the columns of matrix_path
 """
 function choose_pole(
-    matrix_path::Array{T,3}, columns::Vector{Int}, prev_poles::Matrix{T}
-) where {T<:Complex}
+        matrix_path::Array{T, 3}, columns::Vector{Int}, prev_poles::Matrix{T}
+    ) where {T <: Complex}
     # Number of iterations to find a pole far enough from the path
     n_iter = 100
 
@@ -126,9 +126,9 @@ function choose_pole(
     else
         # If the diameter of the path is small, the Barycenter of the path is a good pole.
         @info "Pole chosen by Barycenter of path"
-        pole = dropdims(sum(vec_path; dims=2); dims=2)
+        pole = dropdims(sum(vec_path; dims = 2); dims = 2)
 
-        @assert norm(pole) > 1e-1
+        @assert norm(pole) > 1.0e-1
         pole = pole / norm(pole)
     end
 
@@ -144,11 +144,11 @@ size(frame_path) = (n_col, n_col, n_k, n_t)
 size(matrix_path) = (n_col, n_col, n_k)
 """
 function matrix_parallel_transport(
-    frame_path::Array{T,4},
-    matrix_path::Array{T,3},
-    columns::Vector{Int},
-    backwards::Bool=false,
-) where {T<:Complex}
+        frame_path::Array{T, 4},
+        matrix_path::Array{T, 3},
+        columns::Vector{Int},
+        backwards::Bool = false,
+    ) where {T <: Complex}
     n_k = size(frame_path, 3)
     n_t = size(frame_path, 4)
     n_col = size(matrix_path, 2)
@@ -172,7 +172,7 @@ function matrix_parallel_transport(
             if ic ∈ columns
                 idx = findfirst(column -> column == ic, columns)
 
-                if abs(norm(frame_path[:, idx, ik, it]) - 1) < 1e-2
+                if abs(norm(frame_path[:, idx, ik, it]) - 1) < 1.0e-2
                     U[:, ic, ik, it] = frame_path[:, idx, ik, it]
                 else
                     if it > 1
@@ -199,7 +199,7 @@ function matrix_parallel_transport(
             if ic ∈ columns
                 idx = findfirst(column -> column == ic, columns)
 
-                if abs(norm(frame_path[:, idx, ik, iit]) - 1) < 1e-2
+                if abs(norm(frame_path[:, idx, ik, iit]) - 1) < 1.0e-2
                     U[:, ic, ik, iit] = frame_path[:, idx, ik, iit]
                 else
                     if it > 1
@@ -235,8 +235,8 @@ Create an interpolation path between x and y, unit vectors
 by normalizing the linear interpolation of parameter t[i].
 """
 function interpolate_vec(
-    x::AbstractVector{T}, y::AbstractVector{T}, t::AbstractVector{FT}
-) where {T<:Union{Complex,Real},FT<:Real}
+        x::AbstractVector{T}, y::AbstractVector{T}, t::AbstractVector{FT}
+    ) where {T <: Union{Complex, Real}, FT <: Real}
     @assert length(t) > 2
     @assert length(x) == length(y)
 
@@ -249,7 +249,7 @@ function interpolate_vec(
         v[:, i] = (1 - t[i]) * x + t[i] * y
 
         n = norm(v[:, i])
-        @assert n > 1e-2
+        @assert n > 1.0e-2
 
         v[:, i] /= n
     end
@@ -266,7 +266,7 @@ i.e., contract Obs(k) matrices to constant vectors.
 size(matrix_path) = n_wann x n_wann x n_k
 t: vector of kpoint indexes along a different k direction
 """
-function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where {T<:Real}
+function matrix_transport(matrix_path::Array{Complex{T}, 3}, t::Vector{T}) where {T <: Real}
     n_row, n_col, n_k = size(matrix_path)
     @assert n_row == n_col
 
@@ -281,7 +281,7 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
     @assert begin
         for i in 1:n_k
             P = matrix_path[:, :, i] * matrix_path[:, :, i]'
-            norm(P - I) >= 1e-5 && return false
+            norm(P - I) >= 1.0e-5 && return false
         end
         true
     end
@@ -371,22 +371,22 @@ function matrix_transport(matrix_path::Array{Complex{T},3}, t::Vector{T}) where 
     return U
 end
 
-struct Obstruction{T<:Complex}
+struct Obstruction{T <: Complex}
     # obstruction matrix in x-y plane, at ky = 1 along kx = 0 -> 1
-    Oxy::Array{T,3}
+    Oxy::Array{T, 3}
 
     # obstruction matrix in x-z plane, at kz = 1 along kx = 0 -> 1
-    Oxz::Array{T,3}
+    Oxz::Array{T, 3}
 
     # obstruction matrix in y-z plane, at kz = 1 along ky = 0 -> 1
-    Oyz::Array{T,3}
+    Oyz::Array{T, 3}
 
     # frame in x-y plane, at ky = 1 along kx = 0 -> 1
-    Uxy::Array{T,4}
+    Uxy::Array{T, 4}
 
     # frame in x-z plane, at kz = 1 along kx = 0 -> 1
-    Uxz::Array{T,4}
+    Uxz::Array{T, 4}
 
     # frame in y-z plane, at kz = 1 along ky = 0 -> 1
-    Uyz::Array{T,4}
+    Uyz::Array{T, 4}
 end

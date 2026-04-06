@@ -1,7 +1,7 @@
 @testitem "rescale" begin
     using WannierIO: RepMatBand
 
-    d = [1.0 0.0; 0.0 1-1e-4]
+    d = [1.0 0.0; 0.0 1 - 1.0e-4]
     rep = RepMatBand{2}(1, 1, d)
     r = Wannier.rescale(rep)
     ref = [1.0 0.0; 0.0 1.0]
@@ -19,7 +19,7 @@ end
     kpoints_fbz = win.kpoints
     f2i = get_kpoint_mappings(kpoints_fbz, isym.kpoints_ibz, isym.symops)
 
-    ref = readdlm(dataset"Si2_hse/outputs/test/kpt_map.txt", '\t', Int; comments=true)
+    ref = readdlm(dataset"Si2_hse/outputs/test/kpt_map.txt", '\t', Int; comments = true)
 
     @test f2i == eachrow(ref)
 end
@@ -54,8 +54,8 @@ end
         dataset"Si2_hse/outputs/test/R_translations.txt",
         ' ',
         Int;
-        comments=true,
-        header=true,
+        comments = true,
+        header = true,
     )
     nsym, nwann = parse.(Int, header[1, 1:2])
     # Reshape ref into ref[isym][iwf][1:3]
@@ -108,7 +108,7 @@ end
 
     ref = read_amn(dataset"Si2_hse/Si2.amn")
 
-    @test isapprox(Af, ref; atol=1e-10)
+    @test isapprox(Af, ref; atol = 1.0e-10)
 end
 
 @testitem "get_equivalence_mappings" begin
@@ -120,7 +120,7 @@ end
     kstencil = Wannier.KspaceStencil(
         nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
     )
-    bvecs = get_bvectors(kstencil; fractional=true)
+    bvecs = get_bvectors(kstencil; fractional = true)
 
     equiv = Wannier.get_equivalence_mappings(bvecs, symops)
     ref = readdlm(dataset"Si2_hse/outputs/test/b_equivalence.txt", ' ', Int)
@@ -156,7 +156,7 @@ end
 
     Mi, kpb_k_i, kpb_G_i = read_mmn(dataset"Si2_hse/Si2.immn")
 
-    bvectors = get_bvectors(kstencil; fractional=true)
+    bvectors = get_bvectors(kstencil; fractional = true)
     Mf, kpb_k_f, kpb_G_f = Wannier.unfold_overlaps(
         Mi,
         kpb_k_i,
@@ -183,7 +183,7 @@ end
         end
     end
     dmax = maximum(maximum.(d))
-    @test all(isapprox(0; atol=1e-7), dmax)
+    @test all(isapprox(0; atol = 1.0e-7), dmax)
     @test kpb_k_f == kpb_k_ref
     @test kpb_G_f == kpb_G_ref
 end

@@ -21,7 +21,7 @@ function list_datasets()
     return collect(keys(artifact_dict))
 end
 
-function load_dataset(name; prefix=basename(name))
+function load_dataset(name; prefix = basename(name))
     # the directory of the artifact
     dir = Artifacts.@artifact_str(name)
 
@@ -52,7 +52,7 @@ macro dataset_str(s)
     # @eval Artifacts.@artifact_str $s
 
     # For testing purpose, use local files
-    joinpath(homedir(), "git/WannierDatasets/datasets", s)
+    return joinpath(homedir(), "git/WannierDatasets/datasets", s)
 end
 
 end

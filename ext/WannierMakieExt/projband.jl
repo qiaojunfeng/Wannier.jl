@@ -17,13 +17,13 @@ import Wannier: projbandplot, projbandplot!, get_projbandplot
 end
 
 function Makie.plot!(
-    p::ProjBandPlot{Tuple{K,E,P,L}}
-) where {
-    K<:Wannier.RecipPath,
-    E<:AbstractVector{<:AbstractVector{<:Real}},
-    P<:AbstractVector{<:AbstractMatrix{<:Real}},
-    L<:AbstractVector{<:AbstractString},
-}
+        p::ProjBandPlot{Tuple{K, E, P, L}}
+    ) where {
+        K <: Wannier.RecipPath,
+        E <: AbstractVector{<:AbstractVector{<:Real}},
+        P <: AbstractVector{<:AbstractMatrix{<:Real}},
+        L <: AbstractVector{<:AbstractString},
+    }
     map!(p.attributes, [:eigenvals], :nkpts) do eigenvals
         return length(eigenvals)
     end
@@ -71,15 +71,15 @@ function Makie.plot!(
     # Pass the shared attributes
     kwargs = Dict(k => p[k][] for (k, v) in shared_bandplot_attributes().d)
     # Use a alpha for the color of the bands as background below scatter points
-    pb = bandplot!(p, p.kpath[], p.eigenvals[]; kwargs..., linecolor=(:black, 0.3))
+    pb = bandplot!(p, p.kpath[], p.eigenvals[]; kwargs..., linecolor = (:black, 0.3))
 
     for (ib, bs) in enumerate(pb.bands[])
         scatter!(
             p,
             pb.x[],
             bs;
-            markersize=p.band_markersizes[][ib],
-            color=p.band_colors[][ib],
+            markersize = p.band_markersizes[][ib],
+            color = p.band_colors[][ib],
         )
     end
 
@@ -87,13 +87,13 @@ function Makie.plot!(
 end
 
 function Wannier.get_projbandplot(
-    kpath::Wannier.RecipPath, eigenvals::E, projs::P, labels::L;
-    show_legend::Bool=true, kwargs...,
-) where {
-    E<:AbstractVector{<:AbstractVector{<:Real}},
-    P<:AbstractVector{<:AbstractMatrix{<:Real}},
-    L<:AbstractVector{<:AbstractString},
-}
+        kpath::Wannier.RecipPath, eigenvals::E, projs::P, labels::L;
+        show_legend::Bool = true, kwargs...,
+    ) where {
+        E <: AbstractVector{<:AbstractVector{<:Real}},
+        P <: AbstractVector{<:AbstractMatrix{<:Real}},
+        L <: AbstractVector{<:AbstractString},
+    }
     fig, ax = fig_ax_bandplot(kpath; kwargs...)
     p = projbandplot!(ax, kpath, eigenvals, projs, labels; kwargs...)
 

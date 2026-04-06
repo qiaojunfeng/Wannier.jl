@@ -87,7 +87,7 @@ end
 Power of a unitary (or at least, normal) matrix `U`.
 """
 # TODO cleanup this, seems not used anymore
-function powm(U::AbstractMatrix{T}, p::F) where {T<:Union{Complex,Real},F<:Real}
+function powm(U::AbstractMatrix{T}, p::F) where {T <: Union{Complex, Real}, F <: Real}
     # Workaround, eigen incompatible with lazy adjoint.
     d, V = eigen(Matrix(U))
 
@@ -220,7 +220,7 @@ Check if matrix is unitary or semi-unitary for all the kpoints.
 
 I.e. if it has orthogonal columns.
 """
-function isunitary(U::AbstractVector; atol=1e-10)
+function isunitary(U::AbstractVector; atol = 1.0e-10)
     map(U) do u
         if norm(u' * u - I) > atol
             @debug "not unitary" ik norm(u' * u - I)
@@ -248,7 +248,7 @@ be larger than 1.
 - `P`: total projectabilities ``p_{m k} = \\sum_{n} |U_{k m n}|^2``
 """
 function total_projectability(U::AbstractVector)
-    map(U) do u
+    return map(U) do u
         p = u * u'
         return real(diag(p))
     end
@@ -326,7 +326,7 @@ function sum_projectability(P::AbstractVector, labels::AbstractVector)
     for (ik, pk) in enumerate(P)
         for i in 1:nprojs_new
             idx = orb_idxs[i]
-            P_new[ik][:, i] = sum(pk[:, idx]; dims=2)
+            P_new[ik][:, i] = sum(pk[:, idx]; dims = 2)
         end
     end
     return P_new, labels_new
@@ -374,7 +374,7 @@ Check if two vectors are equivalent within a tolerance, optionally considering p
 - `atol`: absolute tolerance for comparison (default: `1e-6`)
 - `periodic`: whether to consider periodic boundary conditions (default: `true`)
 """
-function isequiv(v1::AbstractVector, v2::AbstractVector; atol::AbstractFloat=1e-6, periodic::Bool=true)
+function isequiv(v1::AbstractVector, v2::AbstractVector; atol::AbstractFloat = 1.0e-6, periodic::Bool = true)
     d = v1 - v2
     if periodic
         d -= round.(d)

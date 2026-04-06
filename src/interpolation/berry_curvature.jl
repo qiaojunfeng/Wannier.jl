@@ -28,8 +28,8 @@ struct BerryCurvatureInterpolator <: AbstractTBInterpolator
 end
 
 function BerryCurvatureInterpolator(
-    hamiltonian::TBOperator, position::TBOperator, fermi_energy::Real
-)
+        hamiltonian::TBOperator, position::TBOperator, fermi_energy::Real
+    )
     hamiltonian_gradient = TBHamiltonianGradient(hamiltonian)
     berry_curvature = TBBerryCurvature(position)
     return BerryCurvatureInterpolator(
@@ -93,8 +93,8 @@ struct LVTS12 <: AbstractBerryCurvatureInterpolationAlgorithm end
 
 """Interpolate Berry curvature and transform it to Bloch gauge, WYSV Eq. 27."""
 function (interp::BerryCurvatureInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}, ::WYSV06BandResolved; kwargs...
-)
+        kpoints::AbstractVector{<:AbstractVector}, ::WYSV06BandResolved; kwargs...
+    )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
     _, U, _, Dᴴ = compute_D_matrix(
@@ -144,8 +144,8 @@ end
 """Interpolate Berry curvature in Bloch gauge, sumed over bands with given
 occupations, using WYSV06 Eq. 32."""
 function (interp::BerryCurvatureInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}, ::WYSV06; kwargs...
-)
+        kpoints::AbstractVector{<:AbstractVector}, ::WYSV06; kwargs...
+    )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
 
@@ -173,7 +173,7 @@ function (interp::BerryCurvatureInterpolator)(
         DA = (F .* Dᴴₖ) * transpose.(Āᴴₖ)
         return real(
             sum(fₖ .* diag(Ω̄ᴴₖ)) +
-            sum(diag(DA - transpose.(DA) + (im .* F .* Dᴴₖ) * transpose.(Dᴴₖ))),
+                sum(diag(DA - transpose.(DA) + (im .* F .* Dᴴₖ) * transpose.(Dᴴₖ))),
         )
     end
 end
@@ -186,8 +186,8 @@ gauge and the spiky J matrix (= im * D matrix) is regulated by the occupation f:
 f * J * g, where g = 1 - f.
 """
 function (interp::BerryCurvatureInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}, ::LVTS12; kwargs...
-)
+        kpoints::AbstractVector{<:AbstractVector}, ::LVTS12; kwargs...
+    )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
 
@@ -211,13 +211,13 @@ function (interp::BerryCurvatureInterpolator)(
         # note we use the cyclic property of trace for the 2nd term of the
         # RHS of LVTS12 Eq. 51, so that we can directly use J⁺ₖ
         real(tr(fᵂₖ * Ωᵂₖ)) -
-        2 * imag(tr(Aᵂₖ * transpose.(J⁺ₖ) + J⁻ₖ * transpose.(Aᵂₖ + Jₖ)))
+            2 * imag(tr(Aᵂₖ * transpose.(J⁺ₖ) + J⁻ₖ * transpose.(Aᵂₖ + Jₖ)))
     end
 end
 
 function (interp::BerryCurvatureInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}; kwargs...
-)
+        kpoints::AbstractVector{<:AbstractVector}; kwargs...
+    )
     return interp(kpoints, LVTS12(); kwargs...)
 end
 
@@ -235,11 +235,13 @@ WYSV Eq. 5.
 """
 function axialvector_to_antisymmetrictensor(v::AbstractArray)
     vx, vy, vz = v
-    return MMat3([
-        0 vz -vy
-        -vz 0 vx
-        vy -vx 0
-    ])
+    return MMat3(
+        [
+            0 vz -vy
+            -vz 0 vx
+            vy -vx 0
+        ]
+    )
 end
 
 """

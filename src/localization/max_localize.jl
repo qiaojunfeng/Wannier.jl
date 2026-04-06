@@ -42,13 +42,13 @@ Maximally localize spread functional w.r.t. all kpoints on a unitary matrix mani
 - `history_size`: history size of LBFGS
 """
 function max_localize(
-    p::AbstractPenalty,
-    model::Model{T};
-    f_tol::T=1e-7,
-    g_tol::T=1e-5,
-    max_iter::Int=200,
-    history_size::Int=3,
-) where {T<:Real}
+        p::AbstractPenalty,
+        model::Model{T};
+        f_tol::T = 1.0e-7,
+        g_tol::T = 1.0e-5,
+        max_iter::Int = 200,
+        history_size::Int = 3,
+    ) where {T <: Real}
     n_bands(model) != n_wannier(model) &&
         error("n_bands != n_wann, run instead disentanglement?")
 
@@ -67,19 +67,19 @@ function max_localize(
 
     Uinit = [
         model.gauges[ik][ib, ic] for ib in 1:(n_bands(model)), ic in 1:(n_wannier(model)),
-        ik in 1:length(model.gauges)
+            ik in 1:length(model.gauges)
     ]
 
     opt = Optim.optimize(
         Optim.only_fg!(fg!),
         Uinit,
-        meth(; manifold=Manif, linesearch=ls, m=history_size),
+        meth(; manifold = Manif, linesearch = ls, m = history_size),
         Optim.Options(;
-            show_trace=true,
-            iterations=max_iter,
-            f_tol=f_tol,
-            g_tol=g_tol,
-            allow_f_increases=true,
+            show_trace = true,
+            iterations = max_iter,
+            f_tol = f_tol,
+            g_tol = g_tol,
+            allow_f_increases = true,
         ),
     )
     display(opt)

@@ -30,7 +30,7 @@ EXAMPLES = [
 # Otherwise, even if I comment out some entries in `EXAMPLES`, the old pages
 # will still be process by Documenter.jl.
 LITERATE_EXAMPLES_OUTDIR = joinpath(@__DIR__, "src/examples")
-isdir(LITERATE_EXAMPLES_OUTDIR) && rm(LITERATE_EXAMPLES_OUTDIR; recursive=true)
+isdir(LITERATE_EXAMPLES_OUTDIR) && rm(LITERATE_EXAMPLES_OUTDIR; recursive = true)
 
 # Process examples by Literate.jl
 if SKIP_EXAMPLES
@@ -49,11 +49,11 @@ end
 
 # generate the HTML pages by Documenter.jl
 makedocs(;
-    sitename="Wannier.jl",
-    authors="Junfeng Qiao and contributors.",
-    clean=true,
-    modules=[Wannier],
-    pages=[
+    sitename = "Wannier.jl",
+    authors = "Junfeng Qiao and contributors.",
+    clean = true,
+    modules = [Wannier],
+    pages = [
         "Home" => "index.md",
         "Getting Started" => "start.md",
         "Examples" => examples_pages,
@@ -74,9 +74,9 @@ makedocs(;
             "Interpolation" => "api/interpolation.md",
         ],
     ],
-    warnonly=true,
+    warnonly = true,
 )
 
 # Documenter will auto dectect build environment; on local machine it will be
 # skipped, so it's safe to run this script
-deploydocs(; repo="github.com/qiaojunfeng/Wannier.jl.git", devbranch="main")
+deploydocs(; repo = "github.com/qiaojunfeng/Wannier.jl.git", devbranch = "main")

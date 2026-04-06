@@ -57,7 +57,7 @@ function get_fg!_rotate(model::Model)
 
                 for n in 1:n_wann
                     # error if division by zero. Should not happen if the initial gauge is not too bad
-                    if abs(Nᵏᵇ[n, n]) < 1e-10
+                    if abs(Nᵏᵇ[n, n]) < 1.0e-10
                         error("Nᵏᵇ too small! $ik -> $ikpb, $Nᵏᵇ")
                     end
 
@@ -95,8 +95,8 @@ Maximally localize spread functional w.r.t. single unitary matrix `W`.
 - `history_size`: history size of LBFGS
 """
 function opt_rotate(
-    model::Model{T}; f_tol::T=1e-7, g_tol::T=1e-5, max_iter::Int=200, history_size::Int=3
-) where {T<:Real}
+        model::Model{T}; f_tol::T = 1.0e-7, g_tol::T = 1.0e-5, max_iter::Int = 200, history_size::Int = 3
+    ) where {T <: Real}
     n_wann = n_wannier(model)
     n_bands(model) == n_wann || error("n_bands != n_wann, run instead disentanglement?")
 
@@ -129,14 +129,14 @@ function opt_rotate(
         f,
         g!,
         W0,
-        meth(; manifold=wManif, linesearch=ls, m=history_size),
+        meth(; manifold = wManif, linesearch = ls, m = history_size),
         # autodiff=:forward,
         Optim.Options(;
-            show_trace=true,
-            iterations=max_iter,
-            f_tol=f_tol,
-            g_tol=g_tol,
-            allow_f_increases=true,
+            show_trace = true,
+            iterations = max_iter,
+            f_tol = f_tol,
+            g_tol = g_tol,
+            allow_f_increases = true,
         ),
     )
     display(opt)
@@ -163,14 +163,14 @@ Rotate the `U` matrices at each kpoint by the same `W` matrix.
 Useful once we have the optimal rotation matrix `W`, then update the initial
 `U` matrices by rotating them by `W`.
 """
-function merge_gauge(U::Vector, W::Matrix{T}) where {T<:Complex}
+function merge_gauge(U::Vector, W::Matrix{T}) where {T <: Complex}
     n_bands, n_wann = size(U[1])
 
     size(W) != (n_wann, n_wann) && error("W must be a n_wann x n_wann matrix")
     return map(u -> u * W, U)
 end
 
-function merge_gauge(U::Array{T,3}, W::Matrix{T}) where {T<:Complex}
+function merge_gauge(U::Array{T, 3}, W::Matrix{T}) where {T <: Complex}
     n_bands, n_wann, n_kpts = size(U)
     size(W) != (n_wann, n_wann) && error("W must be a n_wann x n_wann matrix")
 

@@ -12,7 +12,7 @@ function rescale(rep::RepMatBand)
     for n in 1:nbnd
         s = sum(abs.(rep.d[n, :]))
         a = abs(rep.d[n, n])
-        if (abs(s - a) < 1e-8) && (round(a) != 0)
+        if (abs(s - a) < 1.0e-8) && (round(a) != 0)
             d[n, n] = rep.d[n, n] * round(a) / a
         end
     end
@@ -51,11 +51,11 @@ Find the index mappings from kpoint in FBZ to kpoint in IBZ.
     the `ik_fbz`-th kpoint in FBZ.
 """
 function get_kpoint_mappings(
-    kpoints_fbz::AbstractVector,
-    kpoints_ibz::AbstractVector,
-    symops::AbstractVector{SymOp};
-    check::Bool=true,
-)
+        kpoints_fbz::AbstractVector,
+        kpoints_ibz::AbstractVector,
+        symops::AbstractVector{SymOp};
+        check::Bool = true,
+    )
     # For each FBZ kpoint, store a [ik_ibz, isym] pair
     fbz2ibz = [[0, 0] for _ in 1:length(kpoints_fbz)]
 
@@ -174,10 +174,10 @@ w_{n^\\prime \\mathbf{0}}( \\mathbf{r} - \\mathbf{R}_{n^\\prime} )
     under the `is`-th symmetry operation.
 """
 function find_wf_symmetry_translations(
-    centers::AbstractVector,
-    symops::AbstractVector{SymOp},
-    repmat::AbstractVector{<:RepMatWann},
-)
+        centers::AbstractVector,
+        symops::AbstractVector{SymOp},
+        repmat::AbstractVector{<:RepMatWann},
+    )
     nwann = length(centers)
     nsymm = length(symops)
 
@@ -204,7 +204,7 @@ function find_wf_symmetry_translations(
             # Sw = symops[is].R * (centers[iw] + symops[is].t)
             d = Sw - c
             # They should be integer translations, but `all(isinteger.(d))` is too strict
-            if isapprox(d, round.(d); atol=1e-8)
+            if isapprox(d, round.(d); atol = 1.0e-8)
                 Rs[is][iw] = round.(d)
             else
                 error(
@@ -236,12 +236,12 @@ U_{m n k_f}
 - `time_reversal`: whether the symmetry operation involves time-reversal.
 """
 function unfold_gauge(
-    Ui::AbstractMatrix,
-    ki::AbstractVector,
-    D::AbstractMatrix,
-    R::AbstractVector,
-    time_reversal::Bool,
-)
+        Ui::AbstractMatrix,
+        ki::AbstractVector,
+        D::AbstractMatrix,
+        R::AbstractVector,
+        time_reversal::Bool,
+    )
     # These all = n_wann
     size(Ui, 2) == size(D, 1) == size(D, 2) == length(R) ||
         error("Mismatch in size of Ui, D, R")
@@ -270,13 +270,13 @@ U_{m n k_f}
 
 """
 function unfold_gauges(
-    U_ibz::AbstractVector{<:AbstractMatrix},
-    kpoints_ibz::AbstractVector,
-    fbz2ibz::AbstractVector,
-    symops::AbstractVector{SymOp},
-    repmat_wann::AbstractVector{<:RepMatWann},
-    Rs::AbstractVector,
-)
+        U_ibz::AbstractVector{<:AbstractMatrix},
+        kpoints_ibz::AbstractVector,
+        fbz2ibz::AbstractVector,
+        symops::AbstractVector{SymOp},
+        repmat_wann::AbstractVector{<:RepMatWann},
+        Rs::AbstractVector,
+    )
     nk_fbz = length(fbz2ibz)
     nband, nwann = size(U_ibz[1])
     U_fbz = zeros_gauge(ComplexF64, nk_fbz, nband, nwann)
@@ -320,13 +320,13 @@ Note that ``h \\in G_k``, the little group of kpoint.
 - `U_sym`: symmetrized gauge matrices at each IBZ kpoint.
 """
 function symmetrize_gauges(
-    U_ibz::AbstractVector,
-    kpoints_ibz::AbstractVector,
-    symops::AbstractVector{SymOp},
-    repmat_band::AbstractVector{<:RepMatBand},
-    repmat_wann::AbstractVector{<:RepMatWann},
-    Rs::AbstractVector,
-)
+        U_ibz::AbstractVector,
+        kpoints_ibz::AbstractVector,
+        symops::AbstractVector{SymOp},
+        repmat_band::AbstractVector{<:RepMatBand},
+        repmat_wann::AbstractVector{<:RepMatWann},
+        Rs::AbstractVector,
+    )
     nband = size(repmat_band[1].d, 1)
     nwann = size(repmat_wann[1].D, 1)
     nk_ibz = length(kpoints_ibz)
@@ -335,7 +335,7 @@ function symmetrize_gauges(
     U_sym = zeros_gauge(ComplexF64, nk_ibz, nband, nwann)
 
     idx_repmat_band = WannierIO.build_mapping_ik_isym(
-        repmat_band; nkpts_ibz=nk_ibz, n_symops=nsym
+        repmat_band; nkpts_ibz = nk_ibz, n_symops = nsym
     )
 
     for ik in 1:nk_ibz
@@ -389,11 +389,11 @@ This is used for CPC Eq. 19.
     previous equation.
 """
 function merge_symops(
-    spinors::Bool,
-    symops::AbstractVector{SymOp},
-    ops::AbstractVector{<:Integer},
-    invs::AbstractVector{Bool},
-)
+        spinors::Bool,
+        symops::AbstractVector{SymOp},
+        ops::AbstractVector{<:Integer},
+        invs::AbstractVector{Bool},
+    )
     # Initialize everything to identity
     s0 = Matrix{Float64}(I, 3, 3)
     t0 = zeros(3)
@@ -439,9 +439,9 @@ function merge_symops(
     # Find operation in symops
     for (isym, op) in enumerate(symops)
         T = t0 - op.t
-        if isapprox(s0, op.R; atol=1e-6) &&
-            isapprox(T, round.(T); atol=1e-6) &&
-            (t_rev == op.time_reversal)
+        if isapprox(s0, op.R; atol = 1.0e-6) &&
+                isapprox(T, round.(T); atol = 1.0e-6) &&
+                (t_rev == op.time_reversal)
             T = Int.(round.(T))
             if spinors
                 if t_rev
@@ -449,9 +449,9 @@ function merge_symops(
                 else
                     us = symops[isym].u
                 end
-                if isapprox(u0, us; atol=1e-5)
+                if isapprox(u0, us; atol = 1.0e-5)
                     return isym, 1, T
-                elseif isapprox(u0, -us; atol=1e-5)
+                elseif isapprox(u0, -us; atol = 1.0e-5)
                     return isym, -1, T
                 else
                     error("u does not match")
@@ -493,17 +493,17 @@ M_{m n}^{k_f, b_f} = \\sum_l M_{m l}^{k_i, b_i} d_{l n}(\\hat{h}, k_i)
     according to `kstencil`.
 """
 function unfold_overlaps(
-    M_ibz::AbstractVector,
-    kpb_k_ibz::AbstractVector,
-    kpb_G_ibz::AbstractVector,
-    kpoints_ibz::AbstractVector,
-    bvectors::AbstractVector,
-    kpoints_fbz::AbstractVector,
-    fbz2ibz::AbstractVector,
-    spinors::Bool,
-    symops::AbstractVector{SymOp},
-    repmat_band::AbstractVector{<:RepMatBand},
-)
+        M_ibz::AbstractVector,
+        kpb_k_ibz::AbstractVector,
+        kpb_G_ibz::AbstractVector,
+        kpoints_ibz::AbstractVector,
+        bvectors::AbstractVector,
+        kpoints_fbz::AbstractVector,
+        fbz2ibz::AbstractVector,
+        spinors::Bool,
+        symops::AbstractVector{SymOp},
+        repmat_band::AbstractVector{<:RepMatBand},
+    )
     nk_fbz = length(kpoints_fbz)
     length(fbz2ibz) == nk_fbz || error("Mismatch in number of FBZ kpoints")
     nband = size(M_ibz[1][1], 1)
@@ -513,7 +513,7 @@ function unfold_overlaps(
     kpb_G_fbz = [[zeros(Int, 3) for _ in 1:nbvec] for _ in 1:nk_fbz]
 
     ikisym2ih = WannierIO.build_mapping_ik_isym(
-        repmat_band; nkpts_ibz=length(kpoints_ibz), n_symops=length(symops)
+        repmat_band; nkpts_ibz = length(kpoints_ibz), n_symops = length(symops)
     )
     # Get mapping between equivalent b vectors
     b2b = get_equivalence_mappings(bvectors, symops)
@@ -552,7 +552,7 @@ function unfold_overlaps(
 
             kpb_k_fbz[ikf][ibf] = ikbf_fbz
             G = kf + bf - kpoints_fbz[ikbf_fbz]
-            isapprox(G, round.(G); atol=1e-8) ||
+            isapprox(G, round.(G); atol = 1.0e-8) ||
                 error("Non-integer G vector at ikf=$(ikf) ibf=$(ibf), G=$G")
             kpb_G_fbz[ikf][ibf] = round.(G)
 
@@ -595,20 +595,20 @@ function unfold_overlaps(
 end
 
 function unfold_overlaps(
-    M_ibz::AbstractVector,
-    kstencil_ibz::KspaceStencil,
-    kstencil_fbz::KspaceStencil,
-    fbz2ibz::AbstractVector,
-    spinors::Bool,
-    symops::AbstractVector{SymOp},
-    repmat_band::AbstractVector{<:RepMatBand},
-)
+        M_ibz::AbstractVector,
+        kstencil_ibz::KspaceStencil,
+        kstencil_fbz::KspaceStencil,
+        fbz2ibz::AbstractVector,
+        spinors::Bool,
+        symops::AbstractVector{SymOp},
+        repmat_band::AbstractVector{<:RepMatBand},
+    )
     return unfold_overlaps(
         M_ibz,
         kstencil_ibz.kpb_k,
         kstencil_ibz.kpb_G,
         kstencil_ibz.kpoints,
-        get_bvectors(kstencil_fbz; fractional=true),
+        get_bvectors(kstencil_fbz; fractional = true),
         kstencil_fbz.kpoints,
         fbz2ibz,
         spinors,
@@ -632,8 +632,8 @@ Reorder the overlap matrices according to the b vector ordering in the stencil.
 - `M`: reordered overlap matrices at each kpoint.
 """
 function reorder(
-    M::AbstractVector, kpb_k::AbstractVector, kpb_G::AbstractVector, kstencil::KspaceStencil
-)
+        M::AbstractVector, kpb_k::AbstractVector, kpb_G::AbstractVector, kstencil::KspaceStencil
+    )
     nbvec = n_bvectors(kstencil)
     nkpts = n_kpoints(kstencil)
     nkpts == length(kpb_k) || error("Mismatch in number of kpoints")
@@ -642,7 +642,7 @@ function reorder(
     M_new = zeros_overlap(eltype(M[1]), nkpts, nbvec, size(M[1], 1))
 
     for ik in 1:nkpts
-        bvecs = get_bvectors(kstencil, ik; fractional=true)
+        bvecs = get_bvectors(kstencil, ik; fractional = true)
         for (ib, b) in enumerate(bvecs)
             ib0 = index_bvector(kstencil.kpoints, kpb_k, kpb_G, ik, b)
             isnothing(ib0) && error("No matching bvector found for ik=$ik ib=$ib")

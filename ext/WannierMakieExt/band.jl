@@ -1,7 +1,7 @@
 import Wannier: bandplot, bandplot!, get_bandplot
 
 function shared_bandplot_attributes()
-    Makie.@DocumentedAttributes begin
+    return Makie.@DocumentedAttributes begin
         "Fermi energy"
         fermi_energy = nothing
 
@@ -58,8 +58,8 @@ function get_xtick_indices_labels(kpath::Wannier.RecipPath)
 end
 
 function Makie.plot!(
-    p::BandPlot{Tuple{K,E}}
-) where {K<:Wannier.RecipPath,E<:AbstractVector{<:AbstractVector{<:Real}}}
+        p::BandPlot{Tuple{K, E}}
+    ) where {K <: Wannier.RecipPath, E <: AbstractVector{<:AbstractVector{<:Real}}}
     map!(p.attributes, [:kpath], :nkpts) do kpath
         return length(kpath)
     end
@@ -80,9 +80,9 @@ function Makie.plot!(
         vlines!(
             p,
             p.x_ksym[];
-            color=p.linecolor_ksym[],
-            linewidth=p.linewidth_ksym[],
-            linestyle=p.linestyle_ksym[],
+            color = p.linecolor_ksym[],
+            linewidth = p.linewidth_ksym[],
+            linestyle = p.linestyle_ksym[],
         )
     end
 
@@ -99,9 +99,9 @@ function Makie.plot!(
         hlines!(
             p,
             p.y_fermi[];
-            color=p.linecolor_fermi[],
-            linewidth=p.linewidth_fermi[],
-            linestyle=p.linestyle_fermi[],
+            color = p.linecolor_fermi[],
+            linewidth = p.linewidth_fermi[],
+            linestyle = p.linestyle_fermi[],
         )
     end
 
@@ -120,9 +120,9 @@ function Makie.plot!(
     end
 
     for (i, bs) in enumerate(p.bands[])
-        kwargs = (; color=p.linecolor[], linestyle=p.linestyle[], linewidth=p.linewidth[])
+        kwargs = (; color = p.linecolor[], linestyle = p.linestyle[], linewidth = p.linewidth[])
         # Only show label for the first band, to avoid cluttering the legend
-        (i == 1) && (kwargs = (; kwargs..., label=p.label[]))
+        (i == 1) && (kwargs = (; kwargs..., label = p.label[]))
         lines!(p, p.x[], bs; kwargs...)
     end
 
@@ -139,7 +139,7 @@ function fig_ax_bandplot(kpath::Wannier.RecipPath; kwargs...)
         if shift_fermi
             # Note below I am using the unicode minus sign (U+2212) instead of
             # the ASCII hyphen (U+002D)
-            ylabel = rich(rich("E − E"; font=:italic), subscript("F"), " (eV)")
+            ylabel = rich(rich("E − E"; font = :italic), subscript("F"), " (eV)")
         else
             ylabel = "Energy (eV)"
         end
@@ -163,16 +163,16 @@ This is a bit hacky: the recipe only works with the Plot, but we want to
 set the ylabel of the Axis, etc. Therefore, we need this wrapper function.
 =#
 function Wannier.get_bandplot(
-    kpath::Wannier.RecipPath, eigenvals::E; kwargs...
-) where {E<:AbstractVector{<:AbstractVector{<:Real}}}
+        kpath::Wannier.RecipPath, eigenvals::E; kwargs...
+    ) where {E <: AbstractVector{<:AbstractVector{<:Real}}}
     fig, ax = fig_ax_bandplot(kpath; kwargs...)
     p = bandplot!(ax, kpath, eigenvals; kwargs...)
     return Makie.FigureAxisPlot(fig, ax, p)
 end
 
 function Wannier.get_bandplot(
-    kpath::Wannier.RecipPath, eigenvals1::E, eigenvals2::E; kwargs1=(;), kwargs2=(;)
-) where {E<:AbstractVector{<:AbstractVector{<:Real}}}
+        kpath::Wannier.RecipPath, eigenvals1::E, eigenvals2::E; kwargs1 = (;), kwargs2 = (;)
+    ) where {E <: AbstractVector{<:AbstractVector{<:Real}}}
     fig, ax = fig_ax_bandplot(kpath; kwargs1...)
 
     color1 = get(kwargs1, :linecolor, :black)
@@ -184,8 +184,8 @@ function Wannier.get_bandplot(
     label1 = get(kwargs1, :label, "Band 1")
     label2 = get(kwargs2, :label, "Band 2")
     #
-    kwargs1 = (; kwargs1..., linecolor=color1, linestyle=linestyle1, label=label1)
-    kwargs2 = (; kwargs2..., linecolor=color2, linestyle=linestyle2, label=label2)
+    kwargs1 = (; kwargs1..., linecolor = color1, linestyle = linestyle1, label = label1)
+    kwargs2 = (; kwargs2..., linecolor = color2, linestyle = linestyle2, label = label2)
 
     plots = [
         bandplot!(ax, kpath, eigenvals1; kwargs1...)

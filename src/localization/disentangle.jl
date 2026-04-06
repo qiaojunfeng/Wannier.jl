@@ -17,7 +17,7 @@ Generate a `BitMatrix` of frozen bands by checking the two frozen windows.
 
     The `dis_froz_max` and `dis_froz_min` work similarly as `Wannier90`.
 """
-function get_frozen_bands(E::Vector, dis_froz_max, dis_froz_min=-Inf)
+function get_frozen_bands(E::Vector, dis_froz_max, dis_froz_min = -Inf)
     return map(e -> (e .>= dis_froz_min) .& (e .<= dis_froz_max), E)
 end
 
@@ -35,8 +35,8 @@ In some cases, we might want to freeze the whole set of degenerated eigen vector
 - `atol`: the tolerance of degeneracy
 """
 function set_frozen_degen!(
-    frozen_bands::AbstractMatrix{Bool}, E::Vector, atol::T=1e-4
-) where {T<:Real}
+        frozen_bands::AbstractMatrix{Bool}, E::Vector, atol::T = 1.0e-4
+    ) where {T <: Real}
     nbands = length(E[1])
     n_kpts = length(E)
     atol <= 0 && error("atol must be positive")
@@ -85,6 +85,7 @@ function check_frozen_bands(frozen_bands::AbstractVector{AbstractVector{Bool}}, 
             error("Too many frozen bands")
         end
     end
+    return
 end
 
 """
@@ -102,12 +103,12 @@ Set frozen bands of the `Model` according to two energy windows.
 - `degen_atol`: the tolerance of degeneracy
 """
 function set_frozen_win!(
-    model::Model{T},
-    dis_froz_max::T,
-    dis_froz_min::T=-Inf;
-    degen::Bool=false,
-    degen_atol::T=1e-4,
-) where {T<:Real}
+        model::Model{T},
+        dis_froz_max::T,
+        dis_froz_min::T = -Inf;
+        degen::Bool = false,
+        degen_atol::T = 1.0e-4,
+    ) where {T <: Real}
     frozen_bands = get_frozen_bands(model.E, dis_froz_max, dis_froz_min)
 
     if degen
@@ -141,10 +142,10 @@ Get frozen bands according to band projectability.
     freeze high-projectability bands.
 """
 function get_frozen_proj(
-    E::AbstractVector{AbstractVector{T}},
-    U::AbstractVector{AbstractMatrix{Complex{T}}},
-    dis_proj_max::T,
-) where {T<:Real}
+        E::AbstractVector{AbstractVector{T}},
+        U::AbstractVector{AbstractMatrix{Complex{T}}},
+        dis_proj_max::T,
+    ) where {T <: Real}
     nbands = length(E[1])
     n_kpts = length(E)
     frozen_bands = [falses(nbands) for i in 1:n_kpts]
@@ -158,7 +159,7 @@ function get_frozen_proj(
         # n_bands * n_wann
         Uₖ = U[ik]
         # projectability
-        p = dropdims(real(sum(Uₖ .* conj(Uₖ); dims=2)); dims=2)
+        p = dropdims(real(sum(Uₖ .* conj(Uₖ); dims = 2)); dims = 2)
         # @debug "projectability" ik p
 
         frozen_k[p .>= dis_proj_max] .= true
@@ -183,8 +184,8 @@ Set frozen bands of the `Model` according to projectability.
 - `degen_atol`: the tolerance of degeneracy
 """
 function set_frozen_proj!(
-    model::Model{T}, dis_proj_max::T; degen::Bool=false, degen_atol::T=1e-4
-) where {T<:Real}
+        model::Model{T}, dis_proj_max::T; degen::Bool = false, degen_atol::T = 1.0e-4
+    ) where {T <: Real}
     frozen_bands = get_frozen_proj(model.E, model.U, dis_proj_max)
 
     if degen
@@ -220,7 +221,7 @@ Strategy:
 - `U`: the matrix to be orthonormalized and frozen
 - `frozen`: the `BitVector` specifying which bands are frozen
 """
-function orthonorm_freeze(U::Matrix{T}, frozen::BitVector) where {T<:Complex}
+function orthonorm_freeze(U::Matrix{T}, frozen::BitVector) where {T <: Complex}
     nbands, nwann = size(U)
     non_frozen = .!frozen
 
@@ -260,7 +261,7 @@ function orthonorm_freeze(U::Matrix{T}, frozen::BitVector) where {T<:Complex}
     # I = <wr|wr> = Ur' <ψ|ψ> Ur  =>  Ur' * Ur = I
     # Use Lowdin normalization but needs to limit the number of independent vectors.
     A, S, B = svd(Ur)
-    atol = 1e-10
+    atol = 1.0e-10
     @assert count(x -> x > atol, S) == nwann - count(frozen) "S = $S"
     S[S .> atol] .= 1
     S[S .< atol] .= 0
@@ -339,8 +340,8 @@ For each kpoint,
 - `XY`: this is the format used in the optimizer
 """
 function X_Y_to_U(
-    X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:AbstractMatrix{T}}
-) where {T<:Complex}
+        X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:AbstractMatrix{T}}
+    ) where {T <: Complex}
     n_bands, n_wann = size(Y[1])
     n_kpts = length(Y)
 
@@ -367,8 +368,8 @@ See also [`X_Y_to_U`](@ref).
 - `frozen`: `n_bands * n_kpts`
 """
 function U_to_X_Y(
-    U::AbstractVector{<:AbstractMatrix{T}}, frozen::Vector{BitVector}
-) where {T<:Complex}
+        U::AbstractVector{<:AbstractMatrix{T}}, frozen::Vector{BitVector}
+    ) where {T <: Complex}
     nkpts = length(U)
     nbands, nwann = size(U[1])
 
@@ -413,7 +414,7 @@ See also [`X_Y_to_U`](@ref).
 - `n_bands`: number of bands, to be used to reshape `XY`
 - `n_wann`: number of wannier functions, to be used to reshape `XY`
 """
-function XY_to_X_Y(XY::AbstractMatrix{T}, nbands::Int, nwann::Int) where {T<:Complex}
+function XY_to_X_Y(XY::AbstractMatrix{T}, nbands::Int, nwann::Int) where {T <: Complex}
     nkpts = size(XY, 2)
 
     X = [zeros(T, nwann, nwann) for i in 1:nkpts]
@@ -442,8 +443,8 @@ Convert the `(X, Y)` layout to the `XY` layout.
 See also [`X_Y_to_U`](@ref).
 """
 function X_Y_to_XY(
-    X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:AbstractMatrix{T}}
-) where {T<:Complex}
+        X::AbstractVector{<:AbstractMatrix{T}}, Y::AbstractVector{<:AbstractMatrix{T}}
+    ) where {T <: Complex}
     nkpts = length(Y)
     nbands, nwann = size(Y[1])
     n = nwann^2
@@ -479,8 +480,8 @@ Acutally they are the conjugate gradients, e.g., ``\frac{d \Omega}{d U^*}``.
 - `frozen`: `n_bands * n_kpts` BitMatrix for frozen bands
 """
 function GU_to_GX_GY(
-    G::Array{T,3}, X::Vector{Matrix{T}}, Y::Vector{Matrix{T}}, frozen::Vector
-) where {T}
+        G::Array{T, 3}, X::Vector{Matrix{T}}, Y::Vector{Matrix{T}}, frozen::Vector
+    ) where {T}
     n_kpts = length(X)
     GX = [zeros(T, size(X[1])) for i in 1:n_kpts]
     GY = [zeros(T, size(Y[1])) for i in 1:n_kpts]
@@ -510,7 +511,7 @@ function GU_to_G!(G, GU, X, Y, frozen)
 
     d = size(G, 1)
 
-    @inbounds for ik in 1:n_kpts
+    return @inbounds for ik in 1:n_kpts
         idx_f = frozen[ik]
         n_froz = count(idx_f)
 
@@ -527,8 +528,8 @@ function GU_to_G!(G, GU, X, Y, frozen)
 end
 
 function GU_to_GX_GY(
-    G::Vector, X::Vector{Matrix{T}}, Y::Vector{Matrix{T}}, frozen::Vector
-) where {T}
+        G::Vector, X::Vector{Matrix{T}}, Y::Vector{Matrix{T}}, frozen::Vector
+    ) where {T}
     n_kpts = length(X)
     GX = [zeros(T, size(X[1])) for i in 1:n_kpts]
     GY = [zeros(T, size(Y[1])) for i in 1:n_kpts]
@@ -631,14 +632,14 @@ Run disentangle on the `Model`.
 - `history_size`: history size of LBFGS
 """
 function disentangle(
-    p::AbstractPenalty,
-    model::Model{T};
-    random_gauge::Bool=false,
-    f_tol::T=1e-7,
-    g_tol::T=1e-5,
-    max_iter::Int=200,
-    history_size::Int=3,
-) where {T<:Real}
+        p::AbstractPenalty,
+        model::Model{T};
+        random_gauge::Bool = false,
+        f_tol::T = 1.0e-7,
+        g_tol::T = 1.0e-5,
+        max_iter::Int = 200,
+        history_size::Int = 3,
+    ) where {T <: Real}
     nbands = n_bands(model)
     nwann = n_wannier(model)
     nkpts = n_kpoints(model)
@@ -704,13 +705,13 @@ function disentangle(
     opt = Optim.optimize(
         Optim.only_fg!(fg!),
         XY0,
-        meth(; manifold=XYManif, linesearch=ls, m=history_size),
+        meth(; manifold = XYManif, linesearch = ls, m = history_size),
         Optim.Options(;
-            show_trace=true,
-            iterations=max_iter,
-            f_tol=f_tol,
-            g_tol=g_tol,
-            allow_f_increases=true,
+            show_trace = true,
+            iterations = max_iter,
+            f_tol = f_tol,
+            g_tol = g_tol,
+            allow_f_increases = true,
         ),
     )
     display(opt)

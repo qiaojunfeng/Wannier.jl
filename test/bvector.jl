@@ -22,7 +22,7 @@
     ref_kstencil = Wannier.KspaceStencil(
         recip_lattice, win.mp_grid, win.kpoints, ref_bvectors, ref_bweights, kpb_k, kpb_G
     )
-    @test isapprox(kstencil, ref_kstencil; atol=1e-6)
+    @test isapprox(kstencil, ref_kstencil; atol = 1.0e-6)
 end
 
 @testitem "generate_kspace_stencil 2D" begin
@@ -64,7 +64,7 @@ end
         nnkp.kpb_G,
     )
     # wout does not have enough digits, use a bit larger atol
-    @test isapprox(kstencil, ref_kstencil; atol=1e-5)
+    @test isapprox(kstencil, ref_kstencil; atol = 1.0e-5)
 end
 
 @testitem "generate_kspace_stencil kmesh_tol" begin
@@ -74,20 +74,20 @@ end
     nnkp = read_nnkp_compute_bweights(dataset"SnSe2/outputs/SnSe2.nnkp")
     recip_lattice = reciprocal_lattice(win.unit_cell_cart)
     kstencil = generate_kspace_stencil(
-        recip_lattice, win.mp_grid, win.kpoints; atol=win.kmesh_tol
+        recip_lattice, win.mp_grid, win.kpoints; atol = win.kmesh_tol
     )
 
     ref_bvectors = Vec3{Float64}[
-        [0.000000, 0.000000, 0.180597],
-        [0.000000, 0.000000, -0.180597],
-        [0.188176, 0.000000, 0.000001],
-        [-0.188176, 0.000000, -0.000001],
-        [-0.094088, 0.162971, -0.000000],
-        [0.094088, 0.162971, 0.000000],
-        [0.094088, -0.162971, 0.000000],
-        [-0.094088, -0.162971, -0.000000],
-        [-0.188176, 0.000000, 0.180597],
-        [0.188176, 0.000000, -0.180597],
+        [0.0, 0.0, 0.180597],
+        [0.0, 0.0, -0.180597],
+        [0.188176, 0.0, 0.000001],
+        [-0.188176, 0.0, -0.000001],
+        [-0.094088, 0.162971, -0.0],
+        [0.094088, 0.162971, 0.0],
+        [0.094088, -0.162971, 0.0],
+        [-0.094088, -0.162971, -0.0],
+        [-0.188176, 0.0, 0.180597],
+        [0.188176, 0.0, -0.180597],
     ]
     ref_bweights = [
         15.330158,
@@ -110,7 +110,7 @@ end
         nnkp.kpb_k,
         nnkp.kpb_G,
     )
-    @test isapprox(kstencil, ref_kstencil; atol=1e-6)
+    @test isapprox(kstencil, ref_kstencil; atol = 1.0e-6)
 end
 
 @testitem "has_cubic_neighbors" begin
@@ -152,5 +152,5 @@ end
         1.4496635932248616,
         1.4496635932248616,
     ]
-    @test isapprox(weights, ref_weights; atol=1e-6)
+    @test isapprox(weights, ref_weights; atol = 1.0e-6)
 end

@@ -158,7 +158,7 @@ ef = 4.6459
 win = read_win(dataset"CuBr2/CuBr2.win")
 kpath = Wannier.get_kpath(win.unit_cell, win.kpoint_path)
 
-interp_model = Wannier.InterpModel(model; kpath=kpath)
+interp_model = Wannier.InterpModel(model; kpath = kpath)
 
 # interpolate band structure
 # the QE bands use 50 points per segment, so we use 50 here as well
@@ -166,7 +166,7 @@ kpi = Wannier.generate_w90_kpoint_path(kpath, 50)
 E = Wannier.interpolate(interp_model, kpi)
 
 # plot band difference
-fig = plot_band_diff(kpi, E_qe, E; fermi_energy=ef)
+fig = plot_band_diff(kpi, E_qe, E; fermi_energy = ef)
 fig.plot.layout.width = 500
 fig.plot.layout.height = 500
 fig.plot.layout.autosize = false

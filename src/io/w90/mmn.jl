@@ -11,8 +11,8 @@ Write `mmn` file.
 - `kstencil`: the `KspaceStencil` struct
 """
 function write_mmn(
-    filename::AbstractString, overlaps::AbstractVector, kstencil::KspaceStencil; kwargs...
-)
+        filename::AbstractString, overlaps::AbstractVector, kstencil::KspaceStencil; kwargs...
+    )
     return WannierIO.write_mmn(
         filename, overlaps, kstencil.kpb_k, kstencil.kpb_G; kwargs...
     )

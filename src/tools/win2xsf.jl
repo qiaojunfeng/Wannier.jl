@@ -9,7 +9,7 @@ Save crystal structure in W90 input `win` file to a `xsf` file.
 - `xsf`: The output filename to write the crystal structure to.
 - `win`: The W90 input file
 """
-function win2xsf(xsf::AbstractString, win::Union{NamedTuple,AbstractDict})
+function win2xsf(xsf::AbstractString, win::Union{NamedTuple, AbstractDict})
     cell = get(win, :unit_cell_cart, nothing)
     isnothing(cell) && error("No unit cell found in the W90 input file.")
 

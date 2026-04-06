@@ -26,7 +26,7 @@ Represents a regular grid of points.
     e.g., the x coordinate can be `[0.0, 0.25, 0.5, 0.75]` without `1.0`
     which is repeatition of `0.0`.
 """
-struct RGrid{T<:Real,XT<:AbstractArray3,YT<:AbstractArray3,ZT<:AbstractArray3}
+struct RGrid{T <: Real, XT <: AbstractArray3, YT <: AbstractArray3, ZT <: AbstractArray3}
     # spanning vectors, 3 * 3, each column is a spanning vector
     basis::Mat3{T}
 
@@ -40,8 +40,8 @@ struct RGrid{T<:Real,XT<:AbstractArray3,YT<:AbstractArray3,ZT<:AbstractArray3}
 end
 
 function RGrid(
-    basis::AbstractMatrix, X::AbstractArray3, Y::AbstractArray3, Z::AbstractArray3
-)
+        basis::AbstractMatrix, X::AbstractArray3, Y::AbstractArray3, Z::AbstractArray3
+    )
     size(X) == size(Y) == size(Z) || error("X, Y, Z must have the same size")
     return RGrid(Mat3(basis), X, Y, Z)
 end
@@ -63,12 +63,12 @@ Construct a regular grid of points.
     the z coordinate of each point in the grid.
 """
 function RGrid(
-    basis::AbstractMatrix,
-    origin::AbstractVector,
-    X::AbstractVector,
-    Y::AbstractVector,
-    Z::AbstractVector,
-)
+        basis::AbstractMatrix,
+        origin::AbstractVector,
+        X::AbstractVector,
+        Y::AbstractVector,
+        Z::AbstractVector,
+    )
     size(basis, 1) == length(origin) || error("incompatible basis and origin")
 
     # fractional w.r.t. basis

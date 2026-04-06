@@ -11,7 +11,7 @@ end
     using Wannier.Datasets
     model = load_dataset("Si2")
 
-    outdir = mktempdir(; cleanup=true)
+    outdir = mktempdir(; cleanup = true)
     outprefix = joinpath(outdir, "silicon")
     write_w90(outprefix, model)
 
@@ -39,7 +39,7 @@ end
     using LinearAlgebra
     using Wannier.Datasets
     model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/outputs/Si2.chk.fmt")
-    tmpfile = tempname(; cleanup=true)
+    tmpfile = tempname(; cleanup = true)
     write_chk(tmpfile, model)
 
     chk = read_chk(tmpfile)

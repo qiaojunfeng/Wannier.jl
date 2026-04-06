@@ -5,13 +5,13 @@
     Umin, _ = parallel_transport(model)
 
     Uref = read_amn(dataset"Si2_valence_coarse/outputs/ptg.amn")
-    @test isapprox(Umin, Uref; atol=1e-5)
+    @test isapprox(Umin, Uref; atol = 1.0e-5)
 
     ϵ0, ϵ1 = Wannier.compute_error(model, Umin)
     ϵ0_ref = 0.8166518514231456
     ϵ1_ref = 0.8914034179176087
-    @test isapprox(ϵ0, ϵ0_ref; atol=1e-5)
-    @test isapprox(ϵ1, ϵ1_ref; atol=1e-5)
+    @test isapprox(ϵ0, ϵ0_ref; atol = 1.0e-5)
+    @test isapprox(ϵ1, ϵ1_ref; atol = 1.0e-5)
 end
 
 @testitem "parallel_transport neg coord" begin
@@ -25,13 +25,13 @@ end
     Umin, _ = parallel_transport(model)
 
     Uref = read_amn(dataset"GaAs_coarse/outputs/GaAs.val.ptg.amn")
-    @test isapprox(Umin, Uref; atol=1e-5)
+    @test isapprox(Umin, Uref; atol = 1.0e-5)
 
     ϵ0, ϵ1 = Wannier.compute_error(model, Umin)
 
     ϵ0_ref = 0.20036010968611806
     ϵ1_ref = 0.2010755533663015
 
-    @test isapprox(ϵ0, ϵ0_ref; atol=1e-5)
-    @test isapprox(ϵ1, ϵ1_ref; atol=1e-5)
+    @test isapprox(ϵ0, ϵ0_ref; atol = 1.0e-5)
+    @test isapprox(ϵ1, ϵ1_ref; atol = 1.0e-5)
 end

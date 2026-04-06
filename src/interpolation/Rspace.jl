@@ -30,7 +30,7 @@ end
 Base.lastindex(Rspace::AbstractRspace) = lastindex(Rspace.Rvectors)
 Base.length(Rspace::AbstractRspace) = length(Rspace.Rvectors)
 
-function Base.iterate(Rspace::AbstractRspace, state=1)
+function Base.iterate(Rspace::AbstractRspace, state = 1)
     if state > length(Rspace.Rvectors)
         return nothing
     else
@@ -42,7 +42,7 @@ function Base.show(io::IO, ::MIME"text/plain", Rspace::AbstractRspace)
     @printf(io, "R-space type  :  %s\n\n", nameof(typeof(Rspace)))
     show_lattice(io, Rspace.lattice)
     println(io)
-    @printf(io, "n_Rvectors  =  %d", n_Rvectors(Rspace))
+    return @printf(io, "n_Rvectors  =  %d", n_Rvectors(Rspace))
 end
 
 function Base.isapprox(a::AbstractRspace, b::AbstractRspace; kwargs...)
@@ -61,7 +61,7 @@ $(FIELDS)
 
     The R vectors are sorted in the same order as `Wannier90`.
 """
-struct WignerSeitzRspace{T<:Real} <: AbstractRspace
+struct WignerSeitzRspace{T <: Real} <: AbstractRspace
     """lattice, 3 * 3, each column is a lattice vector in Å unit"""
     lattice::Mat3{T}
 
@@ -75,18 +75,18 @@ struct WignerSeitzRspace{T<:Real} <: AbstractRspace
 end
 
 function WignerSeitzRspace(
-    lattice::AbstractMatrix, Rvectors::AbstractVector, n_Rdegens::AbstractVector
-)
+        lattice::AbstractMatrix, Rvectors::AbstractVector, n_Rdegens::AbstractVector
+    )
     T = eltype(lattice)
     return WignerSeitzRspace{T}(Mat3(lattice), Vector{Vec3{Int}}(Rvectors), n_Rdegens)
 end
 
 function WignerSeitzRspace(
-    lattice::AbstractMatrix,
-    Rgrid_size::Union{AbstractVector,Tuple};
-    atol=default_w90_ws_distance_tol(),
-    max_cell::Integer=default_w90_ws_search_size(),
-)
+        lattice::AbstractMatrix,
+        Rgrid_size::Union{AbstractVector, Tuple};
+        atol = default_w90_ws_distance_tol(),
+        max_cell::Integer = default_w90_ws_search_size(),
+    )
     @assert length(Rgrid_size) == 3 "Rgrid_size should be a length-3 vector"
     # 1. generate a supercell where WFs live in
     supercell_wf, _ = make_supercell([Vec3(0, 0, 0)], [0:(r - 1) for r in Rgrid_size])
@@ -149,7 +149,7 @@ $(FIELDS)
 
     The R-vectors are sorted in the same order as wannier90.
 """
-struct MDRSRspace{T<:Real} <: AbstractRspace
+struct MDRSRspace{T <: Real} <: AbstractRspace
     """lattice, 3 * 3, each column is a lattice vector in Å unit"""
     lattice::Mat3{T}
 
@@ -173,23 +173,23 @@ struct MDRSRspace{T<:Real} <: AbstractRspace
 end
 
 function MDRSRspace(
-    lattice::AbstractMatrix,
-    Rvectors::AbstractVector,
-    n_Rdegens::AbstractVector,
-    Tvectors::AbstractVector,
-    n_Tdegens::AbstractVector,
-)
+        lattice::AbstractMatrix,
+        Rvectors::AbstractVector,
+        n_Rdegens::AbstractVector,
+        Tvectors::AbstractVector,
+        n_Tdegens::AbstractVector,
+    )
     T = eltype(lattice)
     return MDRSRspace{T}(Mat3(lattice), Rvectors, n_Rdegens, Tvectors, n_Tdegens)
 end
 
 function MDRSRspace(
-    wsRspace::WignerSeitzRspace,
-    Rgrid_size::Union{AbstractVector,Tuple},
-    centers::AbstractVector;
-    atol=default_w90_ws_distance_tol(),
-    max_cell::Integer=default_w90_ws_search_size(),
-)
+        wsRspace::WignerSeitzRspace,
+        Rgrid_size::Union{AbstractVector, Tuple},
+        centers::AbstractVector;
+        atol = default_w90_ws_distance_tol(),
+        max_cell::Integer = default_w90_ws_search_size(),
+    )
     @assert length(Rgrid_size) == 3 "Rgrid_size should be a length-3 vector"
     nwann = length(centers)
     @assert nwann > 0 "centers is empty"
@@ -266,11 +266,11 @@ function MDRSRspace(
 end
 
 function MDRSRspace(
-    lattice::AbstractMatrix,
-    Rgrid_size::Union{AbstractVector,Tuple},
-    centers::AbstractVector;
-    kwargs...,
-)
+        lattice::AbstractMatrix,
+        Rgrid_size::Union{AbstractVector, Tuple},
+        centers::AbstractVector;
+        kwargs...,
+    )
     wsRspace = WignerSeitzRspace(lattice, Rgrid_size; kwargs...)
     return MDRSRspace(wsRspace, Rgrid_size, centers; kwargs...)
 end
@@ -306,7 +306,7 @@ function generate_Rspace(T::Type{<:AbstractRspace}, args...; kwargs...)
     return T(args...; kwargs...)
 end
 
-function generate_Rspace(model::Model; MDRS::Bool=true, kwargs...)
+function generate_Rspace(model::Model; MDRS::Bool = true, kwargs...)
     if MDRS
         # from Cartesian to fractional
         inv_lattice = inv(model.lattice)
@@ -321,7 +321,7 @@ function generate_Rspace(model::Model; MDRS::Bool=true, kwargs...)
 end
 
 """Type for the `xyz_iR` mapping using OffsetArray"""
-const RvectorIndexMapping = OffsetArray{Int,3}
+const RvectorIndexMapping = OffsetArray{Int, 3}
 
 """
     $(TYPEDEF)
@@ -343,7 +343,7 @@ Fourier series.
 # Fields
 $(FIELDS)
 """
-struct BareRspace{T<:Real} <: AbstractRspace
+struct BareRspace{T <: Real} <: AbstractRspace
     """lattice, 3 * 3, each column is a lattice vector in Å unit"""
     lattice::Mat3{T}
 

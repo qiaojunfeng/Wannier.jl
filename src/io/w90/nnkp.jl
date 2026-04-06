@@ -24,8 +24,8 @@ end
     the the ``b``-vectors are not complete, thus not possible to compute the weights.
 """
 function WannierIO.read_nnkp(
-    filename::AbstractString, weights::Union{AbstractVector,Nothing}
-)
+        filename::AbstractString, weights::Union{AbstractVector, Nothing}
+    )
     nnkp = WannierIO.read_nnkp(filename)
 
     kpoints = nnkp.kpoints
@@ -70,8 +70,8 @@ Write nnkp that can be used by `pw2wannier90`.
 function write_nnkp(filename::AbstractString, kstencil::KspaceStencil; kwargs...)
     return WannierIO.write_nnkp(
         filename;
-        lattice=real_lattice(reciprocal_lattice(kstencil)),
-        recip_lattice=reciprocal_lattice(kstencil),
+        lattice = real_lattice(reciprocal_lattice(kstencil)),
+        recip_lattice = reciprocal_lattice(kstencil),
         kstencil.kpoints,
         kstencil.kpb_k,
         kstencil.kpb_G,
@@ -92,12 +92,12 @@ Check if the kpoint stencil (bvectors) contain 6 cubic neighbors.
 - `kpb_G`: translation vector that maps k to k+b
 """
 function has_cubic_neighbors(
-    kpoints::AbstractVector,
-    kpb_k::AbstractVector,
-    kpb_G::AbstractVector;
-    kgrid_size::AbstractVector=guess_kgrid_size(kpoints),
-    atol::AbstractFloat=1e-6,
-)
+        kpoints::AbstractVector,
+        kpb_k::AbstractVector,
+        kpb_G::AbstractVector;
+        kgrid_size::AbstractVector = guess_kgrid_size(kpoints),
+        atol::AbstractFloat = 1.0e-6,
+    )
     dkx, dky, dkz = 1 ./ kgrid_size
     # In fractional coordinates
     bvectors_cubic = [
@@ -121,13 +121,13 @@ function has_cubic_neighbors(
     return true
 end
 
-function has_cubic_neighbors(kstencil::KspaceStencil; atol::AbstractFloat=1e-6)
+function has_cubic_neighbors(kstencil::KspaceStencil; atol::AbstractFloat = 1.0e-6)
     return has_cubic_neighbors(
         kstencil.kpoints, kstencil.kpb_k, kstencil.kpb_G; kstencil.kgrid_size, atol
     )
 end
 
-function has_cubic_neighbors(filename::AbstractString; atol::AbstractFloat=1e-6)
+function has_cubic_neighbors(filename::AbstractString; atol::AbstractFloat = 1.0e-6)
     nnkp = read_nnkp(filename)
     return has_cubic_neighbors(nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G; atol)
 end
@@ -146,7 +146,7 @@ Write a nnkp file with 6 cubic neighbors. Useful for [`parallel_transport`](@ref
 - `filename`: the filename of the new `nnkp` file
 - `win`: the Wannier90 parameters, e.g. returned by [`read_win`](@ref)
 """
-function write_nnkp_cubic(filename::AbstractString, win::Union{NamedTuple,AbstractDict})
+function write_nnkp_cubic(filename::AbstractString, win::Union{NamedTuple, AbstractDict})
     recip_latt = reciprocal_lattice(win.unit_cell_cart)
     kstencil = generate_kspace_stencil(
         recip_latt, win.mp_grid, win.kpoints, Wannier.CubicNearestKspaceStencil()
@@ -154,9 +154,9 @@ function write_nnkp_cubic(filename::AbstractString, win::Union{NamedTuple,Abstra
     return write_nnkp(
         filename,
         kstencil;
-        exclude_bands=get(win, :exclude_bands, nothing),
+        exclude_bands = get(win, :exclude_bands, nothing),
         # Need a fake projections block such that pw2wannier90.x can run
-        projections=WannierIO.HydrogenOrbital[],
+        projections = WannierIO.HydrogenOrbital[],
     )
 end
 

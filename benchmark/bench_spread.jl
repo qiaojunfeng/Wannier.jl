@@ -1,17 +1,17 @@
 module BenchSpread
 
-using BenchmarkTools
-using Wannier
-using Wannier.Datasets
+    using BenchmarkTools
+    using Wannier
+    using Wannier.Datasets
 
-SUITE = BenchmarkGroup()
+    SUITE = BenchmarkGroup()
 
-model = load_dataset("Si2")
-bvectors = model.bvectors
-M = model.M
-U = model.U
+    model = load_dataset("Si2")
+    bvectors = model.bvectors
+    M = model.M
+    U = model.U
 
-SUITE["omega"] = @benchmarkable omega($bvectors, $M, $U)
+    SUITE["omega"] = @benchmarkable omega($bvectors, $M, $U)
 
 end  # module
 

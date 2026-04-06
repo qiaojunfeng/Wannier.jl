@@ -70,7 +70,7 @@ kpoint coordinates to be interpolated, using 100 points in the 1st kpath segment
 kpi = Wannier.generate_w90_kpoint_path(kpath, 100)
 
 # Now we can plot the QE bands for two spin channels
-P = plot_band_diff(kpi, qe.E_up, qe.E_dn; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, qe.E_up, qe.E_dn; fermi_energy = qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 #=
@@ -112,19 +112,19 @@ using the `kpoint_path` from `win` file (otherwise, by default the `InterpModel`
 will use `Brillouin.jl` to auto generate a kpath, which might be different
 from user's input)
 =#
-interpModel_up = Wannier.InterpModel(model_up; kpath=kpath)
-interpModel_dn = Wannier.InterpModel(model_dn; kpath=kpath)
+interpModel_up = Wannier.InterpModel(model_up; kpath = kpath)
+interpModel_dn = Wannier.InterpModel(model_dn; kpath = kpath)
 
 # then interpolate eigenvalues
 E_up_projonly = Wannier.interpolate(interpModel_up, kpi)
 E_dn_projonly = Wannier.interpolate(interpModel_dn, kpi)
 
 # and plot the spin-up bands compared with QE
-P = plot_band_diff(kpi, qe.E_up, E_up_projonly; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, qe.E_up, E_up_projonly; fermi_energy = qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 # and the spin-down bands
-P = plot_band_diff(kpi, qe.E_dn, E_dn_projonly; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, qe.E_dn, E_dn_projonly; fermi_energy = qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 #=
@@ -136,7 +136,7 @@ calculations.
 As a side node, we can also plot the Wannier-interpolated spin-up and down bands
 in one figure,
 =#
-P = plot_band_diff(kpi, E_up_projonly, E_dn_projonly; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, E_up_projonly, E_dn_projonly; fermi_energy = qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 #=
@@ -184,7 +184,7 @@ interpModel_up_mlwf = Wannier.InterpModel(
 E_up_mlwf = Wannier.interpolate(interpModel_up_mlwf, kpi)
 
 # Now the MLWF bands are very accurate, much better than projection-only
-P = plot_band_diff(kpi, qe.E_up, E_up_mlwf; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, qe.E_up, E_up_mlwf; fermi_energy = qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 # similarly, for spin-down channel
@@ -198,7 +198,7 @@ interpModel_dn_mlwf = Wannier.InterpModel(
     fourier(interpModel_dn.kRvectors, Wannier.rotate_gauge(model_dn.E, U_dn_mlwf)),
 )
 E_dn_mlwf = Wannier.interpolate(interpModel_dn_mlwf, kpi)
-P = plot_band_diff(kpi, qe.E_dn, E_dn_mlwf; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, qe.E_dn, E_dn_mlwf; fermi_energy = qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 # Save the gauge into `chk` files
@@ -340,11 +340,11 @@ E_up = Wannier.interpolate(interpModel_up, kpi);
 E_dn = Wannier.interpolate(interpModel_dn, kpi);
 
 # and compare the up bands against QE
-P = plot_band_diff(kpi, qe.E_up, E_up; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, qe.E_up, E_up; fermi_energy = qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 # and the down bands
-P = plot_band_diff(kpi, qe.E_dn, E_dn; fermi_energy=qe.fermi_energy)
+P = plot_band_diff(kpi, qe.E_dn, E_dn; fermi_energy = qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 # Save the gauge into `chk` files

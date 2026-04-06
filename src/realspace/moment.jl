@@ -23,7 +23,7 @@ Returned value in Cartesian coordinates.
     calculated by this function is inexact. In principle, we should calculate
     centers in the `n_kpts` supercell, however, this is memory-consuming.
 """
-function moment(rgrid::RGrid, W::AbstractArray{T,3}, n::U) where {T<:Complex,U<:Integer}
+function moment(rgrid::RGrid, W::AbstractArray{T, 3}, n::U) where {T <: Complex, U <: Integer}
     Xᶜ, Yᶜ, Zᶜ = cartesianize_xyz(rgrid)
     x = sum(conj(W) .* Xᶜ .^ n .* W)
     y = sum(conj(W) .* Yᶜ .^ n .* W)
@@ -32,7 +32,7 @@ function moment(rgrid::RGrid, W::AbstractArray{T,3}, n::U) where {T<:Complex,U<:
     return real(r)
 end
 
-function moment(rgrid::RGrid, W::AbstractArray{T,4}, n::U) where {T<:Complex,U<:Integer}
+function moment(rgrid::RGrid, W::AbstractArray{T, 4}, n::U) where {T <: Complex, U <: Integer}
     n_wann = size(W, 4)
     return map(1:n_wann) do i
         moment(rgrid, W[:, :, :, i], n)
@@ -42,11 +42,11 @@ end
 function moment(W::WannierFunction{N, T}, n) where {N, T}
     out = zero(Vec3{Complex{T}})
     for (w1, p) in zip(W, W.points)
-        out += w1' * w1 * p.^n
+        out += w1' * w1 * p .^ n
     end
     return real(out)
 end
-    
+
 """
     center(rgrid::RGrid, W::AbstractArray)
 
@@ -69,10 +69,10 @@ Returned value in Å^2 unit.
 See also [`moment`](@ref moment).
 """
 function omega(rgrid::RGrid, W::AbstractArray)
-    return map(x-> sum(x[1] .- x[2].^2), zip(moment(rgrid, W, 2), center(rgrid, W)))
+    return map(x -> sum(x[1] .- x[2] .^ 2), zip(moment(rgrid, W, 2), center(rgrid, W)))
 end
 function omega(W::WannierFunction)
-    return sum(moment(W, 2) .- center(W).^2)
+    return sum(moment(W, 2) .- center(W) .^ 2)
 end
 
 """
@@ -84,7 +84,7 @@ Returned value in Cartesian coordinates.
 
 See also [`center`](@ref center).
 """
-function position_op(rgrid::RGrid, W::AbstractArray{T,4}) where {T<:Complex}
+function position_op(rgrid::RGrid, W::AbstractArray{T, 4}) where {T <: Complex}
     Xᶜ, Yᶜ, Zᶜ = cartesianize_xyz(rgrid)
     n_wann = size(W, 4)
     # last index is x,y,z

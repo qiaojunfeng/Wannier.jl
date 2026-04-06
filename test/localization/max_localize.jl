@@ -24,16 +24,16 @@ end
     G_ref = NLSolversBase.gradient!(d, U0)
 
     # I am using a looser tolerance here
-    @test isapprox(G, G_ref; atol=1e-6)
+    @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.max_localize(model; max_iter=1)
+    U1 = Wannier.max_localize(model; max_iter = 1)
     U1 = stack(U1)
 
     fg!(nothing, G, U1)
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), U1, zero(eltype(real(U1))))
     G_ref = NLSolversBase.gradient!(d, U1)
-    @test isapprox(G, G_ref; atol=1e-6)
+    @test isapprox(G, G_ref; atol = 1.0e-6)
 end
 
 @testitem "maxloc valence" setup = [MaxlocEnv] begin
@@ -45,8 +45,8 @@ end
     Umin = max_localize(p, model)
     Ω = omega(p, model.kstencil, model.overlaps, Umin)
 
-    @test isapprox(Ω.Ω, 4.086818459; atol=1e-7)
-    @test isapprox(Ω.ΩI, 3.706376532; atol=1e-7)
-    @test isapprox(Ω.ΩOD, 0.380441928; atol=1e-7)
-    @test isapprox(Ω.Ω̃, 0.3804419269999997; atol=1e-7)
+    @test isapprox(Ω.Ω, 4.086818459; atol = 1.0e-7)
+    @test isapprox(Ω.ΩI, 3.706376532; atol = 1.0e-7)
+    @test isapprox(Ω.ΩOD, 0.380441928; atol = 1.0e-7)
+    @test isapprox(Ω.Ω̃, 0.3804419269999997; atol = 1.0e-7)
 end

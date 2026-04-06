@@ -28,13 +28,13 @@ then this command split MLWFs into several subgroups.
     Should reach the true max localization.
 """
 function mrwf(
-    model::Model,
-    indices::AbstractVector{T},
-    model_cubic::Model=model;
-    run_dis::Bool=false,
-    run_optrot::Bool=false,
-    run_maxloc::Bool=false,
-) where {T<:AbstractVector}
+        model::Model,
+        indices::AbstractVector{T},
+        model_cubic::Model = model;
+        run_dis::Bool = false,
+        run_optrot::Bool = false,
+        run_maxloc::Bool = false,
+    ) where {T <: AbstractVector}
     # Check input
     length(indices) > 0 || @error "indices must not be empty"
 
@@ -95,14 +95,14 @@ end
 - `rot_unk`: generate `unk` files for subgroups, for plotting WFs
 """
 function mrwf(
-    prefix::AbstractString,
-    indices::AbstractVector{T},
-    outdirs::AbstractVector{S},
-    mmn_cubic::Union{AbstractString,Nothing}=nothing;
-    chk::Union{AbstractString,Nothing}="$prefix.chk",
-    rot_unk::Bool=false,
-    kwargs...,
-) where {T<:AbstractVector,S<:AbstractString}
+        prefix::AbstractString,
+        indices::AbstractVector{T},
+        outdirs::AbstractVector{S},
+        mmn_cubic::Union{AbstractString, Nothing} = nothing;
+        chk::Union{AbstractString, Nothing} = "$prefix.chk",
+        rot_unk::Bool = false,
+        kwargs...,
+    ) where {T <: AbstractVector, S <: AbstractString}
     length(indices) == length(outdirs) ||
         error("length of indices and outdirs must be equal")
 
@@ -154,17 +154,17 @@ function mrwf(
     win = read_win("$prefix.win")
     win = OrderedDict(pairs(win))
     for k in [
-        :num_bands,
-        :dis_froz_proj,
-        :dis_proj_min,
-        :dis_proj_max,
-        :dis_win_min,
-        :dis_win_max,
-        :dis_froz_min,
-        :dis_froz_max,
-        :projections,
-        :auto_projections,
-    ]
+            :num_bands,
+            :dis_froz_proj,
+            :dis_proj_min,
+            :dis_proj_max,
+            :dis_win_min,
+            :dis_win_max,
+            :dis_froz_min,
+            :dis_froz_max,
+            :projections,
+            :auto_projections,
+        ]
         pop!(win, k, nothing)
     end
     # Just use auto_projections as a placeholder
@@ -218,11 +218,11 @@ end
 See [`mrwf`](@ref) for more details.
 """
 function mrwf(
-    prefix::AbstractString,
-    config_file::AbstractString,
-    mmn_cubic::Union{AbstractString,Nothing}=nothing;
-    kwargs...,
-)
+        prefix::AbstractString,
+        config_file::AbstractString,
+        mmn_cubic::Union{AbstractString, Nothing} = nothing;
+        kwargs...,
+    )
     @info "reading config file: $config_file"
     groups = parsefile(config)["groups"]
     indices = groups["indices"]
@@ -242,13 +242,13 @@ end
 See [`mrwf`](@ref) for more details.
 """
 function mrwf(
-    prefix::AbstractString,
-    nval::Integer,
-    outdir_val::AbstractString="val",
-    outdir_cond::AbstractString="cond",
-    mmn_cubic::Union{AbstractString,Nothing}=nothing;
-    kwargs...,
-)
+        prefix::AbstractString,
+        nval::Integer,
+        outdir_val::AbstractString = "val",
+        outdir_cond::AbstractString = "cond",
+        mmn_cubic::Union{AbstractString, Nothing} = nothing;
+        kwargs...,
+    )
     win = read_win(joinpath(prefix, ".win"))
     nwan = win[:num_wann]
     (0 < nval < nwan) || @error "nval must > 0 and < n_wannier"
@@ -307,11 +307,11 @@ end
     Default is `false`.
 """
 function merge_gauge(
-    filename::AbstractString,
-    split_amns::AbstractVector{<:AbstractString},
-    maxlocs::AbstractVector{<:AbstractString};
-    umat::Bool=false,
-)
+        filename::AbstractString,
+        split_amns::AbstractVector{<:AbstractString},
+        maxlocs::AbstractVector{<:AbstractString};
+        umat::Bool = false,
+    )
     Usplits = map(split_amns) do f
         read_amn(f)
     end
@@ -345,11 +345,11 @@ end
     Default is `false`.
 """
 function merge_gauge(
-    filename::AbstractString,
-    prefix::AbstractString,
-    outdirs::AbstractVector{<:AbstractString};
-    umat::Bool=false,
-)
+        filename::AbstractString,
+        prefix::AbstractString,
+        outdirs::AbstractVector{<:AbstractString};
+        umat::Bool = false,
+    )
     split_amns = map(outdirs) do od
         joinpath(od, "$(prefix)_split.amn")
     end
@@ -364,8 +364,8 @@ function merge_gauge(
 end
 
 function merge_gauge(
-    prefix::AbstractString, outdirs::AbstractVector{<:AbstractString}; kwargs...
-)
+        prefix::AbstractString, outdirs::AbstractVector{<:AbstractString}; kwargs...
+    )
     filename = "$(prefix)_mrwf.amn"
     return merge_gauge(filename, prefix, outdirs; kwargs...)
 end

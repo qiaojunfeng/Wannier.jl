@@ -13,7 +13,7 @@ kpoints are sorted by their distance to the original kpoint, such that equal-dis
 # Fields
 $(FIELDS)
 """
-struct KspaceStencilShells{T<:Real}
+struct KspaceStencilShells{T <: Real}
     """reciprocal lattice vectors, 3 * 3, each column is a reciprocal lattice
     vector in Å⁻¹ unit"""
     recip_lattice::Mat3{T}
@@ -64,9 +64,9 @@ function KspaceStencilShells(recip_lattice, kgrid_size, kpoints, bvectors, bweig
 end
 
 function KspaceStencilShells(
-    recip_lattice, kgrid_size, kpoints;
-    atol=default_w90_kmesh_tol(),
-)
+        recip_lattice, kgrid_size, kpoints;
+        atol = default_w90_kmesh_tol(),
+    )
     # find shells
     shells = search_shells(recip_lattice, kgrid_size, kpoints; atol)
     keep_shells = check_parallel(shells)
@@ -98,6 +98,7 @@ function Base.show(io::IO, ::MIME"text/plain", shells::KspaceStencilShells)
         end
         ish != nshells && println(io)
     end
+    return
 end
 
 """
@@ -122,12 +123,12 @@ Search bvector shells satisfing completeness condition.
     - `max_shells` should be set to wannier90's input parameter `search_shells`
 """
 function search_shells(
-    recip_lattice::Mat3,
-    kgrid_size::AbstractVector,
-    kpoints::AbstractVector;
-    atol=default_w90_kmesh_tol(),
-    max_shells=default_w90_bvectors_search_shells(),
-)
+        recip_lattice::Mat3,
+        kgrid_size::AbstractVector,
+        kpoints::AbstractVector;
+        atol = default_w90_kmesh_tol(),
+        max_shells = default_w90_bvectors_search_shells(),
+    )
     # Usually these "magic" numbers work well for normal recip_lattice.
     # Number of nearest-neighbors to be returned
     max_neighbors = 500
@@ -204,8 +205,8 @@ Check if the columns of matrix `A` and columns of matrix `B` are parallel.
     `1e-6` as well to reproduce the same result.
 """
 function are_parallel(
-    A::AbstractVector, B::AbstractVector; atol=default_w90_bvectors_check_parallel_atol()
-)
+        A::AbstractVector, B::AbstractVector; atol = default_w90_bvectors_check_parallel_atol()
+    )
     n_A = length(A)
     n_B = length(B)
 
@@ -243,8 +244,8 @@ Check if shells having parallel bvectors.
     - `atol` should be set to wannier90's internal constant `1e-6`.
 """
 function check_parallel(
-    bvectors::Vector{Vector{Vec3{T}}}; atol=default_w90_bvectors_check_parallel_atol()
-) where {T}
+        bvectors::Vector{Vector{Vec3{T}}}; atol = default_w90_bvectors_check_parallel_atol()
+    ) where {T}
     nshells = length(bvectors)
     keep_shells = collect(1:nshells)
 
@@ -307,7 +308,7 @@ Since bvectors are symmetric, this removes half of the bvectors.
 function delete_shells_Γ(shells::KspaceStencilShells)
     bvectors = map(shells.bvectors) do bvecs  # for each shell
         bvecs_new = filter(v -> all(v .>= 0), bvecs)
-        if length(bvecs_new) != length(bvecs)//2
+        if length(bvecs_new) != length(bvecs) // 2
             error("Non-symmetric bvectors for Γ-point calculation: ", bvecs)
         end
         bvecs_new
@@ -339,8 +340,8 @@ shells that satisfy the B1 condition, and return the new `KspaceStencilShells` a
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
 function compute_bweights(
-    bvectors::Vector{Vector{Vec3{T}}}; atol=default_w90_kmesh_tol()
-) where {T}
+        bvectors::Vector{Vector{Vec3{T}}}; atol = default_w90_kmesh_tol()
+    ) where {T}
     nshells = length(bvectors)
     @assert nshells > 0 "empty bvectors"
 
@@ -406,7 +407,7 @@ Try to guess bvector bweights from MV1997 Eq. (B1).
     To reproduce wannier90's behavior,
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
-function compute_bweights(shells::KspaceStencilShells; atol=default_w90_kmesh_tol())
+function compute_bweights(shells::KspaceStencilShells; atol = default_w90_kmesh_tol())
     return compute_bweights(shells.bvectors; atol)
 end
 
@@ -427,8 +428,8 @@ Check completeness (B1 condition) of `KspaceStencilShells`.
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
 function check_completeness(
-    shells::KspaceStencilShells{T}; atol=default_w90_kmesh_tol()
-) where {T}
+        shells::KspaceStencilShells{T}; atol = default_w90_kmesh_tol()
+    ) where {T}
     M = zeros(T, 3, 3)
 
     for (bvecs, w) in zip(shells.bvectors, shells.bweights)
@@ -440,10 +441,12 @@ function check_completeness(
     Δ = M - Matrix(I, 3, 3)
     # compare element-wise, to be consistent with W90
     if !all(isapprox.(Δ, 0; atol))
-        error("""b-vector completeness condition not satisfied
-                 atol = $atol
-                 Δ = $(maximum(abs.(Δ)))
-                 try increasing atol?""")
+        error(
+            """b-vector completeness condition not satisfied
+            atol = $atol
+            Δ = $(maximum(abs.(Δ)))
+            try increasing atol?"""
+        )
     end
 
     @info "b-vector completeness condition satisfied"

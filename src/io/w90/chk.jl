@@ -26,13 +26,13 @@ Write a `Model` to a wannier90 `chk` file.
     files, therefore this `exclude_bands` is totally irrelevant to our `Model` struct.
 """
 function write_chk(
-    filename::AbstractString,
-    model::Model,
-    gauges::AbstractVector=model.gauges;
-    exclude_bands::AbstractVector=default_exclude_bands(),
-    binary::Bool=false,
-    header=default_header(),
-)
+        filename::AbstractString,
+        model::Model,
+        gauges::AbstractVector = model.gauges;
+        exclude_bands::AbstractVector = default_exclude_bands(),
+        binary::Bool = false,
+        header = default_header(),
+    )
     checkpoint = "postwann"
     have_disentangled = isentangled(model)
     Ω = omega(model, gauges)
@@ -108,7 +108,7 @@ Construct a `Model` from a `WannierIO.Chk` struct.
     rotation needs to make sure that the rotated Hamiltonian is diagonal
     so that `E` stores the diagonal eigenvalues of the Hamiltonian.
 """
-function Model(chk::WannierIO.Chk; kmesh_tol=default_w90_kmesh_tol())
+function Model(chk::WannierIO.Chk; kmesh_tol = default_w90_kmesh_tol())
     atom_positions = Vec3{Float64}[]
     atom_labels = Vector{String}()
     @warn "chk file does not contain info on atom positions and labels, set them to empty"
@@ -117,7 +117,7 @@ function Model(chk::WannierIO.Chk; kmesh_tol=default_w90_kmesh_tol())
     # are different from the calculation corresponding to the chk file,
     # e.g. kmesh_tol is different
     kstencil = generate_kspace_stencil(
-        chk.recip_lattice, chk.kgrid, chk.kpoints; atol=kmesh_tol
+        chk.recip_lattice, chk.kgrid, chk.kpoints; atol = kmesh_tol
     )
     @warn "The generated bvectors might be different from that used in the " *
         "chk file, if the wannier90 input parameter `kmesh_tol` is different from " *

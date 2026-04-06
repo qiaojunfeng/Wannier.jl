@@ -112,7 +112,7 @@ model_val.gauges .= R;
 omega(model_val)
 # and we will ask `parallel_transport` to explicitly use our random matrices,
 # by setting argument `use_U = true`,
-U2, _ = parallel_transport(model_val; use_U=true)
+U2, _ = parallel_transport(model_val; use_U = true)
 #=
 note the function returns a lit bit extra information which is irrelevant to this tutorial,
 so we discard it by a `_`.
@@ -223,15 +223,15 @@ Also, you can try to plot the WFs, by first truncating the `unk`
 Wannier.truncate_unk(".", [7], "truncate")
 # the new `unk`s are stored in a subfolder `truncate`,
 # now write the realspace WF
-write_realspace_wf("wjl", model_top; n_supercells=[3, 3, 2], unkdir="truncate")
+write_realspace_wf("wjl", model_top; n_supercells = [3, 3, 2], unkdir = "truncate")
 # and visualize with your favorite tool.
 
 # As a reference, here is the real space WFs visualized with [`WannierPlots.jl`].
 using JSServe  # hide
-Page(; exportable=true, offline=true)  # hide
+Page(; exportable = true, offline = true)  # hide
 # First, load the plotting packages
 using WGLMakie
-set_theme!(; resolution=(800, 800))
+set_theme!(; resolution = (800, 800))
 using WannierPlots
 #=
 !!! tip

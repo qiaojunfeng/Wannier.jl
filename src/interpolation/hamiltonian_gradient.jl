@@ -28,8 +28,8 @@ directions.
 YWVS Eq. 26.
 """
 function (interp::HamiltonianGradientInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}; kwargs...
-)
+        kpoints::AbstractVector{<:AbstractVector}; kwargs...
+    )
     # since `KPathInterpolant` is also a `AbstractVector{<:AbstractVector}`,
     # we call the `get_kpoints` so that this function also works for `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
@@ -107,8 +107,8 @@ Compute velocity (in Bloch gauge) along three Cartesian directions.
     also include non-diagonal part, see [`HamiltonianGradientInterpolator`](@ref).
 """
 function (interp::VelocityInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}, ::AnalyticVelocity; kwargs...
-)
+        kpoints::AbstractVector{<:AbstractVector}, ::AnalyticVelocity; kwargs...
+    )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
     _, _, dH, _ = compute_D_matrix(
@@ -130,11 +130,11 @@ PRB 93, 205147 (2016)  Eq. 80.
 - `dk`: the finite difference spacing, Å⁻¹ unit, default to `1e-3`
 """
 function (interp::VelocityInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector},
-    ::FiniteDifferenceVelocity;
-    dk::Real=1e-3,
-    kwargs...,
-)
+        kpoints::AbstractVector{<:AbstractVector},
+        ::FiniteDifferenceVelocity;
+        dk::Real = 1.0e-3,
+        kwargs...,
+    )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
     nwann = n_wannier(interp.hamiltonian)
@@ -183,7 +183,7 @@ function (interp::VelocityInterpolator)(
 end
 
 function (interp::VelocityInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}; kwargs...
-)
+        kpoints::AbstractVector{<:AbstractVector}; kwargs...
+    )
     return interp(kpoints, AnalyticVelocity(); kwargs...)
 end

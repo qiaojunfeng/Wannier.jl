@@ -54,7 +54,7 @@ The [`write_realspace_wf`](@ref) function reads the `UNK` files,
 compute the real space WFs in a `n_supercells`-sized super cell,
 and write them to `xsf` files,
 =#
-write_realspace_wf("wjl", model; unkdir=dataset"graphene", n_supercells=3, format=:xsf)
+write_realspace_wf("wjl", model; unkdir = dataset"graphene", n_supercells = 3, format = :xsf)
 
 #=
 Now, open the `wjl_00001.xsf`, etc. files with a 3D
@@ -69,7 +69,7 @@ visualizer, e.g., `vesta`, to have a look at the WFs!
 =#
 
 using JSServe  # hide
-Page(; exportable=true, offline=true)  # hide
+Page(; exportable = true, offline = true)  # hide
 #=
 We also provide a simple plotting package
 [`WannierPlots.jl`](https://github.com/qiaojunfeng/WannierPlots.jl)
@@ -78,7 +78,7 @@ for quick Visualization of band structure, real space WFs, etc.
 First, load the plotting packages
 =#
 using WGLMakie
-set_theme!(; resolution=(800, 800))
+set_theme!(; resolution = (800, 800))
 using WannierPlots
 #=
 !!! tip

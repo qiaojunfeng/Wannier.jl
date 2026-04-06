@@ -13,7 +13,7 @@
         [-4.132392387731443, -4.20084007884336, 1.2558989403999021e-6],
         [-4.956384133104397, 2.6956732295380093, 1.9835657560918207e-6],
     ]
-    @test all(isapprox.(V, ref_V; atol=1e-7))
+    @test all(isapprox.(V, ref_V; atol = 1.0e-7))
 end
 
 @testitem "VelocityInterpolator AnalyticVelocity" begin
@@ -25,7 +25,7 @@ end
     V = interp(k, Wannier.AnalyticVelocity())
 
     ref_V = interp(k, Wannier.FiniteDifferenceVelocity())
-    @test all(isapprox.(V, ref_V; atol=5e-5))
+    @test all(isapprox.(V, ref_V; atol = 5.0e-5))
 end
 
 @testitem "HamiltonianGradientInterpolator" begin
@@ -42,5 +42,5 @@ end
     V_offdiag = dH - diagm(ref_dHdiag)
     # element of dH are complex MVec3, so this also ensure that
     # the imaginary part is zero
-    @test all(isapprox.(V_offdiag, Ref([0, 0, 0]); atol=1e-10))
+    @test all(isapprox.(V_offdiag, Ref([0, 0, 0]); atol = 1.0e-10))
 end

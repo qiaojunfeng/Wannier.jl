@@ -32,8 +32,8 @@ https://doi.org/10.1016/j.cpc.2022.108645
 - `prefix.mmn`: overlap matrix in FBZ.
 """
 function unfold(
-    prefix::AbstractString, out_prefix::AbstractString=prefix; reorder_bvec::Bool=false
-)
+        prefix::AbstractString, out_prefix::AbstractString = prefix; reorder_bvec::Bool = false
+    )
     nnkp = read_nnkp("$prefix.nnkp")
     kstencil = Wannier.KspaceStencil(
         nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
@@ -71,11 +71,12 @@ function unfold(
     # at each kpoint in the IBZ mmn file.
     kstencil_ibz = Wannier.KspaceStencil(
         kstencil.recip_lattice, kstencil.kgrid_size, kpoints_ibz,
-        get_bvectors(kstencil; fractional=true),
+        get_bvectors(kstencil; fractional = true),
         kstencil.bweights, kpb_k_i, kpb_G_i
     )
     Mf, kpb_k_f, kpb_G_f = Wannier.unfold_overlaps(
-        Mi, kstencil_ibz, kstencil, f2i, isym.spinors, symops, repmat_band)
+        Mi, kstencil_ibz, kstencil, f2i, isym.spinors, symops, repmat_band
+    )
 
     if reorder_bvec
         Mf = Wannier.reorder(Mf, kpb_k_f, kpb_G_f, kstencil)

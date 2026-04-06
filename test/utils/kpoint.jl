@@ -10,7 +10,7 @@
     n_kpts = prod(kgrid_size)
 
     k_xyz_ref = Vector{Wannier.Vec3{Int}}(undef, n_kpts)
-    xyz_k_ref = Array{Int,3}(undef, n_kx, n_ky, n_kz)
+    xyz_k_ref = Array{Int, 3}(undef, n_kx, n_ky, n_kz)
 
     # z increases the fastest
     for ikx in 1:n_kx
@@ -46,7 +46,7 @@ end
 
 @testitem "get_kpoints endpoint" begin
     using Wannier: Vec3
-    kpoints = Wannier.get_kpoints([2, 2, 2]; endpoint=true)
+    kpoints = Wannier.get_kpoints([2, 2, 2]; endpoint = true)
 
     ref_kpoints = Vec3[
         [0.0, 0.0, 0.0],
@@ -63,7 +63,7 @@ end
 
 @testitem "get_kpoints negative" begin
     using Wannier: Vec3
-    kpoints = Wannier.get_kpoints([2, 2, 2]; negative=true)
+    kpoints = Wannier.get_kpoints([2, 2, 2]; negative = true)
 
     ref_kpoints = Vec3[
         [0.0, 0.0, 0.0],
@@ -111,7 +111,7 @@ end
     using Wannier.Datasets
     # this kgrid has negative coordinates
     mp_grid = [4, 4, 4]
-    kpoints = Wannier.get_kpoints(mp_grid; negative=true)
+    kpoints = Wannier.get_kpoints(mp_grid; negative = true)
     @test Wannier.guess_kgrid_size(kpoints) == mp_grid
 end
 
@@ -121,14 +121,14 @@ end
     # this kgrid has negative coordinates
     mp_grid = [4, 4, 4]
     kpoints = Wannier.get_kpoints(mp_grid)
-    kpoints[end-2] = kpoints[end-2] .- 1
+    kpoints[end - 2] = kpoints[end - 2] .- 1
     @test Wannier.guess_kgrid_size(kpoints) == mp_grid
 end
 
 @testitem "rationalize_points" begin
-    kpoints = [[1e-10, 0.0, 0.0], [0.5, 0.5, 0.5]]
+    kpoints = [[1.0e-10, 0.0, 0.0], [0.5, 0.5, 0.5]]
     rationalized = Wannier.rationalize_points(kpoints)
-    ref_kpoints = [[0//1, 0//1, 0//1], [1//2, 1//2, 1//2]]
+    ref_kpoints = [[0 // 1, 0 // 1, 0 // 1], [1 // 2, 1 // 2, 1 // 2]]
     @test rationalized == ref_kpoints
 end
 
@@ -136,6 +136,6 @@ end
     # See issue #54
     kgrid_size = [2, 2, 2]
     kpoints = Wannier.get_kpoints(kgrid_size)
-    kpoints[1] = kpoints[1] + [5e-10, 0, 0]
+    kpoints[1] = kpoints[1] + [5.0e-10, 0, 0]
     @test Wannier.guess_kgrid_size(kpoints) == kgrid_size
 end

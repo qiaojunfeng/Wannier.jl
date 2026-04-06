@@ -25,7 +25,7 @@ prefactor = 1
 
 # smearing = Wannier.FermiDiracSmearing()
 smearing = Wannier.ColdSmearing()
-tol_εF = 5e-3  # convergence tolerance for Fermi energy in eV
+tol_εF = 5.0e-3  # convergence tolerance for Fermi energy in eV
 
 εF_scf = read_win(dataset"Fe_soc/Fe.win").fermi_energy
 
@@ -84,7 +84,7 @@ is uniformlly-spaced.
 
     This function assumes the input eigenvalues `E` are read from a `bxsf` file.
 """
-function to_adpt_kgrid(E::Array{Float64,4})
+function to_adpt_kgrid(E::Array{Float64, 4})
     nks = collect(size(E)[2:end] .- 1)
     kpoints = Wannier.get_kpoints(nks)
     nbands = size(E, 1)
@@ -123,7 +123,7 @@ adpt_kgrid.vals[1]
 
 using ProgressMeter
 # Compute n_electrons w.r.t. a range of Fermi energy
-εF_range = range(εF - 1, εF + 1; step=10e-3)
+εF_range = range(εF - 1, εF + 1; step = 10.0e-3)
 n_electrons_range = @showprogress map(εF_range) do εi
     occs = Wannier.occupation(adpt_kgrid, εi, kbT, smearing; prefactor)
     kweights = Wannier.default_kweights(adpt_kgrid)
@@ -138,8 +138,8 @@ using Plots
 plot(εF_range, n_electrons_range)
 xlabel!("Fermi energy (eV)")
 ylabel!("n_electrons")
-vline!([εF]; label="Fermi energy")
-vline!([vbm]; label="VBM")
-vline!([cbm]; label="CBM")
+vline!([εF]; label = "Fermi energy")
+vline!([vbm]; label = "VBM")
+vline!([cbm]; label = "CBM")
 xlims!(εF - 0.5, εF + 0.5)
 # gui()

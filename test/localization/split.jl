@@ -21,8 +21,8 @@ end
     Ev_ref = model_val.eigenvalues
     Ec_ref = model_cond.eigenvalues
 
-    @test isapprox(Ev, Ev_ref; atol=1e-7)
-    @test isapprox(Ec, Ec_ref; atol=1e-7)
+    @test isapprox(Ev, Ev_ref; atol = 1.0e-7)
+    @test isapprox(Ec, Ec_ref; atol = 1.0e-7)
 end
 
 @testitem "split_mmn" setup = [SplitEnv] begin
@@ -53,8 +53,8 @@ end
     Mv_ref = model_val.overlaps
     Mc_ref = model_cond.overlaps
 
-    @test isapprox(Mv, Mv_ref; atol=1e-7)
-    @test isapprox(Mc, Mc_ref; atol=1e-7)
+    @test isapprox(Mv, Mv_ref; atol = 1.0e-7)
+    @test isapprox(Mc, Mc_ref; atol = 1.0e-7)
 
     #=
     write_eig(dataset"Si2_coarse/valence/Si2_val.eig", Ev)
@@ -74,8 +74,8 @@ end
     Uv = model_val.gauges
     Uc = model_cond.gauges
 
-    @test isapprox(U, Uv; atol=1e-7)
-    @test isapprox(U, Uc; atol=1e-7)
+    @test isapprox(U, Uv; atol = 1.0e-7)
+    @test isapprox(U, Uc; atol = 1.0e-7)
 
     #=
     write_amn(dataset"Si2_coarse/valence/Si2_val.amn", U)
@@ -92,6 +92,6 @@ end
     Ev_ref = model_val.eigenvalues
     Ec_ref = model_cond.eigenvalues
 
-    @test isapprox(model_v.eigenvalues, Ev_ref; atol=1e-7)
-    @test isapprox(model_c.eigenvalues, Ec_ref; atol=1e-7)
+    @test isapprox(model_v.eigenvalues, Ev_ref; atol = 1.0e-7)
+    @test isapprox(model_c.eigenvalues, Ec_ref; atol = 1.0e-7)
 end

@@ -13,7 +13,7 @@ Find isolated groups of bands by checking the local gap at each kpoint.
 # Keyword arguments
 - `gap_threshold`: the threshold for the local gap, default is 0.05 eV.
 """
-function group_eigenvalues(eigenvalues::AbstractArray; gap_threshold=0.05)
+function group_eigenvalues(eigenvalues::AbstractArray; gap_threshold = 0.05)
     nkpts = length(eigenvalues)
     (nkpts > 0) || error("number of kpoints must be greater than 0")
     nbands = length(eigenvalues[1])
@@ -76,8 +76,8 @@ The separation is done by
     to smoothen the gauges.
 """
 function split_eig(
-    E::Vector{Vector{T}}, U::Vector{Matrix{Complex{T}}}, eig_groups::AbstractVector{R}
-) where {T<:Real,R<:AbstractVector{Int}}
+        E::Vector{Vector{T}}, U::Vector{Matrix{Complex{T}}}, eig_groups::AbstractVector{R}
+    ) where {T <: Real, R <: AbstractVector{Int}}
     n_bands, n_wann = size(U[1])
     n_kpts = length(U)
     length(E[1]) != n_bands && error("incompatible n_bands")
@@ -135,8 +135,8 @@ The separation is done by
 - `n_val`: number of valence states
 """
 function split_eig(
-    E::Vector{Vector{T}}, U::Vector{Matrix{Complex{T}}}, n_val::Int
-) where {T<:Real}
+        E::Vector{Vector{T}}, U::Vector{Matrix{Complex{T}}}, n_val::Int
+    ) where {T <: Real}
     n_wann = size(U[1], 2)
 
     n_val < 1 && error("n_val < 0")
@@ -164,11 +164,11 @@ inside the function.
     be the same as the input `UNK` files.
 """
 function split_unk(
-    dir::AbstractString,
-    Us::AbstractArray{T},
-    outdirs::AbstractVector{R};
-    binary::Union{Bool,Nothing}=nothing,
-) where {T<:AbstractArray{<:Matrix},R<:AbstractString}
+        dir::AbstractString,
+        Us::AbstractArray{T},
+        outdirs::AbstractVector{R};
+        binary::Union{Bool, Nothing} = nothing,
+    ) where {T <: AbstractArray{<:Matrix}, R <: AbstractString}
     length(Us) == length(outdirs) || error("incompatible Us and outdirs")
     nkpts = length(Us[1])
     all(length(U) == nkpts for U in Us) || error("incompatible n_kpts")
@@ -235,13 +235,13 @@ inside the function.
 - `binary`: whether to write in Fortran binary format
 """
 function split_unk(
-    dir::AbstractString,
-    Uv::Vector{Matrix{T}},
-    Uc::Vector{Matrix{T}},
-    outdir_val::AbstractString="val",
-    outdir_cond::AbstractString="cond";
-    binary::Union{Bool,Nothing}=nothing,
-) where {T<:Complex}
+        dir::AbstractString,
+        Uv::Vector{Matrix{T}},
+        Uc::Vector{Matrix{T}},
+        outdir_val::AbstractString = "val",
+        outdir_cond::AbstractString = "cond";
+        binary::Union{Bool, Nothing} = nothing,
+    ) where {T <: Complex}
     # !isdir(outdir_val) && mkdir(outdir_val)
     # !isdir(outdir_cond) && mkdir(outdir_cond)
 
@@ -268,8 +268,8 @@ Split the `Model` into several `Model`s.
     rotation of `UNK` files or other operators.
 """
 function split_model(
-    model::Model, eig_groups::AbstractVector{R}
-) where {R<:AbstractVector{Int}}
+        model::Model, eig_groups::AbstractVector{R}
+    ) where {R <: AbstractVector{Int}}
     E = model.eigenvalues
     U = model.gauges
     EVs = split_eig(E, U, eig_groups)
@@ -321,8 +321,8 @@ Split the model and run parallel transport to smoothen the gauge.
     useful for `UNK` files or other operators.
 """
 function split_wannierize(
-    model::Model, eig_groups::AbstractVector{R}
-) where {R<:AbstractVector{Int}}
+        model::Model, eig_groups::AbstractVector{R}
+    ) where {R <: AbstractVector{Int}}
     model_Us = split_model(model, eig_groups)
 
     for (model, _) in model_Us

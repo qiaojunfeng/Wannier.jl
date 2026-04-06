@@ -29,7 +29,7 @@
             -6.45528075438051e-6 7.356781850376137e-6 -11.77978218702691
         ],
     ]
-    @test all(isapprox.(μ, ref_μ; atol=1e-7))
+    @test all(isapprox.(μ, ref_μ; atol = 1.0e-7))
 end
 
 @testitem "EffectiveMassInterpolator AnalyticEffectiveMass" begin
@@ -41,7 +41,7 @@ end
     μ = interp(k, Wannier.AnalyticEffectiveMass())
 
     ref_μ = interp(k, Wannier.FiniteDifferenceEffectiveMass())
-    @test all(isapprox.(μ, ref_μ; atol=2e-3))
+    @test all(isapprox.(μ, ref_μ; atol = 2.0e-3))
 end
 
 @testitem "HamiltonianHessianInterpolator" begin

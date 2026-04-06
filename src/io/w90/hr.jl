@@ -45,7 +45,7 @@ function _raw_read_w90_hr(prefix::AbstractString, lattice::AbstractMatrix)
         Rspace = WignerSeitzRspace(lattice, hrdat.Rvectors, hrdat.Rdegens)
     end
 
-    return (; Rspace, hamiltonian=hrdat.H)
+    return (; Rspace, hamiltonian = hrdat.H)
 end
 
 """
@@ -58,20 +58,20 @@ Write a tight-binding model of Hamiltonian into
 - `skip_wsvec`: whether to skip writing `prefix_wsvec.dat`. Since the `hamiltonian.Rspace`
     is always `BareRspace`, the `prefix_wsvec.dat` file is not necessary.
 """
-function write_w90_hr(prefix::AbstractString, hamiltonian::TBOperator; skip_wsvec=false)
+function write_w90_hr(prefix::AbstractString, hamiltonian::TBOperator; skip_wsvec = false)
     # the operators are always BareRspace
     if !skip_wsvec
         WannierIO.write_w90_wsvec(
             prefix * "_wsvec.dat";
             hamiltonian.Rspace.Rvectors,
-            n_wann=n_wannier(hamiltonian),
+            n_wann = n_wannier(hamiltonian),
         )
     end
 
     return WannierIO.write_w90_hrdat(
         prefix * "_hr.dat";
         hamiltonian.Rspace.Rvectors,
-        Rdegens=ones(n_Rvectors(hamiltonian)),
-        H=hamiltonian.operator,
+        Rdegens = ones(n_Rvectors(hamiltonian)),
+        H = hamiltonian.operator,
     )
 end

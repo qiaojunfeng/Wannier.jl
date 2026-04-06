@@ -26,15 +26,15 @@ end
     G_ref = NLSolversBase.gradient!(d, W0)
 
     # I am using a looser tolerance here
-    @test isapprox(G, G_ref; atol=1e-6)
+    @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    W1 = Wannier.opt_rotate(model; max_iter=1)
+    W1 = Wannier.opt_rotate(model; max_iter = 1)
 
     g!(G, W1)
     d = OnceDifferentiable(f, W1, zero(eltype(real(W1))))
     G_ref = NLSolversBase.gradient!(d, W1)
-    @test isapprox(G, G_ref; atol=1e-6)
+    @test isapprox(G, G_ref; atol = 1.0e-6)
 end
 
 @testitem "opt_rotate valence" setup = [OptRotEnv] begin
@@ -45,11 +45,11 @@ end
 
     Wmin = opt_rotate(model)
     Wref = [
-        0.470784+0.136745im    0.337519-0.159248im  -0.502644-0.281439im   -0.466234+0.266743im
-        -0.106769+0.0365541im   0.755771-0.287907im  -0.137358+0.120947im      0.4286-0.340573im
-        0.147589-0.213364im    0.381346-0.166663im   0.771383-0.0291013im  -0.190455+0.356846im
-        0.605102+0.559885im   -0.173099-0.05895im    0.194089+0.0331043im   0.490533+0.0869002im
+        0.470784 + 0.136745im    0.337519 - 0.159248im  -0.502644 - 0.281439im   -0.466234 + 0.266743im
+        -0.106769 + 0.0365541im   0.755771 - 0.287907im  -0.137358 + 0.120947im      0.4286 - 0.340573im
+        0.147589 - 0.213364im    0.381346 - 0.166663im   0.771383 - 0.0291013im  -0.190455 + 0.356846im
+        0.605102 + 0.559885im   -0.173099 - 0.05895im    0.194089 + 0.0331043im   0.490533 + 0.0869002im
     ]
     # display(Wmin)
-    @test isapprox(Wmin, Wref; atol=1e-5)
+    @test isapprox(Wmin, Wref; atol = 1.0e-5)
 end

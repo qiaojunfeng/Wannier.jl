@@ -11,7 +11,7 @@ function generate_kpath(win::NamedTuple)
         kpath = generate_kpath(win.unit_cell_cart, win.kpoint_path)
     else
         # an empty kpath
-        points = Dict{Symbol,Vec3{Float64}}()
+        points = Dict{Symbol, Vec3{Float64}}()
         paths = Vector{Vector{Symbol}}()
         basis = ReciprocalBasis([v for v in eachcol(model.recip_lattice)])
         setting = Ref(Brillouin.LATTICE)

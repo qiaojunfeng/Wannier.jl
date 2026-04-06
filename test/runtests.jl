@@ -11,9 +11,9 @@ if isnothing(filter_names)
 
     @run_package_tests verbose = true
 
-    DocMeta.setdocmeta!(Wannier, :DocTestSetup, :(using Wannier); recursive=true)
+    DocMeta.setdocmeta!(Wannier, :DocTestSetup, :(using Wannier); recursive = true)
     doctest(
-        Wannier;
+        Wannier
         # fix=true,  # update all the output in `jldoctest`
     )
 else

@@ -15,8 +15,8 @@ struct ColdSmearing <: SmearingFunction end
 function occupation(x::T, ::ColdSmearing) where {T}
     return (
         -erf(x + 1 / sqrt(T(2))) / 2 +
-        1 / sqrt(2 * T(π)) * exp(-(-x - 1 / sqrt(T(2)))^2) +
-        1 / T(2)
+            1 / sqrt(2 * T(π)) * exp(-(-x - 1 / sqrt(T(2)))^2) +
+            1 / T(2)
     )
 end
 
@@ -38,12 +38,12 @@ Compute occupation given eigenvalues and Fermi energy.
 - `prefactor`: 1 for collinear calculation, 2 for spinless
 """
 function occupation(
-    eigenvalues::AbstractVector,
-    εF::Real,
-    kBT::Real,
-    smearing::SmearingFunction;
-    prefactor::Real=default_occupation_prefactor(),
-)
+        eigenvalues::AbstractVector,
+        εF::Real,
+        kBT::Real,
+        smearing::SmearingFunction;
+        prefactor::Real = default_occupation_prefactor(),
+    )
     T = promote_type(eltype(eltype(eigenvalues)), typeof(εF), typeof(kBT))
     inv_kBT = iszero(kBT) ? T(Inf) : 1 / kBT
 
@@ -70,8 +70,8 @@ Compute number of electrons with given density of states and Fermi energy.
 - `n_electrons`: number of electrons
 """
 function compute_n_electrons(
-    energy::AbstractVector, dos::AbstractVector, εF::Real; tol_energy::Real=5e-3
-)
+        energy::AbstractVector, dos::AbstractVector, εF::Real; tol_energy::Real = 5.0e-3
+    )
     dE = energy[2] - energy[1]
     cum_dos = cumsum(dos) * dE
 
@@ -89,8 +89,8 @@ function default_kweights(eigenvalues::AbstractVector)
 end
 
 function compute_n_electrons(
-    occupation::AbstractVector, kweights=default_kweights(occupation)
-)
+        occupation::AbstractVector, kweights = default_kweights(occupation)
+    )
     return sum(kweights .* sum.(occupation))
 end
 
@@ -111,11 +111,11 @@ Compute Fermi energy with given density of states and number of electrons.
 - `εF`: Fermi energy, in eV unit
 """
 function compute_fermi_energy(
-    energy::AbstractVector,
-    dos::AbstractVector,
-    n_electrons::Real;
-    tol_n_electrons::Real=1e-5,
-)
+        energy::AbstractVector,
+        dos::AbstractVector,
+        n_electrons::Real;
+        tol_n_electrons::Real = 1.0e-5,
+    )
     dE = energy[2] - energy[1]
     cum_dos = cumsum(dos) * dE
 
@@ -129,14 +129,14 @@ function compute_fermi_energy(
 end
 
 function compute_fermi_energy(
-    eigenvalues::AbstractVector,
-    n_electrons::Real,
-    kBT::Real,
-    smearing::SmearingFunction;
-    prefactor::Real=default_occupation_prefactor(),
-    kweights=default_kweights(eigenvalues),
-    tol_n_electrons::Real=1e-6,
-)
+        eigenvalues::AbstractVector,
+        n_electrons::Real,
+        kBT::Real,
+        smearing::SmearingFunction;
+        prefactor::Real = default_occupation_prefactor(),
+        kweights = default_kweights(eigenvalues),
+        tol_n_electrons::Real = 1.0e-6,
+    )
     # Get rough bounds to bracket εF
     min_ε = minimum(minimum, eigenvalues) - 1
     max_ε = maximum(maximum, eigenvalues) + 1
@@ -147,7 +147,7 @@ function compute_fermi_energy(
     end
     @assert excess(min_ε) <= 0 <= excess(max_ε) "Fermi energy not bracketed $(excess(min_ε)) $(excess(max_ε))"
 
-    εF = Roots.find_zero(excess, (min_ε, max_ε), Roots.Bisection(); atol=tol_n_electrons)
+    εF = Roots.find_zero(excess, (min_ε, max_ε), Roots.Bisection(); atol = tol_n_electrons)
     Δn_elec = excess(εF)
     abs(Δn_elec) > tol_n_electrons &&
         error("Failed to find Fermi energy within tolerance, Δn_elec = $Δn_elec")
@@ -155,7 +155,7 @@ function compute_fermi_energy(
     return εF
 end
 
-struct Kvoxel{T,VT<:AbstractVector{T}}
+struct Kvoxel{T, VT <: AbstractVector{T}}
     """fractional coordinates of kpoint"""
     point::VT
 
@@ -166,7 +166,7 @@ struct Kvoxel{T,VT<:AbstractVector{T}}
     weight::T
 end
 
-struct AdaptiveKgrid{KV<:Kvoxel,VT}
+struct AdaptiveKgrid{KV <: Kvoxel, VT}
     kvoxels::Vector{KV}
     vals::Vector{VT}
 end
@@ -174,12 +174,12 @@ end
 Base.length(ag::AdaptiveKgrid) = length(ag.kvoxels)
 
 function occupation(
-    adpt_grid::AdaptiveKgrid,
-    εF::Real,
-    kBT::Real,
-    smearing::SmearingFunction;
-    prefactor::Real=default_occupation_prefactor(),
-)
+        adpt_grid::AdaptiveKgrid,
+        εF::Real,
+        kBT::Real,
+        smearing::SmearingFunction;
+        prefactor::Real = default_occupation_prefactor(),
+    )
     T = promote_type(eltype(adpt_grid.vals), typeof(εF), typeof(kBT))
     inv_kBT = iszero(kBT) ? T(Inf) : 1 / kBT
 
@@ -203,12 +203,12 @@ Refine the kgrid by splitting the kvoxels into subvoxels.
 - `axes`: which axes to refine, e.g., `[true, true, false]` only refine the first two axes
 """
 function refine!(
-    ag::AdaptiveKgrid,
-    iks::AbstractVector,
-    interp::Function;
-    n_subvoxels=2,
-    axes::AbstractVector=[true, true, true],
-)
+        ag::AdaptiveKgrid,
+        iks::AbstractVector,
+        interp::Function;
+        n_subvoxels = 2,
+        axes::AbstractVector = [true, true, true],
+    )
     new_kvoxels = eltype(ag.kvoxels)[]
 
     # split the current kvoxel into 8 sub kvoxels, so 7 new kvoxels are added
@@ -261,13 +261,13 @@ Compute Fermi energy by recursively refining the kgrid when interpolating the Ha
 - `εF`: Fermi energy
 """
 function compute_fermi_energy(
-    kgrid::AbstractVector,
-    interp::HamiltonianInterpolator,
-    n_electrons::Real,
-    kBT::Real,
-    smearing::SmearingFunction;
-    kwargs...,
-)
+        kgrid::AbstractVector,
+        interp::HamiltonianInterpolator,
+        n_electrons::Real,
+        kBT::Real,
+        smearing::SmearingFunction;
+        kwargs...,
+    )
     kpoints = get_kpoints(kgrid)
     eigenvals, _ = interp(kpoints)
     adpt_kgrid = AdaptiveKgrid(kpoints, eigenvals)
@@ -299,18 +299,18 @@ Compute Fermi energy by recursively refining the kgrid when interpolating the Ha
 - `εF`: Fermi energy
 """
 function compute_fermi_energy!(
-    adpt_kgrid::AdaptiveKgrid,
-    interp::HamiltonianInterpolator,
-    n_electrons::Real,
-    kBT::Real,
-    smearing::SmearingFunction;
-    prefactor::Real=default_occupation_prefactor(),
-    tol_n_electrons::Real=1e-6,
-    tol_εF::Real=5e-3,
-    max_refine::Integer=10,
-    width_εF::Real=0.5,
-    axes::AbstractVector=[true, true, true],
-)
+        adpt_kgrid::AdaptiveKgrid,
+        interp::HamiltonianInterpolator,
+        n_electrons::Real,
+        kBT::Real,
+        smearing::SmearingFunction;
+        prefactor::Real = default_occupation_prefactor(),
+        tol_n_electrons::Real = 1.0e-6,
+        tol_εF::Real = 5.0e-3,
+        max_refine::Integer = 10,
+        width_εF::Real = 0.5,
+        axes::AbstractVector = [true, true, true],
+    )
     # the initial guessing Fermi energy
     εF = compute_fermi_energy(
         adpt_kgrid.vals,
@@ -318,7 +318,7 @@ function compute_fermi_energy!(
         kBT,
         smearing;
         prefactor,
-        kweights=default_kweights(adpt_kgrid),
+        kweights = default_kweights(adpt_kgrid),
         tol_n_electrons,
     )
     @printf("εF on input kgrid   : %15.9f eV, n_kpoints = %8d\n", εF, length(adpt_kgrid))
@@ -347,7 +347,7 @@ function compute_fermi_energy!(
             kBT,
             smearing;
             prefactor,
-            kweights=default_kweights(adpt_kgrid),
+            kweights = default_kweights(adpt_kgrid),
             tol_n_electrons,
         )
         # gradually reduce width_εF to save computation

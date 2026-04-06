@@ -19,8 +19,8 @@ where ``[\\epsilon_{n \\bm{k}}]`` is a diagonal matrix with
     `n_bands * n_wannier` matrix
 """
 function transform_gauge(
-    eigenvalues::AbstractVector{V}, gauges::AbstractVector{T}
-) where {V<:AbstractVector,T<:AbstractMatrix}
+        eigenvalues::AbstractVector{V}, gauges::AbstractVector{T}
+    ) where {V <: AbstractVector, T <: AbstractMatrix}
     nkpts = length(eigenvalues)
     @assert nkpts > 0 "empty eigenvalues"
     @assert length(gauges) == nkpts "different length of eigenvalues and gauges"
@@ -57,8 +57,8 @@ U^{\\dagger}_{\\mathbf{k}} O_{\\mathbf{k}} U_{\\mathbf{k}}.
 ```
 """
 function transform_gauge(
-    O::AbstractVector{V}, U::AbstractVector{T}
-) where {V<:AbstractMatrix,T<:AbstractMatrix}
+        O::AbstractVector{V}, U::AbstractVector{T}
+    ) where {V <: AbstractMatrix, T <: AbstractMatrix}
     nkpts = length(U)
     @assert nkpts > 0 "U must be non-empty"
     nbands, nwann = size(U[1])
@@ -128,11 +128,11 @@ Rotate the gauge of a `Model`.
     the inverse of the eigenvectors to `model.gauges`; otherwise, if the rotated
     Hamiltonian is not diagonal, raise error.
 """
-function rotate_gauge!(model::Model, U::AbstractVector; ensure_bloch_gauge::Bool=true) end
+function rotate_gauge!(model::Model, U::AbstractVector; ensure_bloch_gauge::Bool = true) end
 
 function transform_gauge(
-    model::Model, U::Vector{Matrix{T}}; ensure_bloch_gauge::Bool=false
-) where {T<:Number}
+        model::Model, U::Vector{Matrix{T}}; ensure_bloch_gauge::Bool = false
+    ) where {T <: Number}
     nbands = n_bands(model)
     nkpts = n_kpoints(model)
     (size(U[1], 1), length(U)) == (nbands, nkpts) ||
@@ -148,7 +148,7 @@ function transform_gauge(
     E2 = map(m -> similar(m), E)
     H = zeros(eltype(model.gauges[1]), nwann, nwann)
     # tolerance for checking Hamiltonian
-    atol = 1e-8
+    atol = 1.0e-8
     # all the diagonalized kpoints, used if diag_H = true
     diag_kpts = Int[]
     for ik in 1:nkpts

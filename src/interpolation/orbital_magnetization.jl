@@ -25,12 +25,12 @@ end
 - `gauges`: from Hamiltonian gauge to Wannier gauge, `n_bands * n_wannier`
 """
 function TBHamiltonianPosition(
-    Rspace::Union{WignerSeitzRspace,MDRSRspace},
-    kstencil::KspaceStencil,
-    overlaps::AbstractVector,
-    eigenvalues::AbstractVector,
-    gauges::AbstractVector,
-)
+        Rspace::Union{WignerSeitzRspace, MDRSRspace},
+        kstencil::KspaceStencil,
+        overlaps::AbstractVector,
+        eigenvalues::AbstractVector,
+        gauges::AbstractVector,
+    )
     # LVTS12 Eq. 91
     # H_kb = U'_k H_k M_kb U_kb
     kpb_k = kstencil.kpb_k
@@ -68,16 +68,16 @@ function TBHamiltonianPosition(
 end
 
 function TBHamiltonianPosition(
-    Rspace::Union{WignerSeitzRspace,MDRSRspace},
-    model::Model,
-    gauges::AbstractVector=model.gauges,
-)
+        Rspace::Union{WignerSeitzRspace, MDRSRspace},
+        model::Model,
+        gauges::AbstractVector = model.gauges,
+    )
     return TBHamiltonianPosition(
         Rspace, model.kstencil, model.overlaps, model.eigenvalues, gauges
     )
 end
 
-function TBHamiltonianPosition(model::Model, gauges::AbstractVector=model.gauges; kwargs...)
+function TBHamiltonianPosition(model::Model, gauges::AbstractVector = model.gauges; kwargs...)
     Rspace = generate_Rspace(model; kwargs...)
     return TBHamiltonianPosition(Rspace, model, gauges)
 end
@@ -106,12 +106,12 @@ end
 - `gauges`: from Hamiltonian gauge to Wannier gauge, `n_bands * n_wannier`
 """
 function TBPositionHamiltonianPosition(
-    Rspace::Union{WignerSeitzRspace,MDRSRspace},
-    kstencil::KspaceStencil,
-    uHu::AbstractVector,
-    gauges::AbstractVector;
-    force_hermiticity=default_w90_berry_duHdu_force_hermiticity(),
-)
+        Rspace::Union{WignerSeitzRspace, MDRSRspace},
+        kstencil::KspaceStencil,
+        uHu::AbstractVector,
+        gauges::AbstractVector;
+        force_hermiticity = default_w90_berry_duHdu_force_hermiticity(),
+    )
     nkpts = n_kpoints(kstencil)
     nbvecs = n_bvectors(kstencil)
     # LVTS12 Eq. 93
@@ -182,17 +182,17 @@ function hermitize_duHdu!(duHdu::AbstractVector)
 end
 
 function TBPositionHamiltonianPosition(
-    Rspace::Union{WignerSeitzRspace,MDRSRspace},
-    model::Model,
-    uHu::AbstractVector,
-    gauges::AbstractVector=model.gauges,
-)
+        Rspace::Union{WignerSeitzRspace, MDRSRspace},
+        model::Model,
+        uHu::AbstractVector,
+        gauges::AbstractVector = model.gauges,
+    )
     return TBPositionHamiltonianPosition(Rspace, model.kstencil, uHu, gauges)
 end
 
 function TBPositionHamiltonianPosition(
-    model::Model, uHu::AbstractVector, gauges::AbstractVector=model.gauges
-)
+        model::Model, uHu::AbstractVector, gauges::AbstractVector = model.gauges
+    )
     Rspace = generate_Rspace(model)
     return TBPositionHamiltonianPosition(Rspace, model, uHu, gauges)
 end
@@ -231,12 +231,12 @@ struct OrbitalMagnetizationInterpolator <: AbstractTBInterpolator
 end
 
 function OrbitalMagnetizationInterpolator(
-    hamiltonian::TBOperator,
-    position::TBOperator,
-    hamiltonian_position::TBOperator,
-    position_hamiltonian_position::TBOperator,
-    fermi_energy::Real,
-)
+        hamiltonian::TBOperator,
+        position::TBOperator,
+        hamiltonian_position::TBOperator,
+        position_hamiltonian_position::TBOperator,
+        fermi_energy::Real,
+    )
     return OrbitalMagnetizationInterpolator(
         hamiltonian,
         TBHamiltonianGradient(hamiltonian),
@@ -250,10 +250,10 @@ end
 
 """Interpolate orbital magnetization, LVTS Eq. 71 and 72."""
 function (interp::OrbitalMagnetizationInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector};
-    force_hermiticity=default_w90_berry_duHdu_force_hermiticity(),
-    kwargs...,
-)
+        kpoints::AbstractVector{<:AbstractVector};
+        force_hermiticity = default_w90_berry_duHdu_force_hermiticity(),
+        kwargs...,
+    )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
 

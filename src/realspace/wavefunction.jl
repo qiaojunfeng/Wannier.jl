@@ -1,4 +1,3 @@
-
 using Printf: @sprintf
 using LazyGrids: ndgrid
 
@@ -42,14 +41,14 @@ Read `UNK` files, rotate gauge, and generate real space WFs.
     See also the section [Normalization convention of WFs](@ref) for further explanation.
 """
 function read_realspace_wf(
-    U::Vector{Matrix{Complex{T}}},
-    kpoints::Vector{Vec3{T}},
-    lattice,
-    n_supercells::AbstractVector{Int},
-    unkdir::AbstractString;
-    R::AbstractVector{Int}=[0, 0, 0],
-    wan_plot_list=1:size(U[1], 2),
-) where {T<:Real}
+        U::Vector{Matrix{Complex{T}}},
+        kpoints::Vector{Vec3{T}},
+        lattice,
+        n_supercells::AbstractVector{Int},
+        unkdir::AbstractString;
+        R::AbstractVector{Int} = [0, 0, 0],
+        wan_plot_list = 1:size(U[1], 2),
+    ) where {T <: Real}
     n_bands, n_wann = size(U[1])
 
     nwfun = length(wan_plot_list)
@@ -110,7 +109,7 @@ function read_realspace_wf(
         for is in 1:ns
             ΨUₖ = reshape(
                 reshape(view(Ψₖ, :, :, :, :, is), :, n_bands) *
-                view(U[ik], :, wan_plot_list),
+                    view(U[ik], :, wan_plot_list),
                 n_gx,
                 n_gy,
                 n_gz,
@@ -179,16 +178,16 @@ function read_realspace_wf(
     points = [Vec3(x, y, z) for (x, y, z) in zip(X, Y, Z)]
 
     if ns == 1
-        wfuncs_out = Vector{WannierFunction{1,eltype(W).parameters[1]}}(undef, nwfun)
+        wfuncs_out = Vector{WannierFunction{1, eltype(W).parameters[1]}}(undef, nwfun)
         Threads.@threads for i in 1:nwfun
-            wfuncs_out[i] = WannierFunction{1,eltype(W).parameters[1]}(
+            wfuncs_out[i] = WannierFunction{1, eltype(W).parameters[1]}(
                 points, map(x -> SVector(x), view(W, :, :, :, 1, i))
             )
         end
     else
-        wfuncs_out = Vector{WannierFunction{2,eltype(W).parameters[1]}}(undef, nwfun)
+        wfuncs_out = Vector{WannierFunction{2, eltype(W).parameters[1]}}(undef, nwfun)
         Threads.@threads for i in 1:size(wfuncs_all, 1)
-            wfuncs_out[i] = WannierFunction{2,eltype(W).parameters[1]}(
+            wfuncs_out[i] = WannierFunction{2, eltype(W).parameters[1]}(
                 points,
                 map(x -> SVector(x), zip(view(W, :, :, :, 1, i), view(W, :, :, :, 2, i))),
             )
@@ -200,15 +199,15 @@ function read_realspace_wf(
 end
 
 function read_realspace_wf(
-    U::Vector{Matrix{Complex{T}}},
-    kpoints::Vector{Vec3{T}},
-    lattice,
-    n_supercells::Int,
-    unkdir::AbstractString;
-    R::AbstractVector{Int}=[0, 0, 0],
-) where {T<:Real}
+        U::Vector{Matrix{Complex{T}}},
+        kpoints::Vector{Vec3{T}},
+        lattice,
+        n_supercells::Int,
+        unkdir::AbstractString;
+        R::AbstractVector{Int} = [0, 0, 0],
+    ) where {T <: Real}
     return read_realspace_wf(
-        U, kpoints, lattice, [n_supercells, n_supercells, n_supercells], unkdir; R=R
+        U, kpoints, lattice, [n_supercells, n_supercells, n_supercells], unkdir; R = R
     )
 end
 
@@ -225,14 +224,14 @@ where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data fo
 - `U`: `n_bands * n_wann * n_kpts`, gauge rotation matrix
 """
 function read_realspace_wf(
-    lattice::AbstractMatrix{T},
-    U::Vector{Matrix{Complex{T}}},
-    kpoints::Vector{Vec3{T}},
-    n_supercells::Union{AbstractArray{Int},Int}=2,
-    unkdir::AbstractString=".";
-    R::AbstractVector{Int}=[0, 0, 0],
-) where {T<:Real}
-    X, Y, Z, W = read_realspace_wf(U, kpoints, lattice, n_supercells, unkdir; R=R)
+        lattice::AbstractMatrix{T},
+        U::Vector{Matrix{Complex{T}}},
+        kpoints::Vector{Vec3{T}},
+        n_supercells::Union{AbstractArray{Int}, Int} = 2,
+        unkdir::AbstractString = ".";
+        R::AbstractVector{Int} = [0, 0, 0],
+    ) where {T <: Real}
+    X, Y, Z, W = read_realspace_wf(U, kpoints, lattice, n_supercells, unkdir; R = R)
     rgrid = RGrid(lattice, X, Y, Z)
     return rgrid, W
 end
@@ -251,13 +250,13 @@ where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data fo
 - `U`: `n_bands * n_wann * n_kpts`, gauge rotation matrix
 """
 function read_realspace_wf(
-    model::Model{T},
-    U::Vector{Matrix{Complex{T}}},
-    n_supercells::Union{AbstractArray{Int},Int}=2,
-    unkdir::AbstractString=".";
-    R::AbstractVector{Int}=[0, 0, 0],
-) where {T<:Real}
-    return read_realspace_wf(model.lattice, U, model.kpoints, n_supercells, unkdir; R=R)
+        model::Model{T},
+        U::Vector{Matrix{Complex{T}}},
+        n_supercells::Union{AbstractArray{Int}, Int} = 2,
+        unkdir::AbstractString = ".";
+        R::AbstractVector{Int} = [0, 0, 0],
+    ) where {T <: Real}
+    return read_realspace_wf(model.lattice, U, model.kpoints, n_supercells, unkdir; R = R)
 end
 
 """
@@ -273,12 +272,12 @@ where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data fo
 - `model`: a `Model`
 """
 function read_realspace_wf(
-    model::Model{T},
-    n_supercells::Union{AbstractArray{Int},Int}=2,
-    unkdir::AbstractString=".";
-    R::AbstractVector{Int}=[0, 0, 0],
-) where {T<:Real}
-    return read_realspace_wf(model, model.gauges, n_supercells, unkdir; R=R)
+        model::Model{T},
+        n_supercells::Union{AbstractArray{Int}, Int} = 2,
+        unkdir::AbstractString = ".";
+        R::AbstractVector{Int} = [0, 0, 0],
+    ) where {T <: Real}
+    return read_realspace_wf(model, model.gauges, n_supercells, unkdir; R = R)
 end
 
 """
@@ -313,18 +312,18 @@ Write real space WFs to `xsf` or `cube` files.
     See also the section [Normalization convention of WFs](@ref) for further explanation.
 """
 function write_realspace_wf(
-    seedname::AbstractString,
-    U::AbstractArray,
-    kpoints::Vector,
-    lattice::AbstractMatrix,
-    atom_positions::AbstractVector,
-    atom_labels::AbstractVector{String};
-    n_supercells::Union{AbstractArray{Int},Int}=2,
-    unkdir::AbstractString=".",
-    part::Function=real,
-    format::Symbol=:xsf,
-    wf_center::Union{Nothing,AbstractMatrix}=nothing,
-)
+        seedname::AbstractString,
+        U::AbstractArray,
+        kpoints::Vector,
+        lattice::AbstractMatrix,
+        atom_positions::AbstractVector,
+        atom_labels::AbstractVector{String};
+        n_supercells::Union{AbstractArray{Int}, Int} = 2,
+        unkdir::AbstractString = ".",
+        part::Function = real,
+        format::Symbol = :xsf,
+        wf_center::Union{Nothing, AbstractMatrix} = nothing,
+    )
     format ∈ [:xsf, :cube] || error("format must be :xsf or :cube")
 
     rgrid, W = read_realspace_wf(lattice, U, kpoints, n_supercells, unkdir)
@@ -402,13 +401,13 @@ Write real space WFs to `xsf` or `cube` files.
 This is a user-friendly version that use `model` to fill the arguments of `write_realspace_wf`.
 """
 function write_realspace_wf(
-    seedname::String,
-    model::Model;
-    n_supercells::Union{AbstractArray{Int},Int}=2,
-    unkdir::AbstractString=".",
-    part::Function=real,
-    format::Symbol=:xsf,
-)
+        seedname::String,
+        model::Model;
+        n_supercells::Union{AbstractArray{Int}, Int} = 2,
+        unkdir::AbstractString = ".",
+        part::Function = real,
+        format::Symbol = :xsf,
+    )
     wf_center = nothing
     if format == :cube
         # compute in recip space, more accurate than realspace
@@ -432,9 +431,9 @@ end
 """
 Real space WannierFunction defined on a uniformly (in crystal coordinates) spaced r-grid.
 """
-struct WannierFunction{N,T<:AbstractFloat} <: AbstractArray{SVector{N,Complex{T}},3}
-    points::Array{Vec3{T},3}
-    values::Array{SVector{N,Complex{T}},3}
+struct WannierFunction{N, T <: AbstractFloat} <: AbstractArray{SVector{N, Complex{T}}, 3}
+    points::Array{Vec3{T}, 3}
+    values::Array{SVector{N, Complex{T}}, 3}
 end
 
 function WannierFunction(point_func::Function, points::Array)
@@ -492,7 +491,7 @@ LinearAlgebra.normalize!(wfc::WannierFunction) = wfc ./= sqrt(norm(wfc))
 
 same_grid(w1::WannierFunction, w2::WannierFunction) = w1.points === w2.points
 
-function wan_op(op::Function, w1::W, w2::W) where {W<:WannierFunction}
+function wan_op(op::Function, w1::W, w2::W) where {W <: WannierFunction}
     @assert same_grid(w1, w2) "Wannier functions are not defined on the same grid"
     return WannierFunction(w1.points, op(w1.values, w2.values))
 end
@@ -517,12 +516,12 @@ LinearAlgebra.dot(w1::WannierFunction, n::Number) = w1 * n
 LinearAlgebra.dot(n::Number, w1::WannierFunction) = n * w1
 
 function generate_wannierfunctions(
-    model,
-    unkdir::AbstractString,
-    wannier_plot_supercell::NTuple{3,Int}=(3, 3, 3),
-    wan_plot_list=1:size(U[1], 2);
-    R::Vec3{Int}=Vec3(0, 0, 0),
-)
+        model,
+        unkdir::AbstractString,
+        wannier_plot_supercell::NTuple{3, Int} = (3, 3, 3),
+        wan_plot_list = 1:size(U[1], 2);
+        R::Vec3{Int} = Vec3(0, 0, 0),
+    )
     return read_realspace_wf(
         model.gauges,
         model.kpoints,
@@ -535,7 +534,7 @@ function generate_wannierfunctions(
 end
 
 # TODO clean up
-function bloch_sum(wfunc, kpoint; i_pos_offset=(0, 0, 0), i_neg_offset=(0, 0, 0))
+function bloch_sum(wfunc, kpoint; i_pos_offset = (0, 0, 0), i_neg_offset = (0, 0, 0))
     cell_boundaries = div.(size(wfunc.points), 3) .+ 1
     x = wfunc.points[cell_boundaries[1] + 1, 1, 1] .- wfunc.points[1]
     y = wfunc.points[1, cell_boundaries[2] + 1, 1] .- wfunc.points[1]
@@ -583,14 +582,14 @@ end
 
 "Calculates the angular momentum between two wavefunctions and around the center."
 function calc_angmom(
-    wfc1::WannierFunction{N,T}, wfc2::WannierFunction{N,T}, center::Vec3{T}, cutoff=Inf
-) where {N,T<:AbstractFloat}
+        wfc1::WannierFunction{N, T}, wfc2::WannierFunction{N, T}, center::Vec3{T}, cutoff = Inf
+    ) where {N, T <: AbstractFloat}
     points = wfc1.points
     origin = points[1, 1, 1]
     da = points[2, 1, 1] - origin
     db = points[1, 2, 1] - origin
     dc = points[1, 1, 2] - origin
-    V = SMatrix{3,3}(inv([convert(Array, da) convert(Array, db) convert(Array, dc)])')
+    V = SMatrix{3, 3}(inv([convert(Array, da) convert(Array, db) convert(Array, dc)])')
     L = zero(Vec3{Complex{T}})
     c2 = cutoff^2
     @inbounds for i2 in 2:size(wfc1, 3)
@@ -614,12 +613,12 @@ function calc_angmom(
 end
 
 function calc_spin(
-    wfc1::WannierFunction{2,T}, wfc2::WannierFunction{2,T}
-) where {T<:AbstractFloat}
+        wfc1::WannierFunction{2, T}, wfc2::WannierFunction{2, T}
+    ) where {T <: AbstractFloat}
     S = Vec3(
-        SMatrix{2,2}(0, 1, 1, 0) / 2,
-        SMatrix{2,2}(0, -1im, 1im, 0) / 2,
-        SMatrix{2,2}(1, 0, 0, -1) / 2,
+        SMatrix{2, 2}(0, 1, 1, 0) / 2,
+        SMatrix{2, 2}(0, -1im, 1im, 0) / 2,
+        SMatrix{2, 2}(1, 0, 0, -1) / 2,
     )
 
     outS = zero(Vec3{Complex{T}})
@@ -631,8 +630,8 @@ end
 
 "Calculates the dipole term between two wavefunctions. Make sure the wavefunctions are normalized!"
 function calc_dipole(
-    wfc1::WannierFunction{N,T}, wfc2::WannierFunction{N,T}
-) where {N,T<:AbstractFloat}
+        wfc1::WannierFunction{N, T}, wfc2::WannierFunction{N, T}
+    ) where {N, T <: AbstractFloat}
     out = zero(Vec3{Complex{T}})
     for (w1, w2, p) in zip(wfc1, wfc2, wfc1.points)
         out += w1' * w2 * p

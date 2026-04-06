@@ -41,13 +41,13 @@ Generate tight-binding position operator from a Wannierization [`Model`](@ref).
     operator from `mmn` file.
 """
 function TBPosition(
-    Rspace::Union{WignerSeitzRspace,MDRSRspace},
-    model::Model,
-    gauges::AbstractVector=model.gauges;
-    imlog_diag::Bool=true,
-    force_hermiticity::Bool=default_w90_berry_position_force_hermiticity(),
-    kwargs...,
-)
+        Rspace::Union{WignerSeitzRspace, MDRSRspace},
+        model::Model,
+        gauges::AbstractVector = model.gauges;
+        imlog_diag::Bool = true,
+        force_hermiticity::Bool = default_w90_berry_position_force_hermiticity(),
+        kwargs...,
+    )
     # Wannier-gauge position operator in kspace, WYSV Eq. 44
     Aᵂ = compute_berry_connection_kspace(model, gauges; imlog_diag, force_hermiticity)
     # Wannier-gauge position operator in Rspace, WYSV Eq. 43
@@ -56,7 +56,7 @@ function TBPosition(
     return TBPosition(bare_Rspace, bare_A_R)
 end
 
-function TBPosition(model::Model, gauges::AbstractVector=model.gauges; kwargs...)
+function TBPosition(model::Model, gauges::AbstractVector = model.gauges; kwargs...)
     Rspace = generate_Rspace(model)
     return TBPosition(Rspace, model, gauges; kwargs...)
 end
@@ -85,8 +85,8 @@ end
 
 """Interpolate the Hamiltonian operator and transform it to Bloch gauge."""
 function (interp::PositionInterpolator)(
-    kpoints::AbstractVector{<:AbstractVector}; kwargs...
-)
+        kpoints::AbstractVector{<:AbstractVector}; kwargs...
+    )
     # to also handle `KPathInterpolant`
     kpoints = get_kpoints(kpoints)
     _, gauges, _, D_matrices = compute_D_matrix(
@@ -130,12 +130,12 @@ Compute the matrix D in YWVS Eq. 25 (or Eq. 32 if `degen_pert = true`).
     simultaneously all the three directions.
 """
 function compute_D_matrix(
-    H_k::AbstractVector,
-    RH_k::AbstractVector,
-    kpoints::AbstractVector;
-    degen_pert::Bool=default_w90_berry_use_degen_pert(),
-    degen_tol::Real=default_w90_berry_degen_tol(),
-)
+        H_k::AbstractVector,
+        RH_k::AbstractVector,
+        kpoints::AbstractVector;
+        degen_pert::Bool = default_w90_berry_use_degen_pert(),
+        degen_tol::Real = default_w90_berry_degen_tol(),
+    )
     nkpts = length(kpoints)
     @assert nkpts == length(H_k) == length(RH_k) > 0 "kpoints mismatched"
     nwann = size(H_k[1], 1)
@@ -225,11 +225,11 @@ end
 end
 
 @inline function compute_D_matrix(
-    hamiltonian::TBOperator,
-    hamiltonian_gradient::TBOperator,
-    kpoints::AbstractVector;
-    kwargs...,
-)
+        hamiltonian::TBOperator,
+        hamiltonian_gradient::TBOperator,
+        kpoints::AbstractVector;
+        kwargs...,
+    )
     # k-space Hamiltonian
     H_k = invfourier(hamiltonian, kpoints)
     # Rα * < m0 | H | nR >
@@ -256,11 +256,11 @@ Compute `J` matrices from `D` matrices.
 - `eigenvalues`, `U`, `Dᴴ`: return values of [`compute_D_matrix`](@ref)
 """
 function compute_J_matrix(
-    eigenvalues::AbstractVector{<:AbstractVector},
-    U::AbstractVector{<:AbstractMatrix},
-    Dᴴ::AbstractVector{<:AbstractMatrix},
-    fermi_energy::Real,
-)
+        eigenvalues::AbstractVector{<:AbstractVector},
+        U::AbstractVector{<:AbstractMatrix},
+        Dᴴ::AbstractVector{<:AbstractMatrix},
+        fermi_energy::Real,
+    )
     # occupations in Hamiltonian gauge
     fᴴ = [Diagonal(Int.(εₖ .<= fermi_energy)) for εₖ in eigenvalues]
     gᴴ = Ref(I) .- fᴴ
@@ -283,23 +283,23 @@ end
 See [`compute_D_matrix`](@ref).
 """
 @inline function compute_J_matrix(
-    H_k::AbstractVector{<:AbstractMatrix},
-    RH_k::AbstractVector{<:AbstractMatrix},
-    kpoints::AbstractVector{<:AbstractVector},
-    fermi_energy::Real;
-    kwargs...,
-)
+        H_k::AbstractVector{<:AbstractMatrix},
+        RH_k::AbstractVector{<:AbstractMatrix},
+        kpoints::AbstractVector{<:AbstractVector},
+        fermi_energy::Real;
+        kwargs...,
+    )
     eigenvalues, U, _, Dᴴ = compute_D_matrix(H_k, RH_k, kpoints; kwargs...)
     return compute_J_matrix(eigenvalues, U, Dᴴ, fermi_energy)
 end
 
 @inline function compute_J_matrix(
-    hamiltonian::TBOperator,
-    hamiltonian_gradient::TBOperator,
-    kpoints::AbstractVector,
-    fermi_energy::Real;
-    kwargs...,
-)
+        hamiltonian::TBOperator,
+        hamiltonian_gradient::TBOperator,
+        kpoints::AbstractVector,
+        fermi_energy::Real;
+        kwargs...,
+    )
     H_k = invfourier(hamiltonian, kpoints)
     # Rα * < m0 | H | nR >
     RH_k = invfourier(hamiltonian_gradient, kpoints)
