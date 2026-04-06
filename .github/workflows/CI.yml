@@ -12,9 +12,9 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-      - uses: julia-actions/setup-julia@v1
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+      - uses: julia-actions/setup-julia@v2
       - name: Install JuliaFormatter
         # This will use the latest version by default but you can set the version like so:
         # julia  -e 'using Pkg; Pkg.add(PackageSpec(name="JuliaFormatter", version="0.13.0"))'
@@ -22,8 +22,8 @@ jobs:
           using Pkg
           Pkg.add("JuliaFormatter")
         shell: julia --color=yes {0}
-      - uses: julia-actions/cache@v1
-      - uses: pre-commit/action@v3.0.0
+      - uses: julia-actions/cache@v3
+      - uses: pre-commit/action@v3.0.1
         with:
           extra_args: ""  # do not run on all files
 
@@ -40,21 +40,19 @@ jobs:
           - windows-latest
           - macOS-latest
     steps:
-      - uses: actions/checkout@v3
-        # with:
-        #   lfs: 'true'
-      - uses: julia-actions/setup-julia@v1
+      - uses: actions/checkout@v6
+      - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.julia-version }}
           arch: ${{ matrix.arch }}
-      - uses: julia-actions/cache@v1
+      - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
         with:
           annotate: true
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v3
+      - uses: codecov/codecov-action@v6
         with:
           files: lcov.info
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
