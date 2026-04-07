@@ -124,3 +124,14 @@ function write_w90(prefix::AbstractString, model::Model; binary::Bool = false)
     write_amn(outname("amn"), model.gauges; binary)
     return nothing
 end
+
+"""
+    $(SIGNATURES)
+
+Generate a `KPath` for the `Model`.
+
+"""
+function CrystalBase.KSegment(model::Model)
+    # kseg = CrystalBase.KSegment(win["unit_cell_cart"], win["kpoint_path"])
+    return KSegment(model.lattice, model.atom_positions, model.atom_labels)
+end

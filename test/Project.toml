@@ -1,5 +1,4 @@
 [deps]
-Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"

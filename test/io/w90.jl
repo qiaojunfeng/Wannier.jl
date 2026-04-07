@@ -37,26 +37,6 @@ end
     @test kstencil ≈ kstencil2
 end
 
-@testitem "read/write w90 band" begin
-    using Wannier.Datasets
-    win = read_win(dataset"Si2_valence/Si2_valence.win")
-    recip_lattice = reciprocal_lattice(win.unit_cell_cart)
-    kpi, eigenvalues = read_w90_band(
-        dataset"Si2_valence/outputs/MDRS/Si2_valence", recip_lattice
-    )
-
-    outdir = mktempdir(; cleanup = true)
-    outprefix = joinpath(outdir, "Si2_valence")
-    write_w90_band(outprefix, kpi, eigenvalues)
-    kpi2, eigenvalues2 = read_w90_band(outprefix, recip_lattice)
-
-    @test kpi.kpaths ≈ kpi2.kpaths
-    @test kpi.labels == kpi2.labels
-    @test kpi.basis ≈ kpi2.basis
-    @test Symbol(kpi.setting) == Symbol(kpi2.setting)
-    @test eigenvalues ≈ eigenvalues2
-end
-
 @testitem "read_w90_tb WS" begin
     using Wannier.Datasets
     hamiltonian, position = read_w90_tb(dataset"Si2_valence/outputs/WS/Si2_valence")

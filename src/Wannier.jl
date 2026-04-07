@@ -5,9 +5,9 @@ using LinearAlgebra
 using DocStringExtensions
 
 using Reexport: @reexport
-@reexport using WannierIO
 
-using WannierIO: vec3, mat3
+@reexport using CrystalBase
+@reexport using WannierIO
 
 include("common/const.jl")
 include("common/type.jl")
@@ -16,7 +16,6 @@ include("common/rgrid.jl")
 
 include("utils/printing.jl")
 include("utils/linalg.jl")
-include("utils/structure.jl")
 include("utils/center.jl")
 
 include("defaults.jl")
@@ -35,7 +34,6 @@ include("io/w90/amn.jl")
 include("io/w90/mmn.jl")
 include("io/w90/chk.jl")
 include("io/w90/model.jl")
-include("io/w90/band.jl")
 include("io/truncate.jl")
 include("io/interface/mud.jl")
 include("io/interface/orbital_magnetization.jl")
