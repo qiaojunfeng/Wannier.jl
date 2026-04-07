@@ -33,8 +33,8 @@ end
 
 """Only read tb files, without further processing"""
 function _raw_read_w90_tb(prefix::AbstractString)
-    wsvec = read_w90_wsvec(prefix * "_wsvec.dat")
-    tbdat = read_w90_tbdat(prefix * "_tb.dat")
+    wsvec = read_w90_wsvec_dat(prefix * "_wsvec.dat")
+    tbdat = read_w90_tb_dat(prefix * "_tb.dat")
     @assert wsvec.Rvectors ≈ tbdat.Rvectors "R-vectors in tb.dat and wsvec.dat are not identical"
 
     if wsvec.mdrs
@@ -64,9 +64,12 @@ function write_w90_tb(prefix::AbstractString, hamiltonian::TBOperator, position:
     @assert hamiltonian.Rspace == position.Rspace "R-space of hamiltonian and position are different"
 
     # the operators are always BareRspace
-    WannierIO.write_w90_wsvec(
-        prefix * "_wsvec.dat"; hamiltonian.Rspace.Rvectors, n_wann = n_wannier(hamiltonian)
+    wsvec = WannierIO.WsvecDat(
+        hamiltonian.Rspace.Rvectors,
+        n_wannier(hamiltonian),
+        "written by Wannier.jl",
     )
+    WannierIO.write_w90_wsvec_dat(prefix * "_wsvec.dat", wsvec)
 
     r_x = map(position.operator) do O
         map(x -> x[1], O)
@@ -77,15 +80,16 @@ function write_w90_tb(prefix::AbstractString, hamiltonian::TBOperator, position:
     r_z = map(position.operator) do O
         map(x -> x[3], O)
     end
-    WannierIO.write_w90_tbdat(
-        prefix * "_tb.dat";
-        lattice = real_lattice(hamiltonian),
+    tbdat = WannierIO.TbDat(
+        "written by Wannier.jl",
+        real_lattice(hamiltonian),
         hamiltonian.Rspace.Rvectors,
-        Rdegens = ones(n_Rvectors(hamiltonian)),
-        H = hamiltonian.operator,
+        ones(Int, n_Rvectors(hamiltonian)),
+        hamiltonian.operator,
         r_x,
         r_y,
         r_z,
     )
+    WannierIO.write_w90_tb_dat(prefix * "_tb.dat", tbdat)
     return nothing
 end

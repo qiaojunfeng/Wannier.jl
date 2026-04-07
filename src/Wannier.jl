@@ -2,7 +2,9 @@ module Wannier
 
 using Printf: @printf, @sprintf
 using LinearAlgebra
+using OrderedCollections
 using DocStringExtensions
+using StaticArrays
 
 using Reexport: @reexport
 
@@ -10,7 +12,6 @@ using Reexport: @reexport
 @reexport using WannierIO
 
 include("common/const.jl")
-include("common/type.jl")
 include("common/size.jl")
 include("common/rgrid.jl")
 
@@ -28,7 +29,6 @@ include("kpoints/kstencil.jl")
 include("model.jl")
 include("spread.jl")
 
-include("io/w90/win.jl")
 include("io/w90/nnkp.jl")
 include("io/w90/amn.jl")
 include("io/w90/mmn.jl")
@@ -53,7 +53,6 @@ include("realspace/wavefunction.jl")
 include("realspace/moment.jl")
 
 ## Wannier interpolation
-include("interpolation/kpath.jl")
 include("interpolation/Rspace.jl")
 include("interpolation/operator.jl")
 

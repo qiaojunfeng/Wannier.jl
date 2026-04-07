@@ -36,7 +36,7 @@ end
     using Wannier.Datasets
 
     model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/outputs/Fe.chk")
-    uHu = read_uHu(dataset"Fe_soc/Fe.uHu")
+    uHu = read_uHu(dataset"Fe_soc/Fe.uHu").uHu
     position_hamiltonian_position = TBPositionHamiltonianPosition(model, uHu)
 
     ref_rHr_011 = [
@@ -69,7 +69,7 @@ end
     Rspace = generate_Rspace(model)
     position = TBPosition(Rspace, model; imlog_diag = false)
     hamiltonian_position = TBHamiltonianPosition(Rspace, model)
-    uHu = read_uHu(dataset"Fe_soc/Fe.uHu")
+    uHu = read_uHu(dataset"Fe_soc/Fe.uHu").uHu
     position_hamiltonian_position = TBPositionHamiltonianPosition(Rspace, model, uHu)
     win = read_win(dataset"Fe_soc/Fe.win")
     interp = Wannier.OrbitalMagnetizationInterpolator(
@@ -77,7 +77,7 @@ end
         position,
         hamiltonian_position,
         position_hamiltonian_position,
-        win.fermi_energy,
+        win["fermi_energy"],
     )
 
     ref_kpt = read_w90_band_kpt(dataset"Fe_soc/outputs/MDRS/postw90/Fe-path.kpt")
@@ -91,9 +91,10 @@ end
     # around 1e-4, this is because the kpoints coordinates do not have enough
     # digits. Therefore, I read the win file and construct the kpoints myself.
     # kpoints = ref_kpt.kpoints
-    kpi = generate_w90_kpoint_path(win.unit_cell_cart, win.kpoint_path)
+    kseg = KSegment(reciprocal_lattice(win["unit_cell_cart"]), win["kpoint_path"])
+    kpath = KPath(kseg)
     # postw90.x has a bug, it misses the `H` point at 417
-    kpoints = get_kpoints(kpi)
+    kpoints = collect(kpath)
     deleteat!(kpoints, 417)
     @test all(norm.(kpoints - ref_kpt.kpoints) .< 1.0e-6)
 

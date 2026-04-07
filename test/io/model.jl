@@ -21,10 +21,10 @@ end
     eigenvalues = read_eig("$outprefix.eig")
     @test eigenvalues ≈ model.eigenvalues
 
-    overlaps, kpb_k, kpb_G = read_mmn("$outprefix.mmn")
-    @test overlaps ≈ model.overlaps
-    @test kpb_k == model.kpb_k
-    @test kpb_G == model.kpb_G
+    mmn = read_mmn("$outprefix.mmn")
+    @test mmn.M ≈ model.overlaps
+    @test mmn.kpb_k == model.kpb_k
+    @test mmn.kpb_G == model.kpb_G
 end
 
 @testitem "read_w90_with_chk" begin
@@ -54,7 +54,7 @@ end
     @test true == chk.have_disentangled
     @test model.entangled_bands == chk.dis_bands
     # the Hamiltonian rotated by Udis must be diagonal, according to W90 convention
-    H = transform_gauge(model.eigenvalues, Wannier.get_Udis(chk))
+    H = transform_gauge(model.eigenvalues, WannierIO.gauge_matrices_dis(chk))
     # this is too strict, even
     #   norm(H[:, :, ik] - Hdiag[:, :, ik]) ≈ 1e-14
     # is still false
@@ -64,7 +64,7 @@ end
     end
     @test H ≈ Hdiag
     # the unitary matrix should be the same
-    @test model.gauges ≈ Wannier.get_U(chk)
+    @test model.gauges ≈ WannierIO.gauge_matrices(chk)
 
     M = transform_gauge(model.overlaps, model.kpb_k, model.gauges)
     @test M ≈ chk.M

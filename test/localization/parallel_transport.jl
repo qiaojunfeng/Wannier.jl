@@ -4,7 +4,7 @@
     model = read_w90(dataset"Si2_valence_coarse/Si2")
     Umin, _ = parallel_transport(model)
 
-    Uref = read_amn(dataset"Si2_valence_coarse/outputs/ptg.amn")
+    Uref = read_amn(dataset"Si2_valence_coarse/outputs/ptg.amn").A
     @test isapprox(Umin, Uref; atol = 1.0e-5)
 
     ϵ0, ϵ1 = Wannier.compute_error(model, Umin)
@@ -24,7 +24,7 @@ end
 
     Umin, _ = parallel_transport(model)
 
-    Uref = read_amn(dataset"GaAs_coarse/outputs/GaAs.val.ptg.amn")
+    Uref = read_amn(dataset"GaAs_coarse/outputs/GaAs.val.ptg.amn").A
     @test isapprox(Umin, Uref; atol = 1.0e-5)
 
     ϵ0, ϵ1 = Wannier.compute_error(model, Umin)

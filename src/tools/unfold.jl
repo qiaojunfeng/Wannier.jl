@@ -36,7 +36,7 @@ function unfold(
     )
     nnkp = read_nnkp("$prefix.nnkp")
     kstencil = Wannier.KspaceStencil(
-        nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
 
     isym = read_isym("$prefix.isym")
@@ -56,16 +56,19 @@ function unfold(
     write_eig("$out_prefix.eig", Ef)
 
     # amn
-    Ai = read_amn("$prefix.iamn")
+    Ai = WannierIO.read_amn("$prefix.iamn").A
     # The factor exp(-i kᵢ R_{n'}) appearing in CPC Eq. 9
-    centers = [p.center for p in nnkp.projections]
+    centers = [p.center for p in nnkp["projections"]]
     Rs = Wannier.find_wf_symmetry_translations(centers, symops, repmat_wann)
     Asymm = Wannier.symmetrize_gauges(Ai, kpoints_ibz, symops, repmat_band, repmat_wann, Rs)
     Af = Wannier.unfold_gauges(Asymm, kpoints_ibz, f2i, symops, repmat_wann, Rs)
     write_amn("$out_prefix.amn", Af)
 
     # mmn
-    Mi, kpb_k_i, kpb_G_i = read_mmn("$prefix.immn")
+    mmn_i = read_mmn("$prefix.immn")
+    Mi = mmn_i.M
+    kpb_k_i = mmn_i.kpb_k
+    kpb_G_i = mmn_i.kpb_G
     # The b vectors of the IBZ mmn file is the same as that of the FBZ nnkp file
     # at the Γ point, and the b vectors of remaining kpoints are always the same
     # at each kpoint in the IBZ mmn file.

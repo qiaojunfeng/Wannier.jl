@@ -49,17 +49,17 @@ end
     Makie.mixin_generic_plot_attributes()...
 end
 
-function get_xtick_indices_labels(kpath::Wannier.RecipPath)
+function get_xtick_indices_labels(kpath::Wannier.KPath)
     # Labels of high-symmetry kpoints
-    labs = Wannier.symm_label_to_unicode(kpath.labels)
+    labs = CrystalBase.unicode_kpoint_labels(kpath.labels)
     # Indices and labels of merged high-symmetry kpoints
-    xt_idxs, xt_labs = Wannier.merge_symm_labels(kpath.indices, labs)
+    xt_idxs, xt_labs = CrystalBase.merge_nearby_labels(kpath.indices, labs)
     return xt_idxs, xt_labs
 end
 
 function Makie.plot!(
         p::BandPlot{Tuple{K, E}}
-    ) where {K <: Wannier.RecipPath, E <: AbstractVector{<:AbstractVector{<:Real}}}
+    ) where {K <: Wannier.KPath, E <: AbstractVector{<:AbstractVector{<:Real}}}
     map!(p.attributes, [:kpath], :nkpts) do kpath
         return length(kpath)
     end
@@ -69,7 +69,7 @@ function Makie.plot!(
     end
     # Cumulative distance along kpath
     map!(p.attributes, [:kpath], :x) do kpath
-        return Wannier.get_linear_path(kpath)
+        return Wannier.linear_path(kpath)[1]
     end
     # Positions of vertical lines at high-symmetry kpoints
     map!(p.attributes, [:kpath, :x], :x_ksym) do kpath, x
@@ -129,7 +129,7 @@ function Makie.plot!(
     return p
 end
 
-function fig_ax_bandplot(kpath::Wannier.RecipPath; kwargs...)
+function fig_ax_bandplot(kpath::Wannier.KPath; kwargs...)
     fig = Figure()
     ax = Axis(fig[1, 1])
 
@@ -147,7 +147,7 @@ function fig_ax_bandplot(kpath::Wannier.RecipPath; kwargs...)
     ax.ylabel = ylabel
     ax.ygridvisible = false
 
-    x = Wannier.get_linear_path(kpath)
+    x = Wannier.linear_path(kpath)[1]
     xlims!(ax, [minimum(x), maximum(x)])
 
     xt_idxs, xt_labs = get_xtick_indices_labels(kpath)
@@ -163,7 +163,7 @@ This is a bit hacky: the recipe only works with the Plot, but we want to
 set the ylabel of the Axis, etc. Therefore, we need this wrapper function.
 =#
 function Wannier.get_bandplot(
-        kpath::Wannier.RecipPath, eigenvals::E; kwargs...
+    kpath::Wannier.KPath, eigenvals::E; kwargs...
     ) where {E <: AbstractVector{<:AbstractVector{<:Real}}}
     fig, ax = fig_ax_bandplot(kpath; kwargs...)
     p = bandplot!(ax, kpath, eigenvals; kwargs...)
@@ -171,7 +171,7 @@ function Wannier.get_bandplot(
 end
 
 function Wannier.get_bandplot(
-        kpath::Wannier.RecipPath, eigenvals1::E, eigenvals2::E; kwargs1 = (;), kwargs2 = (;)
+    kpath::Wannier.KPath, eigenvals1::E, eigenvals2::E; kwargs1 = (;), kwargs2 = (;)
     ) where {E <: AbstractVector{<:AbstractVector{<:Real}}}
     fig, ax = fig_ax_bandplot(kpath; kwargs1...)
 

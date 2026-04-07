@@ -59,16 +59,10 @@ struct KspaceStencil{T <: Real}
     kpb_G::Vector{Vector{Vec3{Int}}}
 end
 
-function KspaceStencil(recip_lattice, kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G)
-    return KspaceStencil(
-        Mat3(recip_lattice), Vec3(kgrid_size), kpoints, bvectors, bweights, kpb_k, kpb_G
-    )
-end
-
 function KspaceStencil(recip_lattice, kpoints, kpb_k, kpb_G)
     bvectors = get_bvectors(recip_lattice, kpoints, kpb_k, kpb_G)
     bweights = compute_bweights(bvectors)
-    kgrid_size = guess_kgrid_size(kpoints)
+    kgrid_size = vec3(guess_kgrid_size(kpoints))
     return KspaceStencil(
         recip_lattice, kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G
     )
@@ -125,7 +119,8 @@ end
 
 n_kpoints(kstencil::KspaceStencil) = length(kstencil.kpoints)
 n_bvectors(kstencil::KspaceStencil) = length(kstencil.bvectors)
-reciprocal_lattice(kstencil::KspaceStencil) = kstencil.recip_lattice
+CrystalBase.reciprocal_lattice(kstencil::KspaceStencil) = kstencil.recip_lattice
+CrystalBase.real_lattice(kstencil::KspaceStencil) = real_lattice(kstencil.recip_lattice)
 
 function Base.show(io::IO, ::MIME"text/plain", kstencil::KspaceStencil)
     show_recip_lattice(io, kstencil.recip_lattice)

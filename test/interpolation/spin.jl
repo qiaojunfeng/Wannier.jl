@@ -19,9 +19,10 @@
     # digits. Therefore, I read the win file and construct the kpoints myself.
     # kpoints = ref_kpt.kpoints
     win = read_win(dataset"Fe_soc/Fe.win")
-    kpi = generate_w90_kpoint_path(win.unit_cell_cart, win.kpoint_path)
+    kseg = KSegment(reciprocal_lattice(win["unit_cell_cart"]), win["kpoint_path"])
+    kpath = KPath(kseg)
     # postw90.x has a bug, it misses the `H` point at 417
-    kpoints = get_kpoints(kpi)
+    kpoints = collect(kpath)
     deleteat!(kpoints, 417)
     @test all(norm.(kpoints - ref_kpt.kpoints) .< 1.0e-6)
     ##

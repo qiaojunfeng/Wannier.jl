@@ -30,13 +30,13 @@ function truncate_mmn_eig(
     E1 = map(e -> e[keep_bands], E)
     write_eig(joinpath(outdir, "$prefix_base.eig"), E1)
 
-    M, kpb_k, kpb_G = read_mmn("$prefix.mmn")
-    M1 = map(M) do Mk
+    mmn = read_mmn("$prefix.mmn")
+    M1 = map(mmn.M) do Mk
         map(Mk) do Mkb
             Mkb[keep_bands, keep_bands]
         end
     end
-    write_mmn(joinpath(outdir, "$prefix_base.mmn"), M1, kpb_k, kpb_G)
+    write_mmn(joinpath(outdir, "$prefix_base.mmn"), M1, mmn.kpb_k, mmn.kpb_G)
 
     return nothing
 end

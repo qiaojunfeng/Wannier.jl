@@ -30,9 +30,6 @@ YWVS Eq. 26.
 function (interp::HamiltonianGradientInterpolator)(
         kpoints::AbstractVector{<:AbstractVector}; kwargs...
     )
-    # since `KPathInterpolant` is also a `AbstractVector{<:AbstractVector}`,
-    # we call the `get_kpoints` so that this function also works for `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
     eigvals, _, dH, D_matrices = compute_D_matrix(
         interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
     )
@@ -109,8 +106,6 @@ Compute velocity (in Bloch gauge) along three Cartesian directions.
 function (interp::VelocityInterpolator)(
         kpoints::AbstractVector{<:AbstractVector}, ::AnalyticVelocity; kwargs...
     )
-    # to also handle `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
     _, _, dH, _ = compute_D_matrix(
         interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
     )
@@ -135,8 +130,6 @@ function (interp::VelocityInterpolator)(
         dk::Real = 1.0e-3,
         kwargs...,
     )
-    # to also handle `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
     nwann = n_wannier(interp.hamiltonian)
     nkpts = length(kpoints)
 

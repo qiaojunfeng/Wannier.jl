@@ -254,8 +254,6 @@ function (interp::OrbitalMagnetizationInterpolator)(
         force_hermiticity = default_w90_berry_duHdu_force_hermiticity(),
         kwargs...,
     )
-    # to also handle `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
 
     # Wannier-gauge position operator, LVTS12 Eq. 28 and 78
     Aᵂ = invfourier(interp.position, kpoints)

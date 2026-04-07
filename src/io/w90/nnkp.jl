@@ -11,7 +11,7 @@ returns a `NamedTuple`).
 """
 function read_nnkp_compute_bweights(filename::AbstractString)
     nnkp = WannierIO.read_nnkp(filename)
-    return KspaceStencil(nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G)
+    return KspaceStencil(nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"])
 end
 
 """
@@ -28,10 +28,10 @@ function WannierIO.read_nnkp(
     )
     nnkp = WannierIO.read_nnkp(filename)
 
-    kpoints = nnkp.kpoints
-    recip_lattice = nnkp.recip_lattice
-    kpb_k = nnkp.kpb_k
-    kpb_G = nnkp.kpb_G
+    kpoints = nnkp["kpoints"]
+    recip_lattice = nnkp["recip_lattice"]
+    kpb_k = nnkp["kpb_k"]
+    kpb_G = nnkp["kpb_G"]
     kgrid_size = guess_kgrid_size(kpoints)
     bvectors = get_bvectors(recip_lattice, kpoints, kpb_k, kpb_G)
 
@@ -68,15 +68,17 @@ Write nnkp that can be used by `pw2wannier90`.
     For other keyword arguments, see [`WannierIO.write_nnkp`](@ref).
 """
 function write_nnkp(filename::AbstractString, kstencil::KspaceStencil; kwargs...)
-    return WannierIO.write_nnkp(
-        filename;
-        lattice = real_lattice(reciprocal_lattice(kstencil)),
-        recip_lattice = reciprocal_lattice(kstencil),
-        kstencil.kpoints,
-        kstencil.kpb_k,
-        kstencil.kpb_G,
-        kwargs...,
+    params = OrderedDict{String, Any}(
+        "lattice" => real_lattice(kstencil),
+        "recip_lattice" => reciprocal_lattice(kstencil),
+        "kpoints" => kstencil.kpoints,
+        "kpb_k" => kstencil.kpb_k,
+        "kpb_G" => kstencil.kpb_G,
     )
+    for (k, v) in kwargs
+        params[string(k)] = v
+    end
+    return WannierIO.write_nnkp(filename, params)
 end
 
 """
@@ -129,7 +131,7 @@ end
 
 function has_cubic_neighbors(filename::AbstractString; atol::AbstractFloat = 1.0e-6)
     nnkp = read_nnkp(filename)
-    return has_cubic_neighbors(nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G; atol)
+    return has_cubic_neighbors(nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]; atol)
 end
 
 """
@@ -147,14 +149,14 @@ Write a nnkp file with 6 cubic neighbors. Useful for [`parallel_transport`](@ref
 - `win`: the Wannier90 parameters, e.g. returned by [`read_win`](@ref)
 """
 function write_nnkp_cubic(filename::AbstractString, win::Union{NamedTuple, AbstractDict})
-    recip_latt = reciprocal_lattice(win.unit_cell_cart)
+    recip_latt = reciprocal_lattice(win["unit_cell_cart"])
     kstencil = generate_kspace_stencil(
-        recip_latt, win.mp_grid, win.kpoints, Wannier.CubicNearestKspaceStencil()
+        recip_latt, win["mp_grid"], win["kpoints"], Wannier.CubicNearestKspaceStencil()
     )
     return write_nnkp(
         filename,
         kstencil;
-        exclude_bands = get(win, :exclude_bands, nothing),
+        exclude_bands = get(win, "exclude_bands", nothing),
         # Need a fake projections block such that pw2wannier90.x can run
         projections = WannierIO.HydrogenOrbital[],
     )

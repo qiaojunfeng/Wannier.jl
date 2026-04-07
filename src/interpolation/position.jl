@@ -87,8 +87,6 @@ end
 function (interp::PositionInterpolator)(
         kpoints::AbstractVector{<:AbstractVector}; kwargs...
     )
-    # to also handle `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
     _, gauges, _, D_matrices = compute_D_matrix(
         interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
     )

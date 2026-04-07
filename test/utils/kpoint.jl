@@ -1,8 +1,8 @@
 @testitem "get_kpoint_mappings" begin
     using Wannier.Datasets
     win = read_win(dataset"Si2/Si2.win")
-    kpoints = win.kpoints
-    kgrid_size = win.mp_grid
+    kpoints = win["kpoints"]
+    kgrid_size = win["mp_grid"]
 
     k_xyz, xyz_k = Wannier.get_kpoint_mappings(kpoints, kgrid_size)
 

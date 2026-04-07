@@ -57,10 +57,7 @@ struct HamiltonianInterpolator <: AbstractTBInterpolator
     hamiltonian::TBOperator
 end
 
-"""Interpolate the Hamiltonian operator and transform it to Bloch gauge."""
 function (interp::HamiltonianInterpolator)(kpoints::AbstractVector{<:AbstractVector})
-    # to also handle `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
     Hᵏ = invfourier(interp.hamiltonian, kpoints)
     return eigen(Hᵏ)
 end

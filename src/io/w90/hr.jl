@@ -30,9 +30,9 @@ end
 
 """Only read hr files, without further processing"""
 function _raw_read_w90_hr(prefix::AbstractString, lattice::AbstractMatrix)
-    hrdat = read_w90_hrdat(prefix * "_hr.dat")
+    hrdat = read_w90_hr_dat(prefix * "_hr.dat")
     if isfile(prefix * "_wsvec.dat")
-        wsvec = read_w90_wsvec(prefix * "_wsvec.dat")
+        wsvec = read_w90_wsvec_dat(prefix * "_wsvec.dat")
         @assert wsvec.Rvectors ≈ hrdat.Rvectors "R-vectors in hr.dat and wsvec.dat are not identical"
         if wsvec.mdrs
             Rspace = MDRSRspace(
@@ -61,17 +61,19 @@ Write a tight-binding model of Hamiltonian into
 function write_w90_hr(prefix::AbstractString, hamiltonian::TBOperator; skip_wsvec = false)
     # the operators are always BareRspace
     if !skip_wsvec
-        WannierIO.write_w90_wsvec(
-            prefix * "_wsvec.dat";
+        wsvec = WannierIO.WsvecDat(
+            "written by Wannier.jl",
             hamiltonian.Rspace.Rvectors,
-            n_wann = n_wannier(hamiltonian),
+            n_wannier(hamiltonian),
         )
+        WannierIO.write_w90_wsvec_dat(prefix * "_wsvec.dat", wsvec)
     end
 
-    return WannierIO.write_w90_hrdat(
-        prefix * "_hr.dat";
+    hrdat = WannierIO.HrDat(
+        "written by Wannier.jl",
         hamiltonian.Rspace.Rvectors,
-        Rdegens = ones(n_Rvectors(hamiltonian)),
-        H = hamiltonian.operator,
+        ones(Int, n_Rvectors(hamiltonian)),
+        hamiltonian.operator,
     )
+    return WannierIO.write_w90_hr_dat(prefix * "_hr.dat", hrdat)
 end

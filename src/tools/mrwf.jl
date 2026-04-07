@@ -127,7 +127,10 @@ function mrwf(
     else
         # Read mmn file for cubic neighbors
         # I assume the kpoints,
-        M_cubic, kpb_k_cubic, kpb_G_cubic = read_mmn(mmn_cubic)
+        mmn = read_mmn(mmn_cubic)
+        M_cubic = mmn.M
+        kpb_k_cubic = mmn.kpb_k
+        kpb_G_cubic = mmn.kpb_G
         nbvecs = length(kpb_k_cubic[1])
         (nbvecs == 6) || error("number of b-vectors in mmn_cubic must be 6")
         (length(kpb_k_cubic) == n_kpoints(model)) || error(
@@ -154,22 +157,22 @@ function mrwf(
     win = read_win("$prefix.win")
     win = OrderedDict(pairs(win))
     for k in [
-            :num_bands,
-            :dis_froz_proj,
-            :dis_proj_min,
-            :dis_proj_max,
-            :dis_win_min,
-            :dis_win_max,
-            :dis_froz_min,
-            :dis_froz_max,
-            :projections,
-            :auto_projections,
+            "num_bands",
+            "dis_froz_proj",
+            "dis_proj_min",
+            "dis_proj_max",
+            "dis_win_min",
+            "dis_win_max",
+            "dis_froz_min",
+            "dis_froz_max",
+            "projections",
+            "auto_projections",
         ]
         pop!(win, k, nothing)
     end
     # Just use auto_projections as a placeholder
-    win[:auto_projections] = true
-    win[:num_iter] = 2000
+    win["auto_projections"] = true
+    win["num_iter"] = 2000
 
     for (od, (m, U)) in zip(outdirs, models_Us)
         # This writes to the folder of prefix
@@ -187,7 +190,7 @@ function mrwf(
         write_amn("$(prefix_i)_split.amn", U; header)
 
         # Prepare win file with correct num_wann
-        win[:num_wann] = n_wannier(m)
+        win["num_wann"] = n_wannier(m)
         write_win("$prefix_i.win", win)
     end
 
@@ -250,7 +253,7 @@ function mrwf(
         kwargs...,
     )
     win = read_win(joinpath(prefix, ".win"))
-    nwan = win[:num_wann]
+    nwan = win["num_wann"]
     (0 < nval < nwan) || @error "nval must > 0 and < n_wannier"
     @info "number of valence WFs = $nval"
 
@@ -313,13 +316,13 @@ function merge_gauge(
         umat::Bool = false,
     )
     Usplits = map(split_amns) do f
-        read_amn(f)
+        read_amn(f).A
     end
     Umaxlocs = map(maxlocs) do f
         if umat
             return WannierIO.read_u_mat(f)[1]
         else
-            return WannierIO.get_U(read_chk(f))
+            return WannierIO.gauge_matrices(read_chk(f))
         end
     end
     Utot = merge_gauge(Usplits, Umaxlocs)

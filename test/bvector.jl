@@ -1,14 +1,15 @@
 @testitem "generate_kspace_stencil" begin
-    using Wannier: Vec3
     using Wannier.Datasets
     win = read_win(dataset"Si2_valence/Si2_valence.win")
-    _, kpb_k, kpb_G = read_mmn(dataset"Si2_valence/Si2_valence.mmn")
+    mmn = read_mmn(dataset"Si2_valence/Si2_valence.mmn")
+    kpb_k = mmn.kpb_k
+    kpb_G = mmn.kpb_G
 
-    recip_lattice = reciprocal_lattice(win.unit_cell_cart)
-    kstencil = generate_kspace_stencil(recip_lattice, win.mp_grid, win.kpoints)
+    recip_lattice = reciprocal_lattice(win["unit_cell_cart"])
+    kstencil = generate_kspace_stencil(recip_lattice, win["mp_grid"], win["kpoints"])
 
     # copied from wout
-    ref_bvectors = Vec3{Float64}[
+    ref_bvectors = vec3.([
         [0.192835, 0.192835, -0.192835],
         [0.192835, -0.192835, 0.192835],
         [-0.192835, 0.192835, 0.192835],
@@ -17,24 +18,29 @@
         [-0.192835, 0.192835, -0.192835],
         [0.192835, -0.192835, -0.192835],
         [-0.192835, -0.192835, -0.192835],
-    ]
+    ])
     ref_bweights = fill(3.361532, 8)
     ref_kstencil = Wannier.KspaceStencil(
-        recip_lattice, win.mp_grid, win.kpoints, ref_bvectors, ref_bweights, kpb_k, kpb_G
+        recip_lattice,
+        vec3(win["mp_grid"]),
+        win["kpoints"],
+        ref_bvectors,
+        ref_bweights,
+        kpb_k,
+        kpb_G,
     )
     @test isapprox(kstencil, ref_kstencil; atol = 1.0e-6)
 end
 
 @testitem "generate_kspace_stencil 2D" begin
-    using Wannier: Vec3
     using Wannier.Datasets
     win = read_win(dataset"graphene_coarse/graphene.win")
     nnkp = read_nnkp_compute_bweights(dataset"graphene_coarse/outputs/graphene.nnkp")
 
-    recip_lattice = reciprocal_lattice(win.unit_cell_cart)
-    kstencil = generate_kspace_stencil(recip_lattice, win.mp_grid, win.kpoints)
+    recip_lattice = reciprocal_lattice(win["unit_cell_cart"])
+    kstencil = generate_kspace_stencil(recip_lattice, win["mp_grid"], win["kpoints"])
 
-    ref_bvectors = Vec3{Float64}[
+    ref_bvectors = vec3.([
         [0.0, 0.0, 0.628319],
         [0.0, 0.0, -0.628319],
         [0.793031, 0.457857, 0.0],
@@ -43,7 +49,7 @@ end
         [-0.793031, 0.457857, 0.0],
         [0.0, -0.915713, 0.0],
         [0.0, 0.915713, 0.0],
-    ]
+    ])
     ref_bweights = [
         1.266515
         1.266515
@@ -56,8 +62,8 @@ end
     ]
     ref_kstencil = Wannier.KspaceStencil(
         recip_lattice,
-        win.mp_grid,
-        win.kpoints,
+        vec3(win["mp_grid"]),
+        win["kpoints"],
         ref_bvectors,
         ref_bweights,
         nnkp.kpb_k,
@@ -68,16 +74,15 @@ end
 end
 
 @testitem "generate_kspace_stencil kmesh_tol" begin
-    using Wannier: Vec3
     using Wannier.Datasets
     win = read_win(dataset"SnSe2/SnSe2.win")
     nnkp = read_nnkp_compute_bweights(dataset"SnSe2/outputs/SnSe2.nnkp")
-    recip_lattice = reciprocal_lattice(win.unit_cell_cart)
+    recip_lattice = reciprocal_lattice(win["unit_cell_cart"])
     kstencil = generate_kspace_stencil(
-        recip_lattice, win.mp_grid, win.kpoints; atol = win.kmesh_tol
+        recip_lattice, win["mp_grid"], win["kpoints"]; atol = win["kmesh_tol"]
     )
 
-    ref_bvectors = Vec3{Float64}[
+    ref_bvectors = vec3.([
         [0.0, 0.0, 0.180597],
         [0.0, 0.0, -0.180597],
         [0.188176, 0.0, 0.000001],
@@ -88,7 +93,7 @@ end
         [-0.094088, -0.162971, -0.0],
         [-0.188176, 0.0, 0.180597],
         [0.188176, 0.0, -0.180597],
-    ]
+    ])
     ref_bweights = [
         15.330158,
         15.330158,
@@ -103,8 +108,8 @@ end
     ]
     ref_kstencil = Wannier.KspaceStencil(
         recip_lattice,
-        win.mp_grid,
-        win.kpoints,
+        vec3(win["mp_grid"]),
+        win["kpoints"],
         ref_bvectors,
         ref_bweights,
         nnkp.kpb_k,
@@ -123,10 +128,10 @@ end
 end
 
 @testitem "compute_bweights" begin
-    using Wannier: compute_bweights, Vec3
+    using Wannier: compute_bweights
 
     # This set of bvectors are not ordered by norm
-    bvectors = Vec3{Float64}[
+    bvectors = vec3.([
         [0.0, 0.0, 0.3267379723643249],
         [0.41527557136667026, 0.0, 0.16336898618216245],
         [0.0, -0.41527557136667026, 0.16336898618216245],
@@ -137,7 +142,7 @@ end
         [0.0, 0.41527557136667026, -0.16336898618216245],
         [0.0, -0.41527557136667026, -0.16336898618216245],
         [0.41527557136667026, 0.0, -0.16336898618216245],
-    ]
+    ])
     weights = compute_bweights(bvectors)
 
     ref_weights = [

@@ -46,7 +46,7 @@ n_kpoints(shells::KspaceStencilShells) = length(shells.kpoints)
 """number of b-vector shells"""
 n_shells(shells::KspaceStencilShells) = length(shells.n_degens)
 n_bvectors(shells::KspaceStencilShells) = sum(shells.n_degens)
-reciprocal_lattice(shells::KspaceStencilShells) = shell.recip_lattice
+CrystalBase.reciprocal_lattice(shells::KspaceStencilShells) = shell.recip_lattice
 
 """
     $(SIGNATURES)

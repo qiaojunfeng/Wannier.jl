@@ -19,7 +19,7 @@ end
 function Makie.plot!(
         p::ProjBandPlot{Tuple{K, E, P, L}}
     ) where {
-        K <: Wannier.RecipPath,
+            K <: Wannier.KPath,
         E <: AbstractVector{<:AbstractVector{<:Real}},
         P <: AbstractVector{<:AbstractMatrix{<:Real}},
         L <: AbstractVector{<:AbstractString},
@@ -87,7 +87,7 @@ function Makie.plot!(
 end
 
 function Wannier.get_projbandplot(
-        kpath::Wannier.RecipPath, eigenvals::E, projs::P, labels::L;
+    kpath::Wannier.KPath, eigenvals::E, projs::P, labels::L;
         show_legend::Bool = true, kwargs...,
     ) where {
         E <: AbstractVector{<:AbstractVector{<:Real}},

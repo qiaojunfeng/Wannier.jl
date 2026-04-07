@@ -15,25 +15,28 @@ Read `win` and `mmn` files, and read `amn`/`eig` files if they exist.
 """
 function read_w90(prefix::AbstractString; ortho_amn::Bool = true, use_mmn_bvecs::Bool = true, kstencil_algo::KspaceStencilAlgorithm = default_kstencil_algo())
     win = read_win(prefix * ".win")
-    nbands = win.num_bands
-    nwann = win.num_wann
-    lattice = win.unit_cell_cart
+    nbands = win["num_bands"]
+    nwann = win["num_wann"]
+    lattice = win["unit_cell_cart"]
     recip_lattice = reciprocal_lattice(lattice)
-    nkpts = length(win.kpoints)
+    nkpts = length(win["kpoints"])
 
     isfile(prefix * ".mmn") || error("$(prefix).mmn file does not exist")
-    overlaps, kpb_k, kpb_G = read_mmn(prefix * ".mmn")
+    mmn = read_mmn(prefix * ".mmn")
+    overlaps = mmn.M
+    kpb_k = mmn.kpb_k
+    kpb_G = mmn.kpb_G
     nbvecs = length(overlaps[1])
     # check consistency for mmn
     @assert nkpts == length(overlaps) "different n_kpoints in mmn and win files"
     @assert (nbands, nbands) == size(overlaps[1][1]) "different n_bands in mmn and win files"
 
     if use_mmn_bvecs
-        kstencil = KspaceStencil(recip_lattice, win.kpoints, kpb_k, kpb_G)
+        kstencil = KspaceStencil(recip_lattice, win["kpoints"], kpb_k, kpb_G)
     else
-        atol = get(win, :kmesh_tol, default_w90_kmesh_tol())
+        atol = get(win, "kmesh_tol", default_w90_kmesh_tol())
         kstencil = generate_kspace_stencil(
-            recip_lattice, win.mp_grid, win.kpoints, kstencil_algo; atol
+            recip_lattice, win["mp_grid"], win["kpoints"], kstencil_algo; atol
         )
         @assert n_bvectors(kstencil) == nbvecs "different n_bvectors in mmn and win files"
         @assert kstencil.kpb_k == kpb_k "auto generated kpb_k are different from mmn file"
@@ -46,7 +49,7 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool = true, use_mmn_bvecs:
         if ortho_amn
             gauges = read_amn_ortho("$prefix.amn")
         else
-            gauges = read_amn("$prefix.amn")
+            gauges = read_amn("$prefix.amn").A
         end
         @assert nkpts == length(gauges) "different n_kpoints in amn and win files"
         @assert (nbands, nwann) == size(gauges[1]) "different n_bands or n_wannier in amn and win files"
@@ -67,8 +70,8 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool = true, use_mmn_bvecs:
     end
 
     if disentangle
-        dis_froz_max = get(win, :dis_froz_max, nothing)
-        dis_froz_min = get(win, :dis_froz_min, -Inf)
+        dis_froz_max = get(win, "dis_froz_max", nothing)
+        dis_froz_min = get(win, "dis_froz_min", -Inf)
         if isnothing(dis_froz_max)
             frozen_bands = [falses(nbands) for _ in 1:nkpts]
         else
@@ -78,8 +81,8 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool = true, use_mmn_bvecs:
         frozen_bands = [falses(nbands) for _ in 1:nkpts]
     end
 
-    atom_labels = map(x -> string(x.first), win.atoms_frac)
-    atom_positions = map(x -> x.second, win.atoms_frac)
+    atom_labels = map(x -> string(x.first), win["atoms_frac"])
+    atom_positions = map(x -> x.second, win["atoms_frac"])
 
     return Model(
         lattice,
@@ -104,7 +107,7 @@ Return a `Model` with U matrix filled by that from a chk file.
 function read_w90_with_chk(prefix::AbstractString, chk::AbstractString = "$prefix.chk")
     model = read_w90(prefix)
     fchk = read_chk(chk)
-    model.gauges .= get_U(fchk)
+    model.gauges .= WannierIO.gauge_matrices(fchk)
     return model
 end
 

@@ -14,7 +14,7 @@ end
 
 @testitem "split_eig" setup = [SplitEnv] begin
     E = model.eigenvalues
-    U = get_U(chk)
+    U = WannierIO.gauge_matrices(chk)
 
     (Ev, _), (Ec, _) = Wannier.split_eig(E, U, n_val)
 
@@ -29,14 +29,14 @@ end
     using Wannier.Datasets
 
     E = model.eigenvalues
-    U = get_U(chk)
+    U = WannierIO.gauge_matrices(chk)
     (Ev, _), (Ec, _) = Wannier.split_eig(E, U, n_val)
 
     M = model.overlaps
 
     # V is random, use reference V
-    Vv = read_amn(dataset"Si2_coarse/valence/Si2_val.vmn")
-    Vc = read_amn(dataset"Si2_coarse/conduction/Si2_cond.vmn")
+    Vv = read_amn(dataset"Si2_coarse/valence/Si2_val.vmn").A
+    Vc = read_amn(dataset"Si2_coarse/conduction/Si2_cond.vmn").A
 
     nk = n_kpoints(model)
     nb = n_bands(model)
@@ -85,7 +85,7 @@ end
 
 @testitem "split_model" setup = [SplitEnv] begin
     model_test = deepcopy(model)
-    model_test.gauges .= get_U(chk)
+    model_test.gauges .= WannierIO.gauge_matrices(chk)
 
     (model_v, _), (model_c, _) = split_model(model_test, n_val)
 

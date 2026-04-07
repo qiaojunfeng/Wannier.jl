@@ -13,7 +13,11 @@ Write `mmn` file.
 function write_mmn(
         filename::AbstractString, overlaps::AbstractVector, kstencil::KspaceStencil; kwargs...
     )
-    return WannierIO.write_mmn(
-        filename, overlaps, kstencil.kpb_k, kstencil.kpb_G; kwargs...
+    mmn = WannierIO.Mmn(
+        WannierIO.default_header(),
+        overlaps,
+        kstencil.kpb_k,
+        kstencil.kpb_G,
     )
+    return WannierIO.write_mmn(filename, mmn; kwargs...)
 end

@@ -57,12 +57,38 @@ function write_xsf(
         rgrid::Union{RGrid, Nothing} = nothing,
         W::Union{AbstractArray{T, 3}, Nothing} = nothing,
     ) where {V <: AbstractVector, T <: Real}
+    # Build a WannierIO.Xsf and delegate to the single-argument write_xsf API.
+    # Convert atom numbers to string labels (WannierIO expects integer-parsable labels)
+    atoms = string.(Int.(atom_numbers))
+
+    # atom_positions are fractional coordinates w.r.t. `lattice`; convert to Cartesian
+    atom_positions_cart = vec3.(frac_to_cart(lattice, atom_positions))
+
     if isnothing(rgrid) || isnothing(W)
-        return WannierIO.write_xsf(filename, lattice, atom_positions, atom_numbers)
+        xsf = WannierIO.Xsf(mat3(lattice), mat3(lattice), atoms, atom_positions_cart, nothing, nothing, nothing, nothing, nothing, nothing)
+        return WannierIO.write_xsf(filename, xsf)
     end
+
     O = origin(rgrid)
     spanvec = span_vectors(rgrid)
-    return WannierIO.write_xsf(
-        filename, lattice, atom_positions, atom_numbers, O, spanvec, W
+    # Build X, Y, Z fractional grids consistent with WannierIO expectations
+    n_x, n_y, n_z = size(W)
+    X = collect(range(0.0, 1.0, n_x))
+    Y = collect(range(0.0, 1.0, n_y))
+    Z = collect(range(0.0, 1.0, n_z))
+
+    xsf = WannierIO.Xsf(
+        mat3(lattice),
+        mat3(lattice),
+        atoms,
+        atom_positions_cart,
+        Vec3{Float64}(O),
+        mat3(spanvec),
+        X,
+        Y,
+        Z,
+        W,
     )
+
+    return WannierIO.write_xsf(filename, xsf)
 end

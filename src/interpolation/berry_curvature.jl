@@ -95,8 +95,6 @@ struct LVTS12 <: AbstractBerryCurvatureInterpolationAlgorithm end
 function (interp::BerryCurvatureInterpolator)(
         kpoints::AbstractVector{<:AbstractVector}, ::WYSV06BandResolved; kwargs...
     )
-    # to also handle `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
     _, U, _, Dᴴ = compute_D_matrix(
         interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
     )
@@ -146,8 +144,6 @@ occupations, using WYSV06 Eq. 32."""
 function (interp::BerryCurvatureInterpolator)(
         kpoints::AbstractVector{<:AbstractVector}, ::WYSV06; kwargs...
     )
-    # to also handle `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
 
     eigenvalues, U, _, Dᴴ = compute_D_matrix(
         interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
@@ -188,8 +184,6 @@ f * J * g, where g = 1 - f.
 function (interp::BerryCurvatureInterpolator)(
         kpoints::AbstractVector{<:AbstractVector}, ::LVTS12; kwargs...
     )
-    # to also handle `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
 
     # Wannier-gauge position operator, LVTS12 Eq. 28 and 78
     Aᵂ = invfourier(interp.position, kpoints)

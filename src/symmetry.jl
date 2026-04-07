@@ -1,3 +1,4 @@
+using LinearAlgebra
 using WannierIO: SymOp, RepMatWann, RepMatBand
 
 """

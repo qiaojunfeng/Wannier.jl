@@ -20,7 +20,7 @@ see [`WignerSeitzRspace`](@ref) for an example.
 abstract type AbstractRspace end
 
 n_Rvectors(Rspace::AbstractRspace) = length(Rspace.Rvectors)
-real_lattice(Rspace::AbstractRspace) = Rspace.lattice
+CrystalBase.real_lattice(Rspace::AbstractRspace) = Rspace.lattice
 
 """Index using `i` of Rvectors"""
 function Base.getindex(Rspace::AbstractRspace, i::Integer)

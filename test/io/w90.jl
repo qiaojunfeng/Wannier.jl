@@ -3,10 +3,10 @@
     kstencil = read_nnkp_compute_bweights(dataset"Si2_valence/outputs/Si2_valence.nnkp")
     nnkp = read_nnkp(dataset"Si2_valence/outputs/Si2_valence.nnkp.toml")
 
-    @test reciprocal_lattice(kstencil) ≈ nnkp.recip_lattice
-    @test kstencil.kpoints ≈ nnkp.kpoints
-    @test kstencil.kpb_k == nnkp.kpb_k
-    @test kstencil.kpb_G == nnkp.kpb_G
+    @test reciprocal_lattice(kstencil) ≈ nnkp["recip_lattice"]
+    @test kstencil.kpoints ≈ nnkp["kpoints"]
+    @test kstencil.kpb_k == nnkp["kpb_k"]
+    @test kstencil.kpb_G == nnkp["kpb_G"]
 
     # copied from wout file
     ref_bvectors = [

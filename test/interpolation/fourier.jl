@@ -1,6 +1,6 @@
 @testitem "fourier" begin
     using Wannier.Datasets
-    tbdat = read_w90_tbdat(dataset"Si2_valence/outputs/WS/Si2_valence_tb.dat")
+    tbdat = read_w90_tb_dat(dataset"Si2_valence/outputs/WS/Si2_valence_tb.dat")
     ref_Hᴿ = tbdat.H
     Rspace = Wannier.WignerSeitzRspace(tbdat.lattice, tbdat.Rvectors, tbdat.Rdegens)
 

@@ -10,7 +10,7 @@ Thus, in most cases, this function should be used instead of `WannierIO.read_amn
 where the latter one just parse the `amn` file and return whatever is in it.
 """
 function read_amn_ortho(filename::AbstractString)
-    U = read_amn(filename)
+    U = WannierIO.read_amn(filename).A
     U .= orthonorm_lowdin(U)
     @info "Lowdin orthonormalization applied to U matrices"
     return U

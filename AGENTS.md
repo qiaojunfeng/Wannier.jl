@@ -14,7 +14,7 @@
 ## Testing
 - Run the full package test suite from the repo root with `julia --project -e 'using Pkg; Pkg.test()'`.
 - If you change docs content or public APIs, also verify the docs build with `julia --project=docs docs/make.jl`.
-- In tests, call non-exported APIs with module qualification, for example `WannierIO.write_HH_R(...)`.
+- In tests, call non-exported APIs with module qualification, for example `WannierIO.write_HH_R_dat(...)`.
 
 ## Code Style
 - Use 4 spaces for indentation.

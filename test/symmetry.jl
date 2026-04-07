@@ -16,7 +16,7 @@ end
 
     win = read_win(dataset"Si2_hse/Si2.win")
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    kpoints_fbz = win.kpoints
+    kpoints_fbz = win["kpoints"]
     f2i = get_kpoint_mappings(kpoints_fbz, isym.kpoints_ibz, isym.symops)
 
     ref = readdlm(dataset"Si2_hse/outputs/test/kpt_map.txt", '\t', Int; comments = true)
@@ -30,7 +30,7 @@ end
 
     win = read_win(dataset"Si2_hse/Si2.win")
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    kpoints_fbz = win.kpoints
+    kpoints_fbz = win["kpoints"]
     f2i = get_kpoint_mappings(kpoints_fbz, isym.kpoints_ibz, isym.symops)
 
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
@@ -47,7 +47,7 @@ end
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
     isym = read_isym(dataset"Si2_hse/Si2.isym")
 
-    centers = [p.center for p in nnkp.projections]
+    centers = [p.center for p in nnkp["projections"]]
     Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.repmat_wann)
 
     ref, header = readdlm(
@@ -69,20 +69,20 @@ end
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
     kstencil = Wannier.KspaceStencil(
-        nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
     Wannier.rescale!(isym.repmat_band)
 
-    centers = [p.center for p in nnkp.projections]
+    centers = [p.center for p in nnkp["projections"]]
     Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.repmat_wann)
 
-    Ai = read_amn(dataset"Si2_hse/Si2.iamn")
+    Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     Asymm = Wannier.symmetrize_gauges(
         Ai, isym.kpoints_ibz, isym.symops, isym.repmat_band, isym.repmat_wann, Rs
     )
 
-    ref = read_amn(dataset"Si2_hse/outputs/test/symmetrized.iamn")
+    ref = read_amn(dataset"Si2_hse/outputs/test/symmetrized.iamn").A
 
     @test isapprox(Asymm, ref)
 end
@@ -92,21 +92,21 @@ end
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
     kstencil = Wannier.KspaceStencil(
-        nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
     Wannier.rescale!(isym.repmat_band)
     f2i = get_kpoint_mappings(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
 
-    centers = [p.center for p in nnkp.projections]
+    centers = [p.center for p in nnkp["projections"]]
     Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.repmat_wann)
 
-    Asymm = read_amn(dataset"Si2_hse/outputs/test/symmetrized.iamn")
+    Asymm = read_amn(dataset"Si2_hse/outputs/test/symmetrized.iamn").A
     Af = Wannier.unfold_gauges(
         Asymm, isym.kpoints_ibz, f2i, isym.symops, isym.repmat_wann, Rs
     )
 
-    ref = read_amn(dataset"Si2_hse/Si2.amn")
+    ref = read_amn(dataset"Si2_hse/Si2.amn").A
 
     @test isapprox(Af, ref; atol = 1.0e-10)
 end
@@ -118,7 +118,7 @@ end
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
     symops = read_isym(dataset"Si2_hse/Si2.isym").symops
     kstencil = Wannier.KspaceStencil(
-        nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     bvecs = get_bvectors(kstencil; fractional = true)
 
@@ -148,13 +148,16 @@ end
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
     kstencil = Wannier.KspaceStencil(
-        nnkp.recip_lattice, nnkp.kpoints, nnkp.kpb_k, nnkp.kpb_G
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
     Wannier.rescale!(isym.repmat_band)
     f2i = get_kpoint_mappings(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
 
-    Mi, kpb_k_i, kpb_G_i = read_mmn(dataset"Si2_hse/Si2.immn")
+    mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
+    Mi = mmn_i.M
+    kpb_k_i = mmn_i.kpb_k
+    kpb_G_i = mmn_i.kpb_G
 
     bvectors = get_bvectors(kstencil; fractional = true)
     Mf, kpb_k_f, kpb_G_f = Wannier.unfold_overlaps(
@@ -170,7 +173,10 @@ end
         isym.repmat_band,
     )
 
-    Mref, kpb_k_ref, kpb_G_ref = read_mmn(dataset"Si2_hse/Si2.mmn")
+    mmn_ref = read_mmn(dataset"Si2_hse/Si2.mmn")
+    Mref = mmn_ref.M
+    kpb_k_ref = mmn_ref.kpb_k
+    kpb_G_ref = mmn_ref.kpb_G
 
     # There is approx 1e-8 differences compared to the reference mmn, because
     # the reference mmn was generated with python code, where the b vectors

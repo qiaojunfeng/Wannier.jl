@@ -23,7 +23,7 @@ end
         @test all(isapprox.(outxsf.W, refxsf.W; atol = 1.0e-4))
         @test isapprox(outxsf.atom_positions, refxsf.atom_positions; atol = 1.0e-5)
         # refxsf.atoms = ["si", "si"], written by wannier90
-        @test parse.(Int, outxsf.atoms) == Wannier.get_atom_number(titlecase.(refxsf.atoms))
+        @test parse.(Int, outxsf.atoms) == CrystalBase.atomic_number(titlecase.(refxsf.atoms))
         @test isapprox(outxsf.convvec, refxsf.convvec; atol = 1.0e-5)
         @test isapprox(outxsf.primvec, refxsf.primvec; atol = 1.0e-5)
         @test isapprox(outxsf.rgrid.X, refxsf.rgrid.X; atol = 1.0e-5)

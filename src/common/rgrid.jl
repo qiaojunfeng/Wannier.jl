@@ -1,5 +1,7 @@
 using LazyGrids: ndgrid
 
+const AbstractArray3{T} = AbstractArray{T, 3} where {T}
+
 """
     struct RGrid(basis, X, Y, Z)
 

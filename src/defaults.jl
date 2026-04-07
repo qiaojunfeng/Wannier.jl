@@ -1,4 +1,5 @@
 using Dates: now
+using Printf: @sprintf
 
 default_header() = @sprintf "Created by Wannier.jl %s" string(now())
 

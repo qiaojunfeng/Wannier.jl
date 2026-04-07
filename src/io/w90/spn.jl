@@ -13,13 +13,13 @@ Read `prefix.chk` and `prefix.spn` to construct Wannier-gauge k-space spin opera
 - `S`: Wannier-gauge spin operator in k-space
 """
 function read_chk_spn(prefix::AbstractString; chk = "$prefix.chk", spn = "$prefix.spn")
-    s_x, s_y, s_z = read_spn(spn)
-    spin_vecs = map(zip(s_x, s_y, s_z)) do (x, y, z)
+    spn_dat = read_spn(spn)
+    spin_vecs = map(zip(spn_dat.Sx, spn_dat.Sy, spn_dat.Sz)) do (x, y, z)
         MVec3.(x, y, z)
     end
     # spn file is in Bloch gauge, need to read chk to convert to Wannier gauge
     chk = read_chk(chk)
-    gauges = get_U(chk)
+    gauges = WannierIO.gauge_matrices(chk)
     S = map(zip(gauges, spin_vecs)) do (Uₖ, Sₖ)
         Uₖ' * Sₖ * Uₖ
     end

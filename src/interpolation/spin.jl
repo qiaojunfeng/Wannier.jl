@@ -41,8 +41,6 @@ end
 
 """Interpolate the spin operator and transform it to Bloch gauge."""
 function (interp::SpinInterpolator)(kpoints::AbstractVector{<:AbstractVector}; kwargs...)
-    # to also handle `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
     # R-space Hamiltonain
     H_R = interp.hamiltonian
     # k-space Hamiltonian
@@ -80,7 +78,7 @@ end
 
 n_wannier(interp::SpinProjectionInterpolator) = n_wannier(interp.spin_interpolator)
 n_Rvectors(interp::SpinProjectionInterpolator) = n_Rvectors(interp.spin_interpolator)
-real_lattice(interp::SpinProjectionInterpolator) = real_lattice(interp.spin_interpolator)
+CrystalBase.real_lattice(interp::SpinProjectionInterpolator) = real_lattice(interp.spin_interpolator)
 
 function SpinProjectionInterpolator(hamiltonian::TBOperator, spin::TBOperator, θ, ϕ)
     spin_interpolator = SpinInterpolator(hamiltonian, spin)
@@ -96,8 +94,6 @@ Interpolate the spin operator and transform it to Bloch gauge.
 function (interp::SpinProjectionInterpolator)(
         kpoints::AbstractVector{<:AbstractVector}; truncate::Bool = true
     )
-    # to also handle `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
     S_k = interp.spin_interpolator(kpoints)
 
     # instead of matrix, return real part of diagonal elements

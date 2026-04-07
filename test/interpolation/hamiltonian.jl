@@ -12,8 +12,9 @@
     # digits. Therefore, I read the win file and construct the kpoints myself.
     # kpoints = ref_band.kpoints
     win = read_win(dataset"Si2_valence/Si2_valence.win")
-    kpi = generate_w90_kpoint_path(win.unit_cell_cart, win.kpoint_path)
-    eigenvalues = interp(kpi)[1]
+    kseg = KSegment(reciprocal_lattice(win["unit_cell_cart"]), win["kpoint_path"])
+    kpath = KPath(kseg)
+    eigenvalues = interp(collect(kpath))[1]
     @test all(isapprox.(eigenvalues, ref_band.eigenvalues; atol = 2.0e-6))
 end
 
@@ -32,7 +33,8 @@ end
     # digits. Therefore, I read the win file and construct the kpoints myself.
     # kpoints = ref_band.kpoints
     win = read_win(dataset"Si2_valence/Si2_valence.win")
-    kpi = generate_w90_kpoint_path(win.unit_cell_cart, win.kpoint_path)
-    eigenvalues = interp(kpi)[1]
+    kseg = KSegment(reciprocal_lattice(win["unit_cell_cart"]), win["kpoint_path"])
+    kpath = KPath(kseg)
+    eigenvalues = interp(collect(kpath))[1]
     @test all(isapprox.(eigenvalues, ref_band.eigenvalues; atol = 1.0e-7))
 end

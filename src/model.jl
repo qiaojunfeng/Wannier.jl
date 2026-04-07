@@ -173,8 +173,8 @@ n_kpoints(model::Model) = n_kpoints(model.kstencil)
 n_bvectors(model::Model) = n_bvectors(model.kstencil)
 n_bands(model::Model) = isempty(model.gauges) ? 0 : size(model.gauges[1], 1)
 n_wannier(model::Model) = isempty(model.gauges) ? 0 : size(model.gauges[1], 2)
-real_lattice(model::Model) = model.lattice
-reciprocal_lattice(model::Model) = reciprocal_lattice(model.kstencil)
+CrystalBase.real_lattice(model::Model) = model.lattice
+CrystalBase.reciprocal_lattice(model::Model) = reciprocal_lattice(model.kstencil)
 
 """
     $(SIGNATURES)

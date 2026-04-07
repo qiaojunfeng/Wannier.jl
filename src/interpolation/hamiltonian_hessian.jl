@@ -33,8 +33,6 @@ function (interp::HamiltonianHessianInterpolator)(
         kpoints::AbstractVector{<:AbstractVector}; kwargs...
     )
     @assert n_Rvectors(interp.hamiltonian) > 0 "empty Hamiltonian"
-    # to also handle `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
 
     _, U, dH, D_matrices = compute_D_matrix(
         interp.hamiltonian, interp.hamiltonian_gradient, kpoints; kwargs...
@@ -113,13 +111,6 @@ struct AnalyticEffectiveMass <: AbstractEffectiveMassAlgorithm end
 """Compute effective mass using finite difference of Wannier-interpolated eigenvalues."""
 struct FiniteDifferenceEffectiveMass <: AbstractEffectiveMassAlgorithm end
 
-@inline function (interp::EffectiveMassInterpolator)(
-        kpi::KPathInterpolant, args...; kwargs...
-    )
-    kpoints = get_kpoints(kpi)
-    return interp(kpoints, args...; kwargs...)
-end
-
 """
     $(SIGNATURES)
 
@@ -155,8 +146,6 @@ function (interp::EffectiveMassInterpolator)(
         dk = 1.0e-3,
         kwargs...,
     )
-    # to also handle `KPathInterpolant`
-    kpoints = get_kpoints(kpoints)
     nwann = n_wannier(interp.hamiltonian)
     nkpts = length(kpoints)
     @assert n_Rvectors(interp.hamiltonian) > 0 "empty Hamiltonian"

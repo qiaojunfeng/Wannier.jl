@@ -34,7 +34,7 @@ function n_wannier(tb::TBOperator)
     return isempty(tb.operator) ? 0 : size(tb.operator[1], 1)
 end
 n_Rvectors(tb::TBOperator) = n_Rvectors(tb.Rspace)
-real_lattice(tb::TBOperator) = real_lattice(tb.Rspace)
+CrystalBase.real_lattice(tb::TBOperator) = real_lattice(tb.Rspace)
 
 # the Rspace is so simple so we expose it to the user
 function Base.propertynames(tb::TBOperator)
@@ -148,45 +148,16 @@ Fourier transform is a simple sum (and is faster).
 function simplify end
 
 function simplify(Rspace::MDRSRspace, operator::AbstractVector)
-    # expanded R-vectors
-    bare_Rvectors = Vector{Vec3{Int}}()
-    # simplified operator by absorbing R and T degeneracies
-    bare_operator = similar(operator, 0)
-    op_type = eltype(operator[1])
-    op_size = size(operator[1])
-    # generate expanded R vectors, which contains all the R+T
-    for iR in 1:n_Rvectors(Rspace)
-        R = Rspace.Rvectors[iR]
-        Tvecs = Rspace.Tvectors[iR]
-        Nᴿ = Rspace.n_Rdegens[iR]
-        for n in axes(Tvecs, 2)
-            for m in axes(Tvecs, 1)
-                Nᵀ = Rspace.n_Tdegens[iR][m, n]
-                for iT in 1:Nᵀ
-                    RT = R .+ Tvecs[m, n][iT]
-                    i = findfirst(x -> x == RT, bare_Rvectors)
-                    if isnothing(i)
-                        push!(bare_Rvectors, RT)
-                        Oᴿᵀ = zeros(op_type, op_size)
-                        Oᴿᵀ[m, n] = operator[iR][m, n] / (Nᴿ * Nᵀ)
-                        push!(bare_operator, Oᴿᵀ)
-                    else
-                        bare_operator[i][m, n] += operator[iR][m, n] / (Nᴿ * Nᵀ)
-                    end
-                end
-            end
-        end
-    end
-    bare_Rspace = BareRspace(Rspace.lattice, bare_Rvectors)
+    reducer = RvectorReducer(Rspace.Rvectors, Rspace.n_Rdegens, Rspace.Tvectors, Rspace.n_Tdegens)
+    bare_Rspace = BareRspace(Rspace.lattice, reducer.Rvectors)
+    bare_operator = reducer(operator)
     return bare_Rspace, bare_operator
 end
 
 function simplify(Rspace::WignerSeitzRspace, operator::AbstractVector)
-    # absorb R degeneracies into operator
-    bare_operator = map(zip(operator, Rspace.n_Rdegens)) do (O, Nᴿ)
-        O ./ Nᴿ
-    end
-    bare_Rspace = BareRspace(Rspace.lattice, Rspace.Rvectors)
+    reducer = RvectorReducer(Rspace.Rvectors, Rspace.n_Rdegens)
+    bare_Rspace = BareRspace(Rspace.lattice, reducer.Rvectors)
+    bare_operator = reducer(operator)
     return bare_Rspace, bare_operator
 end
 
@@ -278,7 +249,7 @@ end
 
 n_wannier(interp::AbstractTBInterpolator) = n_wannier(interp.hamiltonian)
 n_Rvectors(interp::AbstractTBInterpolator) = n_Rvectors(interp.hamiltonian)
-real_lattice(interp::AbstractTBInterpolator) = real_lattice(interp.hamiltonian)
+CrystalBase.real_lattice(interp::AbstractTBInterpolator) = real_lattice(interp.hamiltonian)
 
 function Base.show(io::IO, ::MIME"text/plain", interp::AbstractTBInterpolator)
     @printf(io, "Tight-binding interpolator name  :  %s\n", nameof(interp))

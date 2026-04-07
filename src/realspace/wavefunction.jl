@@ -349,7 +349,7 @@ function write_realspace_wf(
     # W .*= sqrt(length(W[1].values) / n_supcells)
 
     # seems W90 always write the real part, so I use real as default
-    atom_numbers = get_atom_number(atom_labels)
+    atom_numbers = atomic_number(atom_labels)
 
     if format == :xsf
         for i in 1:n_wann
