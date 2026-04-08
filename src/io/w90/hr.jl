@@ -62,7 +62,7 @@ function write_w90_hr(prefix::AbstractString, hamiltonian::TBOperator; skip_wsve
     # the operators are always BareRspace
     if !skip_wsvec
         wsvec = WannierIO.WsvecDat(
-            "written by Wannier.jl",
+            "Written by Wannier.jl",
             hamiltonian.Rspace.Rvectors,
             n_wannier(hamiltonian),
         )
@@ -70,7 +70,7 @@ function write_w90_hr(prefix::AbstractString, hamiltonian::TBOperator; skip_wsve
     end
 
     hrdat = WannierIO.HrDat(
-        "written by Wannier.jl",
+        "Written by Wannier.jl",
         hamiltonian.Rspace.Rvectors,
         ones(Int, n_Rvectors(hamiltonian)),
         hamiltonian.operator,

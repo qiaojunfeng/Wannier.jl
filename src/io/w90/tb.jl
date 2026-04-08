@@ -65,9 +65,9 @@ function write_w90_tb(prefix::AbstractString, hamiltonian::TBOperator, position:
 
     # the operators are always BareRspace
     wsvec = WannierIO.WsvecDat(
+        "Written by Wannier.jl",
         hamiltonian.Rspace.Rvectors,
         n_wannier(hamiltonian),
-        "written by Wannier.jl",
     )
     WannierIO.write_w90_wsvec_dat(prefix * "_wsvec.dat", wsvec)
 
@@ -81,7 +81,7 @@ function write_w90_tb(prefix::AbstractString, hamiltonian::TBOperator, position:
         map(x -> x[3], O)
     end
     tbdat = WannierIO.TbDat(
-        "written by Wannier.jl",
+        "Written by Wannier.jl",
         real_lattice(hamiltonian),
         hamiltonian.Rspace.Rvectors,
         ones(Int, n_Rvectors(hamiltonian)),
