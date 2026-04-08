@@ -49,10 +49,10 @@ dataset"Si2"
 ```
 """
 macro dataset_str(s)
-    # @eval Artifacts.@artifact_str $s
+    @eval Artifacts.@artifact_str $s
 
     # For testing purpose, use local files
-    return joinpath(homedir(), "git/WannierDatasets/datasets", s)
+    # return joinpath(homedir(), "git/WannierDatasets/datasets", s)
 end
 
 end

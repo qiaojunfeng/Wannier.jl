@@ -80,8 +80,12 @@ end
         win["fermi_energy"],
     )
 
-    ref_kpt = read_w90_band_kpt(dataset"Fe_soc/outputs/MDRS/postw90/Fe-path.kpt")
-    ref_dat = readdlm(dataset"Fe_soc/outputs/MDRS/postw90/Fe-morb.dat")
+    # I use less kpoints to speedup the test
+    COARSE = true
+    postw90_dir = COARSE ? "postw90_coarse" : "postw90"
+
+    ref_kpt = read_w90_band_kpt(dataset"Fe_soc/outputs/MDRS/" * postw90_dir * "/Fe-path.kpt")
+    ref_dat = readdlm(dataset"Fe_soc/outputs/MDRS/" * postw90_dir * "/Fe-morb.dat")
     # w90 actually writes -1/2 * M, where M = LVTS12 Eq. 97
     ref_M = map(eachrow(ref_dat[:, 2:end])) do M
         -2 * Wannier.axialvector_to_antisymmetrictensor(M)
@@ -92,10 +96,11 @@ end
     # digits. Therefore, I read the win file and construct the kpoints myself.
     # kpoints = ref_kpt.kpoints
     kseg = KSegment(reciprocal_lattice(win["unit_cell_cart"]), win["kpoint_path"])
-    kpath = KPath(kseg)
-    # postw90.x has a bug, it misses the `H` point at 417
+    kpath = KPath(kseg, COARSE ? 5 : 100)
     kpoints = collect(kpath)
-    deleteat!(kpoints, 417)
+    # postw90.x has a bug, it misses the `H` point
+    ik_H = COARSE ? 22 : 417
+    deleteat!(kpoints, ik_H)
     @test all(norm.(kpoints - ref_kpt.kpoints) .< 1.0e-6)
 
     M = interp(kpoints)
