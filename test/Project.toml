@@ -14,4 +14,5 @@ WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
 Wannier = {path = ".."}
 
 [compat]
+DelimitedFiles = "1"
 TestItemRunner = "1.1"
