@@ -147,22 +147,23 @@ Fourier transform is a simple sum (and is faster).
 """
 function simplify end
 
-function simplify(Rspace::MDRSRspace, operator::AbstractVector)
-    reducer = RvectorReducer(Rspace.Rvectors, Rspace.n_Rdegens, Rspace.Tvectors, Rspace.n_Tdegens)
-    bare_Rspace = BareRspace(Rspace.lattice, reducer.Rvectors)
-    bare_operator = reducer(operator)
-    return bare_Rspace, bare_operator
+function WannierIO.RvectorReducer(Rspace::MDRSRspace)
+    return WannierIO.RvectorReducer(Rspace.Rvectors, Rspace.n_Rdegens, Rspace.Tvectors, Rspace.n_Tdegens)
 end
 
-function simplify(Rspace::WignerSeitzRspace, operator::AbstractVector)
-    reducer = RvectorReducer(Rspace.Rvectors, Rspace.n_Rdegens)
-    bare_Rspace = BareRspace(Rspace.lattice, reducer.Rvectors)
-    bare_operator = reducer(operator)
-    return bare_Rspace, bare_operator
+function WannierIO.RvectorReducer(Rspace::WignerSeitzRspace)
+    return WannierIO.RvectorReducer(Rspace.Rvectors, Rspace.n_Rdegens)
 end
 
-function simplify(Rspace::BareRspace, operator::AbstractVector)
-    return Rspace, operator
+function simplify(Rspace::Union{MDRSRspace,WignerSeitzRspace}, operators::AbstractVector...)
+    reducer = RvectorReducer(Rspace)
+    bare_Rspace = BareRspace(Rspace.lattice, reducer.Rvectors)
+    bare_operators = map(reducer, operators)
+    return bare_Rspace, bare_operators...
+end
+
+function simplify(Rspace::BareRspace, operators::AbstractVector...)
+    return Rspace, operators...
 end
 
 """

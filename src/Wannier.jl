@@ -2,10 +2,9 @@ module Wannier
 
 using Printf: @printf, @sprintf
 using LinearAlgebra
+using StaticArrays
 using OrderedCollections
 using DocStringExtensions
-using StaticArrays
-
 using Reexport: @reexport
 
 @reexport using CrystalBase

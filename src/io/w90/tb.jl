@@ -22,10 +22,8 @@ function read_w90_tb(prefix::AbstractString)
     H = dat.hamiltonian
     pos = dat.position
 
-    bare_Rspace, bare_H = simplify(Rspace, H)
+    bare_Rspace, bare_H, bare_pos = simplify(Rspace, H, pos)
     hamiltonian = TBHamiltonian(bare_Rspace, bare_H)
-
-    _, bare_pos = simplify(Rspace, pos)
     position = TBPosition(bare_Rspace, bare_pos)
 
     return (; hamiltonian, position)
