@@ -14,6 +14,7 @@ include("common/const.jl")
 include("common/size.jl")
 include("common/rgrid.jl")
 include("common/kernels.jl")
+include("common/layouts.jl")
 
 include("utils/printing.jl")
 include("utils/linalg.jl")

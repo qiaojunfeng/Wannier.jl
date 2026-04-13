@@ -161,6 +161,19 @@ n_bands(c::Cache) = size(c.G, 1)
 n_wann(c::Cache) = size(c.G, 2)
 n_kpts(c::Cache) = size(c.G, 3)
 
+function _bands_wann(U)
+    if U isa AbstractVector
+        return size(U[1])
+    end
+    return size(U, 1), size(U, 2)
+end
+
+function _alloc_mu_utmu(::Type{FT}, n_kpts, n_bvecs, n_bands, n_wann) where {FT}
+    UtMU = [[zeros(Complex{FT}, n_wann, n_wann) for ib in 1:n_bvecs] for i in 1:n_kpts]
+    MU = [[zeros(Complex{FT}, n_bands, n_wann) for ib in 1:n_bvecs] for i in 1:n_kpts]
+    return MU, UtMU
+end
+
 """
 Standard penalty for minimizing the total spread.
 """
@@ -219,15 +232,11 @@ function omega_center(Ω::Spread; r₀::Vector{Vec3{T}}, λ::T) where {T <: Real
     return SpreadCenter(Ω.Ω, Ω.ΩI, Ω.ΩOD, Ω.ΩD, Ω.Ω̃, Ω.ω, Ω.r, Ωc, Ωt, ωc, ωt)
 end
 
-function omega!(cache::Cache, bvectors::KspaceStencil{FT}, M) where {FT <: Real}
-    r = cache.r
+function omega!(r::Vector{<:Vec3{FT}}, UtMU, MU, bvectors::KspaceStencil{FT}, M) where {FT <: Real}
     fill!(r, zero(eltype(r)))
 
-    UtMU = cache.UtMU
-    MU = cache.MU
-
-    nw = n_wann(cache)
-    nk = n_kpts(cache)
+    nw = length(r)
+    nk = length(UtMU)
 
     n_bvecs = length(M[1])
 
@@ -328,6 +337,10 @@ function omega!(cache::Cache, bvectors::KspaceStencil{FT}, M) where {FT <: Real}
     # return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, w_froz)
 end
 
+function omega!(cache::Cache, bvectors::KspaceStencil{FT}, M) where {FT <: Real}
+    return omega!(cache.r, cache.UtMU, cache.MU, bvectors, M)
+end
+
 """
     omega(model, [U])
     omega(bvectors, M, U)
@@ -344,9 +357,15 @@ function omega(bvectors::KspaceStencil, M, X, Y)
 end
 
 function omega(bvectors::KspaceStencil, M, U)
-    cache = Cache(bvectors, M, U)
-    compute_MU_UtMU!(cache, bvectors, M, U)
-    return omega!(cache, bvectors, M)
+    n_kpts = length(M)
+    n_bvecs = length(M[1])
+    n_bands, n_wann = _bands_wann(U)
+    FT = real(eltype(M[1][1]))
+    MU, UtMU = _alloc_mu_utmu(FT, n_kpts, n_bvecs, n_bands, n_wann)
+    r = zeros(Vec3{FT}, n_wann)
+
+    compute_MU_UtMU!(MU, UtMU, bvectors, M, U)
+    return omega!(r, UtMU, MU, bvectors, M)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", Ω::Spread)
@@ -365,15 +384,11 @@ function Base.show(io::IO, ::MIME"text/plain", Ω::Spread)
     return @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
 end
 omega_grad!(cache::Cache, bvectors, M) = omega_grad!((r, _) -> r, cache, bvectors, M)
-function omega_grad!(penalty::Function, cache::Cache{T}, bvectors, M) where {T}
-    # This mutates cache.G and cache.Mkb
-    G = cache.G
+function omega_grad!(penalty::Function, G::Array{Complex{T}, 3}, r, UtMU, MU, bvectors, M) where {T}
     fill!(G, 0)
-    r = cache.r
-    UtMU = cache.UtMU
-    MU = cache.MU
 
     n_bands, n_wann, n_kpts = size(G)
+    scratch = zeros(eltype(G), n_bands, n_wann)
 
     n_bvecs = length(M[1])
 
@@ -431,22 +446,21 @@ function omega_grad!(penalty::Function, cache::Cache{T}, bvectors, M) where {T}
 
                 cnn = conj(nn)
                 for m in 1:n_bands
-                    # T[m, n] = -im * MUᵏᵇ[m, n] / (Nᵏᵇ[n, n]) * q[n]
-                    # TODO: this changes MU[ik][ib], so the cache.MU is not
-                    # the mathematically correct MU anymore.
-                    # should refactor this to make sure quantities in cache
-                    # is mathematically correct
-                    MUkb[m, n] *= (t - cnn)
+                    scratch[m, n] = MUkb[m, n] * (t - cnn)
                 end
             end
 
-            view(G, :, :, ik) .+= 4 .* wᵇ .* MUk[ib]
+            view(G, :, :, ik) .+= 4 .* wᵇ .* scratch
         end
     end
 
     G ./= n_kpts
 
     return G
+end
+
+function omega_grad!(penalty::Function, cache::Cache{T}, bvectors, M) where {T}
+    return omega_grad!(penalty, cache.G, cache.r, cache.UtMU, cache.MU, bvectors, M)
 end
 
 """
@@ -463,9 +477,16 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
 - `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
 """
 function omega_grad(penalty::Function, bvectors::KspaceStencil, M, U)
-    cache = Cache(bvectors, M, U)
-    compute_MU_UtMU!(cache, bvectors, M, U)
-    return omega_grad!(penalty, cache, bvectors, M)
+    n_kpts = length(M)
+    n_bvecs = length(M[1])
+    n_bands, n_wann = _bands_wann(U)
+    FT = real(eltype(M[1][1]))
+    MU, UtMU = _alloc_mu_utmu(FT, n_kpts, n_bvecs, n_bands, n_wann)
+    r = zeros(Vec3{FT}, n_wann)
+    G = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
+
+    compute_MU_UtMU!(MU, UtMU, bvectors, M, U)
+    return omega_grad!(penalty, G, r, UtMU, MU, bvectors, M)
 end
 omega_grad(bvectors::KspaceStencil, M, U) = omega_grad((r, _) -> r, bvectors, M, U)
 
@@ -527,9 +548,15 @@ Compute WF center in reciprocal space.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 function center(bvectors::KspaceStencil, M, U)
-    cache = Cache(bvectors, M, U)
-    compute_MU_UtMU!(cache, bvectors, M, U)
-    return center!(cache.r, cache.UtMU, bvectors)
+    n_kpts = length(M)
+    n_bvecs = length(M[1])
+    n_bands, n_wann = _bands_wann(U)
+    FT = real(eltype(M[1][1]))
+    MU, UtMU = _alloc_mu_utmu(FT, n_kpts, n_bvecs, n_bands, n_wann)
+    r = zeros(Vec3{FT}, n_wann)
+
+    compute_MU_UtMU!(MU, UtMU, bvectors, M, U)
+    return center!(r, UtMU, bvectors)
 end
 function center!(r::Vector{<:Vec3}, UtMU, bvectors)
     fill!(r, zero(eltype(r)))
