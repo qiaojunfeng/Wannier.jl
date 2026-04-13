@@ -7,11 +7,11 @@ module BenchSpread
     SUITE = BenchmarkGroup()
 
     model = load_dataset("Si2")
-    bvectors = model.bvectors
-    M = model.M
-    U = model.U
+    kstencil = model.kstencil
+    overlaps = model.overlaps
+    gauges = model.gauges
 
-    SUITE["omega"] = @benchmarkable omega($bvectors, $M, $U)
+    SUITE["omega"] = @benchmarkable omega($kstencil, $overlaps, $gauges)
 
 end  # module
 
