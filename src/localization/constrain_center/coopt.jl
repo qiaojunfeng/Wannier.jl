@@ -25,63 +25,8 @@ Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 function get_fg!_disentangle(
         p::AbstractPenalty, model::MagModel{T}, λs::T
     ) where {T <: Real}
-    nb = n_bands(model.up)
-    nw = n_wannier(model.up)
-    nk = n_kpoints(model.up)
-    n_inner = nb * nw + nw^2  # size of XY at each k-point
-
-    function f(XY)
-        XY = reshape(XY, (2 * n_inner, nk))  # *2 for spin up and down
-        XYup = @view XY[1:n_inner, :]
-        XYdn = @view XY[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, nb, nw)
-        Xdn, Ydn = XY_to_X_Y(XYdn, nb, nw)
-        Ωup = omega(p, model.up.kstencil, model.up.overlaps, Xup, Yup).Ωt
-        Ωdn = omega(p, model.dn.kstencil, model.dn.overlaps, Xdn, Ydn).Ωt
-        if λs == 0
-            Ωupdn = 0
-        else
-            Ωupdn = omega_updn(model, X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn))
-        end
-        return Ωup + Ωdn + λs * Ωupdn
-    end
-
-    """size(G) == size(XY)"""
-    function g!(G, XY)
-        XY = reshape(XY, (2 * n_inner, nk))  # *2 for spin up and down
-        XYup = @view XY[1:n_inner, :]
-        XYdn = @view XY[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, nb, nw)
-        Xdn, Ydn = XY_to_X_Y(XYdn, nb, nw)
-        GXup, GYup = omega_grad(
-            p, model.up.kstencil, model.up.overlaps, Xup, Yup, model.up.frozen_bands
-        )
-        GXdn, GYdn = omega_grad(
-            p, model.dn.kstencil, model.dn.overlaps, Xdn, Ydn, model.dn.frozen_bands
-        )
-
-        # gradient of ↑↓ overlap term
-        if λs != 0
-            GOXup, GOYup, GOXdn, GOYdn = omega_updn_grad(model, Xup, Yup, Xdn, Ydn)
-            GXup += λs * GOXup
-            GYup += λs * GOYup
-            GXdn += λs * GOXdn
-            GYdn += λs * GOYdn
-        end
-
-        n = nw^2
-
-        for ik in 1:nk
-            G[1:n, ik] = vec(GXup[ik])
-            G[(n + 1):n_inner, ik] = vec(GYup[ik])
-            G[(n_inner + 1):(n_inner + n), ik] = vec(GXdn[ik])
-            G[(n_inner + n + 1):end, ik] = vec(GYdn[ik])
-        end
-
-        return nothing
-    end
-
-    return f, g!
+    problem = LocalizationProblem(p, model, :mag_disentangle_center; lambda = λs)
+    return build_fg!(problem)
 end
 
 """
