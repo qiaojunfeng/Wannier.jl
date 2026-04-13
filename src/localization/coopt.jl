@@ -250,7 +250,7 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_disentangle(model::MagModel, λ::Real = 1.0)
-    problem = LocalizationProblem(SpreadPenalty(), model, :mag_disentangle; lambda = λ)
+    problem = LocalizationProblem((VarianceTerm(),), model, :mag_disentangle; lambda = λ)
     return build_fg!(problem)
 end
 

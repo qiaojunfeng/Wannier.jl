@@ -7,8 +7,8 @@
     # no disentanglement
     model = read_w90_with_chk(dataset"Si2_valence_coarse/Si2", dataset"Si2_valence_coarse/outputs/Si2.chk")
 
-    p = SpreadPenalty()
-    fg! = Wannier.get_fg!_maxloc(p, model)
+    terms = (VarianceTerm(),)
+    fg! = Wannier.get_fg!_maxloc(terms, model)
 end
 
 @testitem "maxloc spread gradient" setup = [MaxlocEnv] begin
@@ -41,9 +41,9 @@ end
     # reset initial gauge
     model.gauges .= read_amn_ortho(dataset"Si2_valence_coarse/Si2.amn")
 
-    p = SpreadPenalty()
-    Umin = max_localize(p, model)
-    Ω = omega(p, model.kstencil, model.overlaps, Umin)
+    terms = (VarianceTerm(),)
+    Umin = max_localize(terms, model)
+    Ω = omega(model.kstencil, model.overlaps, Umin)
 
     @test isapprox(Ω.Ω, 4.086818459; atol = 1.0e-7)
     @test isapprox(Ω.ΩI, 3.706376532; atol = 1.0e-7)

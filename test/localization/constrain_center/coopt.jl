@@ -2,7 +2,7 @@
     # This code runs once and the module is cached
     using Wannier
     using Wannier.Datasets
-    export model, f, g!, λs, p
+    export model, f, g!, λs, terms
 
     model_up = read_w90(dataset"Fe_collinear_coarse/Fe_up")
     model_dn = read_w90(dataset"Fe_collinear_coarse/Fe_dn")
@@ -13,12 +13,12 @@
     λs = 1.0
     r₀ = [Wannier.Vec3(zeros(3)) for i in 1:n_wannier(model.up)]
     λc = 10.0
-    p = CenterSpreadPenalty(r₀, λc)
-    f, g! = Wannier.get_fg!_disentangle(p, model, λs)
+    terms = (VarianceTerm(), CenterConstraintTerm(r₀, λc))
+    f, g! = Wannier.get_fg!_disentangle(terms, model, λs)
 end
 
 @testitem "coopt center spread" setup = [CooptCenterEnv] begin
-    Ω = Wannier.omega(p, model, λs)
+    Ω = Wannier.omega(terms, model, λs)
     @test isapprox(Ω.up.Ω, 5.962059896476422; atol = 1.0e-10)
     @test isapprox(Ω.up.Ωt, 7.581508110391737; atol = 1.0e-10)
     @test isapprox(Ω.dn.Ω, 6.361552430790301; atol = 1.0e-10)
@@ -103,7 +103,7 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    Uup, Udn = Wannier.disentangle(p, model, λs; max_iter = 1)
+    Uup, Udn = Wannier.disentangle(terms, model, λs; max_iter = 1)
 
     Xup0, Yup0 = Wannier.U_to_X_Y(Uup, model.up.frozen_bands)
     Xdn0, Ydn0 = Wannier.U_to_X_Y(Udn, model.dn.frozen_bands)

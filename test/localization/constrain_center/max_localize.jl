@@ -3,13 +3,13 @@
     using Wannier
     using Wannier: Vec3
     using Wannier.Datasets
-    export model, fg!, p
+    export model, fg!, terms
 
     model = read_w90(dataset"Si2_valence_coarse/Si2")
     r₀ = [Vec3(0.0, 0.0, 0.0) for i in 1:n_wannier(model)]
     λ = 10.0
-    p = CenterSpreadPenalty(r₀, λ)
-    fg! = Wannier.get_fg!_maxloc(p, model)
+    terms = (VarianceTerm(), CenterConstraintTerm(r₀, λ))
+    fg! = Wannier.get_fg!_maxloc(terms, model)
 end
 
 @testitem "constraint center maxloc spread gradient" setup = [MaxlocCenterEnv] begin
@@ -29,7 +29,7 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.max_localize(p, model; max_iter = 1)
+    U1 = Wannier.max_localize(terms, model; max_iter = 1)
     U1 = stack(U1)
 
     fg!(nothing, G, U1)
@@ -39,9 +39,17 @@ end
 end
 
 @testitem "constraint center maxloc valence" setup = [MaxlocCenterEnv] begin
-    Umin = Wannier.max_localize(p, model; max_iter = 4)
-    Ω = Wannier.omega(p, model.kstencil, model.overlaps, Umin)
+    Umin = Wannier.max_localize(terms, model; max_iter = 4)
+    Ω = Wannier.omega_center(
+        Wannier.omega(model.kstencil, model.overlaps, Umin);
+        r₀ = terms[2].r0,
+        λ = terms[2].λ,
+    )
 
+    # NOTE: these fixtures intentionally track historical main-branch values
+    # at a fixed low iteration count. Small floating-point reordering in
+    # objective/gradient accumulation can move the optimizer trajectory even
+    # when formulas are mathematically equivalent.
     # display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
     @test Ω.Ω̃ ≈ Ω.ΩOD + Ω.ΩD

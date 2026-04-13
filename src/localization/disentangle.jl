@@ -391,8 +391,8 @@ end
 
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
-function get_fg!_disentangle(p::AbstractPenalty, model::Model{T}) where {T}
-    problem = LocalizationProblem(p, model, :disentangle)
+function get_fg!_disentangle(terms::Tuple, model::Model{T}) where {T}
+    problem = LocalizationProblem(terms, model, :disentangle)
     return build_fg!(problem)
 end
 
@@ -412,7 +412,7 @@ Run disentangle on the `Model`.
 - `history_size`: history size of LBFGS
 """
 function disentangle_bands(
-        p::AbstractPenalty,
+    terms::Tuple,
         model::Model{T};
         random_gauge::Bool = false,
         f_tol::T = 1.0e-7,
@@ -456,13 +456,13 @@ function disentangle_bands(
     # (X, Y): n_wann * n_wann * n_kpts, nbands * n_wann * n_kpts
     # U: nbands * n_wann * n_kpts
     # XY: (n_wann * n_wann + nbands * n_wann) * n_kpts
-    fg! = get_fg!_disentangle(p, model)
+    fg! = get_fg!_disentangle(terms, model)
 
-    Ωⁱ = omega(p, model, model.gauges)
+    Ωⁱ = omega(model, model.gauges)
     @info "Initial spread" Ωⁱ
     println("\n")
 
-    Ωⁱ = omega(p, model, X_Y_to_U(X0, Y0))
+    Ωⁱ = omega(model, X_Y_to_U(X0, Y0))
     @info "Initial spread (with states frozen)" Ωⁱ
     println("\n")
 
@@ -501,16 +501,17 @@ function disentangle_bands(
     Xmin, Ymin = XY_to_X_Y(XYmin, nbands, nwann)
     Umin = X_Y_to_U(Xmin, Ymin)
 
-    Ωᶠ = omega(p, model, Umin)
+    Ωᶠ = omega(model, Umin)
     @info "Final spread" Ωᶠ
     println("\n")
 
     return Umin
 end
 
-disentangle_bands(model::Model; kwargs...) = disentangle_bands(SpreadPenalty(), model; kwargs...)
+disentangle_bands(model::Model; kwargs...) =
+    disentangle_bands((VarianceTerm(),), model; kwargs...)
 
-disentangle(p::AbstractPenalty, model::Model{T}; kwargs...) where {T <: Real} =
-    disentangle_bands(p, model; kwargs...)
+disentangle(terms::Tuple, model::Model{T}; kwargs...) where {T <: Real} =
+    disentangle_bands(terms, model; kwargs...)
 
 disentangle(model::Model; kwargs...) = disentangle_bands(model; kwargs...)

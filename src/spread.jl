@@ -1,9 +1,8 @@
 using LinearAlgebra
 
-export omega, omega_grad, center, SpreadPenalty, CenterSpreadPenalty
+export omega, omega_grad, center
 
 abstract type AbstractSpread end
-abstract type AbstractPenalty end
 
 @doc raw"""
     struct Spread
@@ -178,37 +177,6 @@ function _alloc_mu_utmu_packed(::Type{FT}, n_kpts, n_bvecs, n_bands, n_wann) whe
     MU = zeros(Complex{FT}, n_bands, n_wann, n_bvecs, n_kpts)
     UtMU = zeros(Complex{FT}, n_wann, n_wann, n_bvecs, n_kpts)
     return MU, UtMU
-end
-
-"""
-Standard penalty for minimizing the total spread.
-"""
-struct SpreadPenalty <: AbstractPenalty end
-
-omega!(::SpreadPenalty, args...) = omega!(args...)
-omega(::SpreadPenalty, args...) = omega(args...)
-
-omega_grad!(::SpreadPenalty, args...) = omega_grad!(args...)
-omega_grad(::SpreadPenalty, args...) = omega_grad(args...)
-
-"""
-Penalty for minimizing the spread as well as maximizing the "closeness" to the atoms.
-"""
-struct CenterSpreadPenalty{T} <: AbstractPenalty
-    r₀::Vector{Vec3{T}}
-    λ::T
-end
-
-# TODO probably omega should always just return a value not the spread struct
-omega!(p::CenterSpreadPenalty, args...) = (Ω = omega_center(omega!(args...); p.r₀, p.λ).Ωt,)
-omega(p::CenterSpreadPenalty, args...) = omega_center(omega(args...); p.r₀, p.λ)
-
-function omega_grad!(p::CenterSpreadPenalty, args...)
-    return omega_grad!(center_penalty(p.r₀, p.λ), args...)
-end
-
-function omega_grad(p::CenterSpreadPenalty, args...)
-    return omega_grad(center_penalty(p.r₀, p.λ), args...)
 end
 
 center_penalty(r₀, λ) = (r, n) -> (r - λ * (r - r₀[n]))

@@ -7,12 +7,12 @@ export localize_isolated_bands, max_localize
 
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
-function get_fg!_maxloc(p::AbstractPenalty, model::Model)
-    problem = LocalizationProblem(p, model, :maxloc)
+function get_fg!_maxloc(terms::Tuple, model::Model)
+    problem = LocalizationProblem(terms, model, :maxloc)
     return build_fg!(problem)
 end
 
-get_fg!_maxloc(model::Model) = get_fg!_maxloc(SpreadPenalty(), model)
+get_fg!_maxloc(model::Model) = get_fg!_maxloc((VarianceTerm(),), model)
 
 """
     max_localize(model; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
@@ -29,7 +29,7 @@ Maximally localize spread functional w.r.t. all kpoints on a unitary matrix mani
 - `history_size`: history size of LBFGS
 """
 function localize_isolated_bands(
-        p::AbstractPenalty,
+    terms::Tuple,
         model::Model{T};
         f_tol::T = 1.0e-7,
         g_tol::T = 1.0e-5,
@@ -39,9 +39,9 @@ function localize_isolated_bands(
     n_bands(model) != n_wannier(model) &&
         error("n_bands != n_wann, run instead disentanglement?")
 
-    fg! = get_fg!_maxloc(p, model)
+    fg! = get_fg!_maxloc(terms, model)
 
-    Ωⁱ = omega(p, model.kstencil, model.overlaps, model.gauges)
+    Ωⁱ = omega(model.kstencil, model.overlaps, model.gauges)
     @info "Initial spread"
     show(Ωⁱ)
     println("\n")
@@ -73,7 +73,7 @@ function localize_isolated_bands(
 
     Umin = Optim.minimizer(opt)
 
-    Ωᶠ = omega(p, model.kstencil, model.overlaps, Umin)
+    Ωᶠ = omega(model.kstencil, model.overlaps, Umin)
     @info "Final spread"
     show(Ωᶠ)
     println("\n")
@@ -86,9 +86,9 @@ function localize_isolated_bands(
 end
 
 localize_isolated_bands(model::Model; kwargs...) =
-    localize_isolated_bands(SpreadPenalty(), model; kwargs...)
+    localize_isolated_bands((VarianceTerm(),), model; kwargs...)
 
-max_localize(p::AbstractPenalty, model::Model{T}; kwargs...) where {T <: Real} =
-    localize_isolated_bands(p, model; kwargs...)
+max_localize(terms::Tuple, model::Model{T}; kwargs...) where {T <: Real} =
+    localize_isolated_bands(terms, model; kwargs...)
 
 max_localize(model::Model; kwargs...) = localize_isolated_bands(model; kwargs...)

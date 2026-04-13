@@ -1,20 +1,22 @@
 function omega(
-        p::CenterSpreadPenalty,
+        terms::Tuple,
         model::MagModel,
         Uup::AbstractVector{<:AbstractMatrix{T}},
         Udn::AbstractVector{<:AbstractMatrix{T}},
         λs::R,
     ) where {T <: Complex, R <: Real}
-    up = omega(p, model.up, Uup)
-    dn = omega(p, model.dn, Udn)
+    center_term = _find_center_term(terms)
+    isnothing(center_term) && error("CenterConstraintTerm is required for constrained-center magnetic omega")
+    up = omega_center(omega(model.up, Uup); r₀ = center_term.r0, λ = center_term.λ)
+    dn = omega_center(omega(model.dn, Udn); r₀ = center_term.r0, λ = center_term.λ)
     M = overlap_updn(model, Uup, Udn)
     Ωupdn = omega_updn(M)
     Ωt = up.Ωt + dn.Ωt + λs * Ωupdn
     return SpreadMag(up, dn, Ωupdn, Ωt, M, λs)
 end
 
-function omega(p::CenterSpreadPenalty, model::MagModel{T}, λs::T) where {T <: Real}
-    return omega(p, model, model.up.gauges, model.dn.gauges, λs)
+function omega(terms::Tuple, model::MagModel{T}, λs::T) where {T <: Real}
+    return omega(terms, model, model.up.gauges, model.dn.gauges, λs)
 end
 
 """
@@ -23,9 +25,9 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_disentangle(
-        p::AbstractPenalty, model::MagModel{T}, λs::T
+        terms::Tuple, model::MagModel{T}, λs::T
     ) where {T <: Real}
-    problem = LocalizationProblem(p, model, :mag_disentangle_center; lambda = λs)
+    problem = LocalizationProblem(terms, model, :mag_disentangle_center; lambda = λs)
     return build_fg!(problem)
 end
 
@@ -45,7 +47,7 @@ Run disentangle on a `MagModel`, with center constraints.
 - `history_size`: history size of LBFGS
 """
 function disentangle(
-        p::AbstractPenalty,
+    terms::Tuple,
         model::MagModel{T},
         λs::T = 1.0;
         f_tol::T = 1.0e-7,
@@ -81,15 +83,15 @@ function disentangle(
     # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
     # U: n_bands * n_wann * n_kpts
     # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
-    f, g! = get_fg!_disentangle(p, model, λs)
+    f, g! = get_fg!_disentangle(terms, model, λs)
 
     @info "Initial spread"
-    Ω = omega(p, model, λs)
+    Ω = omega(terms, model, λs)
     show(Ω)
     println("\n")
 
     @info "Initial spread (with states freezed)"
-    Ω = omega(p, model, X_Y_to_U(Xup0, Yup0), X_Y_to_U(Xdn0, Ydn0), λs)
+    Ω = omega(terms, model, X_Y_to_U(Xup0, Yup0), X_Y_to_U(Xdn0, Ydn0), λs)
     show(Ω)
     println("\n")
 
@@ -128,8 +130,9 @@ function disentangle(
     Udnmin = X_Y_to_U(Xdnmin, Ydnmin)
 
     @info "Final spread"
-    Ω = omega(p, model, Uupmin, Udnmin, λs)
+    Ω = omega(terms, model, Uupmin, Udnmin, λs)
     show(Ω)
 
     return Uupmin, Udnmin
 end
+

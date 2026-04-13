@@ -5,8 +5,8 @@
     export model, fg!
 
     model = read_w90(dataset"Si2_coarse/Si2")
-    p = SpreadPenalty()
-    fg! = Wannier.get_fg!_disentangle(p, model)
+    terms = (VarianceTerm(),)
+    fg! = Wannier.get_fg!_disentangle(terms, model)
 end
 
 @testitem "U_to_X_Y X_Y_to_U" setup = [DisentangleEnv] begin
@@ -48,8 +48,8 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    p = SpreadPenalty()
-    U1 = Wannier.disentangle(p, model; max_iter = 1)
+    terms = (VarianceTerm(),)
+    U1 = Wannier.disentangle(terms, model; max_iter = 1)
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
@@ -61,9 +61,9 @@ end
 end
 
 @testitem "disentangle" setup = [DisentangleEnv] begin
-    p = SpreadPenalty()
-    Umin = Wannier.disentangle(p, model; max_iter = 4)
-    Ω = Wannier.omega(p, model.kstencil, model.overlaps, Umin)
+    terms = (VarianceTerm(),)
+    Umin = Wannier.disentangle(terms, model; max_iter = 4)
+    Ω = Wannier.omega(model.kstencil, model.overlaps, Umin)
 
     # display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
