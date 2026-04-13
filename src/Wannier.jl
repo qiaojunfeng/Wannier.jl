@@ -13,6 +13,7 @@ using Reexport: @reexport
 include("common/const.jl")
 include("common/size.jl")
 include("common/rgrid.jl")
+include("common/kernels.jl")
 
 include("utils/printing.jl")
 include("utils/linalg.jl")
