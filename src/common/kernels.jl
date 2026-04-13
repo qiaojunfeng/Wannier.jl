@@ -1,4 +1,10 @@
-function compute_MU_UtMU!(MU, UtMU, bvectors, M, U::Vector)
+function compute_MU_UtMU!(
+        MU,
+        UtMU,
+        bvectors,
+        M,
+        U::AbstractVector{<:AbstractMatrix{<:Number}},
+    )
     kpb_k = bvectors.kpb_k
     n_bvecs = length(kpb_k[1])
 
@@ -14,7 +20,7 @@ function compute_MU_UtMU!(MU, UtMU, bvectors, M, U::Vector)
     return MU, UtMU
 end
 
-function compute_MU_UtMU!(MU, UtMU, bvectors, M, U::Array)
+function compute_MU_UtMU!(MU, UtMU, bvectors, M, U::AbstractArray{<:Number, 3})
     kpb_k = bvectors.kpb_k
     n_bvecs = length(kpb_k[1])
 

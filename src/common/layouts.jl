@@ -150,7 +150,10 @@ Acutally they are the conjugate gradients, e.g., ``\frac{d \Omega}{d U^*}``.
 - `frozen`: `n_bands * n_kpts` BitMatrix for frozen bands
 """
 function GU_to_GX_GY(
-        G::Array{T, 3}, X::Vector{Matrix{T}}, Y::Vector{Matrix{T}}, frozen::Vector
+        G::AbstractArray{T, 3},
+        X::AbstractVector{<:AbstractMatrix{T}},
+        Y::AbstractVector{<:AbstractMatrix{T}},
+        frozen::AbstractVector,
     ) where {T}
     n_kpts = length(X)
     GX = [zeros(T, size(X[1])) for i in 1:n_kpts]
@@ -171,7 +174,10 @@ function GU_to_GX_GY(
 end
 
 function GU_to_GX_GY(
-        G::Vector, X::Vector{Matrix{T}}, Y::Vector{Matrix{T}}, frozen::Vector
+        G::AbstractVector{<:AbstractMatrix{T}},
+        X::AbstractVector{<:AbstractMatrix{T}},
+        Y::AbstractVector{<:AbstractMatrix{T}},
+        frozen::AbstractVector,
     ) where {T}
     n_kpts = length(X)
     GX = [zeros(T, size(X[1])) for i in 1:n_kpts]

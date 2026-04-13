@@ -1,7 +1,7 @@
 using LinearAlgebra
 using Optim: Optim
 
-export disentangle
+export disentangle_bands, disentangle
 
 """
     get_frozen_bands(E, dis_froz_max, dis_froz_min)
@@ -392,35 +392,8 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_disentangle(p::AbstractPenalty, model::Model{T}) where {T}
-    cache = Cache(model)
-
-    function fg!(Ω, G, XY)
-        X, Y = XY_to_X_Y!(cache.X, cache.Y, XY)
-        U = X_Y_to_U!(cache.U, X, Y)
-        compute_MU_UtMU!(cache, model.kstencil, model.overlaps, U)
-
-        if G !== nothing
-            G_ = omega_grad!(p, cache, model.kstencil, model.overlaps)
-            GX, GY = GU_to_GX_GY(G_, X, Y, model.frozen_bands)
-
-            n = n_wannier(model)^2
-
-            @inbounds for ik in 1:n_kpoints(model)
-                for i in eachindex(GX[ik])
-                    G[i, ik] = GX[ik][i]
-                end
-                for i in eachindex(GY[ik])
-                    G[n + i, ik] = GY[ik][i]
-                end
-            end
-        end
-        if Ω !== nothing
-            # Note I am actually returning Ωt in function
-            # omega!(p::CenterSpreadPenalty, args...)
-            return omega!(p, cache, model.kstencil, model.overlaps).Ω
-        end
-    end
-    return fg!
+    problem = LocalizationProblem(p, model, :disentangle)
+    return build_fg!(problem)
 end
 
 """
@@ -438,7 +411,7 @@ Run disentangle on the `Model`.
 - `max_iter`: maximum number of iterations
 - `history_size`: history size of LBFGS
 """
-function disentangle(
+function disentangle_bands(
         p::AbstractPenalty,
         model::Model{T};
         random_gauge::Bool = false,
@@ -535,4 +508,9 @@ function disentangle(
     return Umin
 end
 
-disentangle(model::Model; kwargs...) = disentangle(SpreadPenalty(), model; kwargs...)
+disentangle_bands(model::Model; kwargs...) = disentangle_bands(SpreadPenalty(), model; kwargs...)
+
+disentangle(p::AbstractPenalty, model::Model{T}; kwargs...) where {T <: Real} =
+    disentangle_bands(p, model; kwargs...)
+
+disentangle(model::Model; kwargs...) = disentangle_bands(model; kwargs...)

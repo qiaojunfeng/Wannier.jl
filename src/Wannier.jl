@@ -42,6 +42,7 @@ include("io/interface/orbital_magnetization.jl")
 include("Datasets.jl")
 
 include("localization/gauge.jl")
+include("localization/problem.jl")
 include("localization/max_localize.jl")
 include("localization/disentangle.jl")
 include("localization/opt_rotate.jl")

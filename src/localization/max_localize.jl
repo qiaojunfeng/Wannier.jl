@@ -1,6 +1,6 @@
 using Optim: Optim
 
-export max_localize
+export localize_isolated_bands, max_localize
 
 """
     get_fg!_maxloc(model::Model)
@@ -8,21 +8,8 @@ export max_localize
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_maxloc(p::AbstractPenalty, model::Model)
-    cache = Cache(model)
-
-    function fg!(F, G, U)
-        compute_MU_UtMU!(cache, model.kstencil, model.overlaps, U)
-
-        if G !== nothing
-            cache.G = G
-            omega_grad!(p, cache, model.kstencil, model.overlaps)
-        end
-        if F !== nothing
-            return omega!(p, cache, model.kstencil, model.overlaps).Ω
-        end
-    end
-
-    return fg!
+    problem = LocalizationProblem(p, model, :maxloc)
+    return build_fg!(problem)
 end
 
 get_fg!_maxloc(model::Model) = get_fg!_maxloc(SpreadPenalty(), model)
@@ -41,7 +28,7 @@ Maximally localize spread functional w.r.t. all kpoints on a unitary matrix mani
 - `max_iter`: maximum number of iterations
 - `history_size`: history size of LBFGS
 """
-function max_localize(
+function localize_isolated_bands(
         p::AbstractPenalty,
         model::Model{T};
         f_tol::T = 1.0e-7,
@@ -98,4 +85,10 @@ function max_localize(
     return Umin_vec
 end
 
-max_localize(model::Model; kwargs...) = max_localize(SpreadPenalty(), model; kwargs...)
+localize_isolated_bands(model::Model; kwargs...) =
+    localize_isolated_bands(SpreadPenalty(), model; kwargs...)
+
+max_localize(p::AbstractPenalty, model::Model{T}; kwargs...) where {T <: Real} =
+    localize_isolated_bands(p, model; kwargs...)
+
+max_localize(model::Model; kwargs...) = localize_isolated_bands(model; kwargs...)
