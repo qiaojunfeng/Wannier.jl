@@ -18,13 +18,15 @@ Backward compatibility is not a constraint. Remove legacy names outright; no ali
 
 ## Key design decisions (from discussion)
 
-1. **Dense arrays throughout.** All per-k-point quantities become contiguous multidim arrays. No nested `Vector{Vector{Matrix{…}}}` anywhere in `Model` or hot kernels. Change `WannierIO.jl` parsers to emit dense arrays directly — no adapter layer.
+1. **Dense arrays throughout.** All per-k-point quantities become contiguous multidim arrays. No nested `Vector{Vector{Matrix{…}}}` anywhere in `Model`, layout parameterizations, or hot kernels. Change `WannierIO.jl` parsers to emit dense arrays directly — no adapter layer.
 2. **No `Crystal` struct.** `kstencil` is reciprocal-space and doesn't belong in a real-space bundle. `Model` stays flat.
 3. **`SpinModel` replaces `MagModel`.** Two `Model`s with a constructor-time invariant that lattice / atoms / kstencil match. Kstencil duplication (~100 KB) is noise next to overlaps (~GB).
 4. **Remove `Base.getproperty` forwarding.** Accessor functions (`kpoints(m)`, `n_kpoints(m)`, `reciprocal_lattice(m)`, `kgrid_size(m)`, …) are the only way to read those quantities. Same functions dispatch on `Model` and `SpinModel`, giving a uniform API across both.
-5. **`Objective` is a polymorphic interface, not a sum-of-`Term`s.** Three methods: `value`, `gradient!`, `fg!`. Two trait methods for coupling: `required_layout(obj, model)`, `allocate_workspace(obj, model, layout)`. MV-family penalty composition stays internal to `MVSpread` (preserves `MU` / `UtMU` fusion). `WeightedSum` exists only as an escape hatch for future unrelated objectives.
-6. **`Problem` is ephemeral; `Model` is long-lived data.** Problem bundles `(objective, model, layout, workspace, solver_opts)`. Constructed per optimization run, discarded after. Model is reused across optimization runs, interpolation, post-processing.
-7. **Factor-of-2 gradient convention.** Pick the derivation's `df = 2 Re⟨∇f, dx⟩` convention internally. Apply the ½ once at the solver adapter boundary. Document in one place.
+5. **`Objective` is a polymorphic interface; one dedicated subtype per localization variant.** Three methods: `value`, `gradient!`, `fg!`. Two trait methods for coupling: `required_layout(obj, model)`, `allocate_workspace(obj, model, layout)`. Wannier localization has four variants (variance on `Model`; variance+center on `Model`; variance+spin-coupling on `SpinModel`; variance+center+spin-coupling on `SpinModel`) — encode each as its own concrete `Objective` subtype rather than composing at runtime through a `Tuple`. Each subtype's `fg!` explicitly orders `MU`/`UtMU` computation, making fusion straightforward and sidestepping any per-iteration memoization bookkeeping. Truly-different future objectives (e.g., symmetry) are also their own subtypes. A `SumObjective{T<:Tuple}` escape hatch is deferred until a caller genuinely needs ad-hoc composition.
+6. **`Problem` is ephemeral and solver-agnostic.** Problem bundles `(objective, model, layout, workspace)` only — no solver options inside. Constructed per optimization run, discarded after. `Model` is reused across optimization runs, interpolation, post-processing.
+7. **Solver is pluggable via `AbstractLocalizationSolver`.** `solve!(prob, solver)` decouples optimization backend from Problem. Start with `OptimLBFGS <: AbstractLocalizationSolver` (migration continuity). Add `ManoptLBFGS` later as a second backend — Manopt.jl is the better long-term home for Stiefel optimization but swapping packages mid-rewrite is unnecessary risk. Skip `Optimization.jl` — it's a meta-wrapper useful for apps that want user-selectable backends, but for a library, direct integration is cleaner.
+8. **`Workspace` replaces `Cache`.** Same concept, better-scoped name. Rename, and fix the `cache.G = G` reassignment hack during the rename (size `Workspace.G` as `(n_bands, n_wannier, n_kpoints)` at construction; never reassign the field).
+9. **Factor-of-2 gradient convention.** Pick the derivation's `df = 2 Re⟨∇f, dx⟩` convention internally. Apply the ½ once at the solver adapter boundary. Document in one place.
 
 ## Architecture
 
@@ -32,9 +34,9 @@ Backward compatibility is not a constraint. Remove legacy names outright; no ali
 ┌────────────────────┐     ┌─────────────────────────┐
 │ Model / SpinModel  │ ◄── │ Problem                 │
 │ (physics input,    │     │   objective             │
-│  long-lived)       │     │   layout                │
-│                    │     │   workspace             │
-│ - lattice          │     │   solver_opts           │
+│  long-lived)       │     │   model                 │
+│                    │     │   layout                │
+│ - lattice          │     │   workspace             │
 │ - atoms            │     └──────────┬──────────────┘
 │ - kstencil         │                │
 │ - overlaps (dense) │     ┌──────────▼──────────────┐
@@ -102,29 +104,29 @@ Direct-field accessors (`m.overlaps`, `m.gauges`, `m.eigenvalues`, `m.frozen_ban
 
 ```julia
 abstract type Layout end
-struct UGauge  <: Layout end                    # x ≡ Vector{Matrix}, (nb × nw) per k
-struct XYGauge <: Layout end                    # x ≡ Matrix,         (nw² + nb*nw) × nk
+struct UGauge  <: Layout end                    # x ≡ Array{Complex{T}, 3}, (nb, nw, nk)
+struct XYGauge <: Layout end                    # x ≡ Matrix,               (nw² + nb*nw) × nk
 struct ProductLayout{L1<:Layout, L2<:Layout} <: Layout
     first::L1
     second::L2
 end
 struct WLayout <: Layout end                    # single W matrix (opt_rotate)
 
-# Interface
-encode(layout, U, frozen_bands)  :: x
-decode!(U, layout, x, model)     :: Nothing
-pack_gradient!(g, layout, GU)    :: Nothing
-manifold(layout, model)          :: Optim.Manifold
+# Interface (backend-agnostic; dispatches on concrete AbstractArray types)
+encode!(x, layout, U, frozen_bands)  :: Nothing
+decode!(U, layout, x)                :: Nothing
+pack_gradient!(g, layout, GU, frozen_bands) :: Nothing
+manifold(layout, model, solver)      :: solver-specific Manifold
 ```
 
-Frozen-band masking lives inside layout encode/decode — no per-call-site masking anywhere else.
+Frozen-band masking lives inside layout encode/decode — no per-call-site masking anywhere else. `manifold` is solver-parameterized so `OptimLBFGS` and a future `ManoptLBFGS` can return different concrete manifold objects for the same layout.
 
 ### Objective
 
 ```julia
 abstract type Objective end
 
-# Core interface
+# Core interface (each Objective is a peer; no bundling)
 value(obj, state, ws)        :: Real
 gradient!(G, obj, state, ws) :: Nothing
 fg!(G, obj, state, ws)       :: Real   # fused; default falls back to value + gradient!
@@ -134,34 +136,62 @@ required_layout(obj, model)              :: Layout
 allocate_workspace(obj, model, layout)   :: Workspace
 ```
 
-Concrete types:
+Concrete types (rename from current `AbstractLocalizationTerm` hierarchy) — one per localization variant:
 
 ```julia
-struct MVSpread{P}     <: Objective; penalty::P; end   # P = Nothing or a penalty object
-struct SpinCoupled{O}  <: Objective; inner::O; λ_s; end
-struct WeightedSum{T}  <: Objective; parts::T; weights; end
+struct Variance                 <: Objective end                                       # max_localize / disentangle on Model
+struct CenteredVariance{T}      <: Objective; r0::Vector{Vec3{T}}; λ::T; end           # constrain_center on Model
+struct CoOptVariance{T}         <: Objective; λs::T; end                               # coopt on SpinModel
+struct CenteredCoOptVariance{T} <: Objective; r0::Vector{Vec3{T}}; λ::T; λs::T; end    # constrain_center + coopt on SpinModel
+
+# Future non-MV objectives (e.g. symmetry) are also their own Objective subtypes.
 ```
 
-`state` is the decoded gauge (a view of the 3D gauge `Array` slice, or a `Vector{SubArray}` per layout). `Workspace` holds preallocated `MU`, `UtMU`, gradient buffer, centers, and whatever the objective needs.
+No runtime `Tuple` composition, no `WeightedSum`, no `MVSpread{P}` bundling. Each subtype's `fg!` hand-writes the fused compute order (`MU` → `UtMU` → `omega` → `omega_grad` + penalty/coupling increments) so there is no per-iteration memoization bookkeeping to get wrong. Add a `SumObjective{T<:Tuple} <: Objective` for ad-hoc composition.
+
+`state` is the decoded gauge (`Array{Complex{T}, 3}` view for `UGauge`, or layout-specific). `Workspace` (renamed from `Cache`) holds preallocated `MU`, `UtMU`, gradient buffer, and any centers or coupling scratch the subtype needs.
 
 ### Problem
 
 ```julia
-struct Problem{O<:Objective, M, L<:Layout, W, S}
+struct Problem{O<:Objective, M, L<:Layout, W}
     objective::O
     model::M
     layout::L
     workspace::W
-    solver_opts::S
 end
 
-function Problem(obj::Objective, model; solver_opts=default_solver_opts())
-    layout = required_layout(obj, model)
-    ws     = allocate_workspace(obj, model, layout)
-    return Problem(obj, model, layout, ws, solver_opts)
+function Problem(objective::Objective, model)
+    layout = required_layout(objective, model)
+    ws     = allocate_workspace(objective, model, layout)
+    return Problem(objective, model, layout, ws)
+end
+```
+
+No solver options inside Problem — the type is solver-agnostic.
+
+### Solver (pluggable backend)
+
+```julia
+abstract type AbstractLocalizationSolver end
+
+struct OptimLBFGS{LS} <: AbstractLocalizationSolver
+    f_tol::Float64
+    g_tol::Float64
+    max_iter::Int
+    history_size::Int
+    linesearch::LS
 end
 
-solve!(prob::Problem) :: typeof(prob.model.gauges)
+solve!(prob::Problem, solver::OptimLBFGS) :: typeof(prob.model.gauges)
+```
+
+Solver owns: backend choice (Optim.jl now; Manopt.jl later via `ManoptLBFGS <: AbstractLocalizationSolver`), tolerances, iteration limits, linesearch, history size, manifold type translation.
+
+Convenience wrapper for callers who don't care about solver choice:
+
+```julia
+solve!(prob; kwargs...) = solve!(prob, OptimLBFGS(; kwargs...))
 ```
 
 ## Out-of-scope files
@@ -182,7 +212,14 @@ Each commit ends with: full test suite green + reference baselines match within 
 
 ### Phase 0 — Baselines (safety net)
 
-**Commit A** — lock reference outputs under `test/references/`. For each existing entry point, record: final objective value, gradient 2-norm, final gauge (Frobenius tolerance), iteration count (loose band). Paths: `max_localize`, `disentangle` (isolated + entangled), `opt_rotate`, `coopt` (MagModel), `constrain_center/coopt` (MagModel + center). Seed RNGs explicitly. This is the parity gate for every subsequent commit.
+**Audit existing tests first.** `test/` already has good coverage with tight reference values — use it. Spot-check before writing anything new:
+
+- [test/localization/disentangle.jl](test/localization/disentangle.jl) — pinned `Ω`, `ΩI`, `ΩOD`, `ΩD`, `ω`, `r` at `atol=1e-7`; finite-difference gradient check.
+- [test/localization/max_localize.jl](test/localization/max_localize.jl) — pinned `Ω`, `ΩI`, `ΩOD`, `Ω̃`; finite-difference gradient check.
+- [test/localization/opt_rotate.jl](test/localization/opt_rotate.jl), [test/localization/coopt.jl](test/localization/coopt.jl), [test/localization/constrain_center/](test/localization/constrain_center/) — check coverage; these are the paths most likely to have gaps.
+- [test/spread.jl](test/spread.jl), [test/bvector.jl](test/bvector.jl) — primitives; likely fine as-is.
+
+**Commit A** — fill gaps only. If `opt_rotate`, `coopt`, or `constrain_center` lack pinned objective values or finite-difference gradient checks, add them at the same tolerance style as `disentangle.jl` / `max_localize.jl`. Seed any RNGs explicitly. This is the parity gate for every subsequent commit; don't duplicate what already exists.
 
 ### Phase 1 — Storage, structure, hygiene
 
@@ -216,9 +253,9 @@ Structural conversion first, then math hygiene on top of the new shape.
 - One `Spread` type with optional center fields (`Nothing` or values). Printing branches on presence.
 - Delete `SpreadCenter` and its `# TODO` comment.
 
-**Commit E — Fix `Cache.G` reassignment.**
-- Size `Cache.G` as `(n_bands, n_wannier, n_kpoints)` at construction, never reassign the field.
-- Call sites that expected a flat gradient matrix get a `reshape` view.
+**Commit E — Rename `Cache` → `Workspace`, fix `.G` reassignment.**
+- Rename [mutable struct Cache{T}](src/spread.jl#L126) to `Workspace{T}`; update all call sites.
+- Fix the `cache.G = G` reassignment pattern in [src/localization/problem.jl](src/localization/problem.jl#L112-L133): size `Workspace.G` as `(n_bands, n_wannier, n_kpoints)` at construction, never reassign the field. Sub-functions that need a local gradient accumulator get a separate buffer, not field mutation.
 
 **Commit F — Factor-of-2 convention.**
 - Internal convention: `df = 2 Re⟨∇f, dx⟩` throughout derivation and `omega_grad!`.
@@ -250,32 +287,35 @@ Tests (with Commit J):
 
 ### Phase 3 — Objective interface
 
-**Commit M** — define `Objective`, `Workspace` contracts. Empty shell + doctests.
+**Commit M** — define `Objective`, `Workspace` contracts (`value`, `gradient!`, `fg!`, `required_layout`, `allocate_workspace`). Empty shell + doctests.
 
-**Commit N** — implement `MVSpread{P}` (P defaults to `Nothing`, can hold a center penalty). Implement `required_layout(::MVSpread, ::Model) = any_entangled(m) ? XYGauge() : UGauge()`, `allocate_workspace`, `fg!`. Port existing `omega` / `omega_grad` math into method body.
+**Commit N** — implement `Variance <: Objective`. `required_layout(::Variance, m::Model) = any_entangled(m) ? XYGauge() : UGauge()`. Port existing `omega` / `omega_grad` math into `fg!`.
 
-**Commit O** — implement `SpinCoupled{O}`. `required_layout(::_, ::SpinModel) → ProductLayout(...)`. Port `Ωupdn` term.
+**Commit O** — implement `CenteredVariance{T} <: Objective` (fields `r0::Vector{Vec3{T}}`, `λ::T`). Same layout trait as `Variance`. `fg!` fuses MV spread with the center penalty in one pass over `MU`/`UtMU`.
 
-**Commit P** — implement `WeightedSum` (minimal implementation, no call site yet; reserved for future non-MV composition).
+**Commit P** — implement `CoOptVariance{T} <: Objective` (field `λs::T`) and `CenteredCoOptVariance{T} <: Objective` (fields `r0`, `λ`, `λs`) for `SpinModel`. `required_layout(::_, ::SpinModel) → ProductLayout(...)`. Each subtype's `fg!` hand-orders `omega` on up, `omega` on dn, `Ωupdn`, and (for `Centered…`) the center penalty — a single explicit compute sequence per subtype, no tuple traversal at runtime.
 
-Finite-difference gradient tests per objective (added with each commit).
+Finite-difference gradient tests per objective subtype (added with each commit).
 
-### Phase 4 — Problem + solve!
+### Phase 4 — Problem + Solver adapter
 
-**Commit Q** — `Problem` struct, outer constructor, `solve!`. Optim.LBFGS only; solver options as a struct (`SolverOpts` with `f_tol`, `g_tol`, `max_iter`, `history_size`, linesearch tag). Solver-boundary ½ factor lives inside `solve!`'s `fg!` closure.
+**Commit Q** — solver-agnostic `Problem{O<:Objective, M, L, W}` with fields `(objective, model, layout, workspace)` only. Outer constructor `Problem(objective, model)` dispatches `required_layout(objective, model)` to pick a layout, then `allocate_workspace`. Drop the current `parameterization::Symbol` dispatch and `solver_options` field from [`LocalizationProblem`](src/localization/problem.jl#L12-L17).
 
-**Commit R** — parity assertion: run one existing path alongside the new `Problem` path, assert parity within tolerance. Temporary; removed in Phase 5.
+**Commit R** — define `AbstractLocalizationSolver` + concrete `OptimLBFGS`. Implement `solve!(prob, solver::OptimLBFGS)`: builds `Optim.only_fg!` closure over `fg!(G, prob.objective, decoded_state, prob.workspace)` (single objective call — no tuple summation), pulls manifold from `manifold(prob.layout, prob.model, solver)`, applies solver-boundary ½ factor for the gradient convention. Returns the optimized gauge; does not mutate `prob.model`.
+
+**Commit S** — parity assertion: run one existing path alongside the new `Problem + solve!` path, assert numerical match. Temporary; removed in Phase 5.
 
 ### Phase 5 — Migrate entry points
 
-Top-level functions become one-liners:
+Top-level functions become one-liners over `(objective, model)`:
 
 ```julia
-max_localize(model; opts...)          = solve!(Problem(MVSpread(),                     model; solver_opts=opts))
-disentangle(model; opts...)           = solve!(Problem(MVSpread(),                     model; solver_opts=opts))
-localize(model, penalty; opts...)     = solve!(Problem(MVSpread(penalty),              model; solver_opts=opts))
-coopt(spin_model; λs=1.0, opts...)    = solve!(Problem(SpinCoupled(MVSpread(), λs),    spin_model; solver_opts=opts))
-opt_rotate(model; opts...)            = solve!(Problem(MVSpread(),                     model; solver_opts=opts, layout=WLayout()))
+max_localize(model; opts...)                       = solve!(Problem(Variance(),                               model), OptimLBFGS(; opts...))
+disentangle(model; opts...)                        = solve!(Problem(Variance(),                               model), OptimLBFGS(; opts...))
+localize(model, r0, λ; opts...)                    = solve!(Problem(CenteredVariance(r0, λ),                  model), OptimLBFGS(; opts...))
+coopt(sm; λs=1.0, opts...)                         = solve!(Problem(CoOptVariance(λs),                        sm),    OptimLBFGS(; opts...))
+constrain_center_coopt(sm, r0, λ; λs=1.0, opts...) = solve!(Problem(CenteredCoOptVariance(r0, λ, λs),         sm),    OptimLBFGS(; opts...))
+opt_rotate(model; opts...)                         = solve!(Problem(Variance(), model, WLayout()),                    OptimLBFGS(; opts...))
 ```
 
 Order: hardest case first.
@@ -295,13 +335,15 @@ Order: hardest case first.
 - `omega` vs `spread` — pick one canonical name (lean `spread` user-facing, keep `omega` as internal variable names where it matches literature).
 - Confirm accessor function names (`kpoints`, `n_kpoints`, etc.) are final.
 
-### Phase 7 — Performance
+### Phase 7 — Performance and alternative backends
 
 **Commit Z** — benchmark harness. Track `omega!`, `omega_grad!`, `fg!`, end-to-end iterations/sec, workspace allocations. Pin to a fixed test system; commit numbers.
 
 **Commit AA** — micro-optimize hot kernels using dense-array-native operations (batched matmul, avoid per-k loops where possible). Only if benchmarks justify.
 
 **Commit BB** — GPU seam audit. `allocate_workspace(obj, model, layout; backend=CPU())` is the single abstraction point. Verify no objective code uses `Array{…}` concretely (use `AbstractArray{…}`). No GPU implementation yet.
+
+**Commit CC (optional)** — add `ManoptLBFGS <: AbstractLocalizationSolver`. Implement `solve!(prob, ::ManoptLBFGS)` using `Manopt.jl` + `Manifolds.jl`. `manifold(layout, model, ::ManoptLBFGS)` returns `Manifolds.Stiefel` variants. This is strictly additive — `OptimLBFGS` keeps working. Benchmark against `OptimLBFGS`; decision to promote `ManoptLBFGS` as default is a later call, not a Phase 7 deliverable.
 
 ### Phase 8 — Docs
 
@@ -325,7 +367,7 @@ Order: hardest case first.
 |------|-------|-----------|
 | WannierIO.jl change breaks downstream consumers | 1 (B1) | Coordinate release; bump semver; announce before merging |
 | Dense array entangled case with uniform band count assumption | 1 (B1) | Uniform is already the invariant in current code; add explicit assert |
-| `WeightedSum` loses MU fusion if used for MV variants | 3 (P) | Don't use it for MV-family; keep penalty as `MVSpread` field |
+| Dedicated subtypes duplicate MV spread kernel logic | 3 (N–P) | Factor shared math into module-private helpers (`_omega_body!`, `_omega_grad_body!`); each subtype's `fg!` calls the helper then adds its own penalty / coupling term |
 | `WLayout` for opt_rotate doesn't fit general pattern | 5 (U) | Treat as its own layout type; workspace caches pre-rotated overlaps |
 | `SpinModel` workspace doubles memory | 3-5 | `ProductLayout` composes two workspaces + one Ωupdn buffer; acceptable |
 | Factor-of-2 fix introduces subtle sign/scale bug | 1 (F) | Parity gate + finite-difference check catches it immediately; one-commit revert |
@@ -335,8 +377,21 @@ Order: hardest case first.
 
 ## Commit cadence summary
 
-A → B0, B1, B2, C–I (9 cleanup commits) → J–L (3 layout) → M–P (4 objective) → Q–R (2 problem) → S–X (6 migration) → Y (naming) → Z–BB (3 perf) → CC (docs).
+A → B0, B1, B2, C–I (9 hygiene/structure commits) → J–L (3 layout) → M–P (4 objective) → Q–S (3 problem + solver adapter + parity gate) → T–Y (6 migration) → Z (naming) → AA–CC (3 perf + optional Manopt backend) → DD (docs).
 
-**~30 commits total, each independently revertable and parity-gated.**
+**~32 commits total, each independently revertable and parity-gated.**
 
 Biggest single commit: **B1** (dense arrays + WannierIO coordination). Fallback split: Wannier.jl internal change first with a thin adapter reading nested → dense at load time; WannierIO.jl change + adapter removal second.
+
+## Current state of the rewrite branch (as of plan update)
+
+The `rewrite` branch has already landed: `LocalizationProblem` struct, `AbstractLocalizationTerm` with `VarianceTerm`/`CenterConstraintTerm`, `Cache`, kernel extraction, some layout-ish helpers, magnetic path migrated into the problem struct. Still pending (this plan addresses):
+
+- `Model` is still nested vectors ([src/model.jl:46-65](src/model.jl#L46-L65)) — Commit B1.
+- `Base.getproperty` forwarding still present ([src/model.jl:69-86](src/model.jl#L69-L86)) — Commit B0.
+- `MagModel` still present, to become `SpinModel` — Commit B2.
+- `LocalizationProblem.parameterization::Symbol` dispatch ([src/localization/problem.jl:15-40](src/localization/problem.jl#L15-L40)) — replaced by Layout types in Commits J and Q.
+- `cache.G = G` reassignment ([src/localization/problem.jl:112-133](src/localization/problem.jl#L112-L133)) — Commit E.
+- `AbstractLocalizationTerm` → `Objective` rename, unify types — Commits M–P.
+- `LocalizationProblem.solver_options` field coupled to Optim — Commits Q, R.
+- Magnetic paths still use separate `f` + `g!` ([src/localization/problem.jl:230-286](src/localization/problem.jl#L230-L286)) — Commit I.
