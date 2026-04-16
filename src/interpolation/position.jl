@@ -51,7 +51,7 @@ function TBPosition(
     # Wannier-gauge position operator in kspace, WYSV Eq. 44
     Aᵂ = compute_berry_connection_kspace(model, gauges; imlog_diag, force_hermiticity)
     # Wannier-gauge position operator in Rspace, WYSV Eq. 43
-    A_R = fourier(model.kpoints, Aᵂ, Rspace)
+    A_R = fourier(kpoints(model), Aᵂ, Rspace)
     bare_Rspace, bare_A_R = simplify(Rspace, A_R)
     return TBPosition(bare_Rspace, bare_A_R)
 end

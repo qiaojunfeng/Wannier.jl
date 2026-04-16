@@ -23,8 +23,8 @@ end
 
     mmn = read_mmn("$outprefix.mmn")
     @test mmn.M ≈ model.overlaps
-    @test mmn.kpb_k == model.kpb_k
-    @test mmn.kpb_G == model.kpb_G
+    @test mmn.kpb_k == kpb_k(model)
+    @test mmn.kpb_G == kpb_G(model)
 end
 
 @testitem "read_w90_with_chk" begin
@@ -48,9 +48,9 @@ end
     # @test chk.header == chk2.header
     @test isempty(chk.exclude_bands)
     @test model.lattice ≈ chk.lattice
-    @test model.recip_lattice ≈ chk.recip_lattice
-    @test model.kgrid_size == chk.kgrid
-    @test model.kpoints ≈ chk.kpoints
+    @test reciprocal_lattice(model) ≈ chk.recip_lattice
+    @test kgrid_size(model) == chk.kgrid
+    @test kpoints(model) ≈ chk.kpoints
     @test true == chk.have_disentangled
     @test model.entangled_bands == chk.dis_bands
     # the Hamiltonian rotated by Udis must be diagonal, according to W90 convention
@@ -66,7 +66,7 @@ end
     # the unitary matrix should be the same
     @test model.gauges ≈ WannierIO.gauge_matrices(chk)
 
-    M = transform_gauge(model.overlaps, model.kpb_k, model.gauges)
+    M = transform_gauge(model.overlaps, kpb_k(model), model.gauges)
     @test M ≈ chk.M
     Ω = omega(model, model.gauges)
     @test Ω.ΩI ≈ chk.ΩI
@@ -81,7 +81,7 @@ end
 
     @test chk.lattice ≈ model.lattice
     @test chk.recip_lattice ≈ reciprocal_lattice(model)
-    @test chk.kgrid == model.kgrid_size
-    @test chk.kpoints ≈ model.kpoints
+    @test chk.kgrid == kgrid_size(model)
+    @test chk.kpoints ≈ kpoints(model)
     @test chk.M ≈ model.overlaps
 end

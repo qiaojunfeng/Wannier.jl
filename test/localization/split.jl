@@ -47,8 +47,8 @@ end
         UVv[ik] = U[ik] * Vv[ik]
         UVc[ik] = U[ik] * Vc[ik]
     end
-    Mv = transform_gauge(M, model.kpb_k, UVv)
-    Mc = transform_gauge(M, model.kpb_k, UVc)
+    Mv = transform_gauge(M, kpb_k(model), UVv)
+    Mc = transform_gauge(M, kpb_k(model), UVc)
 
     Mv_ref = model_val.overlaps
     Mc_ref = model_cond.overlaps

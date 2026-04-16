@@ -41,7 +41,7 @@ Construct a [`TBHamiltonian`](@ref) from a Wannierization [`Model`](@ref).
 """
 function TBHamiltonian(model::Model, gauges::AbstractVector = model.gauges; kwargs...)
     Rspace = generate_Rspace(model; kwargs...)
-    return TBHamiltonian(Rspace, model.kpoints, model.eigenvalues, gauges)
+    return TBHamiltonian(Rspace, kpoints(model), model.eigenvalues, gauges)
 end
 
 """

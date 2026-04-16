@@ -256,7 +256,7 @@ function read_realspace_wf(
         unkdir::AbstractString = ".";
         R::AbstractVector{Int} = [0, 0, 0],
     ) where {T <: Real}
-    return read_realspace_wf(model.lattice, U, model.kpoints, n_supercells, unkdir; R = R)
+    return read_realspace_wf(model.lattice, U, kpoints(model), n_supercells, unkdir; R = R)
 end
 
 """
@@ -416,7 +416,7 @@ function write_realspace_wf(
     return write_realspace_wf(
         seedname,
         model.gauges,
-        model.kpoints,
+        kpoints(model),
         model.lattice,
         model.atom_positions,
         model.atom_labels;
@@ -524,7 +524,7 @@ function generate_wannierfunctions(
     )
     return read_realspace_wf(
         model.gauges,
-        model.kpoints,
+        kpoints(model),
         model.lattice,
         wannier_plot_supercell,
         unkdir;

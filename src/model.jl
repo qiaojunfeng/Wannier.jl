@@ -1,4 +1,5 @@
 export isisolated, isentangled
+export kpoints, kgrid_size, kpb_k, kpb_G, bweights
 
 """
     $(TYPEDEF)
@@ -63,26 +64,6 @@ struct Model{T <: Real}
     each element is a length-`n_bands` BitVector. If `true` the the state at that
     kpoint and band index participates the disentanglement procedure."""
     entangled_bands::Vector{BitVector}
-end
-
-# expose the fields of kstencil for convenience
-function Base.propertynames(model::Model)
-    return Tuple(
-        [
-            collect(fieldnames(typeof(model.kstencil)))
-            collect(fieldnames(typeof(model)))
-        ]
-    )
-end
-
-function Base.getproperty(model::Model, sym::Symbol)
-    type_stencil = typeof(getfield(model, :kstencil))
-    if sym ∈ fieldnames(type_stencil)
-        return getfield(getfield(model, :kstencil), sym)
-    else
-        # fallback
-        return getfield(model, sym)
-    end
 end
 
 function Model(
@@ -177,6 +158,51 @@ CrystalBase.real_lattice(model::Model) = model.lattice
 CrystalBase.reciprocal_lattice(model::Model) = reciprocal_lattice(model.kstencil)
 
 """
+    kpoints(::Model)
+    kpoints(::KspaceStencil)
+
+Fractional coordinates of the kpoint grid.
+"""
+kpoints(model::Model) = model.kstencil.kpoints
+kpoints(kstencil::KspaceStencil) = kstencil.kpoints
+
+"""
+    kgrid_size(::Model)
+    kgrid_size(::KspaceStencil)
+
+Number of kpoints along the three reciprocal lattice vectors.
+"""
+kgrid_size(model::Model) = model.kstencil.kgrid_size
+kgrid_size(kstencil::KspaceStencil) = kstencil.kgrid_size
+
+"""
+    kpb_k(::Model)
+    kpb_k(::KspaceStencil)
+
+Indices of ``\\mathbf{k+b}`` kpoints.
+"""
+kpb_k(model::Model) = model.kstencil.kpb_k
+kpb_k(kstencil::KspaceStencil) = kstencil.kpb_k
+
+"""
+    kpb_G(::Model)
+    kpb_G(::KspaceStencil)
+
+Reciprocal lattice displacements for ``\\mathbf{k+b}`` kpoints.
+"""
+kpb_G(model::Model) = model.kstencil.kpb_G
+kpb_G(kstencil::KspaceStencil) = kstencil.kpb_G
+
+"""
+    bweights(::Model)
+    bweights(::KspaceStencil)
+
+Weights of the ``\\mathbf{b}``-vectors.
+"""
+bweights(model::Model) = model.kstencil.bweights
+bweights(kstencil::KspaceStencil) = kstencil.bweights
+
+"""
     $(SIGNATURES)
 
 Is entangled manifold?
@@ -205,7 +231,7 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     println(io, repeat("-", 80))
 
     println(io, "Summary:")
-    @printf(io, "  kgrid_size  =  %d %d %d\n", model.kgrid_size...)
+    @printf(io, "  kgrid_size  =  %d %d %d\n", kgrid_size(model)...)
     @printf(io, "  n_kpoints   =  %d\n", n_kpoints(model))
     @printf(io, "  n_bvectors  =  %d\n", n_bvectors(model))
     @printf(io, "  n_bands     =  %d\n", n_bands(model))

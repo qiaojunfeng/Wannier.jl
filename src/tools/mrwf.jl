@@ -137,14 +137,14 @@ function mrwf(
             "number of kpoints in mmn_cubic must match the number of kpoints in model"
         )
         bvectors = Wannier.get_bvectors(
-            model.recip_lattice, model.kpoints, kpb_k_cubic, kpb_G_cubic
+            reciprocal_lattice(model), kpoints(model), kpb_k_cubic, kpb_G_cubic
         )
         # Just set weights to 0.0, they are not complete b-vectors
         weights = zeros(Float64, nbvecs)
         kstencil_cubic = Wannier.KspaceStencil{Float64}(
-            model.recip_lattice,
-            model.kgrid_size,
-            model.kpoints,
+            reciprocal_lattice(model),
+            kgrid_size(model),
+            kpoints(model),
             bvectors,
             weights,
             kpb_k_cubic,
