@@ -272,8 +272,8 @@ Done so far: collapsed the scattered convention commentary into a single top-of-
 **Commit G — Collapse `GU_to_GX_GY` and `GU_to_G!`.** ✅ Done.
 - Deleted the unused `GU_to_G!` helper in `disentangle.jl`; `GU_to_GX_GY` is the single implementation.
 
-**Commit H — Unify `compute_MU_UtMU!` dispatch.**
-- One method over dense 3D / 4D array views. No more `Vector{Vector{Matrix}}` path after Commit B1.
+**Commit H — Unify `compute_MU_UtMU!` dispatch.** ✅ Done.
+- One dense method over `Array{T,4}` overlaps + `Array{T,3}` gauges; Workspace shim drops the `getfield` work-around now that `Workspace` is a plain immutable struct.
 
 **Commit I — Fuse `SpinModel` objective/gradient.**
 - Replace separate `f` and `g!` closures in the (now `SpinModel`-based) `get_fg!_disentangle` with a single `fg!`. Pure perf win; no API change yet.

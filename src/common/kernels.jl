@@ -22,6 +22,6 @@ function compute_MU_UtMU!(
     return MU, UtMU
 end
 
-function compute_MU_UtMU!(cache, bvectors, M, U)
-    return compute_MU_UtMU!(getfield(cache, :MU), getfield(cache, :UtMU), bvectors, M, U)
+function compute_MU_UtMU!(workspace, bvectors, M, U)
+    return compute_MU_UtMU!(workspace.MU, workspace.UtMU, bvectors, M, U)
 end
