@@ -355,6 +355,15 @@ Order: hardest case first.
 - Kernel helpers (`omega!`, `omega_grad`, `omega_grad!`, `omega_center`, `omega_updn`, `omega_updn_grad`) keep their names — they are internal and their `omega_*` prefix matches literature `Ω` symbols used inside the kernel bodies.
 - Types already verb/noun-correct: `Problem`, `Variance`/`CenteredVariance`/`CoOptVariance`/`CenteredCoOptVariance`, `UGauge`/`XYGauge`/`ProductLayout`/`WLayout`, `SpinModel`, `Workspace`, `OptimLBFGS`. Accessors (`kpoints`, `n_kpoints`, `reciprocal_lattice`, `kgrid_size`, `kpb_k`, `kpb_G`, `bweights`, `n_atoms`, `n_bands`, `n_wannier`, `n_bvectors`, `real_lattice`) confirmed.
 
+Follow-up: collapse the verbose family `max_localize` / `disentangle` / `localize(model, r0, λ)` / `coopt` / `constrain_center_coopt` / `opt_rotate` into a single overloaded `localize` driver. The four methods are
+```julia
+localize(model::Model; kwargs...) = localize(Variance(), model; kwargs...)
+localize(sm::SpinModel; λs::Real = 1.0, kwargs...) = localize(CoOptVariance(λs), sm; kwargs...)
+localize(obj::Objective, model; kwargs...) = solve!(Problem(obj, model), OptimLBFGS(; kwargs...))
+localize(obj::Objective, model, layout::Layout; kwargs...) = solve!(Problem(obj, model, layout), OptimLBFGS(; kwargs...))
+```
+Center-penalty cases now go through `localize(CenteredVariance(r0, λ), model)` or `localize(CenteredCoOptVariance(r0, λ, λs), sm)`; opt-rotate is `localize(Variance(), model, WLayout())`. `src/localization/constrain_center/` directory removed; `src/localization/max_localize.jl` renamed to `localize.jl`.
+
 ### Phase 7 — Performance and alternative backends
 
 **Commit Z** — benchmark harness. Track `omega!`, `omega_grad!`, `fg!`, end-to-end iterations/sec, workspace allocations. Pin to a fixed test system; commit numbers.

@@ -2,7 +2,7 @@ using LinearAlgebra
 using Optim: Optim
 import NLSolversBase: OnceDifferentiable
 
-export opt_rotate, merge_gauge
+export merge_gauge
 
 """
     get_fg!_rotate(model::Model)
@@ -78,24 +78,6 @@ function get_fg!_rotate(model::Model)
     end
 
     return f, g!
-end
-
-"""
-    opt_rotate(model; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
-
-Maximally localize spread functional w.r.t. single unitary matrix `W`.
-
-# Arguments
-- `model`: model
-
-# Keyword arguments
-- `f_tol`: tolerance for spread convergence
-- `g_tol`: tolerance for gradient convergence
-- `max_iter`: maximum number of iterations
-- `history_size`: history size of LBFGS
-"""
-function opt_rotate(model::Model; kwargs...)
-    return solve!(Problem(Variance(), model, WLayout()), OptimLBFGS(; kwargs...))
 end
 
 """

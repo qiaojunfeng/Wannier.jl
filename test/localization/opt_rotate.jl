@@ -29,7 +29,7 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    W1 = Wannier.opt_rotate(model; max_iter = 1)
+    W1 = Wannier.localize(Wannier.Variance(), model, Wannier.WLayout(); max_iter = 1)
 
     g!(G, W1)
     d = OnceDifferentiable(f, W1, zero(eltype(real(W1))))
@@ -43,7 +43,7 @@ end
     U0 = read_amn_ortho(dataset"Si2_valence_coarse/outputs/ptg.amn")
     model.gauges .= U0
 
-    Wmin = opt_rotate(model)
+    Wmin = localize(Wannier.Variance(), model, Wannier.WLayout())
     Wref = [
         0.470784 + 0.136745im    0.337519 - 0.159248im  -0.502644 - 0.281439im   -0.466234 + 0.266743im
         -0.106769 + 0.0365541im   0.755771 - 0.287907im  -0.137358 + 0.120947im      0.4286 - 0.340573im

@@ -22,7 +22,7 @@ include("utils/center.jl")
 
 include("defaults.jl")
 
-## Wannierization
+# Wannierization
 include("kpoints/kpoint.jl")
 include("kpoints/kstencil_shell.jl")
 include("kpoints/kstencil.jl")
@@ -42,20 +42,19 @@ include("io/interface/orbital_magnetization.jl")
 include("Datasets.jl")
 
 include("localization/gauge.jl")
-include("localization/max_localize.jl")
 include("localization/disentangle.jl")
 include("localization/opt_rotate.jl")
 include("localization/parallel_transport/parallel_transport.jl")
 include("localization/split.jl")
 include("localization/coopt.jl")
-include("localization/constrain_center/coopt.jl")
 include("localization/objective.jl")
 include("localization/solver.jl")
+include("localization/localize.jl")
 
 include("realspace/wavefunction.jl")
 include("realspace/moment.jl")
 
-## Wannier interpolation
+# Wannier interpolation
 include("interpolation/Rspace.jl")
 include("interpolation/operator.jl")
 

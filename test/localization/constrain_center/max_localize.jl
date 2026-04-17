@@ -28,7 +28,7 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.localize(model, obj.r0, obj.λ; max_iter = 1)
+    U1 = Wannier.localize(obj, model; max_iter = 1)
 
     fg!(nothing, G, U1)
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), U1, zero(eltype(real(U1))))
@@ -37,7 +37,7 @@ end
 end
 
 @testitem "constraint center maxloc valence" setup = [MaxlocCenterEnv] begin
-    Umin = Wannier.localize(model, obj.r0, obj.λ; max_iter = 4)
+    Umin = Wannier.localize(obj, model; max_iter = 4)
     Ω = Wannier.omega_center(
         Wannier.spread(model.kstencil, model.overlaps, Umin);
         r₀ = obj.r0,

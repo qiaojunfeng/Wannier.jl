@@ -1,5 +1,3 @@
-export coopt
-
 """
 Model for spin polarized system with constraint.
 
@@ -255,11 +253,3 @@ function omega_updn_grad(model::SpinModel, Xup, Yup, Xdn, Ydn)
     return -2 * GXup, -2 * GYup, -2 * GXdn, -2 * GYdn
 end
 
-"""
-    coopt(sm; λs=1.0, kwargs...)
-
-Co-optimize the spin-up and spin-down Wannier gauges of a [`SpinModel`](@ref)
-with the ↑↓ overlap coupling weighted by `λs`.
-"""
-coopt(sm::SpinModel; λs::Real = 1.0, kwargs...) =
-    solve!(Problem(CoOptVariance(float(λs)), sm), OptimLBFGS(; kwargs...))

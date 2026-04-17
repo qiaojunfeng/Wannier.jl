@@ -39,7 +39,7 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.localize(model, obj.r0, obj.λ; max_iter = 1)
+    U1 = Wannier.localize(obj, model; max_iter = 1)
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
@@ -53,7 +53,7 @@ end
 @testitem "constraint center disentangle" setup = [DisCenterEnv] begin
     using Wannier: Vec3
 
-    Umin = Wannier.localize(model, obj.r0, obj.λ; max_iter = 4)
+    Umin = Wannier.localize(obj, model; max_iter = 4)
     Ω = Wannier.omega_center(
         Wannier.spread(model.kstencil, model.overlaps, Umin);
         r₀ = obj.r0,

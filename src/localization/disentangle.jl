@@ -1,8 +1,6 @@
 using LinearAlgebra
 using Optim: Optim
 
-export disentangle
-
 """
     get_frozen_bands(E, dis_froz_max, dis_froz_min)
 
@@ -290,11 +288,3 @@ function zero_froz_grad!(G::AbstractMatrix, frozen::AbstractMatrix{Bool})
     return nothing
 end
 
-"""
-    disentangle(model; kwargs...)
-
-Disentangle the Marzari-Vanderbilt spread on an entangled manifold. `kwargs`
-are forwarded to [`OptimLBFGS`](@ref).
-"""
-disentangle(model::Model; kwargs...) =
-    solve!(Problem(Variance(), model), OptimLBFGS(; kwargs...))

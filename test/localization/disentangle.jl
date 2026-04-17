@@ -47,7 +47,7 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.disentangle(model; max_iter = 1)
+    U1 = Wannier.localize(model; max_iter = 1)
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
@@ -59,7 +59,7 @@ end
 end
 
 @testitem "disentangle" setup = [DisentangleEnv] begin
-    Umin = Wannier.disentangle(model; max_iter = 4)
+    Umin = Wannier.localize(model; max_iter = 4)
     Ω = Wannier.spread(model.kstencil, model.overlaps, Umin)
 
     # display(Ω)

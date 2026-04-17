@@ -39,7 +39,7 @@ function mrwf(
     length(indices) > 0 || @error "indices must not be empty"
 
     # The valcond MLWFs
-    run_dis && (model.gauges .= disentangle(model))
+    run_dis && (model.gauges .= localize(model))
 
     # @info "Spread of input model"
     # show(spread(model))
@@ -61,14 +61,14 @@ function mrwf(
         if run_optrot
             @info "Run optimal rotation"
             println()
-            W = opt_rotate(m)
+            W = localize(Variance(), m, WLayout())
             m.gauges .= merge_gauge(m.gauges, W)
         end
 
         if run_maxloc
             @info "Run max localization"
             println()
-            m.gauges .= max_localize(m)
+            m.gauges .= localize(m)
         end
     end
 

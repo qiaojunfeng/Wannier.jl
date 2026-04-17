@@ -25,7 +25,7 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.max_localize(model; max_iter = 1)
+    U1 = Wannier.localize(model; max_iter = 1)
 
     fg!(nothing, G, U1)
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), U1, zero(eltype(real(U1))))
@@ -38,7 +38,7 @@ end
     # reset initial gauge
     model.gauges .= read_amn_ortho(dataset"Si2_valence_coarse/Si2.amn")
 
-    Umin = max_localize(model)
+    Umin = localize(model)
     Ω = spread(model.kstencil, model.overlaps, Umin)
 
     @test isapprox(Ω.Ω, 4.086818459; atol = 1.0e-7)

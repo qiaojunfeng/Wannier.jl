@@ -99,7 +99,7 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    Uup, Udn = Wannier.coopt(model; λs = λ, max_iter = 1)
+    Uup, Udn = Wannier.localize(model; λs = λ, max_iter = 1)
 
     Xup0, Yup0 = Wannier.U_to_X_Y(Uup, model.up.frozen_bands)
     Xdn0, Ydn0 = Wannier.U_to_X_Y(Udn, model.dn.frozen_bands)
