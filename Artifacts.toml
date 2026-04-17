@@ -134,6 +134,14 @@ lazy = true
     sha256 = "b01d3af716bb158d09b4ec2d3a05e42e7011168890250fc96d3d421336b563bd"
     url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/graphene_soc.tar.gz"
 
+[Fe_soc_coarse]
+git-tree-sha1 = "083ed216d3980550e01c7518904cc10974670e0b"
+lazy = true
+
+    [[Fe_soc_coarse.download]]
+    sha256 = "07aab08a9e879d87da28eb0dbb42e51f2260565b08c5bbea66210394e450c17b"
+    url = "https://huggingface.co/datasets/atomology/WannierDatasets/resolve/artifacts/Fe_soc_coarse.tar.gz"
+
 [graphene]
 git-tree-sha1 = "5fe1c4f318328ab36b5228bbbdd56207184d0b6e"
 lazy = true
