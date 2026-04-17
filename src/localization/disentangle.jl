@@ -382,4 +382,5 @@ disentangle_bands(model::Model; kwargs...) =
 disentangle(terms::Tuple, model::Model{T}; kwargs...) where {T <: Real} =
     disentangle_bands(terms, model; kwargs...)
 
-disentangle(model::Model; kwargs...) = disentangle_bands(model; kwargs...)
+disentangle(model::Model; kwargs...) =
+    solve!(Problem(Variance(), model), OptimLBFGS(; kwargs...))
