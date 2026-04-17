@@ -51,6 +51,7 @@ include("localization/split.jl")
 include("localization/coopt.jl")
 include("localization/constrain_center/coopt.jl")
 include("localization/objective.jl")
+include("localization/solver.jl")
 
 include("realspace/wavefunction.jl")
 include("realspace/moment.jl")
