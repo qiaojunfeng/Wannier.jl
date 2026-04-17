@@ -350,11 +350,10 @@ Order: hardest case first.
 
 ### Phase 6 — Naming pass
 
-**Commit Y** — rename pass only, one reviewable diff. Decisions to make during commit:
-- Verb-first for user-facing functions (`localize`, `disentangle`, `solve!`).
-- Noun types (`Problem`, `MVSpread`, `UGauge`, `SpinModel`).
-- `omega` vs `spread` — pick one canonical name (lean `spread` user-facing, keep `omega` as internal variable names where it matches literature).
-- Confirm accessor function names (`kpoints`, `n_kpoints`, etc.) are final.
+**Commit Y** — rename pass only, one reviewable diff. ✅ Done.
+- User-facing spread function: `omega(...)` → `spread(...)`. Export now `spread, center` (was `omega, omega_grad, center`). Realspace overload likewise `omega(rgrid, W)` → `spread(rgrid, W)`.
+- Kernel helpers (`omega!`, `omega_grad`, `omega_grad!`, `omega_center`, `omega_updn`, `omega_updn_grad`) keep their names — they are internal and their `omega_*` prefix matches literature `Ω` symbols used inside the kernel bodies.
+- Types already verb/noun-correct: `Problem`, `Variance`/`CenteredVariance`/`CoOptVariance`/`CenteredCoOptVariance`, `UGauge`/`XYGauge`/`ProductLayout`/`WLayout`, `SpinModel`, `Workspace`, `OptimLBFGS`. Accessors (`kpoints`, `n_kpoints`, `reciprocal_lattice`, `kgrid_size`, `kpb_k`, `kpb_G`, `bweights`, `n_atoms`, `n_bands`, `n_wannier`, `n_bvectors`, `real_lattice`) confirmed.
 
 ### Phase 7 — Performance and alternative backends
 

@@ -42,7 +42,7 @@ function mrwf(
     run_dis && (model.gauges .= disentangle(model))
 
     # @info "Spread of input model"
-    # show(omega(model))
+    # show(spread(model))
     # println("\n")
 
     models_Us = split_wannierize(model_cubic, indices)
@@ -55,7 +55,7 @@ function mrwf(
     end
 
     for (i, (m, _)) in enumerate(models_Us)
-        @info "Group $i after parallel transport:" omega(m)
+        @info "Group $i after parallel transport:" spread(m)
         println("\n")
 
         if run_optrot

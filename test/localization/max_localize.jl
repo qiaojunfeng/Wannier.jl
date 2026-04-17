@@ -39,7 +39,7 @@ end
     model.gauges .= read_amn_ortho(dataset"Si2_valence_coarse/Si2.amn")
 
     Umin = max_localize(model)
-    Ω = omega(model.kstencil, model.overlaps, Umin)
+    Ω = spread(model.kstencil, model.overlaps, Umin)
 
     @test isapprox(Ω.Ω, 4.086818459; atol = 1.0e-7)
     @test isapprox(Ω.ΩI, 3.706376532; atol = 1.0e-7)

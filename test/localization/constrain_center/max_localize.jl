@@ -39,7 +39,7 @@ end
 @testitem "constraint center maxloc valence" setup = [MaxlocCenterEnv] begin
     Umin = Wannier.localize(model, obj.r0, obj.λ; max_iter = 4)
     Ω = Wannier.omega_center(
-        Wannier.omega(model.kstencil, model.overlaps, Umin);
+        Wannier.spread(model.kstencil, model.overlaps, Umin);
         r₀ = obj.r0,
         λ = obj.λ,
     )

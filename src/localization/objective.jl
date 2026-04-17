@@ -83,10 +83,10 @@ required_layout(::Variance, model::Model) = isentangled(model) ? XYGauge() : UGa
 allocate_workspace(::Variance, model::Model, ::Layout) = Workspace(model)
 
 function value(::Variance, state::AbstractArray{<:Complex, 3}, ws::Workspace)
-    return omega(ws, state).Ω
+    return spread(ws, state).Ω
 end
 
-function omega(ws::Workspace, U::AbstractArray{<:Complex, 3})
+function spread(ws::Workspace, U::AbstractArray{<:Complex, 3})
     # recomputes MU/UtMU against the current U; callers that already filled
     # ws.MU/ws.UtMU can call omega!(ws, ...) directly
     error(

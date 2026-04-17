@@ -65,7 +65,7 @@ end
 
     M = transform_gauge(model.overlaps, kpb_k(model), model.gauges)
     @test M ≈ chk.M
-    Ω = omega(model, model.gauges)
+    Ω = spread(model, model.gauges)
     @test Ω.ΩI ≈ chk.ΩI
     @test Ω.r ≈ chk.r
     @test Ω.ω ≈ chk.ω

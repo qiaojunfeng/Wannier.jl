@@ -78,17 +78,17 @@ struct SpreadMag{T <: Real, S <: AbstractSpread} <: AbstractSpread
     λ::T
 end
 
-function omega(model::SpinModel, Uup, Udn, λ::Real)
-    up = omega(model.up, Uup)
-    dn = omega(model.dn, Udn)
+function spread(model::SpinModel, Uup, Udn, λ::Real)
+    up = spread(model.up, Uup)
+    dn = spread(model.dn, Udn)
     M = overlap_updn(model, Uup, Udn)
     Ωupdn = omega_updn(M)
     Ωt = up.Ω + dn.Ω + λ * Ωupdn
     return SpreadMag(up, dn, Ωupdn, Ωt, M, λ)
 end
 
-function omega(model::SpinModel, λ::Real)
-    return omega(model, model.up.gauges, model.dn.gauges, λ)
+function spread(model::SpinModel, λ::Real)
+    return spread(model, model.up.gauges, model.dn.gauges, λ)
 end
 
 function Base.show(io::IO, M::MIME"text/plain", Ω::SpreadMag)

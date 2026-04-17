@@ -60,7 +60,7 @@ end
 
 @testitem "disentangle" setup = [DisentangleEnv] begin
     Umin = Wannier.disentangle(model; max_iter = 4)
-    Ω = Wannier.omega(model.kstencil, model.overlaps, Umin)
+    Ω = Wannier.spread(model.kstencil, model.overlaps, Umin)
 
     # display(Ω)
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃

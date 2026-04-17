@@ -121,7 +121,7 @@ end
     ]
     @test all(isapprox.(r, ref_r; atol = 1.0e-4))
 
-    ω = omega.(W)
+    ω = spread.(W)
     ref_ω = [
         1.925692300941864,
         3.0882234042095624,

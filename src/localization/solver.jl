@@ -188,8 +188,8 @@ function _make_optim_fg!(prob::Problem{<:CoOptVariance, <:SpinModel, <:ProductLa
 
         Ωtot = nothing
         if F !== nothing
-            Ωup = omega(model.up.kstencil, model.up.overlaps, Xup, Yup).Ω
-            Ωdn = omega(model.dn.kstencil, model.dn.overlaps, Xdn, Ydn).Ω
+            Ωup = spread(model.up.kstencil, model.up.overlaps, Xup, Yup).Ω
+            Ωdn = spread(model.dn.kstencil, model.dn.overlaps, Xdn, Ydn).Ω
             Ωupdn = λ == 0 ? 0.0 :
                 omega_updn(model, X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn))
             Ωtot = Ωup + Ωdn + λ * Ωupdn
@@ -241,10 +241,10 @@ function _make_optim_fg!(prob::Problem{<:CenteredCoOptVariance, <:SpinModel, <:P
         Xup, Yup = XY_to_X_Y(XYup, nb, nw)
         Xdn, Ydn = XY_to_X_Y(XYdn, nb, nw)
         Ωup = omega_center(
-            omega(model.up.kstencil, model.up.overlaps, Xup, Yup); r₀ = obj.r0, λ = obj.λ
+            spread(model.up.kstencil, model.up.overlaps, Xup, Yup); r₀ = obj.r0, λ = obj.λ
         ).Ωt
         Ωdn = omega_center(
-            omega(model.dn.kstencil, model.dn.overlaps, Xdn, Ydn); r₀ = obj.r0, λ = obj.λ
+            spread(model.dn.kstencil, model.dn.overlaps, Xdn, Ydn); r₀ = obj.r0, λ = obj.λ
         ).Ωt
         Ωupdn = λs == 0 ? 0.0 :
             omega_updn(model, X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn))

@@ -1,4 +1,4 @@
-export center, omega, position_op
+export center, spread, position_op
 
 """
     moment(rgrid::RGrid, W::AbstractArray, n)
@@ -60,7 +60,7 @@ center(rgrid::RGrid, W::AbstractArray) = moment(rgrid, W, 1)
 center(W::WannierFunction) = moment(W, 1)
 
 """
-    omega(rgrid::RGrid, W::AbstractArray)
+    spread(rgrid::RGrid, W::AbstractArray)
 
 Compute WF spread in real space.
 
@@ -68,10 +68,10 @@ Returned value in Å^2 unit.
 
 See also [`moment`](@ref moment).
 """
-function omega(rgrid::RGrid, W::AbstractArray)
+function spread(rgrid::RGrid, W::AbstractArray)
     return map(x -> sum(x[1] .- x[2] .^ 2), zip(moment(rgrid, W, 2), center(rgrid, W)))
 end
-function omega(W::WannierFunction)
+function spread(W::WannierFunction)
     return sum(moment(W, 2) .- center(W) .^ 2)
 end
 

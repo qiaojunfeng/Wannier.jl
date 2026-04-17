@@ -35,7 +35,7 @@ function write_chk(
     )
     checkpoint = "postwann"
     have_disentangled = isentangled(model)
-    Ω = omega(model, gauges)
+    Ω = spread(model, gauges)
 
     if have_disentangled
         # W90 has a special convention that the rotated Hamiltonian (by the Udis),

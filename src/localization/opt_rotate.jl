@@ -12,7 +12,7 @@ Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 function get_fg!_rotate(model::Model)
     function f(W)
         U = merge_gauge(model.gauges, W)
-        return omega(model.kstencil, model.overlaps, U).Ω
+        return spread(model.kstencil, model.overlaps, U).Ω
     end
 
     function g!(G, W)

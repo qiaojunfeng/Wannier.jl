@@ -1,6 +1,6 @@
 using LinearAlgebra
 
-export omega, omega_grad, center
+export spread, center
 
 # -----------------------------------------------------------------------------
 # Gradient convention
@@ -150,7 +150,7 @@ Compute WF spread with center penalty, for maximal localization.
 - `λ`: penalty strength
 """
 function omega_center(args...; kwargs...)
-    Ω = omega(args...)
+    Ω = spread(args...)
     return omega_center(Ω; kwargs...)
 end
 
@@ -251,21 +251,21 @@ function omega!(cache::Workspace, bvectors::KspaceStencil{FT}, M) where {FT <: R
 end
 
 """
-    omega(model, [U])
-    omega(bvectors, M, U)
+    spread(model, [U])
+    spread(bvectors, M, U)
 
 Compute WF spread for a [`Model`](@ref), potentially for a given gauge `U`, or by explicitely giving
 `bvectors` and `M`.
 In case of the first `bvectors = model.bvectors` and `M = model.M`.
 """
-omega(model::Model) = omega(model, model.gauges)
-omega(model::Model, gauges) = omega(model.kstencil, model.overlaps, gauges)
-function omega(bvectors::KspaceStencil, M, X, Y)
+spread(model::Model) = spread(model, model.gauges)
+spread(model::Model, gauges) = spread(model.kstencil, model.overlaps, gauges)
+function spread(bvectors::KspaceStencil, M, X, Y)
     U = X_Y_to_U(X, Y)
-    return omega(bvectors, M, U)
+    return spread(bvectors, M, U)
 end
 
-function omega(bvectors::KspaceStencil, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3})
+function spread(bvectors::KspaceStencil, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3})
     n_kpts = size(M, 4)
     n_bvecs = size(M, 3)
     n_bands = size(U, 1)

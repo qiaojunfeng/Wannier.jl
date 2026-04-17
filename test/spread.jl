@@ -3,7 +3,7 @@
     model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
     wout = read_wout(dataset"Si2_coarse/outputs/Si2.wout")
 
-    Ω = omega(model)
+    Ω = spread(model)
 
     @test Ω.Ω ≈ wout["Ωtotal"]
     @test Ω.ΩI ≈ wout["ΩI"]

@@ -20,7 +20,7 @@
 end
 
 @testitem "coopt spread" setup = [CooptEnv] begin
-    Ω = Wannier.omega(model, λ)
+    Ω = Wannier.spread(model, λ)
     @test isapprox(Ω.up.Ω, 5.962059896476422; atol = 1.0e-10)
     @test isapprox(Ω.dn.Ω, 6.361552430790301; atol = 1.0e-10)
     @test isapprox(Ω.Ωupdn, 0.6214634458453414; atol = 1.0e-10)

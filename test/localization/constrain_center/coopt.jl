@@ -16,8 +16,8 @@
 end
 
 @testitem "coopt center spread" setup = [CooptCenterEnv] begin
-    Ω_up = Wannier.omega(model.up)
-    Ω_dn = Wannier.omega(model.dn)
+    Ω_up = Wannier.spread(model.up)
+    Ω_dn = Wannier.spread(model.dn)
     Ω_up_c = Wannier.omega_center(Ω_up; r₀ = obj.r0, λ = obj.λ)
     Ω_dn_c = Wannier.omega_center(Ω_dn; r₀ = obj.r0, λ = obj.λ)
     M_overlap = Wannier.overlap_updn(model)
