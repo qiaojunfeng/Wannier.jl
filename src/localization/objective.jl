@@ -163,3 +163,54 @@ function fg!(
     Ωc = sum(n -> obj.λ * sum((Ωbase.r[n] - obj.r0[n]) .^ 2), eachindex(obj.r0))
     return Ωbase.Ω + Ωc
 end
+
+# -------------------------------------------------------------------------
+# CoOptVariance / CenteredCoOptVariance (commit P): SpinModel objectives
+# -------------------------------------------------------------------------
+
+"""
+    SpinWorkspace{T}(up, dn)
+
+Paired workspace for `SpinModel` objectives. Up/down channels get
+independent `Workspace{T}` buffers; the `SpinModel.M` Bloch overlap stays
+on the model until the Problem/Workspace refactor (Q/R) relocates it.
+"""
+struct SpinWorkspace{T}
+    up::Workspace{T}
+    dn::Workspace{T}
+end
+
+"""
+    CoOptVariance(λs)
+
+Co-optimization of two spin channels: `Ω = Ωup + Ωdn + λs · Ωupdn` where
+`Ωupdn = n_wann − tr(|⟨u↑|u↓⟩|²)` is the ↑↓ overlap penalty (see
+`omega_updn`). Operates on a `SpinModel`.
+"""
+struct CoOptVariance{T <: Real} <: Objective
+    λs::T
+end
+
+required_layout(::CoOptVariance, ::SpinModel) = ProductLayout(XYGauge(), XYGauge())
+
+function allocate_workspace(::CoOptVariance, model::SpinModel, ::Layout)
+    return SpinWorkspace(Workspace(model.up), Workspace(model.dn))
+end
+
+"""
+    CenteredCoOptVariance(r0, λ, λs)
+
+`CoOptVariance` plus a shared-center penalty applied on both spin
+channels (see `CenteredVariance`).
+"""
+struct CenteredCoOptVariance{T <: Real} <: Objective
+    r0::Vector{Vec3{T}}
+    λ::T
+    λs::T
+end
+
+required_layout(::CenteredCoOptVariance, ::SpinModel) = ProductLayout(XYGauge(), XYGauge())
+
+function allocate_workspace(::CenteredCoOptVariance, model::SpinModel, ::Layout)
+    return SpinWorkspace(Workspace(model.up), Workspace(model.dn))
+end
