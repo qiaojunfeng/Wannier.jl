@@ -368,7 +368,7 @@ API polish pass:
 - Concrete types now exported: `SpinModel`, `Problem`, `Variance`/`CenteredVariance`/`CoOptVariance`/`CenteredCoOptVariance`, `UGauge`/`XYGauge`/`WLayout`/`ProductLayout`, `OptimLBFGS`, `solve!`, `required_layout`. Abstract types `Objective`/`Layout`/`AbstractLocalizationSolver` stay un-exported per "no abstract exports" guideline.
 - `SpinWorkspace` is now used: the SpinModel `_make_optim_fg!` closures call `compute_MU_UtMU!` once per channel against `prob.workspace.up`/`.dn`, then reuse `ws.up.G` / `ws.dn.G` for `omega_grad!`. No more fresh `Workspace` allocation per Optim iteration.
 - `n_wann(::Workspace)` → `n_wannier(::Workspace)`, `n_kpts(::Workspace)` → `n_kpoints(::Workspace)` for naming consistency with the `Model` accessors.
-- `src/localization/opt_rotate.jl` deleted; `get_fg!_rotate` lives next to its `solve!(::WLayout)` consumer in `src/localization/solver.jl`. The redundant `merge_gauge(::Array{T,3}, ::Matrix{T})` overload is replaced by a generic `merge_gauge(U::AbstractArray{T1,3}, W::AbstractMatrix{T2})` in `src/utils/linalg.jl`.
+- `src/localization/opt_rotate.jl` deleted; the WLayout fused fg! is now another `_make_optim_fg!(prob::Problem{<:Variance, <:Model, <:WLayout})` method in `src/localization/solver.jl`. `solve!(::WLayout)` performs the gauge transform once, builds a `Problem` against the transformed model, and calls `_make_optim_fg!`. Test rewritten to drive the same `_make_optim_fg!` closure (no more `get_fg!_rotate` helper). The redundant `merge_gauge(::Array{T,3}, ::Matrix{T})` overload is replaced by a generic `merge_gauge(U::AbstractArray{T1,3}, W::AbstractMatrix{T2})` in `src/utils/linalg.jl`.
 
 ### Phase 7 — Performance and alternative backends
 

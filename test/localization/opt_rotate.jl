@@ -2,13 +2,13 @@
     # This code runs once and the module is cached
     using Wannier
     using Wannier.Datasets
-    export model, f, g!
+    export model, fg!
 
     # no disentanglement
     model = read_w90(dataset"Si2_valence_coarse/Si2")
     # reset initial gauge
     model.gauges .= identity_gauge(eltype(model.gauges[1]), n_kpoints(model), n_wannier(model))
-    f, g! = Wannier.get_fg!_rotate(model)
+    fg! = Wannier._make_optim_fg!(Wannier.Problem(Wannier.Variance(), model, Wannier.WLayout()))
 end
 
 @testitem "opt_rotate spread gradient" setup = [OptRotEnv] begin
@@ -19,10 +19,10 @@ end
 
     # analytical gradient
     G = similar(W0)
-    g!(G, W0)
+    fg!(nothing, G, W0)
 
     # finite diff gradient
-    d = OnceDifferentiable(f, W0, zero(eltype(real(W0))))
+    d = OnceDifferentiable(W -> fg!(1.0, nothing, W), W0, zero(eltype(real(W0))))
     G_ref = NLSolversBase.gradient!(d, W0)
 
     # I am using a looser tolerance here
@@ -31,8 +31,8 @@ end
     # Test 2nd iteration
     W1 = Wannier.localize(Wannier.Variance(), model, Wannier.WLayout(); max_iter = 1)
 
-    g!(G, W1)
-    d = OnceDifferentiable(f, W1, zero(eltype(real(W1))))
+    fg!(nothing, G, W1)
+    d = OnceDifferentiable(W -> fg!(1.0, nothing, W), W1, zero(eltype(real(W1))))
     G_ref = NLSolversBase.gradient!(d, W1)
     @test isapprox(G, G_ref; atol = 1.0e-6)
 end

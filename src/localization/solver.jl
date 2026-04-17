@@ -360,68 +360,64 @@ function solve!(prob::Problem{<:CenteredVariance, <:Model}, solver::OptimLBFGS)
         end
 end
 
-# Variance + WLayout (opt_rotate) — single-W rotation manifold
-"""
-Build `(f, g!)` closures for the opt_rotate path. The optimization variable
-is the single rotation matrix `W`; the gauges of `model` are assumed to be
-identity (see `solve!(::Problem{<:Variance, <:Model, <:WLayout}, ...)`).
-"""
-function get_fg!_rotate(model::Model)
-    function f(W)
-        U = merge_gauge(model.gauges, W)
-        return spread(model.kstencil, model.overlaps, U).Ω
-    end
+# --- Variance + WLayout (opt_rotate) — single-W rotation manifold ---
+#
+# The optimization variable is the single rotation matrix `W`; `prob.model`
+# is assumed to be in W-rotation-ready form (identity gauges, transformed
+# overlaps). `solve!` below performs that transform once before constructing
+# the closure.
 
-    function g!(G, W)
+function _make_optim_fg!(prob::Problem{<:Variance, <:Model, <:WLayout})
+    model = prob.model
+    M = model.overlaps
+    bvectors = model.kstencil
+    kpb_k = bvectors.kpb_k
+    kpb_G = bvectors.kpb_G
+    wb = bvectors.bweights
+    recip_lattice = bvectors.recip_lattice
+    kpoints = bvectors.kpoints
+    n_bvecs = size(M, 3)
+    n_kpts = n_kpoints(model)
+
+    return function fg!(F, G, W)
         n_wann = size(W, 1)
-        M = model.overlaps
-        n_bvecs = size(M, 3)
-        n_kpts = n_kpoints(model)
-
-        bvectors = model.kstencil
-        kpb_k = bvectors.kpb_k
-        kpb_G = bvectors.kpb_G
-        wb = bvectors.bweights
-        recip_lattice = bvectors.recip_lattice
-        kpoints = bvectors.kpoints
-
-        fill!(G, 0.0)
-        T = zeros(eltype(W), n_wann, n_wann)
-        MWᵏᵇ = zeros(eltype(W), n_wann, n_wann)
-        Nᵏᵇ = zeros(eltype(W), n_wann, n_wann)
-
         UW = merge_gauge(model.gauges, W)
-        r = center(bvectors, M, UW)
 
-        for ik in 1:n_kpts
-            for ib in 1:n_bvecs
-                ikpb = kpb_k[ib, ik]
-                MWᵏᵇ .= view(M, :, :, ib, ik) * W
-                Nᵏᵇ .= W' * MWᵏᵇ
-                b = recip_lattice * (kpoints[ikpb] + kpb_G[ib, ik] - kpoints[ik])
+        if G !== nothing
+            T = zeros(eltype(W), n_wann, n_wann)
+            MWᵏᵇ = zeros(eltype(W), n_wann, n_wann)
+            Nᵏᵇ = zeros(eltype(W), n_wann, n_wann)
+            r = center(bvectors, M, UW)
 
-                q = imaglog.(diag(Nᵏᵇ))
-                for iw in 1:n_wann
-                    q[iw] += r[iw] ⋅ b
-                end
+            fill!(G, 0.0)
+            for ik in 1:n_kpts
+                for ib in 1:n_bvecs
+                    ikpb = kpb_k[ib, ik]
+                    MWᵏᵇ .= view(M, :, :, ib, ik) * W
+                    Nᵏᵇ .= W' * MWᵏᵇ
+                    b = recip_lattice * (kpoints[ikpb] + kpb_G[ib, ik] - kpoints[ik])
 
-                for n in 1:n_wann
-                    abs(Nᵏᵇ[n, n]) < 1.0e-10 && error("Nᵏᵇ too small! $ik -> $ikpb, $Nᵏᵇ")
-                    t = -conj(Nᵏᵇ[n, n]) - im * q[n] / Nᵏᵇ[n, n]
-                    for m in 1:n_wann
-                        T[m, n] = t * MWᵏᵇ[m, n]
+                    q = imaglog.(diag(Nᵏᵇ))
+                    for iw in 1:n_wann
+                        q[iw] += r[iw] ⋅ b
                     end
-                end
 
-                G .+= 4 * wb[ib] * T
+                    for n in 1:n_wann
+                        abs(Nᵏᵇ[n, n]) < 1.0e-10 && error("Nᵏᵇ too small! $ik -> $ikpb, $Nᵏᵇ")
+                        t = -conj(Nᵏᵇ[n, n]) - im * q[n] / Nᵏᵇ[n, n]
+                        for m in 1:n_wann
+                            T[m, n] = t * MWᵏᵇ[m, n]
+                        end
+                    end
+
+                    G .+= 4 * wb[ib] * T
+                end
             end
+            G ./= n_kpts
         end
 
-        G ./= n_kpts
-        return nothing
+        return F === nothing ? nothing : spread(model.kstencil, model.overlaps, UW).Ω
     end
-
-    return f, g!
 end
 
 function solve!(prob::Problem{<:Variance, <:Model, <:WLayout}, solver::OptimLBFGS)
@@ -431,10 +427,10 @@ function solve!(prob::Problem{<:Variance, <:Model, <:WLayout}, solver::OptimLBFG
     model2 = deepcopy(model)
     model2.overlaps .= transform_gauge(model2.overlaps, model2.kstencil.kpb_k, model2.gauges)
     model2.gauges  .= identity_gauge(eltype(model2.gauges), n_kpoints(model2), n_wann)
-    f, g! = get_fg!_rotate(model2)
-    man   = manifold(WLayout(), model2)
-    W0    = Matrix{eltype(model2.gauges)}(I, n_wann, n_wann)
-    opt   = _run_optim_fg!(f, g!, W0, man, solver)
+    fg! = _make_optim_fg!(Problem(prob.objective, model2, prob.layout))
+    man = manifold(WLayout(), model2)
+    W0 = Matrix{eltype(model2.gauges)}(I, n_wann, n_wann)
+    opt = _run_optim_fg!(fg!, W0, man, solver)
     return Optim.minimizer(opt)
 end
 
