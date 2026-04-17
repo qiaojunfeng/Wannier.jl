@@ -296,8 +296,8 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_disentangle(terms::Tuple, model::Model{T}) where {T}
-    problem = LocalizationProblem(terms, model, :disentangle)
-    return build_fg!(problem)
+    obj = _terms_to_objective(terms)
+    return _make_optim_fg!(Problem(obj, model, XYGauge()))
 end
 
 """

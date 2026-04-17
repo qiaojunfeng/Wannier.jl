@@ -345,7 +345,8 @@ Order: hardest case first.
 **Commit V** — migrate `opt_rotate(model)` (uses `WLayout`; `solve!` branch deepcopies the model, transforms overlaps, and drives `get_fg!_rotate`). ✅ Done.
 **Commit W** — migrate `coopt(sm)` on `SpinModel`, keep `disentangle(sm, λ)` as back-compat shim. ✅ Done.
 **Commit X** — migrate `constrain_center_coopt(sm, r0, λ; λs)` + `localize(model, r0, λ)` entry points; delete the parity test from Commit S now that all five entry points route through Problem + solve!. ✅ Done.
-- Deferred: removal of the `_build_fg_*` / `LocalizationProblem(:symbol)` plumbing. The Objective-native `fg!` for every subtype is a bigger refactor (planned post-Phase 5); solver adapters still delegate to the legacy closures under the hood so the optimization trajectory stays byte-identical.
+- Deferred: removal of the `_build_fg_*` / `LocalizationProblem(:symbol)` plumbing. The Objective-native `fg!` for every subtype is a bigger refactor (planned post-Phase 5); solver adapters still delegate to the legacy closures under the hood so the optimization trajectory stays byte-identical. ✅ Resolved.
+- `_make_optim_fg!(prob)` in [src/localization/solver.jl](src/localization/solver.jl) now produces the Optim-compatible `fg!` directly from `(Objective, Model, Layout)`. `solve!` dispatches there; `LocalizationProblem{Symbol}` / `build_fg!` / `_build_fg_maxloc` / `_build_fg_disentangle` / `_build_fg_mag_disentangle` / `_build_fg_mag_disentangle_center` / `_accumulate_*` are all gone. `VarianceTerm` / `CenterConstraintTerm` remain as legacy term markers used by the test finite-difference harness; `_terms_to_objective` maps tuples of these to the corresponding `Objective`.
 
 ### Phase 6 — Naming pass
 

@@ -29,8 +29,11 @@ Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 function get_fg!_disentangle(
         terms::Tuple, model::SpinModel{T}, λs::T
     ) where {T <: Real}
-    problem = LocalizationProblem(terms, model, :mag_disentangle_center; lambda = λs)
-    return build_fg!(problem)
+    center = _find_center_term(terms)
+    isnothing(center) &&
+        error("CenterConstraintTerm is required for constrained-center SpinModel fg!")
+    obj = CenteredCoOptVariance(center.r0, center.λ, float(λs))
+    return _make_optim_fg!(Problem(obj, model))
 end
 
 """

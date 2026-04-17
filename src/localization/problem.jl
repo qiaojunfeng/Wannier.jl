@@ -2,41 +2,17 @@ abstract type AbstractLocalizationTerm end
 
 export VarianceTerm, CenterConstraintTerm
 
+"""
+Legacy term marker retained for back-compat with callers (including tests)
+that still build `(VarianceTerm(), ...)` tuples. The rewrite routes these
+through `Objective` subtypes internally.
+"""
 struct VarianceTerm <: AbstractLocalizationTerm end
 
+"""Legacy center-penalty term marker (see [`VarianceTerm`](@ref))."""
 struct CenterConstraintTerm{T <: Real} <: AbstractLocalizationTerm
     r0::Vector{Vec3{T}}
     λ::T
-end
-
-struct LocalizationProblem{TT, M, O}
-    terms::TT
-    model::M
-    parameterization::Symbol
-    solver_options::O
-end
-
-function LocalizationProblem(
-        terms::Tuple,
-        model,
-        parameterization::Symbol;
-        kwargs...,
-    )
-    return LocalizationProblem(terms, model, parameterization, (; kwargs...))
-end
-
-function build_fg!(problem::LocalizationProblem)
-    if problem.parameterization == :maxloc
-        return _build_fg_maxloc(problem)
-    elseif problem.parameterization == :disentangle
-        return _build_fg_disentangle(problem)
-    elseif problem.parameterization == :mag_disentangle
-        return _build_fg_mag_disentangle(problem)
-    elseif problem.parameterization == :mag_disentangle_center
-        return _build_fg_mag_disentangle_center(problem)
-    else
-        error("Unsupported localization parameterization: $(problem.parameterization)")
-    end
 end
 
 @inline _is_variance_term(::VarianceTerm) = true
@@ -44,28 +20,8 @@ end
 @inline _is_center_term(::CenterConstraintTerm) = true
 @inline _is_center_term(::AbstractLocalizationTerm) = false
 
-function _has_variance_term(terms)
-    return any(_is_variance_term, terms)
-end
-
-function _has_center_term(terms)
-    return any(_is_center_term, terms)
-end
-
-# Keep the common constrained-maxloc pair on a dedicated path.
-#
-# Although summing terms compositionally is mathematically equivalent,
-# finite-precision differences in value/gradient accumulation can shift
-# short LBFGS trajectories (e.g. fixed small `max_iter` tests). This helper
-# lets us reuse the legacy center-penalty evaluation ordering for
-# `(VarianceTerm(), CenterConstraintTerm(...))` to preserve historical
-# numerical behavior.
-function _is_variance_plus_center_terms(terms)
-    if length(terms) != 2
-        return false
-    end
-    return _has_variance_term(terms) && _has_center_term(terms)
-end
+_has_variance_term(terms) = any(_is_variance_term, terms)
+_has_center_term(terms) = any(_is_center_term, terms)
 
 function _find_center_term(terms)
     for term in terms
@@ -76,295 +32,15 @@ function _find_center_term(terms)
     return nothing
 end
 
-function _accumulate_spread_terms_value!(terms, Ωbase::Spread)
-    # Preserve legacy objective evaluation for the dominant two-term case.
-    if _is_variance_plus_center_terms(terms)
-        center_term = _find_center_term(terms)
-        return omega_center(Ωbase; r₀ = center_term.r0, λ = center_term.λ).Ωt
-    end
+"""
+    _terms_to_objective(terms)
 
-    Ω = zero(Ωbase.Ω)
-    @inbounds for term in terms
-        if term isa VarianceTerm
-            Ω += Ωbase.Ω
-        elseif term isa CenterConstraintTerm
-            Ω += omega_center(Ωbase; r₀ = term.r0, λ = term.λ).Ωc
-        end
-    end
-    return Ω
-end
-
-function _accumulate_spread_terms_grad!(
-        Gacc,
-        terms,
-        cache,
-        Gbase,
-        Gtmp,
-        kstencil,
-        overlaps,
-    )
-    fill!(Gacc, 0)
-
-    # Preserve legacy gradient path for numerical compatibility with
-    # short-iteration localization trajectories.
-    if _is_variance_plus_center_terms(terms)
-        center_term = _find_center_term(terms)
-        omega_grad!(center_penalty(center_term.r0, center_term.λ), Gacc, cache, kstencil, overlaps)
-        return Gacc
-    end
-
-    need_base = _has_variance_term(terms) || _has_center_term(terms)
-    if need_base
-        omega_grad!(Gbase, cache, kstencil, overlaps)
-    end
-
-    @inbounds for term in terms
-        if term isa VarianceTerm
-            Gacc .+= Gbase
-        elseif term isa CenterConstraintTerm
-            omega_grad!(center_penalty(term.r0, term.λ), Gtmp, cache, kstencil, overlaps)
-            Gacc .+= (Gtmp .- Gbase)
-        end
-    end
-
-    return Gacc
-end
-
-function _build_fg_maxloc(problem::LocalizationProblem)
-    terms = problem.terms
-    model = problem.model
-    cache = Workspace(model)
-    Gbase = similar(cache.G)
-    Gtmp = similar(cache.G)
-
-    function fg!(F, G, U)
-        compute_MU_UtMU!(cache, model.kstencil, model.overlaps, U)
-
-        Ωbase = nothing
-        if F !== nothing || _has_center_term(terms)
-            Ωbase = omega!(cache, model.kstencil, model.overlaps)
-        end
-
-        if G !== nothing
-            _accumulate_spread_terms_grad!(
-                G,
-                terms,
-                cache,
-                Gbase,
-                Gtmp,
-                model.kstencil,
-                model.overlaps,
-            )
-        end
-        if F !== nothing
-            return _accumulate_spread_terms_value!(terms, Ωbase)
-        end
-    end
-
-    return fg!
-end
-
-function _build_fg_disentangle(problem::LocalizationProblem)
-    terms = problem.terms
-    model = problem.model
-    cache = Workspace(model)
-    Gbase = similar(cache.G)
-    Gtmp = similar(cache.G)
-    Gacc = similar(cache.G)
-
-    function fg!(Ω, G, XY)
-        X, Y = XY_to_X_Y!(cache.X, cache.Y, XY)
-        U = X_Y_to_U!(cache.U, X, Y)
-        compute_MU_UtMU!(cache, model.kstencil, model.overlaps, U)
-
-        Ωbase = nothing
-        if Ω !== nothing || _has_center_term(terms)
-            Ωbase = omega!(cache, model.kstencil, model.overlaps)
-        end
-
-        if G !== nothing
-            G_ = _accumulate_spread_terms_grad!(
-                Gacc,
-                terms,
-                cache,
-                Gbase,
-                Gtmp,
-                model.kstencil,
-                model.overlaps,
-            )
-            GX, GY = GU_to_GX_GY(G_, X, Y, model.frozen_bands)
-
-            n = n_wannier(model)^2
-
-            @inbounds for ik in 1:n_kpoints(model)
-                gxk = view(GX, :, :, ik)
-                gyk = view(GY, :, :, ik)
-                for i in eachindex(gxk)
-                    G[i, ik] = gxk[i]
-                end
-                for i in eachindex(gyk)
-                    G[n + i, ik] = gyk[i]
-                end
-            end
-        end
-        if Ω !== nothing
-            return _accumulate_spread_terms_value!(terms, Ωbase)
-        end
-    end
-
-    return fg!
-end
-
-function _build_fg_mag_disentangle(problem::LocalizationProblem)
-    model = problem.model
-    λ = get(problem.solver_options, :lambda, 1.0)
-
-    nb = n_bands(model.up)
-    nw = n_wannier(model.up)
-    nk = n_kpoints(model.up)
-    n_inner = nb * nw + nw^2
-    n = nw^2
-
-    # Shared fused evaluator. Computes Ω and/or G in a single pass over the
-    # up/dn spread kernels, so that when called via Optim.only_fg!(fg!) the
-    # common X/Y decode + omega computation is done once per optimizer step.
-    function fg!(F, G, XY)
-        XY = reshape(XY, (2 * n_inner, nk))
-        XYup = @view XY[1:n_inner, :]
-        XYdn = @view XY[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, nb, nw)
-        Xdn, Ydn = XY_to_X_Y(XYdn, nb, nw)
-
-        Ωtot = zero(Float64)
-        if F !== nothing
-            Ωup = omega(model.up.kstencil, model.up.overlaps, Xup, Yup).Ω
-            Ωdn = omega(model.dn.kstencil, model.dn.overlaps, Xdn, Ydn).Ω
-            Ωupdn = λ == 0 ? 0.0 :
-                omega_updn(model, X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn))
-            Ωtot = Ωup + Ωdn + λ * Ωupdn
-        end
-
-        if G !== nothing
-            GXup, GYup = omega_grad(
-                model.up.kstencil, model.up.overlaps, Xup, Yup, model.up.frozen_bands
-            )
-            GXdn, GYdn = omega_grad(
-                model.dn.kstencil, model.dn.overlaps, Xdn, Ydn, model.dn.frozen_bands
-            )
-
-            if λ != 0
-                GOXup, GOYup, GOXdn, GOYdn = omega_updn_grad(model, Xup, Yup, Xdn, Ydn)
-                GXup += λ * GOXup
-                GYup += λ * GOYup
-                GXdn += λ * GOXdn
-                GYdn += λ * GOYdn
-            end
-
-            for ik in 1:nk
-                for (i, v) in enumerate(view(GXup, :, :, ik))
-                    G[i, ik] = v
-                end
-                for (i, v) in enumerate(view(GYup, :, :, ik))
-                    G[n + i, ik] = v
-                end
-                for (i, v) in enumerate(view(GXdn, :, :, ik))
-                    G[n_inner + i, ik] = v
-                end
-                for (i, v) in enumerate(view(GYdn, :, :, ik))
-                    G[n_inner + n + i, ik] = v
-                end
-            end
-        end
-
-        return F !== nothing ? Ωtot : nothing
-    end
-
-    # Back-compat wrappers for callers (tests) that still want f / g! separately.
-    f(XY) = fg!(true, nothing, XY)
-    function g!(G, XY)
-        fg!(nothing, G, XY)
-        return nothing
-    end
-
-    return f, g!, fg!
-end
-
-function _build_fg_mag_disentangle_center(problem::LocalizationProblem)
-    center_term = _find_center_term(problem.terms)
-    isnothing(center_term) && error("CenterConstraintTerm is required for :mag_disentangle_center")
-    model = problem.model
-    λs = get(problem.solver_options, :lambda, 1.0)
-
-    nb = n_bands(model.up)
-    nw = n_wannier(model.up)
-    nk = n_kpoints(model.up)
-    n_inner = nb * nw + nw^2
-
-    function f(XY)
-        XY = reshape(XY, (2 * n_inner, nk))
-        XYup = @view XY[1:n_inner, :]
-        XYdn = @view XY[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, nb, nw)
-        Xdn, Ydn = XY_to_X_Y(XYdn, nb, nw)
-        Ωup = omega_center(
-            omega(model.up.kstencil, model.up.overlaps, Xup, Yup);
-            r₀ = center_term.r0,
-            λ = center_term.λ,
-        ).Ωt
-        Ωdn = omega_center(
-            omega(model.dn.kstencil, model.dn.overlaps, Xdn, Ydn);
-            r₀ = center_term.r0,
-            λ = center_term.λ,
-        ).Ωt
-        if λs == 0
-            Ωupdn = 0
-        else
-            Ωupdn = omega_updn(model, X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn))
-        end
-        return Ωup + Ωdn + λs * Ωupdn
-    end
-
-    function g!(G, XY)
-        XY = reshape(XY, (2 * n_inner, nk))
-        XYup = @view XY[1:n_inner, :]
-        XYdn = @view XY[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, nb, nw)
-        Xdn, Ydn = XY_to_X_Y(XYdn, nb, nw)
-        GXup, GYup = omega_grad(
-            center_penalty(center_term.r0, center_term.λ),
-            model.up.kstencil,
-            model.up.overlaps,
-            Xup,
-            Yup,
-            model.up.frozen_bands,
-        )
-        GXdn, GYdn = omega_grad(
-            center_penalty(center_term.r0, center_term.λ),
-            model.dn.kstencil,
-            model.dn.overlaps,
-            Xdn,
-            Ydn,
-            model.dn.frozen_bands,
-        )
-
-        if λs != 0
-            GOXup, GOYup, GOXdn, GOYdn = omega_updn_grad(model, Xup, Yup, Xdn, Ydn)
-            GXup += λs * GOXup
-            GYup += λs * GOYup
-            GXdn += λs * GOXdn
-            GYdn += λs * GOYdn
-        end
-
-        n = nw^2
-        for ik in 1:nk
-            G[1:n, ik] = vec(view(GXup, :, :, ik))
-            G[(n + 1):n_inner, ik] = vec(view(GYup, :, :, ik))
-            G[(n_inner + 1):(n_inner + n), ik] = vec(view(GXdn, :, :, ik))
-            G[(n_inner + n + 1):end, ik] = vec(view(GYdn, :, :, ik))
-        end
-
-        return nothing
-    end
-
-    return f, g!
+Translate a legacy `(VarianceTerm(), ...)` tuple into the corresponding
+concrete [`Objective`](@ref). `(VarianceTerm(),)` → [`Variance`](@ref);
+`(VarianceTerm(), CenterConstraintTerm(r0, λ))` → [`CenteredVariance`](@ref).
+"""
+function _terms_to_objective(terms)
+    _has_variance_term(terms) || error("terms must contain a VarianceTerm")
+    center = _find_center_term(terms)
+    return isnothing(center) ? Variance() : CenteredVariance(center.r0, center.λ)
 end

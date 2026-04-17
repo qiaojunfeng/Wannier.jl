@@ -8,8 +8,8 @@ export localize_isolated_bands, max_localize, localize
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_maxloc(terms::Tuple, model::Model)
-    problem = LocalizationProblem(terms, model, :maxloc)
-    return build_fg!(problem)
+    obj = _terms_to_objective(terms)
+    return _make_optim_fg!(Problem(obj, model, UGauge()))
 end
 
 get_fg!_maxloc(model::Model) = get_fg!_maxloc((VarianceTerm(),), model)

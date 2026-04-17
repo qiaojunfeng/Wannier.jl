@@ -261,8 +261,13 @@ end
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_disentangle(model::SpinModel, λ::Real = 1.0)
-    problem = LocalizationProblem((VarianceTerm(),), model, :mag_disentangle; lambda = λ)
-    return build_fg!(problem)
+    fg! = _make_optim_fg!(Problem(CoOptVariance(float(λ)), model))
+    f(XY) = fg!(true, nothing, XY)
+    function g!(G, XY)
+        fg!(nothing, G, XY)
+        return nothing
+    end
+    return f, g!, fg!
 end
 
 """
