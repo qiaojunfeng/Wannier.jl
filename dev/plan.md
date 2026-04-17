@@ -254,7 +254,7 @@ Structural conversion first, then math hygiene on top of the new shape.
 - Remove `random_gauge` branch in `disentangle.jl` (undefined symbols).
 - Other dead code surfaced in review.
 
-**Commit D — Merge `Spread` and `SpreadCenter`.**
+**Commit D — Merge `Spread` and `SpreadCenter`.** ✅ Done.
 - One `Spread` type with optional center fields (`Nothing` or values). Printing branches on presence.
 - Delete `SpreadCenter` and its `# TODO` comment.
 

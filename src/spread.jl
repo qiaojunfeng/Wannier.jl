@@ -26,7 +26,7 @@ From MV:
 - `ω`: Ω of each WF, unit Å², `length(ω) = n_wann`
 - `r`: WF center, Cartesian coordinates, unit Å, `3 * n_wann`
 """
-struct Spread{T <: Real} <: AbstractSpread
+struct Spread{T <: Real, C <: Union{Nothing, T}, V <: Union{Nothing, Vector{T}}} <: AbstractSpread
     # Total spread, unit Å², Ω = ΩI + Ω̃
     Ω::T
 
@@ -48,79 +48,29 @@ struct Spread{T <: Real} <: AbstractSpread
     # WF center, Cartesian! coordinates, unit Å, n_wann of Vec3
     r::Vector{Vec3{T}}
 
-    # frozen_weight::T
-    # fix_centers :: Array{Float64,2} #3 x nwannier
-end
-
-# TODO refactor, this is a copy-paste of `Spread` :-(
-"""
-    struct SpreadCenter
-
-A `struct` containing both `Spread` and WF center penalty.
-"""
-struct SpreadCenter{T} <: AbstractSpread
-    # Total spread, unit Å², Ω = ΩI + Ω̃
-    Ω::T
-
-    # gauge-invarient part, unit Å²
-    ΩI::T
-
-    # off-diagonal part, unit Å²
-    ΩOD::T
-
-    # diagonal part, unit Å²
-    ΩD::T
-
-    # Ω̃ = ΩOD + ΩD, unit Å²
-    Ω̃::T
-
-    # Ω of each WF, unit Å², length = n_wann
-    ω::Vector{T}
-
-    # WF center, Cartesian! coordinates, unit Å, 3 * n_wann
-    r::Vector{Vec3{T}}
-
+    # Optional center-penalty fields. `nothing` when no center penalty applied.
     # additional variables for penalty term
     # Penalty, unit Å²
-    Ωc::T
+    Ωc::C
 
     # Total spread Ωt = Ω + Ωc
-    Ωt::T
+    Ωt::C
 
     # penalty of each WF, unit Å², length = n_wann
-    ωc::Vector{T}
+    ωc::V
 
     # total spread of each WF, unit Å², length = n_wann
     # ωt = ω + ωc
-    ωt::Vector{T}
+    ωt::V
 end
 
-function Base.show(io::IO, ::MIME"text/plain", Ω::SpreadCenter)
-    println(io, "  WF     center [rx, ry, rz]/Å              spread/Å²  ω  ωc  ωt")
-
-    n_wann = length(Ω.ω)
-
-    for i in 1:n_wann
-        @printf(
-            io,
-            "%4d %11.5f %11.5f %11.5f %11.5f %11.5f %11.5f\n",
-            i,
-            Ω.r[i]...,
-            Ω.ω[i],
-            Ω.ωc[i],
-            Ω.ωt[i]
-        )
-    end
-
-    @printf(io, "Sum spread: Ωt = Ω + Ωc, Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n")
-    @printf(io, "   Ωt  = %11.5f\n", Ω.Ωt)
-    @printf(io, "   Ωc  = %11.5f\n", Ω.Ωc)
-    @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
-    @printf(io, "   ΩI  = %11.5f\n", Ω.ΩI)
-    @printf(io, "   ΩOD = %11.5f\n", Ω.ΩOD)
-    @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
-    return @printf(io, "   Ω̃   = %11.5f", Ω.Ω̃)
+function Spread(
+        Ω::T, ΩI::T, ΩOD::T, ΩD::T, Ω̃::T, ω::Vector{T}, r::Vector{Vec3{T}}
+    ) where {T <: Real}
+    return Spread{T, Nothing, Nothing}(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, nothing, nothing, nothing, nothing)
 end
+
+has_center_penalty(Ω::Spread) = Ω.Ωc !== nothing
 
 #TODO a bit generic
 mutable struct Cache{T}
@@ -188,7 +138,7 @@ function omega_center(Ω::Spread; r₀::Vector{Vec3{T}}, λ::T) where {T <: Real
     ωt = Ω.ω + ωc
     Ωc = sum(ωc)
     Ωt = Ω.Ω + Ωc
-    return SpreadCenter(Ω.Ω, Ω.ΩI, Ω.ΩOD, Ω.ΩD, Ω.Ω̃, Ω.ω, Ω.r, Ωc, Ωt, ωc, ωt)
+    return Spread(Ω.Ω, Ω.ΩI, Ω.ΩOD, Ω.ΩD, Ω.Ω̃, Ω.ω, Ω.r, Ωc, Ωt, ωc, ωt)
 end
 
 function omega!(
@@ -308,19 +258,36 @@ function omega(bvectors::KspaceStencil, M::AbstractArray{<:Complex, 4}, U::Abstr
 end
 
 function Base.show(io::IO, ::MIME"text/plain", Ω::Spread)
-    println(io, "  WF     center [rx, ry, rz]/Å              spread/Å²")
-
     n_wann = length(Ω.ω)
-    for i in 1:n_wann
-        @printf(io, "%4d %11.5f %11.5f %11.5f %11.5f\n", i, Ω.r[i]..., Ω.ω[i])
+    if has_center_penalty(Ω)
+        println(io, "  WF     center [rx, ry, rz]/Å              spread/Å²  ω  ωc  ωt")
+        for i in 1:n_wann
+            @printf(
+                io,
+                "%4d %11.5f %11.5f %11.5f %11.5f %11.5f %11.5f\n",
+                i, Ω.r[i]..., Ω.ω[i], Ω.ωc[i], Ω.ωt[i],
+            )
+        end
+        @printf(io, "Sum spread: Ωt = Ω + Ωc, Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n")
+        @printf(io, "   Ωt  = %11.5f\n", Ω.Ωt)
+        @printf(io, "   Ωc  = %11.5f\n", Ω.Ωc)
+        @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
+        @printf(io, "   ΩI  = %11.5f\n", Ω.ΩI)
+        @printf(io, "   ΩOD = %11.5f\n", Ω.ΩOD)
+        @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
+        return @printf(io, "   Ω̃   = %11.5f", Ω.Ω̃)
+    else
+        println(io, "  WF     center [rx, ry, rz]/Å              spread/Å²")
+        for i in 1:n_wann
+            @printf(io, "%4d %11.5f %11.5f %11.5f %11.5f\n", i, Ω.r[i]..., Ω.ω[i])
+        end
+        @printf(io, "Sum spread: Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n")
+        @printf(io, "   ΩI  = %11.5f\n", Ω.ΩI)
+        @printf(io, "   Ω̃   = %11.5f\n", Ω.Ω̃)
+        @printf(io, "   ΩOD = %11.5f\n", Ω.ΩOD)
+        @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
+        return @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
     end
-
-    @printf(io, "Sum spread: Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n")
-    @printf(io, "   ΩI  = %11.5f\n", Ω.ΩI)
-    @printf(io, "   Ω̃   = %11.5f\n", Ω.Ω̃)
-    @printf(io, "   ΩOD = %11.5f\n", Ω.ΩOD)
-    @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
-    return @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
 end
 
 omega_grad!(cache::Cache, bvectors, M) = omega_grad!((r, _) -> r, cache, bvectors, M)
