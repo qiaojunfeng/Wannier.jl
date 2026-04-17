@@ -81,4 +81,5 @@ localize_isolated_bands(model::Model; kwargs...) =
 max_localize(terms::Tuple, model::Model{T}; kwargs...) where {T <: Real} =
     localize_isolated_bands(terms, model; kwargs...)
 
-max_localize(model::Model; kwargs...) = localize_isolated_bands(model; kwargs...)
+max_localize(model::Model; kwargs...) =
+    solve!(Problem(Variance(), model), OptimLBFGS(; kwargs...))
