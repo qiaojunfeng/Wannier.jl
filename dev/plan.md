@@ -250,7 +250,7 @@ Structural conversion first, then math hygiene on top of the new shape.
 - `SpinModel` still carries the Bloch `M` overlap field. The plan target (`up`, `dn` only) requires moving `M` into the coopt `Objective`/`Workspace`, which is deferred until commits P/Q introduce that infrastructure.
 - Invariant checks use `isapprox` rather than `==` on `lattice` / `atom_positions` / `kstencil` to tolerate float round-trip through parsers.
 
-**Commit C — Delete broken branches.**
+**Commit C — Delete broken branches.** ✅ Done.
 - Remove `random_gauge` branch in `disentangle.jl` (undefined symbols).
 - Other dead code surfaced in review.
 

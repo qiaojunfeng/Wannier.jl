@@ -326,7 +326,7 @@ function get_fg!_disentangle(terms::Tuple, model::Model{T}) where {T}
 end
 
 """
-    disentangle(model; random_gauge=false, f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
+    disentangle(model; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
 
 Run disentangle on the `Model`.
 
@@ -334,7 +334,6 @@ Run disentangle on the `Model`.
 - `model`: model
 
 # Keyword arguments
-- `random_gauge`: use random `U` matrices as initial guess
 - `f_tol`: tolerance for spread convergence
 - `g_tol`: tolerance for gradient convergence
 - `max_iter`: maximum number of iterations
@@ -343,7 +342,6 @@ Run disentangle on the `Model`.
 function disentangle_bands(
     terms::Tuple,
         model::Model{T};
-        random_gauge::Bool = false,
         f_tol::T = 1.0e-7,
         g_tol::T = 1.0e-5,
         max_iter::Int = 200,
@@ -353,30 +351,7 @@ function disentangle_bands(
     nwann = n_wannier(model)
     nkpts = n_kpoints(model)
 
-    # initial X, Y
-    if random_gauge
-        X0 = zeros(Complex{T}, nwann, nwann, nkpts)
-        Y0 = zeros(Complex{T}, nbands, nwann, nkpts)
-
-        for ik in 1:nkpts
-            idx_f = view(model.frozen_bands, :, ik)
-            idx_nf = .!idx_f
-            n_froz = count(idx_f)
-
-            m = nwann
-            n = nwann
-            M = randn(T, m, n) + im * randn(T, m, n)
-            X0[:, :, ik] .= orthonorm_lowdin(M)
-
-            Y0[idx_f, 1:n_froz, ik] .= I
-            m = nbands - n_froz
-            n = nwann - n_froz
-            N = randn(T, m, n) + im * randn(T, m, n)
-            Y0[idx_nf, (n_froz + 1):nwann, ik] .= orthonorm_lowdin(N)
-        end
-    else
-        X0, Y0 = U_to_X_Y(model.gauges, model.frozen_bands)
-    end
+    X0, Y0 = U_to_X_Y(model.gauges, model.frozen_bands)
 
     # compact storage
     XY0 = X_Y_to_XY(X0, Y0)
