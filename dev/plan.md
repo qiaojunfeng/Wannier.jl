@@ -275,8 +275,8 @@ Done so far: collapsed the scattered convention commentary into a single top-of-
 **Commit H — Unify `compute_MU_UtMU!` dispatch.** ✅ Done.
 - One dense method over `Array{T,4}` overlaps + `Array{T,3}` gauges; Workspace shim drops the `getfield` work-around now that `Workspace` is a plain immutable struct.
 
-**Commit I — Fuse `SpinModel` objective/gradient.**
-- Replace separate `f` and `g!` closures in the (now `SpinModel`-based) `get_fg!_disentangle` with a single `fg!`. Pure perf win; no API change yet.
+**Commit I — Fuse `SpinModel` objective/gradient.** ✅ Done.
+- `_build_fg_mag_disentangle` now produces a single fused `fg!(F, G, XY)` that shares the X/Y decode and up/dn omega paths; `f` and `g!` are thin wrappers returned alongside for backwards-compatible destructuring. `disentangle(::SpinModel, ...)` drives Optim via `Optim.only_fg!(fg!)` instead of independent `f`/`g!` closures.
 
 ### Phase 2 — Layout abstraction
 

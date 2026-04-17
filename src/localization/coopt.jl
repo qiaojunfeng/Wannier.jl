@@ -315,7 +315,7 @@ function disentangle(
     # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
     # U: n_bands * n_wann * n_kpts
     # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
-    f, g! = get_fg!_disentangle(model, λ)
+    _, _, fg! = get_fg!_disentangle(model, λ)
 
     @info "Initial spread"
     Ω = omega(model, λ)
@@ -331,8 +331,7 @@ function disentangle(
     meth = Optim.LBFGS
 
     opt = Optim.optimize(
-        f,
-        g!,
+        Optim.only_fg!(fg!),
         XY0,
         meth(; manifold = XYManif, linesearch = ls, m = history_size),
         Optim.Options(;
