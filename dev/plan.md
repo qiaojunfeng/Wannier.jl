@@ -302,7 +302,8 @@ Tests (with Commit J):
 **Commit M** — define `Objective`, `Workspace` contracts (`value`, `gradient!`, `fg!`, `required_layout`, `allocate_workspace`). Empty shell + doctests. ✅ Done.
 - New [src/localization/objective.jl](src/localization/objective.jl) introduces `abstract type Objective` and the five contract functions plus a generic `fg!` fallback that routes through `gradient!` + `value`. Concrete subtypes land in N / O / P; the existing `VarianceTerm` / `CenterConstraintTerm` + `:symbol`-keyed `LocalizationProblem` keep running until the migration lands.
 
-**Commit N** — implement `Variance <: Objective`. `required_layout(::Variance, m::Model) = any_entangled(m) ? XYGauge() : UGauge()`. Port existing `omega` / `omega_grad` math into `fg!`.
+**Commit N** — implement `Variance <: Objective`. `required_layout(::Variance, m::Model) = any_entangled(m) ? XYGauge() : UGauge()`. Port existing `omega` / `omega_grad` math into `fg!`. ✅ Done (shell).
+- `Variance` subtype, `required_layout` (UGauge/XYGauge branch on `isentangled(model)`), `allocate_workspace(::Variance, model, ::Layout) = Workspace(model)`, and a `fg!` that fuses `compute_MU_UtMU!` + `omega_grad!` + `omega!` live in [src/localization/objective.jl](src/localization/objective.jl). `value` and `gradient!` are intentionally error paths so callers use `fg!` and avoid re-filling MU/UtMU twice; this matches the fusion discipline the plan requires for each Objective subtype.
 
 **Commit O** — implement `CenteredVariance{T} <: Objective` (fields `r0::Vector{Vec3{T}}`, `λ::T`). Same layout trait as `Variance`. `fg!` fuses MV spread with the center penalty in one pass over `MU`/`UtMU`.
 

@@ -65,3 +65,61 @@ Construct the preallocated scratch [`Workspace`](@ref) used during
 optimization for `(obj, model, layout)`.
 """
 function allocate_workspace end
+
+# -------------------------------------------------------------------------
+# Variance (commit N): Marzari-Vanderbilt spread, max_localize / disentangle
+# -------------------------------------------------------------------------
+
+"""
+    Variance()
+
+Marzari-Vanderbilt variance spread functional. Works on `Model` for both
+the isolated (`UGauge`) and entangled (`XYGauge`) cases.
+"""
+struct Variance <: Objective end
+
+required_layout(::Variance, model::Model) = isentangled(model) ? XYGauge() : UGauge()
+
+allocate_workspace(::Variance, model::Model, ::Layout) = Workspace(model)
+
+function value(::Variance, state::AbstractArray{<:Complex, 3}, ws::Workspace)
+    return omega(ws, state).Ω
+end
+
+function omega(ws::Workspace, U::AbstractArray{<:Complex, 3})
+    # recomputes MU/UtMU against the current U; callers that already filled
+    # ws.MU/ws.UtMU can call omega!(ws, ...) directly
+    error(
+        "Variance.value called without ws.MU populated — use fg! which fuses " *
+            "compute_MU_UtMU! with omega!/omega_grad!."
+    )
+end
+
+function gradient!(
+        G::AbstractArray{<:Complex, 3},
+        ::Variance,
+        state::AbstractArray{<:Complex, 3},
+        ws::Workspace,
+    )
+    error(
+        "Variance.gradient! called without ws.MU populated — use fg! which " *
+            "fuses compute_MU_UtMU! with omega_grad!."
+    )
+end
+
+function fg!(
+        G,
+        ::Variance,
+        state::AbstractArray{<:Complex, 3},
+        ws::Workspace,
+        kstencil,
+        overlaps,
+    )
+    compute_MU_UtMU!(ws, kstencil, overlaps, state)
+    Ω = nothing
+    if G !== nothing && G !== false
+        omega_grad!(G, ws, kstencil, overlaps)
+    end
+    Ω = omega!(ws, kstencil, overlaps).Ω
+    return Ω
+end
