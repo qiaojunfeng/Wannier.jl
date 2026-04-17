@@ -14,17 +14,17 @@ Those must be neighbors, and only the first kpoint is assumed to have been rotat
 - `kpb_G`: `KspaceStencil.kpb_G`
 """
 function propagate!(
-        U::Vector{Matrix{T}},
+        U::AbstractArray{T, 3},
         kpts::Vector{Int},
         dk::Vector{R},
-        M::Vector{Vector{Matrix{T}}},
+        M::AbstractArray{T, 4},
         kpoints::Vector{Vec3{R}},
-        kpb_k::Vector{Vector{Int}},
-        kpb_G::Vector{Vector{Vec3{Int}}},
+        kpb_k::AbstractMatrix{Int},
+        kpb_G::AbstractMatrix,
     ) where {T <: Complex, R <: Real}
     N = length(kpts)
-    n = size(U[1], 1)
-    m = size(U[1], 2)
+    n = size(U, 1)
+    m = size(U, 2)
     @assert n == m "Non square matrix given as argument in propagate"
 
     for i in 2:N
@@ -41,8 +41,8 @@ function propagate!(
         #     b = kpoints[:, ik] - dk - kpoints[:, ik0]
         b = round.(Int, kpoints[ik] - dk - kpoints[ik0])
         ib = index_bvector(kpb_k, kpb_G, ik, ik0, b)
-        Mᵏᵇ = M[ik][ib]
-        U[ik] = orthonorm_lowdin(Mᵏᵇ * U[ik0])
+        Mᵏᵇ = view(M, :, :, ib, ik)
+        view(U, :, :, ik) .= orthonorm_lowdin(Mᵏᵇ * view(U, :, :, ik0))
     end
 
     return nothing

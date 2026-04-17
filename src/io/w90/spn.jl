@@ -14,14 +14,17 @@ Read `prefix.chk` and `prefix.spn` to construct Wannier-gauge k-space spin opera
 """
 function read_chk_spn(prefix::AbstractString; chk = "$prefix.chk", spn = "$prefix.spn")
     spn_dat = read_spn(spn)
-    spin_vecs = map(zip(spn_dat.Sx, spn_dat.Sy, spn_dat.Sz)) do (x, y, z)
-        MVec3.(x, y, z)
-    end
+    nkpts = size(spn_dat.Sx, 3)
+    spin_vecs = [
+        MVec3.(view(spn_dat.Sx, :, :, ik), view(spn_dat.Sy, :, :, ik), view(spn_dat.Sz, :, :, ik))
+            for ik in 1:nkpts
+    ]
     # spn file is in Bloch gauge, need to read chk to convert to Wannier gauge
     chk = read_chk(chk)
     gauges = WannierIO.gauge_matrices(chk)
-    S = map(zip(gauges, spin_vecs)) do (Uₖ, Sₖ)
-        Uₖ' * Sₖ * Uₖ
+    S = map(1:nkpts) do ik
+        Uₖ = view(gauges, :, :, ik)
+        Uₖ' * spin_vecs[ik] * Uₖ
     end
     return chk.kpoints, S
 end
@@ -75,8 +78,8 @@ construct tight-binding models.
 function read_w90_tb_chk_spn(prefix::AbstractString; kwargs...)
     dat = _raw_read_w90_tb(prefix)
     Rspace = dat.Rspace
-    H = dat.hamiltonian
-    pos = dat.position
+    H = _array3_to_vector(dat.hamiltonian)
+    pos = _combine_position(dat.rx, dat.ry, dat.rz)
 
     bare_Rspace, bare_H, bare_pos = simplify(Rspace, H, pos)
     hamiltonian = TBHamiltonian(bare_Rspace, bare_H)

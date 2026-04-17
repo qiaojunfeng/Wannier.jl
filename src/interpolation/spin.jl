@@ -51,7 +51,8 @@ function (interp::SpinInterpolator)(kpoints::AbstractVector{<:AbstractVector}; k
     # Wannier-gauge k-space spin operator
     Sᵂ_k = invfourier(interp.spin, kpoints)
     # transform to Bloch gauge
-    S_k = map(zip(Sᵂ_k, gauges)) do (Sᵂ, U)
+    S_k = map(enumerate(Sᵂ_k)) do (ik, Sᵂ)
+        U = view(gauges, :, :, ik)
         U' * Sᵂ * U
     end
     return S_k

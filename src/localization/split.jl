@@ -3,20 +3,19 @@ using LinearAlgebra
 export split_wannierize, split_unk, split_model
 
 """
-    group_eigenvalues(eigenvalues::AbstractArray; gap_threshold=0.05)
+    group_eigenvalues(eigenvalues; gap_threshold=0.05)
 
 Find isolated groups of bands by checking the local gap at each kpoint.
 
 # Arguments
-- `eigenvalues`: eigenvalues should be ordered ascendingly at each kpoint.
+- `eigenvalues`: `n_bands × n_kpoints` matrix, sorted ascending at each kpoint.
 
 # Keyword arguments
 - `gap_threshold`: the threshold for the local gap, default is 0.05 eV.
 """
-function group_eigenvalues(eigenvalues::AbstractArray; gap_threshold = 0.05)
-    nkpts = length(eigenvalues)
+function group_eigenvalues(eigenvalues::AbstractMatrix; gap_threshold = 0.05)
+    nbands, nkpts = size(eigenvalues)
     (nkpts > 0) || error("number of kpoints must be greater than 0")
-    nbands = length(eigenvalues[1])
     (nbands > 0) || error("number of bands must be greater than 0")
 
     (nbands == 1) && return [[1]]
@@ -24,7 +23,7 @@ function group_eigenvalues(eigenvalues::AbstractArray; gap_threshold = 0.05)
     groups = Vector{Vector{Int}}()
     grp = Int[]
     for ib in 1:(nbands - 1)
-        Δe = [e[ib + 1] - e[ib] for e in eigenvalues]
+        Δe = [eigenvalues[ib + 1, ik] - eigenvalues[ib, ik] for ik in 1:nkpts]
         # Has local gap at each kpoint, not necessarily a global gap
         gapped = all(Δe .>= gap_threshold)
         push!(grp, ib)
@@ -56,8 +55,8 @@ The separation is done by
     and they are split into several groups according to the indices in `eig_groups`.
 
 # Arguments
-- `E`: eigenvalues
-- `U`: (semi-)Unitary matrices gauge transformation
+- `E`: eigenvalues, `n_bands × n_kpoints` matrix
+- `U`: (semi-)Unitary matrices, `n_bands × n_wann × n_kpoints` array
 - `eig_groups`: a Vector, in which each element is a Vector of indices of eigenvalues
     that belong to the same group.
 
@@ -76,41 +75,29 @@ The separation is done by
     to smoothen the gauges.
 """
 function split_eig(
-        E::Vector{Vector{T}}, U::Vector{Matrix{Complex{T}}}, eig_groups::AbstractVector{R}
+        E::AbstractMatrix{T},
+        U::AbstractArray{Complex{T}, 3},
+        eig_groups::AbstractVector{R},
     ) where {T <: Real, R <: AbstractVector{Int}}
-    n_bands, n_wann = size(U[1])
-    n_kpts = length(U)
-    length(E[1]) != n_bands && error("incompatible n_bands")
-    length(E) != n_kpts && error("incompatible n_kpts")
+    n_bands, n_wann, n_kpts = size(U)
+    size(E, 1) != n_bands && error("incompatible n_bands")
+    size(E, 2) != n_kpts && error("incompatible n_kpts")
 
     n_groups = length(eig_groups)
     len_groups = [length(g) for g in eig_groups]
     n_wann == sum(len_groups) || error("incompatible eig_groups")
-    E_groups = [[similar(E[1], len_groups[i]) for j in 1:n_kpts] for i in 1:n_groups]
-    # Eigenvectors from diagonalization of Wannier Hamiltonian
-    V_groups = [
-        [similar(U[1], n_wann, len_groups[i]) for j in 1:n_kpts] for i in 1:n_groups
-    ]
 
-    # Since valence and conduction are split by a gap,
-    # by diagonalizing the Wannier Hamiltonian and using the eigenvalues,
-    # we can demix the WFs into two groups for valence and conduction, respectively.
+    E_groups = [zeros(T, len_groups[i], n_kpts) for i in 1:n_groups]
+    V_groups = [zeros(Complex{T}, n_wann, len_groups[i], n_kpts) for i in 1:n_groups]
+
     for ik in 1:n_kpts
-        # Hamiltonian in WF basis
-        Hₖ = Hermitian(U[ik]' * diagm(0 => E[ik]) * U[ik])
-
-        # Diagonalize
+        uk = view(U, :, :, ik)
+        Hₖ = Hermitian(uk' * diagm(0 => view(E, :, ik)) * uk)
         Dₖ, Vₖ = eigen(Hₖ)
 
         for ig in 1:n_groups
-            E_groups[ig][ik] .= Dₖ[eig_groups[ig]]
-
-            # Although the diagonalization destroy the smoothness of gauge,
-            # one can run max localization to smooth these random gauge, since
-            # there is no disentanglement. However, this requires many iterations
-            # of max localization.
-            # I store the gauge rotation due to diagonalization.
-            V_groups[ig][ik] .= Vₖ[:, eig_groups[ig]]
+            E_groups[ig][:, ik] .= Dₖ[eig_groups[ig]]
+            V_groups[ig][:, :, ik] .= Vₖ[:, eig_groups[ig]]
         end
     end
 
@@ -130,14 +117,12 @@ The separation is done by
     and the rest are the unoccupied states.
 
 # Arguments
-- `E`: eigenvalues
-- `U`: (semi-)Unitary matrices gauge transformation
+- `E`: eigenvalues, `n_bands × n_kpoints` matrix
+- `U`: (semi-)Unitary matrices, `n_bands × n_wann × n_kpoints` array
 - `n_val`: number of valence states
 """
-function split_eig(
-        E::Vector{Vector{T}}, U::Vector{Matrix{Complex{T}}}, n_val::Int
-    ) where {T <: Real}
-    n_wann = size(U[1], 2)
+function split_eig(E::AbstractMatrix{T}, U::AbstractArray{Complex{T}, 3}, n_val::Int) where {T <: Real}
+    n_wann = size(U, 2)
 
     n_val < 1 && error("n_val < 0")
     n_val >= n_wann && error("n_val >= n_wann")
@@ -156,7 +141,7 @@ inside the function.
 
 # Arguments
 - `dir`: directory where `UNK` files are stored
-- `Us`: a Vector of Wannier (semi-)unitary gauge matrices for rotating band groups
+- `Us`: a Vector of `n_bands × n_wann × n_kpts` gauge arrays for rotating band groups
 - `outdirs`: a Vector of output directories for each band group
 
 # Keyword arguments
@@ -165,14 +150,14 @@ inside the function.
 """
 function split_unk(
         dir::AbstractString,
-        Us::AbstractArray{T},
+        Us::AbstractVector{<:AbstractArray{<:Complex, 3}},
         outdirs::AbstractVector{R};
         binary::Union{Bool, Nothing} = nothing,
-    ) where {T <: AbstractArray{<:Matrix}, R <: AbstractString}
+    ) where {R <: AbstractString}
     length(Us) == length(outdirs) || error("incompatible Us and outdirs")
-    nkpts = length(Us[1])
-    all(length(U) == nkpts for U in Us) || error("incompatible n_kpts")
-    nwanns = [size(U[1], 2) for U in Us]
+    nkpts = size(Us[1], 3)
+    all(size(U, 3) == nkpts for U in Us) || error("incompatible n_kpts")
+    nwanns = [size(U, 2) for U in Us]
 
     println("UNK files will be written in: ")
     for (i, odir) in enumerate(outdirs)
@@ -181,7 +166,6 @@ function split_unk(
     end
 
     regex = r"UNK(\d{5})\.\d"
-    # This might contain non-UNK files, to be filtered later
     unk_files = readdir(dir)
     isnothing(binary) && (binary = WannierIO.isbinary("UNK00001.1"))
 
@@ -194,16 +178,12 @@ function split_unk(
         ik2, Ψ = read_unk(joinpath(dir, unk))
         @assert ik2 == ik
 
-        # * does not support multiplication of high-dimensional arrays,
-        # reshape it to matrix
         n_gx, n_gy, n_gz, n_bands = size(Ψ)
         Ψ = reshape(Ψ, :, n_bands)
 
         for (i, U) in enumerate(Us)
-            Uₖ = U[ik]
-            # rotate
+            Uₖ = view(U, :, :, ik)
             ΨU = Ψ * Uₖ
-            # reshape back
             ΨU = reshape(ΨU, n_gx, n_gy, n_gz, nwanns[i], 1)
 
             fname = joinpath(outdirs[i], unk)
@@ -219,15 +199,12 @@ end
 """
     split_unk(dir, Uv, Uc, outdir_val="val", outdir_cond="cond")
 
-Rotate `UNK` files.
-
-These are large matrices, so we read/write to disk for each kpoint sequentially,
-inside the function.
+Rotate `UNK` files for valence and conduction bands.
 
 # Arguments
 - `dir`: directory where `UNK` files are stored
-- `Uv`: the Wannier (semi-)unitary matrix for rotating valence bands
-- `Uc`: the Wannier (semi-)unitary matrix for rotating conduction bands
+- `Uv`: the Wannier gauge array for rotating valence bands, `n_bands × n_val × n_kpts`
+- `Uc`: the Wannier gauge array for rotating conduction bands, `n_bands × n_cond × n_kpts`
 - `outdir_val`: output directory for valence bands
 - `outdir_cond`: output directory for conduction bands
 
@@ -236,19 +213,12 @@ inside the function.
 """
 function split_unk(
         dir::AbstractString,
-        Uv::Vector{Matrix{T}},
-        Uc::Vector{Matrix{T}},
+        Uv::AbstractArray{T, 3},
+        Uc::AbstractArray{T, 3},
         outdir_val::AbstractString = "val",
         outdir_cond::AbstractString = "cond";
         binary::Union{Bool, Nothing} = nothing,
     ) where {T <: Complex}
-    # !isdir(outdir_val) && mkdir(outdir_val)
-    # !isdir(outdir_cond) && mkdir(outdir_cond)
-
-    # println("UNK files will be written in: ")
-    # println("    valence   : ", outdir_val)
-    # println("    conduction: ", outdir_cond)
-
     return split_unk(dir, [Uv, Uc], [outdir_val, outdir_cond]; binary)
 end
 
@@ -343,6 +313,6 @@ Split the model and run parallel transport to smoothen the gauge.
 - `n_val`: number of valence WFs
 """
 function split_wannierize(model::Model, n_val::Int)
-    eig_groups = [1:n_val, (n_val + 1):(model.n_wann)]
+    eig_groups = [1:n_val, (n_val + 1):n_wannier(model)]
     return split_wannierize(model, eig_groups)
 end

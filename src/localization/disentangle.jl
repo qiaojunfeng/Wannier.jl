@@ -9,7 +9,7 @@ export disentangle_bands, disentangle
 Generate a `BitMatrix` of frozen bands by checking the two frozen windows.
 
 # Arguments
-- `E`: the energy eigenvalues of the Hamiltonian
+- `E`: the energy eigenvalues, `n_bands × n_kpoints` matrix
 - `dis_froz_max`: the upper bound of the frozen window
 - `dis_froz_min`: the lower bound of the frozen window
 
@@ -17,8 +17,8 @@ Generate a `BitMatrix` of frozen bands by checking the two frozen windows.
 
     The `dis_froz_max` and `dis_froz_min` work similarly as `Wannier90`.
 """
-function get_frozen_bands(E::Vector, dis_froz_max, dis_froz_min = -Inf)
-    return map(e -> (e .>= dis_froz_min) .& (e .<= dis_froz_max), E)
+function get_frozen_bands(E::AbstractMatrix, dis_froz_max, dis_froz_min = -Inf)
+    return BitMatrix((E .>= dis_froz_min) .& (E .<= dis_froz_max))
 end
 
 #TODO I don't think this works; degen not defined
@@ -30,35 +30,32 @@ Freeze bands which are degenerate with the `frozen_bands`.
 In some cases, we might want to freeze the whole set of degenerated eigen vectors.
 
 # Arguments
-- `frozen_bands`: the `BitMatrix` of frozen bands
-- `E`: the energy eigenvalues of the Hamiltonian
+- `frozen_bands`: the `BitMatrix` of frozen bands, `n_bands × n_kpoints`
+- `E`: the energy eigenvalues, `n_bands × n_kpoints` matrix
 - `atol`: the tolerance of degeneracy
 """
 function set_frozen_degen!(
-        frozen_bands::AbstractMatrix{Bool}, E::Vector, atol::T = 1.0e-4
+        frozen_bands::AbstractMatrix{Bool}, E::AbstractMatrix, atol::T = 1.0e-4
     ) where {T <: Real}
-    nbands = length(E[1])
-    n_kpts = length(E)
+    nbands, n_kpts = size(E)
     atol <= 0 && error("atol must be positive")
 
     for ik in 1:n_kpts
-        frozen_k = frozen_bands[ik]
+        frozen_k = view(frozen_bands, :, ik)
 
         # if cluster of eigenvalues and count(frozen_k) > 0, take them all
         if degen && count(frozen_k) > 0
             ib = findlast(frozen_k)
 
             while ib < nbands
-                if E[ik][ib + 1] < E[ik][ib] + atol
+                if E[ib + 1, ik] < E[ib, ik] + atol
                     ib += 1
-                    frozen_k[ib] .= true
+                    frozen_k[ib] = true
                 else
                     break
                 end
             end
         end
-
-        frozen_bands[ik] .= frozen_k
     end
 
     return nothing
@@ -70,18 +67,15 @@ end
 Sanity check that the number of frozen bands at each kpoint <= `n_wann`.
 
 # Arguments
-- `frozen_bands`: the `BitMatrix` of frozen bands
+- `frozen_bands`: the `BitMatrix` of frozen bands, `n_bands × n_kpoints`
 - `n_wann`: the number of wannier functions
 """
-function check_frozen_bands(frozen_bands::AbstractVector{AbstractVector{Bool}}, n_wann::Int)
-    nbands = length(frozen_bands[1])
-    n_kpts = length(frozen_bands)
+function check_frozen_bands(frozen_bands::AbstractMatrix{Bool}, n_wann::Int)
+    nbands, n_kpts = size(frozen_bands)
     n_wann > nbands && error("n_wann > nbands")
 
     for ik in 1:n_kpts
-        frozen_k = frozen_bands[ik]
-
-        if count(frozen_k) > n_wann
+        if count(view(frozen_bands, :, ik)) > n_wann
             error("Too many frozen bands")
         end
     end
@@ -109,13 +103,13 @@ function set_frozen_win!(
         degen::Bool = false,
         degen_atol::T = 1.0e-4,
     ) where {T <: Real}
-    frozen_bands = get_frozen_bands(model.E, dis_froz_max, dis_froz_min)
+    frozen_bands = get_frozen_bands(model.eigenvalues, dis_froz_max, dis_froz_min)
 
     if degen
-        set_frozen_degen!(frozen_bands, model.E, degen_atol)
+        set_frozen_degen!(frozen_bands, model.eigenvalues, degen_atol)
     end
 
-    check_frozen_bands(frozen_bands, model.n_wann)
+    check_frozen_bands(frozen_bands, n_wannier(model))
 
     model.frozen_bands .= frozen_bands
 
@@ -128,8 +122,8 @@ end
 Get frozen bands according to band projectability.
 
 # Arguments
-- `E`: the energy eigenvalues of the Hamiltonian
-- `U`: the gauge rotation matrices
+- `E`: the energy eigenvalues, `n_bands × n_kpoints` matrix
+- `U`: the gauge rotation matrices, `n_bands × n_wann × n_kpoints` array
 - `dis_proj_max`: the upper bound projectability.
     Bands with projectability >= `dis_proj_max` are frozen.
 
@@ -142,28 +136,17 @@ Get frozen bands according to band projectability.
     freeze high-projectability bands.
 """
 function get_frozen_proj(
-        E::AbstractVector{AbstractVector{T}},
-        U::AbstractVector{AbstractMatrix{Complex{T}}},
+        E::AbstractMatrix{T},
+        U::AbstractArray{Complex{T}, 3},
         dis_proj_max::T,
     ) where {T <: Real}
-    nbands = length(E[1])
-    n_kpts = length(E)
-    frozen_bands = [falses(nbands) for i in 1:n_kpts]
-
-    # For each kpoint
-    frozen_k = falses(nbands)
+    nbands, n_kpts = size(E)
+    frozen_bands = falses(nbands, n_kpts)
 
     for ik in 1:n_kpts
-        fill!(frozen_k, false)
-
-        # n_bands * n_wann
-        Uₖ = U[ik]
-        # projectability
+        Uₖ = view(U, :, :, ik)
         p = dropdims(real(sum(Uₖ .* conj(Uₖ); dims = 2)); dims = 2)
-        # @debug "projectability" ik p
-
-        frozen_k[p .>= dis_proj_max] .= true
-        frozen_bands[ik] = frozen_k
+        frozen_bands[p .>= dis_proj_max, ik] .= true
     end
 
     return frozen_bands
@@ -186,13 +169,13 @@ Set frozen bands of the `Model` according to projectability.
 function set_frozen_proj!(
         model::Model{T}, dis_proj_max::T; degen::Bool = false, degen_atol::T = 1.0e-4
     ) where {T <: Real}
-    frozen_bands = get_frozen_proj(model.E, model.U, dis_proj_max)
+    frozen_bands = get_frozen_proj(model.eigenvalues, model.gauges, dis_proj_max)
 
     if degen
-        set_frozen_degen!(frozen_bands, model.E, degen_atol)
+        set_frozen_degen!(frozen_bands, model.eigenvalues, degen_atol)
     end
 
-    check_frozen_bands(frozen_bands, model.n_wann)
+    check_frozen_bands(frozen_bands, n_wannier(model))
 
     model.frozen_bands .= frozen_bands
 
@@ -221,7 +204,7 @@ Strategy:
 - `U`: the matrix to be orthonormalized and frozen
 - `frozen`: the `BitVector` specifying which bands are frozen
 """
-function orthonorm_freeze(U::Matrix{T}, frozen::BitVector) where {T <: Complex}
+function orthonorm_freeze(U::AbstractMatrix{T}, frozen::AbstractVector{Bool}) where {T <: Complex}
     nbands, nwann = size(U)
     non_frozen = .!frozen
 
@@ -231,7 +214,6 @@ function orthonorm_freeze(U::Matrix{T}, frozen::BitVector) where {T <: Complex}
     # i.e. <ψ|g'><g'|ψ> = I -> |g'>s span the frozen |ψ>s.
     Uf = U[frozen, :]
     Uf = orthonorm_lowdin(Uf)
-    # Uf = orthonorm_cholesky(Uf)
 
     # Remove Uf out of Ur, i.e. do not destroy frozen space
     # The projector of the frozen states represented on the |g> basis is
@@ -281,77 +263,28 @@ function orthonorm_freeze(U::Matrix{T}, frozen::BitVector) where {T <: Complex}
     return V
 end
 
-# function max_projectability(A::Matrix{ComplexF64})
-#     proj = A * A'
-#     proj_ortho = I - proj
-#     U, S, V = svd(proj_ortho)
-#     n = abs(size(A, 1) - size(A, 2))
-#     @assert count(S .> 1e-5) >= n
-#     R = hcat(A, V[:, 1:n])
-#     @assert R * R' ≈ I
-#     return R' * A, R
-
-#     U, S, V = svd(A)
-#     return V' * A, V
-#     proj = A * A'
-#     # A * A' = V D V'  =>  (V'A) (A'V) = D
-#     D, V = eigen(proj)
-#     # sort eigenvalues in descending order
-#     V = V[:, sortperm(D, rev = true)]
-#     A_new = V' * A
-#     @debug "projectability" real(diag(proj)') real(diag(A_new * A_new')')
-#     return A_new, V
-# end
-
-# function maxproj_froz(A::Matrix{ComplexF64}, froz::BitVector)
-#     @assert length(froz) == size(A, 1)
-#     m, n = size(A)
-#     D = zeros(ComplexF64, n + count(froz), m)
-#     D[1:n, :] = transpose(A)
-#     c = n + 1
-#     for i = 1:length(froz)
-#         if froz[i]
-#             D[c, i] = 1
-#             c += 1
-#         end
-#     end
-#     U, S, V = svd(D)
-
-#     nbasis = count(S .> 1e-5)
-#     V_new = V[:, 1:nbasis]
-#     proj = V_new * V_new'
-#     proj_ortho = I - proj
-#     U, S, V = svd(proj_ortho)
-#     R = hcat(V_new, V[:, 1:m-nbasis])
-#     @assert R * R' ≈ I
-
-#     return R' * A, R
-# end
-
-
 # This leads to another 5% speedup but I don't know how
-function GU_to_G!(G, GU, X, Y, frozen)
-    n_kpts = length(X)
+function GU_to_G!(G, GU, X::AbstractArray{T, 3}, Y::AbstractArray{T, 3}, frozen::AbstractMatrix{Bool}) where {T}
+    n_kpts = size(X, 3)
 
-    nw = size(X[1], 1)
-    nb = size(Y[1], 1)
+    nw = size(X, 1)
+    nb = size(Y, 1)
     n = nw^2
 
     d = size(G, 1)
 
     return @inbounds for ik in 1:n_kpts
-        idx_f = frozen[ik]
+        idx_f = view(frozen, :, ik)
         n_froz = count(idx_f)
 
         GX = reshape(view(G, 1:n, ik), (nw, nw))
         GY = reshape(view(G, (n + 1):d, ik), (nb, nw))
 
-        mul!(GX, Y[ik]', view(GU, :, :, ik))
-        mul!(GY, view(GU, :, :, ik), X[ik]')
+        mul!(GX, view(Y, :, :, ik)', view(GU, :, :, ik))
+        mul!(GY, view(GU, :, :, ik), view(X, :, :, ik)')
 
         GY[idx_f, :] .= 0
         GY[:, 1:n_froz] .= 0
-        # @show ik, GY
     end
 end
 
@@ -364,23 +297,19 @@ This is used in test.
 
 # Arguments
 - `G`: gradient of the spread, in `XY` layout
-- `frozen`: `BitMatrix` for frozen bands, `n_bands * n_kpts`
+- `frozen`: `BitMatrix` for frozen bands, `n_bands × n_kpts`
 """
-function zero_froz_grad!(G::AbstractMatrix, frozen::Vector)
-    nbands = length(frozen[1])
-    nkpts = length(frozen)
+function zero_froz_grad!(G::AbstractMatrix, frozen::AbstractMatrix{Bool})
+    nbands, nkpts = size(frozen)
     size(G, 2) == nkpts || error("length(G) != n_kpts")
-    # I need to find n_wann, solving the following polynomial equation:
-    # size(G, 1) = n_wann * n_wann + n_bands * n_wann
-    # just use quadratic formula
     nwann = round(Int, (-nbands + sqrt(nbands^2 + 4 * size(G, 1))) / 2)
 
     GX, GY = Wannier.XY_to_X_Y(G, nbands, nwann)
-    @inbounds @views for ik in 1:nkpts
-        idx_f = frozen[ik]
+    @inbounds for ik in 1:nkpts
+        idx_f = view(frozen, :, ik)
         n_froz = count(idx_f)
-        GY[ik][idx_f, :] .= 0
-        GY[ik][:, 1:n_froz] .= 0
+        view(GY, idx_f, :, ik) .= 0
+        view(GY, :, 1:n_froz, ik) .= 0
     end
     G .= Wannier.X_Y_to_XY(GX, GY)
     return nothing
@@ -426,24 +355,24 @@ function disentangle_bands(
 
     # initial X, Y
     if random_gauge
-        X0 = [zeros(Complex{T}, nwann, nwann) for i in 1:nkpts]
-        Y0 = [zeros(Complex{T}, nbands, nwann) for i in 1:nkpts]
+        X0 = zeros(Complex{T}, nwann, nwann, nkpts)
+        Y0 = zeros(Complex{T}, nbands, nwann, nkpts)
 
-        for ik in 1:n_kpts
-            idx_f = model.frozen_bands[ik]
+        for ik in 1:nkpts
+            idx_f = view(model.frozen_bands, :, ik)
             idx_nf = .!idx_f
             n_froz = count(idx_f)
 
             m = nwann
             n = nwann
             M = randn(T, m, n) + im * randn(T, m, n)
-            X0[ik] = orthonorm_lowdin(M)
+            X0[:, :, ik] .= orthonorm_lowdin(M)
 
-            Y0[ik][idx_f, 1:n_froz] = I
+            Y0[idx_f, 1:n_froz, ik] .= I
             m = nbands - n_froz
-            n = n_wann - n_froz
-            N = randn(T, m, n) + im * randn(m, n)
-            Y0[ik][idx_nf, (n_froz + 1):n_wann] = orthonorm_lowdin(N)
+            n = nwann - n_froz
+            N = randn(T, m, n) + im * randn(T, m, n)
+            Y0[idx_nf, (n_froz + 1):nwann, ik] .= orthonorm_lowdin(N)
         end
     else
         X0, Y0 = U_to_X_Y(model.gauges, model.frozen_bands)
@@ -472,14 +401,7 @@ function disentangle_bands(
     )
     XYManif = Optim.PowerManifold(XYkManif, (nwann^2 + nbands * nwann,), (nkpts,))
 
-    # stepsize_mult = 1
-    # step = 0.5/(4*8*p.wb)*(p.N1*p.N2*p.N3)*stepsize_mult
-    # ls = LineSearches.Static(step)
     ls = Optim.HagerZhang()
-    # ls = LineSearches.BackTracking()
-
-    # meth = Optim.GradientDescent
-    # meth = Optim.ConjugateGradient
     meth = Optim.LBFGS
 
     opt = Optim.optimize(

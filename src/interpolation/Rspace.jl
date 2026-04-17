@@ -162,25 +162,26 @@ struct MDRSRspace{T <: Real} <: AbstractRspace
     n_Rdegens::Vector{Int}
 
     """translation T-vectors, fractional coordinates w.r.t lattice.
-    Length-`n_Rvectors` vector, each element is a matrix of size
-    `n_wannier * n_wannier`, then each element is a length-`n_Tdegens` vector
-    of 3-vector for fractional coordinates"""
-    Tvectors::Vector{Matrix{Vector{Vec3{Int}}}}
+    `n_wannier × n_wannier × n_Rvectors` array, each element is a
+    `Vector{Vec3{Int}}` of T-vectors for the (m,n,iR) entry."""
+    Tvectors::Array{Vector{Vec3{Int}}, 3}
 
-    """degeneracy of each T vector. Length-`n_Rvectors` vector, each element is
-    a `n_wannier * n_wannier` matrix of integers"""
-    n_Tdegens::Vector{Matrix{Int}}
+    """degeneracy of each T vector.
+    `n_wannier × n_wannier × n_Rvectors` array of integers."""
+    n_Tdegens::Array{Int, 3}
 end
 
 function MDRSRspace(
         lattice::AbstractMatrix,
         Rvectors::AbstractVector,
         n_Rdegens::AbstractVector,
-        Tvectors::AbstractVector,
-        n_Tdegens::AbstractVector,
+        Tvectors::AbstractArray{<:AbstractVector, 3},
+        n_Tdegens::AbstractArray{<:Integer, 3},
     )
     T = eltype(lattice)
-    return MDRSRspace{T}(Mat3(lattice), Rvectors, n_Rdegens, Tvectors, n_Tdegens)
+    Tv = Array{Vector{Vec3{Int}}, 3}(Tvectors)
+    Td = Array{Int, 3}(n_Tdegens)
+    return MDRSRspace{T}(Mat3(lattice), Rvectors, n_Rdegens, Tv, Td)
 end
 
 function MDRSRspace(
@@ -217,12 +218,10 @@ function MDRSRspace(
     max_neighbors = min(8, length(translations_cart))
     idx_origin = findfirst(isequal(Vec3(0, 0, 0)), translations)
     # save all translations and degeneracies
-    Tvectors = [Matrix{Vector{Vec3{Int}}}(undef, nwann, nwann) for _ in 1:nRvecs]
-    Tdegens = [zeros(Int, nwann, nwann) for _ in 1:nRvecs]
+    Tvectors = Array{Vector{Vec3{Int}}, 3}(undef, nwann, nwann, nRvecs)
+    Tdegens = zeros(Int, nwann, nwann, nRvecs)
 
     @inbounds @views for iR in 1:nRvecs
-        Tvectors_iR = Tvectors[iR]
-        Tdegens_iR = Tdegens[iR]
         R = wsRspace.Rvectors[iR]
         for m in 1:nwann
             for n in 1:nwann
@@ -255,8 +254,8 @@ function MDRSRspace(
                     error("degeneracy of T-vectors is too large? $degen")
                 end
                 # fractional coordinates
-                Tvectors_iR[m, n] = map(i -> supercell[i], T_idxs)
-                Tdegens_iR[m, n] = degen
+                Tvectors[m, n, iR] = map(i -> supercell[i], T_idxs)
+                Tdegens[m, n, iR] = degen
             end
         end
     end

@@ -151,6 +151,17 @@ function unfold_eigvals(eig_ibz::AbstractVector, fbz2ibz::AbstractVector)
     return eig
 end
 
+function unfold_eigvals(eig_ibz::AbstractMatrix, fbz2ibz::AbstractVector)
+    nbands = size(eig_ibz, 1)
+    nkpts_fbz = length(fbz2ibz)
+    eig = zeros(eltype(eig_ibz), nbands, nkpts_fbz)
+    for ik in 1:nkpts_fbz
+        ik_ibz = fbz2ibz[ik][1]
+        eig[:, ik] .= view(eig_ibz, :, ik_ibz)
+    end
+    return eig
+end
+
 """
     $(SIGNATURES)
 
@@ -271,7 +282,7 @@ U_{m n k_f}
 
 """
 function unfold_gauges(
-        U_ibz::AbstractVector{<:AbstractMatrix},
+        U_ibz::AbstractArray{<:Complex, 3},
         kpoints_ibz::AbstractVector,
         fbz2ibz::AbstractVector,
         symops::AbstractVector{SymOp},
@@ -279,7 +290,7 @@ function unfold_gauges(
         Rs::AbstractVector,
     )
     nk_fbz = length(fbz2ibz)
-    nband, nwann = size(U_ibz[1])
+    nband, nwann = size(U_ibz, 1), size(U_ibz, 2)
     U_fbz = zeros_gauge(ComplexF64, nk_fbz, nband, nwann)
 
     for ik in 1:nk_fbz
@@ -296,7 +307,7 @@ function unfold_gauges(
         D = repmat_wann[isinv].D
         R = Rs[isinv]
         t_rev = symops[isinv].time_reversal
-        U_fbz[ik] = unfold_gauge(U_ibz[ik_ibz], ki, D, R, t_rev)
+        view(U_fbz, :, :, ik) .= unfold_gauge(view(U_ibz, :, :, ik_ibz), ki, D, R, t_rev)
     end
     return U_fbz
 end
@@ -321,7 +332,7 @@ Note that ``h \\in G_k``, the little group of kpoint.
 - `U_sym`: symmetrized gauge matrices at each IBZ kpoint.
 """
 function symmetrize_gauges(
-        U_ibz::AbstractVector,
+        U_ibz::AbstractArray{<:Complex, 3},
         kpoints_ibz::AbstractVector,
         symops::AbstractVector{SymOp},
         repmat_band::AbstractVector{<:RepMatBand},
@@ -352,15 +363,15 @@ function symmetrize_gauges(
             nh += 1
 
             Uf = unfold_gauge(
-                U_ibz[ik],
+                view(U_ibz, :, :, ik),
                 kpoints_ibz[ik],
                 repmat_wann[isinv].D,
                 Rs[isinv],
                 symops[isinv].time_reversal,
             )
-            U_sym[ik] += repmat_band[ih].d * Uf
+            view(U_sym, :, :, ik) .+= repmat_band[ih].d * Uf
         end
-        U_sym[ik] ./= nh
+        view(U_sym, :, :, ik) ./= nh
     end
 
     return U_sym
@@ -494,9 +505,9 @@ M_{m n}^{k_f, b_f} = \\sum_l M_{m l}^{k_i, b_i} d_{l n}(\\hat{h}, k_i)
     according to `kstencil`.
 """
 function unfold_overlaps(
-        M_ibz::AbstractVector,
-        kpb_k_ibz::AbstractVector,
-        kpb_G_ibz::AbstractVector,
+        M_ibz::AbstractArray{<:Complex, 4},
+        kpb_k_ibz::AbstractMatrix{Int},
+        kpb_G_ibz::AbstractMatrix,
         kpoints_ibz::AbstractVector,
         bvectors::AbstractVector,
         kpoints_fbz::AbstractVector,
@@ -507,11 +518,11 @@ function unfold_overlaps(
     )
     nk_fbz = length(kpoints_fbz)
     length(fbz2ibz) == nk_fbz || error("Mismatch in number of FBZ kpoints")
-    nband = size(M_ibz[1][1], 1)
+    nband = size(M_ibz, 1)
     nbvec = length(bvectors)
     Mf = zeros_overlap(ComplexF64, nk_fbz, nbvec, nband)
-    kpb_k_fbz = [zeros(Int, nbvec) for _ in 1:nk_fbz]
-    kpb_G_fbz = [[zeros(Int, 3) for _ in 1:nbvec] for _ in 1:nk_fbz]
+    kpb_k_fbz = zeros(Int, nbvec, nk_fbz)
+    kpb_G_fbz = Matrix{Vec3{Int}}(undef, nbvec, nk_fbz)
 
     ikisym2ih = WannierIO.build_mapping_ik_isym(
         repmat_band; nkpts_ibz = length(kpoints_ibz), n_symops = length(symops)
@@ -544,18 +555,18 @@ function unfold_overlaps(
             # 4. find the index of kf+bf in the IBZ, and symmetry to get kf+bf in IBZ
             isym_kbf = fbz2ibz[ikbf_fbz][2]
 
-            kpb_k_ibz[iki][ibi] == ikbi_ibz ||
+            kpb_k_ibz[ibi, iki] == ikbi_ibz ||
                 error("Mismatch in k+b index at iki=$(iki) ibi=$(ibi)")
             # TODO check this
             # G = ki + bi - rotate_kpoint(kpoints_ibz[ikbi_ibz], symops[isym_kbi])
-            # kpb_G_ibz[iki][ibi] == G ||
+            # kpb_G_ibz[ibi, iki] == G ||
             #     @warn("Mismatch in G vector at iki=$(iki) ibi=$(ibi)")
 
-            kpb_k_fbz[ikf][ibf] = ikbf_fbz
+            kpb_k_fbz[ibf, ikf] = ikbf_fbz
             G = kf + bf - kpoints_fbz[ikbf_fbz]
             isapprox(G, round.(G); atol = 1.0e-8) ||
                 error("Non-integer G vector at ikf=$(ikf) ibf=$(ibf), G=$G")
-            kpb_G_fbz[ikf][ibf] = round.(G)
+            kpb_G_fbz[ibf, ikf] = Vec3{Int}(round.(Int, G))
 
             # get equivalent operation of h = g₀⁻¹(ki+bi) * g₀⁻¹(kf) * g₀(kf+bf)
             isym_h, factor, T = merge_symops(
@@ -564,13 +575,15 @@ function unfold_overlaps(
 
             ih = ikisym2ih[ikbi_ibz][isym_h]
             d = repmat_band[ih].d
+            Mf_view = view(Mf, :, :, ibf, ikf)
+            M_ibz_view = view(M_ibz, :, :, ibi, iki)
             if symops[isym_kbi].time_reversal
-                Mf[ikf][ibf] = M_ibz[iki][ibi] * conj.(d) * factor
+                Mf_view .= M_ibz_view * conj.(d) * factor
             else
-                Mf[ikf][ibf] = M_ibz[iki][ibi] * d * factor
+                Mf_view .= M_ibz_view * d * factor
             end
             if symops[isym_kf].time_reversal
-                Mf[ikf][ibf] = conj.(Mf[ikf][ibf])
+                Mf_view .= conj.(Mf_view)
             end
 
             kbi_ibz = kpoints_ibz[ikbi_ibz]
@@ -587,7 +600,7 @@ function unfold_overlaps(
                 θ2 *= -1
             end
             phase = exp(-im * 2π * (θ1 + θ2))
-            Mf[ikf][ibf] *= phase
+            Mf_view .*= phase
         end
     end
     iszero(kpb_k_fbz) && error("Some k+b points are not assigned in FBZ")
@@ -596,7 +609,7 @@ function unfold_overlaps(
 end
 
 function unfold_overlaps(
-        M_ibz::AbstractVector,
+        M_ibz::AbstractArray{<:Complex, 4},
         kstencil_ibz::KspaceStencil,
         kstencil_fbz::KspaceStencil,
         fbz2ibz::AbstractVector,
@@ -633,21 +646,24 @@ Reorder the overlap matrices according to the b vector ordering in the stencil.
 - `M`: reordered overlap matrices at each kpoint.
 """
 function reorder(
-        M::AbstractVector, kpb_k::AbstractVector, kpb_G::AbstractVector, kstencil::KspaceStencil
+        M::AbstractArray{<:Complex, 4},
+        kpb_k::AbstractMatrix{Int},
+        kpb_G::AbstractMatrix,
+        kstencil::KspaceStencil,
     )
     nbvec = n_bvectors(kstencil)
     nkpts = n_kpoints(kstencil)
-    nkpts == length(kpb_k) || error("Mismatch in number of kpoints")
-    nbvec == length(kpb_k[1]) || error("Mismatch in number of b vectors")
+    nkpts == size(kpb_k, 2) || error("Mismatch in number of kpoints")
+    nbvec == size(kpb_k, 1) || error("Mismatch in number of b vectors")
 
-    M_new = zeros_overlap(eltype(M[1]), nkpts, nbvec, size(M[1], 1))
+    M_new = zeros_overlap(eltype(M), nkpts, nbvec, size(M, 1))
 
     for ik in 1:nkpts
         bvecs = get_bvectors(kstencil, ik; fractional = true)
         for (ib, b) in enumerate(bvecs)
             ib0 = index_bvector(kstencil.kpoints, kpb_k, kpb_G, ik, b)
             isnothing(ib0) && error("No matching bvector found for ik=$ik ib=$ib")
-            M_new[ik][ib] = M[ik][ib0]
+            view(M_new, :, :, ib, ik) .= view(M, :, :, ib0, ik)
         end
     end
 

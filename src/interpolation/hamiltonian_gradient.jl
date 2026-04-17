@@ -170,7 +170,7 @@ function (interp::VelocityInterpolator)(
     # convert to nested MVec3, result can be accessed as `velocity[ik][iw]`
     return map(1:nkpts) do ik
         map(1:nwann) do iw
-            MVec3{RT}(velocity[1][ik][iw], velocity[2][ik][iw], velocity[3][ik][iw])
+            MVec3{RT}(velocity[1][iw, ik], velocity[2][iw, ik], velocity[3][iw, ik])
         end
     end
 end

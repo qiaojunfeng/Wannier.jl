@@ -52,14 +52,9 @@ function localize_isolated_bands(
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
-    Uinit = [
-        model.gauges[ik][ib, ic] for ib in 1:(n_bands(model)), ic in 1:(n_wannier(model)),
-            ik in 1:length(model.gauges)
-    ]
-
     opt = Optim.optimize(
         Optim.only_fg!(fg!),
-        Uinit,
+        model.gauges,
         meth(; manifold = Manif, linesearch = ls, m = history_size),
         Optim.Options(;
             show_trace = true,
@@ -78,11 +73,7 @@ function localize_isolated_bands(
     show(Ωᶠ)
     println("\n")
 
-    Umin_vec = map(1:(n_kpoints(model))) do ik
-        Umin[:, :, ik]
-    end
-
-    return Umin_vec
+    return Umin
 end
 
 localize_isolated_bands(model::Model; kwargs...) =

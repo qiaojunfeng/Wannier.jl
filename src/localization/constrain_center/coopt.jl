@@ -1,8 +1,8 @@
 function omega(
         terms::Tuple,
         model::MagModel,
-        Uup::AbstractVector{<:AbstractMatrix{T}},
-        Udn::AbstractVector{<:AbstractMatrix{T}},
+        Uup::AbstractArray{T, 3},
+        Udn::AbstractArray{T, 3},
         λs::R,
     ) where {T <: Complex, R <: Real}
     center_term = _find_center_term(terms)

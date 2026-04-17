@@ -44,7 +44,7 @@
     # band-resolved Berry curvature
     Ω_band = interp(kpoints, Wannier.WYSV06BandResolved())
     eigenvalues = HamiltonianInterpolator(hamiltonian)(kpoints)[1]
-    occupations = [Int.(εₖ .<= win["fermi_energy"]) for εₖ in eigenvalues]
+    occupations = [Int.(εₖ .<= win["fermi_energy"]) for εₖ in eachcol(eigenvalues)]
     Ω_band_sum = map(zip(Ω_band, occupations)) do (Ωₖ, fₖ)
         sum(fₖ .* Ωₖ)
     end

@@ -113,3 +113,20 @@ function compute_hamiltonian_times_position_kspace(
     # Hkb can be indexed by Hkb[ik][ib][m, n]
     return Hkb
 end
+
+function compute_hamiltonian_times_position_kspace(
+        overlaps::AbstractArray{<:Complex, 4},
+        kpb_k::AbstractMatrix{Int},
+        kpb_G::AbstractMatrix,
+        eigenvalues::AbstractMatrix,
+    )
+    n_bands, _, n_bvecs, n_kpts = size(overlaps)
+    Hkb = zeros(eltype(overlaps), n_bands, n_bands, n_bvecs, n_kpts)
+    for ik in 1:n_kpts
+        εₖ = view(eigenvalues, :, ik)
+        for ib in 1:n_bvecs
+            view(Hkb, :, :, ib, ik) .= Diagonal(εₖ) * view(overlaps, :, :, ib, ik)
+        end
+    end
+    return Hkb
+end

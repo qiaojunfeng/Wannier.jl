@@ -19,8 +19,8 @@ end
 function TBHamiltonian(
         Rspace::AbstractRspace,
         kpoints::AbstractVector,
-        eigenvalues::AbstractVector,
-        gauges::AbstractVector,
+        eigenvalues::AbstractMatrix,
+        gauges::AbstractArray{<:Complex, 3},
     )
     Hᵏ = transform_gauge(eigenvalues, gauges)
     Hᴿ = fourier(kpoints, Hᵏ, Rspace)
@@ -39,7 +39,7 @@ Construct a [`TBHamiltonian`](@ref) from a Wannierization [`Model`](@ref).
 # Keyword Arguments
 - `MDRS`: whether to use MDRS interpolation
 """
-function TBHamiltonian(model::Model, gauges::AbstractVector = model.gauges; kwargs...)
+function TBHamiltonian(model::Model, gauges::AbstractArray{<:Complex, 3} = model.gauges; kwargs...)
     Rspace = generate_Rspace(model; kwargs...)
     return TBHamiltonian(Rspace, kpoints(model), model.eigenvalues, gauges)
 end
@@ -114,6 +114,27 @@ function LinearAlgebra.eigen!(
     wait.(tasks)
 
     return nothing
+end
+
+function LinearAlgebra.eigen!(
+        eigenvals::AbstractMatrix,
+        eigenvecs::AbstractArray{<:Any, 3},
+        hamiltonian::AbstractVector{<:AbstractMatrix},
+    )
+    nkpts = length(hamiltonian)
+    eigenvals_v = [view(eigenvals, :, ik) for ik in 1:nkpts]
+    eigenvecs_v = [view(eigenvecs, :, :, ik) for ik in 1:nkpts]
+    return eigen!(eigenvals_v, eigenvecs_v, hamiltonian)
+end
+
+function LinearAlgebra.eigen!(
+        eigenvals::AbstractMatrix,
+        eigenvecs::AbstractArray{<:Any, 3},
+        hamiltonian::AbstractArray{<:Any, 3},
+    )
+    nkpts = size(hamiltonian, 3)
+    ham_v = [view(hamiltonian, :, :, ik) for ik in 1:nkpts]
+    return eigen!(eigenvals, eigenvecs, ham_v)
 end
 
 function LinearAlgebra.eigen(hamiltonian::AbstractVector{<:AbstractMatrix})

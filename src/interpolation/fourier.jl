@@ -79,6 +79,12 @@ function fourier(
     return operator_R
 end
 
+function fourier(
+        kpoints::AbstractVector, operator_k::AbstractArray{T, 3}, Rspace::AbstractRspace
+    ) where {T}
+    return fourier(kpoints, [view(operator_k, :, :, ik) for ik in axes(operator_k, 3)], Rspace)
+end
+
 """
     $(SIGNATURES)
 
@@ -147,6 +153,14 @@ end
         operator_k::AbstractVector, tb::TBOperator, kpoints::AbstractVector
     )
     return invfourier!(operator_k, tb.Rspace, tb.operator, kpoints)
+end
+
+function invfourier!(
+        operator_k::AbstractArray{T, 3}, tb::TBOperator, kpoints::AbstractVector
+    ) where {T}
+    nkpts = length(kpoints)
+    v = [view(operator_k, :, :, ik) for ik in 1:nkpts]
+    return invfourier!(v, tb.Rspace, tb.operator, kpoints)
 end
 
 function invfourier(Rspace::BareRspace, operator_R::AbstractVector, kpoints::AbstractVector)

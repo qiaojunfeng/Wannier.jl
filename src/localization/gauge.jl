@@ -13,21 +13,16 @@ where ``[\\epsilon_{n \\bm{k}}]`` is a diagonal matrix with
 ``\\epsilon_{n \\bm{k}}`` as the diagonal elements.
 
 # Arguments
-- `eigenvalues`: the eigenvalues, length-`n_kpoints` vector, each element is a
-    length-`n_bands` vector
-- `gauges`: the gauges, length-`n_kpoints` vector, each element is a
-    `n_bands * n_wannier` matrix
+- `eigenvalues`: the eigenvalues, `n_bands × n_kpoints` matrix
+- `gauges`: the gauges, `n_bands × n_wannier × n_kpoints` array
 """
-function transform_gauge(
-        eigenvalues::AbstractVector{V}, gauges::AbstractVector{T}
-    ) where {V <: AbstractVector, T <: AbstractMatrix}
-    nkpts = length(eigenvalues)
-    @assert nkpts > 0 "empty eigenvalues"
-    @assert length(gauges) == nkpts "different length of eigenvalues and gauges"
-    nbands = size(gauges[1], 1)
-    @assert length(eigenvalues[1]) == nbands "eigenvalues have wrong n_bands"
-
-    return map(zip(eigenvalues, gauges)) do (ε, U)
+function transform_gauge(eigenvalues::AbstractMatrix, gauges::AbstractArray{T, 3}) where {T}
+    nkpts = size(eigenvalues, 2)
+    nwann = size(gauges, 2)
+    H = zeros(T, nwann, nwann, nkpts)
+    for ik in 1:nkpts
+        U = view(gauges, :, :, ik)
+        ε = view(eigenvalues, :, ik)
         # I need to force Hermiticity here, otherwise in some cases,
         # especially degenerate eigenvalues, the eigenvectors of Hᵏ,
         #   F = eigen(Hᵏ)
@@ -42,8 +37,9 @@ function transform_gauge(
         # so I enforce Hermiticity here.
         # See also
         # https://discourse.julialang.org/t/a-b-a-is-not-hermitian-even-when-b-is/70611
-        Hermitian(U' * Diagonal(ε) * U)
+        H[:, :, ik] .= Hermitian(U' * Diagonal(ε) * U)
     end
+    return H
 end
 
 """
@@ -56,18 +52,17 @@ For each kpoint ``\\mathbf{k}``,
 U^{\\dagger}_{\\mathbf{k}} O_{\\mathbf{k}} U_{\\mathbf{k}}.
 ```
 """
-function transform_gauge(
-        O::AbstractVector{V}, U::AbstractVector{T}
-    ) where {V <: AbstractMatrix, T <: AbstractMatrix}
-    nkpts = length(U)
-    @assert nkpts > 0 "U must be non-empty"
-    nbands, nwann = size(U[1])
-    @assert length(O) == nkpts "O has wrong n_kpoints"
-    @assert size(O[1], 1) == nbands "O has wrong n_bands"
-
-    return map(zip(O, U)) do (o, u)
-        u' * o * u
+function transform_gauge(O::AbstractArray{T1, 3}, U::AbstractArray{T2, 3}) where {T1, T2}
+    T = promote_type(T1, T2)
+    nkpts = size(U, 3)
+    nwann = size(U, 2)
+    O2 = zeros(T, nwann, nwann, nkpts)
+    for ik in 1:nkpts
+        u = view(U, :, :, ik)
+        o = view(O, :, :, ik)
+        O2[:, :, ik] .= u' * o * u
     end
+    return O2
 end
 
 """
@@ -80,21 +75,23 @@ For each kpoint ``\\mathbf{k}``,
 U_{\\mathbf{k}}^{\\dagger} M_{\\mathbf{k},\\mathbf{b}} U_{\\mathbf{k + b}}
 ```
 """
-@views function transform_gauge(M::AbstractVector, kpb_k::AbstractVector, U::AbstractVector)
-    nkpts = length(M)
-    @assert length(M) == length(kpb_k) == length(U) "M, kpb_k, U must have same n_kpoints"
-    @assert nkpts > 0 "M must be non-empty"
-    nbands, nwann = size(U[1])
-    nbvecs = length(M[1])
-    @assert nbvecs > 0 "M must be non-empty"
-    @assert (nbands, nbands) == size(M[1][1]) "M has wrong n_bands"
-
-    return map(1:nkpts) do ik
-        return map(1:nbvecs) do ib
-            ikpb = kpb_k[ik][ib]
-            return U[ik]' * M[ik][ib] * U[ikpb]
+function transform_gauge(
+        M::AbstractArray{<:Complex, 4}, kpb_k::AbstractMatrix, U::AbstractArray{<:Complex, 3}
+    )
+    nkpts = size(M, 4)
+    nbvecs = size(M, 3)
+    nwann = size(U, 2)
+    T = promote_type(eltype(M), eltype(U))
+    M2 = zeros(T, nwann, nwann, nbvecs, nkpts)
+    for ik in 1:nkpts
+        u = view(U, :, :, ik)
+        for ib in 1:nbvecs
+            ikpb = kpb_k[ib, ik]
+            upb = view(U, :, :, ikpb)
+            M2[:, :, ib, ik] .= u' * view(M, :, :, ib, ik) * upb
         end
     end
+    return M2
 end
 
 """
@@ -104,8 +101,7 @@ Rotate the gauge of a `Model`.
 
 # Arguments
 - `model`: a [`Model`](@ref)
-- `U`: unitary gauge rotation matrix ``U_{\\mathbf{k}}``,
-    length-`n_kpoints` vector, each element is a `n_wannier * n_wannier`
+- `U`: unitary gauge rotation matrix, `n_bands × n_wannier × n_kpoints` array
 
 # Keyword Arguments
 - `ensure_bloch_gauge`:
@@ -128,38 +124,32 @@ Rotate the gauge of a `Model`.
     the inverse of the eigenvectors to `model.gauges`; otherwise, if the rotated
     Hamiltonian is not diagonal, raise error.
 """
-function rotate_gauge!(model::Model, U::AbstractVector; ensure_bloch_gauge::Bool = true) end
+function rotate_gauge!(model::Model, U::AbstractArray{<:Complex, 3}; ensure_bloch_gauge::Bool = true) end
 
 function transform_gauge(
-        model::Model, U::Vector{Matrix{T}}; ensure_bloch_gauge::Bool = false
-    ) where {T <: Number}
+        model::Model, U::AbstractArray{<:Complex, 3}; ensure_bloch_gauge::Bool = false
+    )
     nbands = n_bands(model)
     nkpts = n_kpoints(model)
-    (size(U[1], 1), length(U)) == (nbands, nkpts) ||
+    (size(U, 1), size(U, 3)) == (nbands, nkpts) ||
         error("inconsistent size between U and model")
-    # The new n_wann
-    nwann = size(U[1], 2)
+    nwann = size(U, 2)
 
-    # the new gauge is just identity
-    U2 = identity_gauge(eltype(U[1]), nkpts, nwann)
+    U2 = identity_gauge(eltype(U), nkpts, nwann)
 
-    # EIG
     E = model.eigenvalues
-    E2 = map(m -> similar(m), E)
-    H = zeros(eltype(model.gauges[1]), nwann, nwann)
-    # tolerance for checking Hamiltonian
+    E2 = zeros(real(eltype(U)), nwann, nkpts)
+    H = zeros(eltype(U), nwann, nwann)
     atol = 1.0e-8
-    # all the diagonalized kpoints, used if diag_H = true
     diag_kpts = Int[]
     for ik in 1:nkpts
-        Uₖ = U[ik]
-        H .= Uₖ' * diagm(0 => E[ik]) * Uₖ
+        Uₖ = view(U, :, :, ik)
+        H .= Uₖ' * diagm(0 => view(E, :, ik)) * Uₖ
         ϵ = diag(H)
         if norm(H - diagm(0 => ϵ)) > atol
             if ensure_bloch_gauge
-                # diagonalize the Hamiltonian
                 ϵ, v = eigen(H)
-                U2[ik] = v
+                U2[:, :, ik] .= v
                 push!(diag_kpts, ik)
             else
                 error("H is not diagonal after gauge rotation")
@@ -168,18 +158,16 @@ function transform_gauge(
         if any(imag(ϵ) .> atol)
             error("H has non-zero imaginary part")
         end
-        E2[ik] = real(ϵ)
+        E2[:, ik] .= real(ϵ)
     end
 
-    # MMN
     M = model.overlaps
-    kpb_k = model.kstencil.kpb_k
-    M2 = transform_gauge(M, kpb_k, U)
+    kpbk = model.kstencil.kpb_k
+    M2 = transform_gauge(M, kpbk, U)
     if ensure_bloch_gauge && length(diag_kpts) > 0
-        M2 = transform_gauge(M2, kpb_k, U2)
-        # the gauge matrix needs to save the inverse of the eigenvectors
+        M2 = transform_gauge(M2, kpbk, U2)
         for ik in diag_kpts
-            U2[ik] = inv(U2[ik])
+            U2[:, :, ik] .= inv(view(U2, :, :, ik))
         end
     end
 
@@ -191,7 +179,7 @@ function transform_gauge(
         M2,
         U2,
         E2,
-        [falses(nwann) for i in 1:nkpts],
+        falses(nwann, nkpts),
     )
     return model2
 end

@@ -37,13 +37,12 @@ struct KspaceStencil{T <: Real}
 
     """Indices of kpoints that are periodic images of \\mathbf{k+b} vectors.
     the real ``\\mathbf{k+b}`` vector has periodic image ``\\mathbf{k^\\prime}``
-    kpoint inside the reciprocal lattice, the `kpb_k[ik][ib]` is the index
+    kpoint inside the reciprocal lattice, the `kpb_k[ib, ik]` is the index
     of this ``\\mathbf{k^\\prime}`` kpoint of the `kpoints` variable, i.e.,
     the true ``\\mathbf{b}``-vector can be retrieved by
-    `b = kpoints[kpb_k[ik][ib]] + kpb_G[ik][ib] - kpoints[ik]`.
-    length-`n_kpoints` vector, each element is a length-`n_bvectors` vector
-    of integers. `kpb` is the abbreviation for `k plus b`."""
-    kpb_k::Vector{Vector{Int}}
+    `b = kpoints[kpb_k[ib, ik]] + kpb_G[ib, ik] - kpoints[ik]`.
+    `n_bvectors × n_kpoints` matrix. `kpb` is the abbreviation for `k plus b`."""
+    kpb_k::Matrix{Int}
 
     """displacement vector between the true ``\\mathbf{k+b}`` vector and its
     periodic image inside reciprocal lattice.
@@ -53,10 +52,8 @@ struct KspaceStencil{T <: Real}
 
     In fractional coordinates, actually always integers since they are
     multiples of reciprocal lattice vectors.
-    Length-`n_kpoints` vector, each element is a length-`n_bvectors` vector,
-    then each element is a `Vec3` for the x, y, z components of the
-    shifting vector."""
-    kpb_G::Vector{Vector{Vec3{Int}}}
+    `n_bvectors × n_kpoints` matrix, each element is a `Vec3`."""
+    kpb_G::Matrix{Vec3{Int}}
 end
 
 function KspaceStencil(recip_lattice, kpoints, kpb_k, kpb_G)
@@ -81,16 +78,16 @@ Generate ``b``-vectors from 1st kpoint, in Cartesian coordinates.
 function get_bvectors(
         recip_lattice::Mat3,
         kpoints::AbstractVector,
-        kpb_k::AbstractVector,
-        kpb_G::AbstractVector,
+        kpb_k::AbstractMatrix,
+        kpb_G::AbstractMatrix,
         ik::Integer = 1,
     )
     (0 < ik <= length(kpoints)) || error("ik out of bounds")
-    n_bvecs = length(kpb_k[1])
+    n_bvecs = size(kpb_k, 1)
     bvectors = zeros(Vec3{Float64}, n_bvecs)
     for ib in 1:n_bvecs
-        ikpb = kpb_k[ik][ib]
-        G = kpb_G[ik][ib]
+        ikpb = kpb_k[ib, ik]
+        G = kpb_G[ib, ik]
         bvectors[ib] = recip_lattice * (kpoints[ikpb] + G - kpoints[ik])
     end
     return bvectors
@@ -102,7 +99,7 @@ end
 Return ``b``-vectors in fractional coordinates.
 """
 function get_bvectors(
-        kpoints::AbstractVector, kpb_k::AbstractVector, kpb_G::AbstractVector, ik::Integer = 1
+        kpoints::AbstractVector, kpb_k::AbstractMatrix, kpb_G::AbstractMatrix, ik::Integer = 1
     )
     return get_bvectors(mat3(I(3)), kpoints, kpb_k, kpb_G, ik)
 end
@@ -417,16 +414,16 @@ function sort_bvectors(
 
     # find k+b indices
     nkpts = length(kpoints)
-    kpb_k = [zeros(Int, nbvecs) for _ in 1:nkpts]
-    kpb_G = [zeros(Vec3{Int}, nbvecs) for _ in 1:nkpts]
+    kpb_k = zeros(Int, nbvecs, nkpts)
+    kpb_G = zeros(Vec3{Int}, nbvecs, nkpts)
 
     for (ik, kpt) in enumerate(kpoints)
         # use fractional coordinates for comparisons
         ik_equiv, G_equiv = bvectors_to_kpb(bvectors_frac, kpt, kpoints)
         perm = sort_kpb(bvectors_norm, ik_equiv, G_equiv, translations; atol)
 
-        kpb_k[ik] = ik_equiv[perm]
-        kpb_G[ik] = G_equiv[perm]
+        kpb_k[:, ik] .= ik_equiv[perm]
+        kpb_G[:, ik] .= G_equiv[perm]
         # since small-length bvectors go first, their bweights should not change
         @assert iszero(bweights - bweights[perm]) "bvector bweights should not change"
     end
@@ -441,7 +438,7 @@ function sort_bvectors(
     # However, this additional step can make sure the `KspaceStencil.bvectors` are
     # exactly the same as the wannier90 wout file, so we can directly test
     # against the wout file.
-    bvectors = map(zip(kpb_k[1], kpb_G[1])) do (ikpb, G)
+    bvectors = map(zip(kpb_k[:, 1], kpb_G[:, 1])) do (ikpb, G)
         recip_lattice * (kpoints[ikpb] + G - kpoints[1])
     end
 
@@ -512,13 +509,15 @@ function reorder(stencil::KspaceStencil)
     bvectors_frac = map(stencil.bvectors) do b
         inv_recip_lattice * b
     end
-    kpb_k = deepcopy(stencil.kpb_k)
-    kpb_G = deepcopy(stencil.kpb_G)
+    nbvecs = length(stencil.bvectors)
+    nkpts = length(kpoints)
+    kpb_k = zeros(Int, nbvecs, nkpts)
+    kpb_G = zeros(Vec3{Int}, nbvecs, nkpts)
     for (ik, kpt) in enumerate(kpoints)
         # use fractional coordinates for comparisons
         ik_equiv, G_equiv = bvectors_to_kpb(bvectors_frac, kpt, kpoints)
-        kpb_k[ik] = ik_equiv
-        kpb_G[ik] = G_equiv
+        kpb_k[:, ik] .= ik_equiv
+        kpb_G[:, ik] .= G_equiv
     end
     return KspaceStencil(
         stencil.recip_lattice, stencil.kgrid_size, stencil.kpoints,
@@ -574,14 +573,14 @@ This is a reverse search of bvector index if you only know the two kpoints
 - `G`: displacement vector from `k1` to `k2`, e.g. `Vec3{Int}`
 """
 function index_bvector(
-        kpb_k::AbstractVector,
-        kpb_G::AbstractVector,
+        kpb_k::AbstractMatrix,
+        kpb_G::AbstractMatrix,
         ik::Integer,
         ikpb::Integer,
         G::AbstractVector,
     )
-    for (jb, (jk, jG)) in enumerate(zip(kpb_k[ik], kpb_G[ik]))
-        if jk == ikpb && jG == G
+    for jb in axes(kpb_k, 1)
+        if kpb_k[jb, ik] == ikpb && kpb_G[jb, ik] == G
             return jb
         end
     end
@@ -611,8 +610,8 @@ Get the index of b vector.
 """
 function index_bvector(
         kpoints::AbstractVector,
-        kpb_k::AbstractVector,
-        kpb_G::AbstractVector,
+        kpb_k::AbstractMatrix,
+        kpb_G::AbstractMatrix,
         ik::Integer,
         b::AbstractVector,
     )
@@ -648,14 +647,14 @@ function generate_kspace_stencil(
 
     # generate bvectors for each kpoint, always the same across kpoints
     nkpts = length(kpoints)
-    kpb_k = [zeros(Int, nbvecs) for _ in 1:nkpts]
-    kpb_G = [zeros(Vec3{Int}, nbvecs) for _ in 1:nkpts]
+    kpb_k = zeros(Int, nbvecs, nkpts)
+    kpb_G = zeros(Vec3{Int}, nbvecs, nkpts)
 
     for (ik, kpt) in enumerate(kpoints)
         # use fractional coordinates for comparisons
         k_equiv, G_equiv = bvectors_to_kpb(bvectors_frac, kpt, kpoints)
-        kpb_k[ik] = k_equiv
-        kpb_G[ik] = G_equiv
+        kpb_k[:, ik] .= k_equiv
+        kpb_G[:, ik] .= G_equiv
     end
 
     bvectors = map(bvectors_frac) do b

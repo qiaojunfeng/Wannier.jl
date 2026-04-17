@@ -35,7 +35,7 @@ function WannierIO.read_nnkp(
     kgrid_size = guess_kgrid_size(kpoints)
     bvectors = get_bvectors(recip_lattice, kpoints, kpb_k, kpb_G)
 
-    n_bvecs = length(kpb_k[1])
+    n_bvecs = size(kpb_k, 1)
     if isnothing(weights)
         # If weights are not provided, set them to 0.0
         weights = zeros(Float64, n_bvecs)
@@ -95,8 +95,8 @@ Check if the kpoint stencil (bvectors) contain 6 cubic neighbors.
 """
 function has_cubic_neighbors(
         kpoints::AbstractVector,
-        kpb_k::AbstractVector,
-        kpb_G::AbstractVector;
+        kpb_k::AbstractMatrix,
+        kpb_G::AbstractMatrix;
         kgrid_size::AbstractVector = guess_kgrid_size(kpoints),
         atol::AbstractFloat = 1.0e-6,
     )
@@ -113,7 +113,7 @@ function has_cubic_neighbors(
 
     # Only need to check the first kpoint
     idx = 1
-    bvectors = kpoints[kpb_k[idx]] .+ kpb_G[idx] .- Ref(kpoints[idx])
+    bvectors = kpoints[kpb_k[:, idx]] .+ kpb_G[:, idx] .- Ref(kpoints[idx])
 
     for b in bvectors_cubic
         if isnothing(findfirst(isapprox(b; atol), bvectors))

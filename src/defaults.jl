@@ -44,11 +44,11 @@ Default entangled bands, i.e., all participating in disentanglement.
 function default_entangled_bands end
 
 function default_entangled_bands(nkpoints::Integer, nbands::Integer)
-    return [trues(nbands) for _ in 1:nkpoints]
+    return trues(nbands, nkpoints)
 end
 
-function default_entangled_bands(gauges::AbstractVector)
-    return default_entangled_bands(length(gauges), size(gauges[1], 1))
+function default_entangled_bands(gauges::AbstractArray{<:Any, 3})
+    return trues(size(gauges, 1), size(gauges, 3))
 end
 
 """Wannier90's default number of kpoints along the 1st segment of kpath."""

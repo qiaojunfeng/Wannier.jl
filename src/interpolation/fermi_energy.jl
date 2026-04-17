@@ -270,7 +270,9 @@ function compute_fermi_energy(
     )
     kpoints = get_kpoints(kgrid)
     eigenvals, _ = interp(kpoints)
-    adpt_kgrid = AdaptiveKgrid(kpoints, eigenvals)
+    eigenvals_v = eigenvals isa AbstractMatrix ?
+        [collect(view(eigenvals, :, ik)) for ik in axes(eigenvals, 2)] : eigenvals
+    adpt_kgrid = AdaptiveKgrid(kpoints, eigenvals_v)
     return compute_fermi_energy!(adpt_kgrid, interp, n_electrons, kBT, smearing; kwargs...)
 end
 
@@ -338,7 +340,12 @@ function compute_fermi_energy!(
         # I should iterate odd grid 1st, otherwise it seems the graphene
         # case could still stuck at wrong εF with [8, 8, 1] kgrid
         n_subvoxels = iter % 2 == 0 ? 2 : 3
-        refine!(adpt_kgrid, refine_iks, x -> interp(x)[1]; n_subvoxels, axes)
+        interp_fun = function (x)
+            e = interp(x)[1]
+            return e isa AbstractMatrix ?
+                [collect(view(e, :, ik)) for ik in 1:size(e, 2)] : e
+        end
+        refine!(adpt_kgrid, refine_iks, interp_fun; n_subvoxels, axes)
 
         εF_prev = εF
         εF = compute_fermi_energy(

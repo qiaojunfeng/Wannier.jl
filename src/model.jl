@@ -41,29 +41,28 @@ struct Model{T <: Real}
     kstencil::KspaceStencil{T}
 
     """overlap matrices between neighboring wavefunctions, ``M_{\\bm{k},\\bm{b}}``.
-    Length-`n_kpoints` vector, each element is a length-`n_bvectors` vector, then
-    each element is a `n_bands * n_bands` matrix.
+    `n_bands × n_bands × n_bvectors × n_kpoints` array.
     Also called `mmn` matrices in wannier90"""
-    overlaps::Vector{Vector{Matrix{Complex{T}}}}
+    overlaps::Array{Complex{T}, 4}
 
     """unitary or semi-unitary gauge transformation matrices, ``U_{\\bm{k}}``,
     or called the gauge matrices.
-    Length-`n_kpoints` vector, each element is a `n_bands * n_wannier` matrix"""
-    gauges::Vector{Matrix{Complex{T}}}
+    `n_bands × n_wannier × n_kpoints` array"""
+    gauges::Array{Complex{T}, 3}
 
-    """energy eigenvalues, ``\\varepsilon_{n \\bm{k}}``, length-`n_kpoints` vector,
-    each element is a length-`n_bands` vector, in eV unit"""
-    eigenvalues::Vector{Vector{T}}
+    """energy eigenvalues, ``\\varepsilon_{n \\bm{k}}``,
+    `n_bands × n_kpoints` matrix, in eV unit"""
+    eigenvalues::Matrix{T}
 
-    """mask for frozen bands. Length-`n_kpoints` vector, each element is a
-    length-`n_bands` BitVector. If `true` the the state at that kpoint and band
-    index is kept unchanged during the disentanglement procedure."""
-    frozen_bands::Vector{BitVector}
+    """mask for frozen bands. `n_bands × n_kpoints` BitMatrix.
+    If `true` the the state at that kpoint and band index is kept unchanged
+    during the disentanglement procedure."""
+    frozen_bands::BitMatrix
 
-    """mask for bands taking part in disentanglement. Length-`n_kpoints` vector,
-    each element is a length-`n_bands` BitVector. If `true` the the state at that
-    kpoint and band index participates the disentanglement procedure."""
-    entangled_bands::Vector{BitVector}
+    """mask for bands taking part in disentanglement. `n_bands × n_kpoints` BitMatrix.
+    If `true` the the state at that kpoint and band index participates the
+    disentanglement procedure."""
+    entangled_bands::BitMatrix
 end
 
 function Model(
@@ -71,40 +70,35 @@ function Model(
         atom_positions::AbstractVector,
         atom_labels::AbstractVector,
         kstencil::KspaceStencil,
-        overlaps::AbstractVector,
-        gauges::AbstractVector,
-        eigenvalues::AbstractVector,
-        frozen_bands::AbstractVector,
-        entangled_bands::AbstractVector = default_entangled_bands(gauges),
+        overlaps::AbstractArray{<:Complex, 4},
+        gauges::AbstractArray{<:Complex, 3},
+        eigenvalues::AbstractMatrix{<:Real},
+        frozen_bands::AbstractMatrix{Bool},
+        entangled_bands::AbstractMatrix{Bool} = default_entangled_bands(gauges),
     )
-    # I introduce another set of accronyms for the dimensions of the matrices,
-    # natoms -> n_atoms, nkpts -> n_kpoints, nbands -> n_bands, nwann -> n_wannier
-    # so that they don't clash with those function names.
     natoms = length(atom_positions)
     @assert length(atom_labels) == natoms "atom_labels has wrong number of atoms"
 
     nkpts = n_kpoints(kstencil)
-    @assert nkpts > 0 "empty kpoints"
-    @assert length(overlaps) == nkpts "overlaps has wrong number of kpoints"
-    @assert length(gauges) == nkpts "gauges has wrong number of kpoints"
-    @assert length(eigenvalues) == nkpts "eigenvalues has wrong number of kpoints"
-    @assert length(frozen_bands) == nkpts "frozen_bands has wrong number of kpoints"
-    @assert length(entangled_bands) == nkpts "entangled_bands has wrong number of kpoints"
-    @assert n_kpoints(kstencil) == nkpts "bvectors has wrong number of kpoints"
-
     nbvecs = n_bvectors(kstencil)
-    @assert all(length(Mk) == nbvecs for Mk in overlaps) "overlaps has wrong number of b-vectors"
+    @assert nkpts > 0 "empty kpoints"
+    @assert size(overlaps, 4) == nkpts "overlaps has wrong number of kpoints"
+    @assert size(overlaps, 3) == nbvecs "overlaps has wrong number of b-vectors"
+    @assert size(gauges, 3) == nkpts "gauges has wrong number of kpoints"
+    @assert size(eigenvalues, 2) == nkpts "eigenvalues has wrong number of kpoints"
+    @assert size(frozen_bands, 2) == nkpts "frozen_bands has wrong number of kpoints"
+    @assert size(entangled_bands, 2) == nkpts "entangled_bands has wrong number of kpoints"
 
-    nbands, nwann = size(gauges[1])
+    nbands = size(overlaps, 1)
+    nwann = size(gauges, 2)
+    @assert size(overlaps, 2) == nbands "overlaps must be square in band dimensions"
     @assert nbands ≥ nwann "number of bands must ≥ number of Wannier functions"
-    @assert all(all(size(Mkb) == (nbands, nbands) for Mkb in Mk) for Mk in overlaps) "overlaps has wrong number of bands"
-    @assert all(size(Uk) == (nbands, nwann) for Uk in gauges) "gauges has wrong number of bands or Wannier functions"
-    @assert all(length(εk) == nbands for εk in eigenvalues) "eigenvalues has wrong number of bands"
-    @assert all(length(fk) == nbands for fk in frozen_bands) "frozen_bands has wrong number of bands"
-    @assert all(length(ek) == nbands for ek in entangled_bands) "entangled_bands has wrong number of bands"
+    @assert size(gauges, 1) == nbands "gauges has wrong number of bands"
+    @assert size(eigenvalues, 1) == nbands "eigenvalues has wrong number of bands"
+    @assert size(frozen_bands, 1) == nbands "frozen_bands has wrong number of bands"
+    @assert size(entangled_bands, 1) == nbands "entangled_bands has wrong number of bands"
 
-    T = promote_type(eltype(lattice), eltype(recip_lattice))
-    T = promote_type(T, eltype(real(overlaps[1][1])), eltype(real(gauges[1])))
+    T = promote_type(eltype(lattice), real(eltype(overlaps)), real(eltype(gauges)))
     CT = Complex{T}
 
     return Model{T}(
@@ -112,11 +106,11 @@ function Model(
         Vector{Vec3{T}}(atom_positions),
         atom_labels,
         kstencil,
-        Vector{Vector{Matrix{CT}}}(overlaps),
-        Vector{Matrix{CT}}(gauges),
-        Vector{Vector{T}}(eigenvalues),
-        frozen_bands,
-        entangled_bands,
+        Array{CT, 4}(overlaps),
+        Array{CT, 3}(gauges),
+        Matrix{T}(eigenvalues),
+        BitMatrix(frozen_bands),
+        BitMatrix(entangled_bands),
     )
 end
 
@@ -132,10 +126,10 @@ For instance, use a cubic-6-neighbors `KspaceStencil` for
 function Model(
         model::Model,
         kstencil::KspaceStencil,
-        overlaps::AbstractVector,
-        gauges::AbstractVector = model.gauges,
-        eigenvalues::AbstractVector = model.eigenvalues,
-        frozen_bands::AbstractVector = model.frozen_bands,
+        overlaps::AbstractArray{<:Complex, 4},
+        gauges::AbstractArray{<:Complex, 3} = model.gauges,
+        eigenvalues::AbstractMatrix{<:Real} = model.eigenvalues,
+        frozen_bands::AbstractMatrix{Bool} = model.frozen_bands,
     )
     return Model(
         model.lattice,
@@ -152,8 +146,8 @@ end
 n_atoms(model::Model) = length(model.atom_positions)
 n_kpoints(model::Model) = n_kpoints(model.kstencil)
 n_bvectors(model::Model) = n_bvectors(model.kstencil)
-n_bands(model::Model) = isempty(model.gauges) ? 0 : size(model.gauges[1], 1)
-n_wannier(model::Model) = isempty(model.gauges) ? 0 : size(model.gauges[1], 2)
+n_bands(model::Model) = size(model.gauges, 1)
+n_wannier(model::Model) = size(model.gauges, 2)
 CrystalBase.real_lattice(model::Model) = model.lattice
 CrystalBase.reciprocal_lattice(model::Model) = reciprocal_lattice(model.kstencil)
 

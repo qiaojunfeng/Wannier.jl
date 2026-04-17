@@ -155,16 +155,73 @@ function WannierIO.RvectorReducer(Rspace::WignerSeitzRspace)
     return WannierIO.RvectorReducer(Rspace.Rvectors, Rspace.n_Rdegens)
 end
 
-function simplify(Rspace::Union{MDRSRspace,WignerSeitzRspace}, operators::AbstractVector...)
+function simplify(Rspace::Union{MDRSRspace,WignerSeitzRspace}, operators...)
     reducer = RvectorReducer(Rspace)
     bare_Rspace = BareRspace(Rspace.lattice, reducer.Rvectors)
-    bare_operators = map(reducer, operators)
+    bare_operators = map(op -> _apply_reducer(reducer, op), operators)
     return bare_Rspace, bare_operators...
 end
 
-function simplify(Rspace::BareRspace, operators::AbstractVector...)
+function simplify(Rspace::BareRspace, operators...)
     return Rspace, operators...
 end
+
+"""Apply an Rvector reducer to an operator stored as a 3D numeric array."""
+_apply_reducer(reducer, op::AbstractArray{<:Number, 3}) = reducer(op)
+
+"""Apply an Rvector reducer to a vector-of-matrices of numeric scalars."""
+function _apply_reducer(reducer, op::AbstractVector{<:AbstractMatrix{T}}) where {T <: Number}
+    A = _stack_to_3D(op)
+    R = reducer(A)
+    return _split_from_3D(R)
+end
+
+"""Apply an Rvector reducer to a vector-of-matrices of static-array elements (Vec3/MVec3/MMat3/...)."""
+function _apply_reducer(
+        reducer, op::AbstractVector{<:AbstractMatrix{V}}
+    ) where {V <: StaticArray}
+    nR = length(op)
+    nwann = size(op[1], 1)
+    CT = eltype(V)
+    S = size(V)
+    cis = CartesianIndices(S)
+    reduced = map(cis) do ci
+        scalar = Array{CT, 3}(undef, nwann, nwann, nR)
+        for iR in 1:nR
+            @inbounds for n in 1:nwann, m in 1:nwann
+                scalar[m, n, iR] = op[iR][m, n][ci]
+            end
+        end
+        return reducer(scalar)
+    end
+    nR_new = size(first(reduced), 3)
+    result = [Matrix{V}(undef, nwann, nwann) for _ in 1:nR_new]
+    for iR in 1:nR_new
+        @inbounds for n in 1:nwann, m in 1:nwann
+            buf = Array{CT}(undef, S...)
+            for ci in cis
+                buf[ci] = reduced[ci][m, n, iR]
+            end
+            result[iR][m, n] = V(buf)
+        end
+    end
+    return result
+end
+
+"""Stack a vector of equally-sized matrices into a 3D array along dim 3."""
+function _stack_to_3D(op::AbstractVector{<:AbstractMatrix{T}}) where {T}
+    nR = length(op)
+    nwann = size(op[1], 1)
+    A = Array{T, 3}(undef, nwann, nwann, nR)
+    for iR in 1:nR
+        @inbounds A[:, :, iR] .= op[iR]
+    end
+    return A
+end
+
+"""Split a 3D array into a vector of matrix slices (copies)."""
+_split_from_3D(A::AbstractArray{T, 3}) where {T} =
+    [collect(view(A, :, :, iR)) for iR in axes(A, 3)]
 
 """
     $(SIGNATURES)

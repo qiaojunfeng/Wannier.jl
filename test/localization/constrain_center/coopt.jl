@@ -44,14 +44,10 @@ end
     using NLSolversBase
 
     function fup(Uup)
-        return Wannier.omega_updn(
-            model, [Uup[:, :, ik] for ik in 1:size(Uup, 3)], model.dn.gauges
-        )
+        return Wannier.omega_updn(model, Uup, model.dn.gauges)
     end
     function fdn(Udn)
-        return Wannier.omega_updn(
-            model, model.up.gauges, [Udn[:, :, ik] for ik in 1:size(Udn, 3)]
-        )
+        return Wannier.omega_updn(model, model.up.gauges, Udn)
     end
 
     # analytical gradient
@@ -60,22 +56,22 @@ end
     Gdn *= λs
 
     # finite diff gradient
-    u_up0 = stack(model.up.gauges)
+    u_up0 = copy(model.up.gauges)
     d = OnceDifferentiable(fup, u_up0)
     Gup_ref = NLSolversBase.gradient!(d, u_up0)
-    u_dn0 = stack(model.dn.gauges)
+    u_dn0 = copy(model.dn.gauges)
     d = OnceDifferentiable(fdn, u_dn0)
     Gdn_ref = NLSolversBase.gradient!(d, u_dn0)
 
     # I am using a looser tolerance here
-    @test isapprox(stack(Gup), Gup_ref; atol = 1.0e-6)
-    @test isapprox(stack(Gdn), Gdn_ref; atol = 1.0e-6)
+    @test isapprox(Gup, Gup_ref; atol = 1.0e-6)
+    @test isapprox(Gdn, Gdn_ref; atol = 1.0e-6)
 end
 
 @testitem "coopt center spread gradient" setup = [CooptCenterEnv] begin
     using NLSolversBase
 
-    nb, nw = size(model.up.gauges[1])
+    nb, nw = size(model.up.gauges, 1), size(model.up.gauges, 2)
     n_inner = nb * nw + nw^2  # size of XY at each k-point
 
     Xup0, Yup0 = Wannier.U_to_X_Y(model.up.gauges, model.up.frozen_bands)

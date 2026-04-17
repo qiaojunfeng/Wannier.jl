@@ -225,17 +225,18 @@ Each commit ends with: full test suite green + reference baselines match within 
 
 Structural conversion first, then math hygiene on top of the new shape.
 
-**Commit B0 — Remove getproperty forwarding, add accessor functions.**
+**Commit B0 — Remove getproperty forwarding, add accessor functions.** ✅ Done.
 - Delete `Base.propertynames(::Model)` and `Base.getproperty(::Model, ::Symbol)` in `src/model.jl`.
 - Add `kpoints`, `n_kpoints`, `n_bvectors`, `reciprocal_lattice`, `real_lattice`, `kgrid_size`, `kpb_k`, `kpb_G`, `bweights` as functions.
 - Update every call site that currently uses `model.kpoints`, `model.recip_lattice`, `model.kgrid_size`, `model.kpb_k`, `model.kpb_G`, `model.bweights`.
 - Net diff is large but mechanical.
 
-**Commit B1 — Dense arrays in Model, coordinated with WannierIO.jl.**
+**Commit B1 — Dense arrays in Model, coordinated with WannierIO.jl.** ✅ Done.
 - Change `Model.overlaps` from `Vector{Vector{Matrix{Complex{T}}}}` to `Array{Complex{T}, 4}` with shape `(n_bands, n_bands, n_bvectors, n_kpoints)`.
 - Change `Model.gauges` to `Array{Complex{T}, 3}`, `Model.eigenvalues` to `Matrix{T}`, `Model.frozen_bands` / `entangled_bands` to `BitMatrix`.
 - In `WannierIO.jl`: update `src/w90/mmn.jl` parser to emit the 4D overlap array directly; update `src/w90/amn.jl`, `src/w90/eig.jl`, `src/w90/chk.jl` to match. Writer side too.
 - In Wannier.jl: update `src/io/w90/*.jl` construction path; update `src/spread.jl` kernels (`compute_MU_UtMU!`, `omega!`, `omega_grad!`) to take slices via `@view overlaps[:, :, ib, ik]`.
+- Also: interpolation pipeline migrated to operate on 3D arrays from WannierIO reducers — `simplify` now dispatches on 3D / scalar-matrix / static-array-matrix operator inputs; `fourier` / `invfourier` extended to accept `Array{T,3}`; `eigen!` dense overloads added; `compute_D_matrix` / `projectability` / hamiltonian hessian updated for Matrix eigenvalues + 3D gauges; tests updated to new return shapes.
 - Coordinate release: Wannier.jl bumps WannierIO.jl compat lower bound.
 - Large blast radius; parity gate is critical here.
 

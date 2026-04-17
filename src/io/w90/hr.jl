@@ -20,7 +20,7 @@ Read `prefix_hr.dat` and `prefix_wsvec.dat` and construct tight-binding models.
 function read_w90_hr(prefix::AbstractString, lattice::AbstractMatrix)
     dat = _raw_read_w90_hr(prefix, lattice)
     Rspace = dat.Rspace
-    H = dat.hamiltonian
+    H = _array3_to_vector(dat.hamiltonian)
 
     bare_Rspace, bare_H = simplify(Rspace, H)
     hamiltonian = TBHamiltonian(bare_Rspace, bare_H)
@@ -73,7 +73,7 @@ function write_w90_hr(prefix::AbstractString, hamiltonian::TBOperator; skip_wsve
         "Written by Wannier.jl",
         hamiltonian.Rspace.Rvectors,
         ones(Int, n_Rvectors(hamiltonian)),
-        hamiltonian.operator,
+        _stack_to_3D(hamiltonian.operator),
     )
     return WannierIO.write_w90_hr_dat(prefix * "_hr.dat", hrdat)
 end

@@ -26,10 +26,10 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool = true, use_mmn_bvecs:
     overlaps = mmn.M
     kpb_k = mmn.kpb_k
     kpb_G = mmn.kpb_G
-    nbvecs = length(overlaps[1])
+    nbvecs = size(overlaps, 3)
     # check consistency for mmn
-    @assert nkpts == length(overlaps) "different n_kpoints in mmn and win files"
-    @assert (nbands, nbands) == size(overlaps[1][1]) "different n_bands in mmn and win files"
+    @assert size(overlaps, 4) == nkpts "different n_kpoints in mmn and win files"
+    @assert size(overlaps, 1) == nbands && size(overlaps, 2) == nbands "different n_bands in mmn and win files"
 
     if use_mmn_bvecs
         kstencil = KspaceStencil(recip_lattice, win["kpoints"], kpb_k, kpb_G)
@@ -51,8 +51,8 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool = true, use_mmn_bvecs:
         else
             gauges = read_amn("$prefix.amn").A
         end
-        @assert nkpts == length(gauges) "different n_kpoints in amn and win files"
-        @assert (nbands, nwann) == size(gauges[1]) "different n_bands or n_wannier in amn and win files"
+        @assert size(gauges, 3) == nkpts "different n_kpoints in amn and win files"
+        @assert size(gauges, 1) == nbands && size(gauges, 2) == nwann "different n_bands or n_wannier in amn and win files"
     else
         gauges = zeros_gauge(ComplexF64, nkpts, nbands, nwann)
         @warn "$prefix.amn file does not exist, set U to zeros"
@@ -61,11 +61,11 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool = true, use_mmn_bvecs:
     disentangle = nbands != nwann
     if isfile(prefix * ".eig")
         eigenvalues = read_eig(prefix * ".eig")
-        @assert nkpts == length(eigenvalues) "different n_kpoints in eig and win files"
-        @assert nbands == length(eigenvalues[1]) "different n_bands in eig and win files"
+        @assert size(eigenvalues, 2) == nkpts "different n_kpoints in eig and win files"
+        @assert size(eigenvalues, 1) == nbands "different n_bands in eig and win files"
     else
         @assert !disentangle "eig file is required for disentanglement"
-        eigenvalues = [zeros(Float64, nbands) for _ in 1:nkpts]
+        eigenvalues = zeros(Float64, nbands, nkpts)
         @warn "$prefix.eig file does not exist, set eigenvalues to zeros"
     end
 
@@ -73,12 +73,12 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool = true, use_mmn_bvecs:
         dis_froz_max = get(win, "dis_froz_max", nothing)
         dis_froz_min = get(win, "dis_froz_min", -Inf)
         if isnothing(dis_froz_max)
-            frozen_bands = [falses(nbands) for _ in 1:nkpts]
+            frozen_bands = falses(nbands, nkpts)
         else
             frozen_bands = get_frozen_bands(eigenvalues, dis_froz_max, dis_froz_min)
         end
     else
-        frozen_bands = [falses(nbands) for _ in 1:nkpts]
+        frozen_bands = falses(nbands, nkpts)
     end
 
     atom_labels = map(x -> string(x.first), win["atoms_frac"])

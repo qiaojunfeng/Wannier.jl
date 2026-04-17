@@ -27,9 +27,9 @@ end
 function TBHamiltonianPosition(
         Rspace::Union{WignerSeitzRspace, MDRSRspace},
         kstencil::KspaceStencil,
-        overlaps::AbstractVector,
-        eigenvalues::AbstractVector,
-        gauges::AbstractVector,
+        overlaps::AbstractArray{<:Complex, 4},
+        eigenvalues::AbstractMatrix,
+        gauges::AbstractArray{<:Complex, 3},
     )
     # LVTS12 Eq. 91
     # H_kb = U'_k H_k M_kb U_kb
@@ -46,17 +46,16 @@ function TBHamiltonianPosition(
     recip_lattice = reciprocal_lattice(kstencil)
     wb = kstencil.bweights
     nbvecs = n_bvectors(kstencil)
-    T = eltype(Hkbᵂ[1][1])
-    nwann = size(Hkbᵂ[1][1], 1)
+    T = eltype(Hkbᵂ)
+    nwann = size(Hkbᵂ, 1)
 
     Hr_k = map(1:nkpts) do ik
         Hrₖ = zeros(Vec3{T}, nwann, nwann)
         for ib in 1:nbvecs
-            ik2 = kpb_k[ik][ib]
-            G = kpb_G[ik][ib]
-            # b isa Vec3, along x, y, z directions
+            ik2 = kpb_k[ib, ik]
+            G = kpb_G[ib, ik]
             b = recip_lattice * (kpoints[ik2] + G - kpoints[ik])
-            Hrₖ .+= im * wb[ib] .* Ref(b) .* Hkbᵂ[ik][ib]
+            Hrₖ .+= im * wb[ib] .* Ref(b) .* view(Hkbᵂ, :, :, ib, ik)
         end
         return Hrₖ
     end
@@ -70,14 +69,14 @@ end
 function TBHamiltonianPosition(
         Rspace::Union{WignerSeitzRspace, MDRSRspace},
         model::Model,
-        gauges::AbstractVector = model.gauges,
+        gauges::AbstractArray{<:Complex, 3} = model.gauges,
     )
     return TBHamiltonianPosition(
         Rspace, model.kstencil, model.overlaps, model.eigenvalues, gauges
     )
 end
 
-function TBHamiltonianPosition(model::Model, gauges::AbstractVector = model.gauges; kwargs...)
+function TBHamiltonianPosition(model::Model, gauges::AbstractArray{<:Complex, 3} = model.gauges; kwargs...)
     Rspace = generate_Rspace(model; kwargs...)
     return TBHamiltonianPosition(Rspace, model, gauges)
 end
@@ -109,19 +108,21 @@ function TBPositionHamiltonianPosition(
         Rspace::Union{WignerSeitzRspace, MDRSRspace},
         kstencil::KspaceStencil,
         uHu::AbstractVector,
-        gauges::AbstractVector;
+        gauges::AbstractArray{<:Complex, 3};
         force_hermiticity = default_w90_berry_duHdu_force_hermiticity(),
     )
     nkpts = n_kpoints(kstencil)
     nbvecs = n_bvectors(kstencil)
+    kpb_k = kstencil.kpb_k
+    kpb_G = kstencil.kpb_G
     # LVTS12 Eq. 93
     # H_k,b1,b2ᵂ = U_k,b1' H_k,b1,b2 U_k,b2
     uHuᵂ = map(1:nkpts) do ik
         map(CartesianIndices((nbvecs, nbvecs))) do idx
             ib1, ib2 = idx.I
-            ikb1 = kstencil.kpb_k[ik][ib1]
-            ikb2 = kstencil.kpb_k[ik][ib2]
-            return gauges[ikb1]' * uHu[ik][ib1, ib2] * gauges[ikb2]
+            ikb1 = kpb_k[ib1, ik]
+            ikb2 = kpb_k[ib2, ik]
+            return view(gauges, :, :, ikb1)' * uHu[ik][ib1, ib2] * view(gauges, :, :, ikb2)
         end
     end
 
@@ -137,10 +138,10 @@ function TBPositionHamiltonianPosition(
         rHrₖ = zeros(MMat3{T}, nwann, nwann)
         for ib2 in 1:nbvecs
             for ib1 in 1:nbvecs
-                ikb1 = kstencil.kpb_k[ik][ib1]
-                ikb2 = kstencil.kpb_k[ik][ib2]
-                G1 = kstencil.kpb_G[ik][ib1]
-                G2 = kstencil.kpb_G[ik][ib2]
+                ikb1 = kpb_k[ib1, ik]
+                ikb2 = kpb_k[ib2, ik]
+                G1 = kpb_G[ib1, ik]
+                G2 = kpb_G[ib2, ik]
                 # b isa Vec3, along x, y, z directions
                 b1 = recip_lattice * (kpoints[ikb1] + G1 - kpoints[ik])
                 b2 = recip_lattice * (kpoints[ikb2] + G2 - kpoints[ik])
@@ -185,13 +186,13 @@ function TBPositionHamiltonianPosition(
         Rspace::Union{WignerSeitzRspace, MDRSRspace},
         model::Model,
         uHu::AbstractVector,
-        gauges::AbstractVector = model.gauges,
+        gauges::AbstractArray{<:Complex, 3} = model.gauges,
     )
     return TBPositionHamiltonianPosition(Rspace, model.kstencil, uHu, gauges)
 end
 
 function TBPositionHamiltonianPosition(
-        model::Model, uHu::AbstractVector, gauges::AbstractVector = model.gauges
+        model::Model, uHu::AbstractVector, gauges::AbstractArray{<:Complex, 3} = model.gauges
     )
     Rspace = generate_Rspace(model)
     return TBPositionHamiltonianPosition(Rspace, model, uHu, gauges)

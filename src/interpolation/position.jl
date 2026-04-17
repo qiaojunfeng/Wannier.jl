@@ -43,7 +43,7 @@ Generate tight-binding position operator from a Wannierization [`Model`](@ref).
 function TBPosition(
         Rspace::Union{WignerSeitzRspace, MDRSRspace},
         model::Model,
-        gauges::AbstractVector = model.gauges;
+        gauges::AbstractArray{<:Complex, 3} = model.gauges;
         imlog_diag::Bool = true,
         force_hermiticity::Bool = default_w90_berry_position_force_hermiticity(),
         kwargs...,
@@ -56,7 +56,7 @@ function TBPosition(
     return TBPosition(bare_Rspace, bare_A_R)
 end
 
-function TBPosition(model::Model, gauges::AbstractVector = model.gauges; kwargs...)
+function TBPosition(model::Model, gauges::AbstractArray{<:Complex, 3} = model.gauges; kwargs...)
     Rspace = generate_Rspace(model)
     return TBPosition(Rspace, model, gauges; kwargs...)
 end
@@ -140,7 +140,9 @@ function compute_D_matrix(
     T = eltype(H_k[1])
 
     # first, need Hamiltonian eigenvalues and eigenvectors
-    eigenvalues, U = eigen(H_k)
+    eigenvalues_mat, U_arr = eigen(H_k)
+    eigenvalues = [view(eigenvalues_mat, :, ik) for ik in 1:nkpts]
+    U = [view(U_arr, :, :, ik) for ik in 1:nkpts]
 
     # the covariant part of Hamiltonian gauge dH, i.e., dHᴴ = U† dHᵂ U
     # also the ``\bar{H}_{\alpha}^{(H)}`` in YWVS Eq. 26

@@ -9,7 +9,7 @@
     )
     Hᵏ = transform_gauge(model.eigenvalues, model.gauges)
     Hᴿ = fourier(kpoints(model), Hᵏ, Rspace)
-    @test all(isapprox.(ref_Hᴿ, Hᴿ; atol = 5.0e-7))
+    @test all(isapprox(view(ref_Hᴿ, :, :, iR), Hᴿ[iR]; atol = 5.0e-7) for iR in axes(ref_Hᴿ, 3))
 end
 
 @testitem "invfourier" begin
@@ -20,5 +20,5 @@ end
 
     Hᵏ = invfourier(hamiltonian, kpoints)
     eigenvals, eigenvecs = eigen(Hᵏ)
-    @test all(isapprox.(eigenvals, ref_band.eigenvalues; atol = 2.0e-5))
+    @test all(isapprox(view(eigenvals, :, ik), ref_band.eigenvalues[ik]; atol = 2.0e-5) for ik in axes(eigenvals, 2))
 end

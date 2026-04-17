@@ -27,15 +27,11 @@ function truncate_mmn_eig(
     prefix_base = basename(prefix)
 
     E = read_eig("$prefix.eig")
-    E1 = map(e -> e[keep_bands], E)
+    E1 = E[keep_bands, :]
     write_eig(joinpath(outdir, "$prefix_base.eig"), E1)
 
     mmn = read_mmn("$prefix.mmn")
-    M1 = map(mmn.M) do Mk
-        map(Mk) do Mkb
-            Mkb[keep_bands, keep_bands]
-        end
-    end
+    M1 = mmn.M[keep_bands, keep_bands, :, :]
     write_mmn(joinpath(outdir, "$prefix_base.mmn"), M1, mmn.kpb_k, mmn.kpb_G)
 
     return nothing
@@ -146,22 +142,18 @@ function truncate(
         length(keep_wfs) <= length(keep_bands) || error("Number of WFs > number of bands")
     end
 
-    E = map(e -> e[keep_bands], model.eigenvalues)
-    M = map(model.overlaps) do Mk
-        map(Mk) do Mkb
-            Mkb[keep_bands, keep_bands]
-        end
-    end
-    U = map(u -> u[keep_bands, :], model.gauges)
+    E = model.eigenvalues[keep_bands, :]
+    M = model.overlaps[keep_bands, keep_bands, :, :]
+    U = model.gauges[keep_bands, :, :]
 
     if !isnothing(keep_wfs)
-        U = map(u -> u[:, keep_wfs], U)
+        U = U[:, keep_wfs, :]
     end
     if orthonorm_U
         U = orthonorm_lowdin(U)
     end
-    frozen_bands = map(f -> f[keep_bands], model.frozen_bands)
-    entanged_bands = map(e -> e[keep_bands], model.entangled_bands)
+    frozen_bands = model.frozen_bands[keep_bands, :]
+    entanged_bands = model.entangled_bands[keep_bands, :]
 
     model2 = Model(
         model.lattice,

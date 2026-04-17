@@ -124,34 +124,32 @@ end
 
 #TODO a bit generic
 mutable struct Cache{T}
-    X::Vector{Matrix{Complex{T}}}
-    Y::Vector{Matrix{Complex{T}}}
-    U::Vector{Matrix{Complex{T}}}
+    X::Array{Complex{T}, 3}
+    Y::Array{Complex{T}, 3}
+    U::Array{Complex{T}, 3}
     # n_bands x n_wann x n_kpts
     G::Array{Complex{T}, 3}
     r::Vector{Vec3{T}}
-    UtMU::Vector{Vector{Matrix{Complex{T}}}}
-    MU::Vector{Vector{Matrix{Complex{T}}}}
+    UtMU::Array{Complex{T}, 4}
+    MU::Array{Complex{T}, 4}
 end
 
-# TODO remove 1st arg?
-function Cache(
-        bvectors::KspaceStencil{FT}, M::Vector{Vector{Matrix{Complex{FT}}}}, U
-    ) where {FT}
-    n_kpts = length(M)
-    n_bands, n_wann = U isa Vector ? size(U[1]) : size.((U,), (1, 2))
-    n_bvecs = length(M[1])
+function Cache(bvectors::KspaceStencil{FT}, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3}) where {FT}
+    n_kpts = size(M, 4)
+    n_bands = size(M, 1)
+    n_wann = size(U, 2)
+    n_bvecs = size(M, 3)
 
-    X = [zeros(Complex{FT}, n_wann, n_wann) for i in 1:n_kpts]
-    Y = [zeros(Complex{FT}, n_bands, n_wann) for i in 1:n_kpts]
-    U = [zeros(Complex{FT}, n_bands, n_wann) for i in 1:n_kpts]
+    X = zeros(Complex{FT}, n_wann, n_wann, n_kpts)
+    Y = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
+    Ucopy = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
     G = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
     r = zeros(Vec3{FT}, n_wann)
 
-    UtMU = [[zeros(Complex{FT}, n_wann, n_wann) for ib in 1:n_bvecs] for i in 1:n_kpts]
-    MU = [[zeros(Complex{FT}, n_bands, n_wann) for ib in 1:n_bvecs] for i in 1:n_kpts]
+    MU = zeros(Complex{FT}, n_bands, n_wann, n_bvecs, n_kpts)
+    UtMU = zeros(Complex{FT}, n_wann, n_wann, n_bvecs, n_kpts)
 
-    return Cache(X, Y, U, G, r, UtMU, MU)
+    return Cache(X, Y, Ucopy, G, r, UtMU, MU)
 end
 
 Cache(model::Model) = Cache(model.kstencil, model.overlaps, model.gauges)
@@ -159,19 +157,6 @@ Cache(model::Model) = Cache(model.kstencil, model.overlaps, model.gauges)
 n_bands(c::Cache) = size(c.G, 1)
 n_wann(c::Cache) = size(c.G, 2)
 n_kpts(c::Cache) = size(c.G, 3)
-
-function _bands_wann(U)
-    if U isa AbstractVector
-        return size(U[1])
-    end
-    return size(U, 1), size(U, 2)
-end
-
-function _alloc_mu_utmu(::Type{FT}, n_kpts, n_bvecs, n_bands, n_wann) where {FT}
-    UtMU = [[zeros(Complex{FT}, n_wann, n_wann) for ib in 1:n_bvecs] for i in 1:n_kpts]
-    MU = [[zeros(Complex{FT}, n_bands, n_wann) for ib in 1:n_bvecs] for i in 1:n_kpts]
-    return MU, UtMU
-end
 
 function _alloc_mu_utmu_packed(::Type{FT}, n_kpts, n_bvecs, n_bands, n_wann) where {FT}
     MU = zeros(Complex{FT}, n_bands, n_wann, n_bvecs, n_kpts)
@@ -208,117 +193,6 @@ end
 
 function omega!(
         r::Vector{<:Vec3{FT}},
-        UtMU::AbstractVector,
-        MU::AbstractVector,
-        bvectors::KspaceStencil{FT},
-        M,
-    ) where {FT <: Real}
-    fill!(r, zero(eltype(r)))
-
-    nw = length(r)
-    nk = length(UtMU)
-
-    n_bvecs = length(M[1])
-
-    kpb_k = bvectors.kpb_k
-    kpb_G = bvectors.kpb_G
-    wb = bvectors.bweights
-    recip_lattice = reciprocal_lattice(bvectors)
-    kpoints = bvectors.kpoints
-
-    # # keep in case we want to do this later on
-    # μ::FT = 0.0
-    # n_froz = 0
-    # # frozen weight
-    # w_froz::FT = 0.0
-
-    r² = zeros(FT, nw)
-
-    ΩI::FT = 0.0
-    ΩOD::FT = 0.0
-    ΩD::FT = 0.0
-
-    for ik in 1:nk
-        # w_froz -= μ * sum(abs2, U[1:n_froz, :, ik])
-        MUk = MU[ik]
-        Nk = UtMU[ik]
-
-        for ib in 1:n_bvecs
-            ikpb = kpb_k[ik][ib]
-            MUkb = MUk[ib]
-            Nkb = Nk[ib]
-            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
-
-            wᵇ = wb[ib]
-
-            wb_b = wᵇ * b
-
-            ts = zero(FT)
-            ts2 = zero(FT)
-            for i in axes(Nkb, 2)
-                for j in axes(Nkb, 1)
-                    nt = Nkb[j, i]
-                    a2 = abs2(nt)
-                    ts += a2
-
-                    if i == j
-                        imlogN = imaglog(nt)
-
-                        r[i] -= imlogN * wb_b
-                        r²[i] += wᵇ * (1 - a2 + imlogN^2)
-                    else
-                        ts2 += a2
-                    end
-                end
-            end
-
-            ΩI += wᵇ * (nw - ts)
-
-            ΩOD += wᵇ * ts2
-        end
-    end
-
-    r = map(x -> x ./ nk, r)
-    r² /= nk
-    ΩI /= nk
-    ΩOD /= nk
-    # w_froz /= n_kpts
-
-    # ΩD requires r, so we need different loops
-    # However, since ΩD = Ω - ΩI - ΩOD, we can skip these loops
-    for ik in 1:nk
-        for ib in 1:n_bvecs
-            ikpb = kpb_k[ik][ib]
-            Nᵏᵇ = UtMU[ik][ib]
-            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
-            wᵇ = wb[ib]
-
-            for n in 1:nw
-                ΩD += wᵇ * (-imaglog(Nᵏᵇ[n, n]) - b' * r[n])^2
-            end
-        end
-    end
-    ΩD /= nk
-    Ω̃ = ΩOD + ΩD
-
-    # @debug "Spread" r r²'
-    # @debug "Spread" ΩI ΩOD ΩD
-
-    # Ω of each WF
-    ω = r² - map(x -> sum(abs.(x .^ 2)), r)
-    # total Ω
-    # Ω = sum(ω)
-    # Ω += w_froz
-    # Ω̃ = Ω - ΩI
-    # ΩD = Ω̃ - ΩOD
-    Ω = ΩI + Ω̃
-
-    return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r)
-    # return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, w_froz)
-end
-
-function omega!(
-        r::Vector{<:Vec3{FT}},
         UtMU::AbstractArray{<:Complex, 4},
         MU::AbstractArray{<:Complex, 4},
         bvectors::KspaceStencil{FT},
@@ -344,9 +218,9 @@ function omega!(
 
     @inbounds for ik in 1:nk
         for ib in 1:n_bvecs
-            ikpb = kpb_k[ik][ib]
+            ikpb = kpb_k[ib, ik]
             Nkb = view(UtMU, :, :, ib, ik)
-            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
+            b = recip_lattice * (kpoints[ikpb] + kpb_G[ib, ik] - kpoints[ik])
 
             wᵇ = wb[ib]
             wb_b = wᵇ * b
@@ -382,9 +256,9 @@ function omega!(
 
     @inbounds for ik in 1:nk
         for ib in 1:n_bvecs
-            ikpb = kpb_k[ik][ib]
+            ikpb = kpb_k[ib, ik]
             Nᵏᵇ = view(UtMU, :, :, ib, ik)
-            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
+            b = recip_lattice * (kpoints[ikpb] + kpb_G[ib, ik] - kpoints[ik])
             wᵇ = wb[ib]
 
             for n in 1:nw
@@ -420,11 +294,12 @@ function omega(bvectors::KspaceStencil, M, X, Y)
     return omega(bvectors, M, U)
 end
 
-function omega(bvectors::KspaceStencil, M, U)
-    n_kpts = length(M)
-    n_bvecs = length(M[1])
-    n_bands, n_wann = _bands_wann(U)
-    FT = real(eltype(M[1][1]))
+function omega(bvectors::KspaceStencil, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3})
+    n_kpts = size(M, 4)
+    n_bvecs = size(M, 3)
+    n_bands = size(U, 1)
+    n_wann = size(U, 2)
+    FT = real(eltype(M))
     MU, UtMU = _alloc_mu_utmu_packed(FT, n_kpts, n_bvecs, n_bands, n_wann)
     r = zeros(Vec3{FT}, n_wann)
 
@@ -447,89 +322,8 @@ function Base.show(io::IO, ::MIME"text/plain", Ω::Spread)
     @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
     return @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
 end
+
 omega_grad!(cache::Cache, bvectors, M) = omega_grad!((r, _) -> r, cache, bvectors, M)
-function omega_grad!(
-        penalty::Function,
-        G::Array{Complex{T}, 3},
-        r,
-        UtMU::AbstractVector,
-        MU::AbstractVector,
-        bvectors,
-        M,
-    ) where {T}
-    fill!(G, 0)
-
-    n_bands, n_wann, n_kpts = size(G)
-    scratch = zeros(eltype(G), n_bands, n_wann)
-
-    n_bvecs = length(M[1])
-
-    center!(r, UtMU, bvectors)
-
-    kpb_k = bvectors.kpb_k
-    kpb_G = bvectors.kpb_G
-    wb = bvectors.bweights
-    recip_lattice = bvectors.recip_lattice
-    kpoints = bvectors.kpoints
-
-    # # keep in case we want to do this later on
-    # μ::FT = 0.0
-    # n_froz = 0
-    # # frozen weight
-    # w_froz::FT = 0.0
-
-    @inbounds for ik in 1:n_kpts
-        # w_froz -= μ * sum(abs2, U[1:n_froz, :, ik])
-        # G[1:n_froz, :, ik] = -2 * μ * U[1:n_froz, :, ik]
-        MUk = MU[ik]
-        Nk = UtMU[ik]
-        for ib in 1:n_bvecs
-            ikpb = kpb_k[ik][ib]
-            MUkb = MUk[ib]
-            Nkb = Nk[ib]
-            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
-
-            wᵇ = wb[ib]
-
-            # MV way
-            # fA(B) = (B - B') / 2
-            # fS(B) = (B + B') / (2 * im)
-            # q = imaglog.(diag(Nᵏᵇ)) + r' * b
-            # for m = 1:n_wann, n = 1:n_wann
-            #     R[m, n] = Nᵏᵇ[m, n] * conj(Nᵏᵇ[n, n])
-            #     T[m, n] = Nᵏᵇ[m, n] / Nᵏᵇ[n, n] * q[n]
-            # end
-            # G[:, :, ik] += 4 * wᵇ * (fA(R) .- fS(T))
-
-            for n in 1:n_wann
-                # error if division by zero. Should not happen if the initial gauge is not too bad
-                nn = Nkb[n, n]
-
-                # TODO: This check can be done somewherhe else adds 12% of time
-                # if abs(nn) < 1e-10
-                #     display(Nk[ib])
-                #     println()
-                #     error("Nᵏᵇ too small! $ik -> $ikpb")
-                # end
-
-                q = imaglog(nn) + penalty(r[n], n) ⋅ b
-
-                t = -im * q / nn
-
-                cnn = conj(nn)
-                for m in 1:n_bands
-                    scratch[m, n] = MUkb[m, n] * (t - cnn)
-                end
-            end
-
-            view(G, :, :, ik) .+= 4 .* wᵇ .* scratch
-        end
-    end
-
-    G ./= n_kpts
-
-    return G
-end
 
 function omega_grad!(
         penalty::Function,
@@ -557,10 +351,10 @@ function omega_grad!(
 
     @inbounds for ik in 1:n_kpts
         for ib in 1:n_bvecs
-            ikpb = kpb_k[ik][ib]
+            ikpb = kpb_k[ib, ik]
             MUkb = view(MU, :, :, ib, ik)
             Nkb = view(UtMU, :, :, ib, ik)
-            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
+            b = recip_lattice * (kpoints[ikpb] + kpb_G[ib, ik] - kpoints[ik])
 
             wᵇ = wb[ib]
 
@@ -600,11 +394,12 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
 - `U`: `n_wann * n_wann * n_kpts` array
 - `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
 """
-function omega_grad(penalty::Function, bvectors::KspaceStencil, M, U)
-    n_kpts = length(M)
-    n_bvecs = length(M[1])
-    n_bands, n_wann = _bands_wann(U)
-    FT = real(eltype(M[1][1]))
+function omega_grad(penalty::Function, bvectors::KspaceStencil, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3})
+    n_kpts = size(M, 4)
+    n_bvecs = size(M, 3)
+    n_bands = size(U, 1)
+    n_wann = size(U, 2)
+    FT = real(eltype(M))
     MU, UtMU = _alloc_mu_utmu_packed(FT, n_kpts, n_bvecs, n_bands, n_wann)
     r = zeros(Vec3{FT}, n_wann)
     G = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
@@ -624,44 +419,6 @@ function omega_grad(bvectors::KspaceStencil, M, X, Y, frozen)
 end
 
 """
-    omega_local(bvectors, M, U)
-
-Local part of the contribution to `r^2`.
-
-# Arguments
-- `bvectors`: bvecoters
-- `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
-- `U`: `n_wann * n_wann * n_kpts` array
-"""
-function omega_local(
-        bvectors::KspaceStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
-    ) where {FT <: Real}
-    n_bands, n_wann = size(U[1])
-    n_kpts = length(U)
-    n_bvecs = length(M[1])
-
-    kpb_k = bvectors.kpb_k
-    wb = bvectors.bweights
-
-    loc = zeros(FT, n_kpts)
-
-    Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
-
-    for ik in 1:n_kpts
-        for ib in 1:n_bvecs
-            ikpb = kpb_k[ik][ib]
-            Nᵏᵇ .= U[ik]' * M[ik][ib] * U[ikpb]
-
-            for n in 1:n_wann
-                loc[ik] += wb[ib] * (1 - abs(Nᵏᵇ[n, n])^2 + imaglog(Nᵏᵇ[n, n])^2)
-            end
-        end
-    end
-
-    return loc
-end
-
-"""
     center(bvectors, M, U)
 
 Compute WF center in reciprocal space.
@@ -671,46 +428,17 @@ Compute WF center in reciprocal space.
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
 - `U`: `n_wann * n_wann * n_kpts` array
 """
-function center(bvectors::KspaceStencil, M, U)
-    n_kpts = length(M)
-    n_bvecs = length(M[1])
-    n_bands, n_wann = _bands_wann(U)
-    FT = real(eltype(M[1][1]))
+function center(bvectors::KspaceStencil, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3})
+    n_kpts = size(M, 4)
+    n_bvecs = size(M, 3)
+    n_bands = size(U, 1)
+    n_wann = size(U, 2)
+    FT = real(eltype(M))
     MU, UtMU = _alloc_mu_utmu_packed(FT, n_kpts, n_bvecs, n_bands, n_wann)
     r = zeros(Vec3{FT}, n_wann)
 
     compute_MU_UtMU!(MU, UtMU, bvectors, M, U)
     return center!(r, UtMU, bvectors)
-end
-function center!(r::Vector{<:Vec3}, UtMU::AbstractVector, bvectors)
-    fill!(r, zero(eltype(r)))
-    n_wann = length(r)
-
-    kpb_k = bvectors.kpb_k
-    kpb_G = bvectors.kpb_G
-    wb = bvectors.bweights
-    recip_lattice = reciprocal_lattice(bvectors)
-    kpoints = bvectors.kpoints
-
-    @inbounds for (ik, Nk) in enumerate(UtMU)
-        k = kpoints[ik]
-        for (ib, Nb) in enumerate(Nk)
-            ikpb = kpb_k[ik][ib]
-
-            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - k)
-
-            w = wb[ib]
-
-            for n in 1:n_wann
-                fac = w * imaglog(Nb[n, n])
-                r[n] -= b * fac
-            end
-        end
-    end
-
-    r ./= length(UtMU)
-
-    return r
 end
 
 function center!(r::Vector{<:Vec3}, UtMU::AbstractArray{<:Complex, 4}, bvectors)
@@ -730,9 +458,9 @@ function center!(r::Vector{<:Vec3}, UtMU::AbstractArray{<:Complex, 4}, bvectors)
         k = kpoints[ik]
         for ib in 1:nb
             Nb = view(UtMU, :, :, ib, ik)
-            ikpb = kpb_k[ik][ib]
+            ikpb = kpb_k[ib, ik]
 
-            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - k)
+            b = recip_lattice * (kpoints[ikpb] + kpb_G[ib, ik] - k)
             w = wb[ib]
 
             for n in 1:n_wann
@@ -761,9 +489,9 @@ Compute WF center in reciprocal space for `Model` with given `U` gauge.
 
 # Arguments
 - `model`: the `Model`
-- `U`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_bands × n_wann × n_kpts` array
 """
-function center(model::Model, U::Vector{Matrix{T}}) where {T <: Number}
+function center(model::Model, U::AbstractArray{<:Complex, 3})
     return center(model.kstencil, model.overlaps, U)
 end
 
@@ -778,11 +506,14 @@ Compute WF postion operator matrix in reciprocal space.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 @views function position_op(
-        bvectors::KspaceStencil{FT}, M::Vector, U::Vector{Matrix{Complex{FT}}}
+        bvectors::KspaceStencil{FT},
+        M::AbstractArray{Complex{FT}, 4},
+        U::AbstractArray{Complex{FT}, 3},
     ) where {FT <: Real}
-    n_bands, n_wann = size(U[1])
-    n_kpts = length(U)
-    n_bvecs = length(M[1])
+    n_bands = size(U, 1)
+    n_wann = size(U, 2)
+    n_kpts = size(U, 3)
+    n_bvecs = size(M, 3)
 
     kpb_k = bvectors.kpb_k
     kpb_G = bvectors.kpb_G
@@ -797,10 +528,10 @@ Compute WF postion operator matrix in reciprocal space.
 
     for ik in 1:n_kpts
         for ib in 1:n_bvecs
-            ikpb = kpb_k[ik][ib]
+            ikpb = kpb_k[ib, ik]
 
-            Nᵏᵇ .= U[ik]' * M[ik][ib] * U[ikpb]
-            b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
+            Nᵏᵇ .= view(U, :, :, ik)' * M[:, :, ib, ik] * view(U, :, :, ikpb)
+            b = recip_lattice * (kpoints[ikpb] + kpb_G[ib, ik] - kpoints[ik])
 
             wᵇ = wb[ib]
 
@@ -835,9 +566,9 @@ Compute WF postion operator matrix in reciprocal space for `Model` with given `U
 
 # Arguments
 - `model`: the `Model`
-- `U`: `n_wann * n_wann * n_kpts` array
+- `U`: `n_bands × n_wann × n_kpts` array
 """
-function position_op(model::Model, U::Vector{Matrix{T}}) where {T <: Number}
+function position_op(model::Model, U::AbstractArray{<:Complex, 3})
     return position_op(model.kstencil, model.overlaps, U)
 end
 
@@ -852,15 +583,15 @@ Wannier-gauge Berry connection in kspace, WYSV Eq. 44 or MV Eq. C14
 """
 function compute_berry_connection_kspace(
         kstencil::KspaceStencil,
-        overlaps::AbstractVector,
-        gauges::AbstractVector;
+        overlaps::AbstractArray{<:Complex, 4},
+        gauges::AbstractArray{<:Complex, 3};
         imlog_diag::Bool = true,
         force_hermiticity::Bool = default_w90_berry_position_force_hermiticity(),
     )
-    nkpts = length(gauges)
+    nkpts = size(gauges, 3)
     @assert nkpts > 0 "empty gauges"
-    nwann = size(gauges[1], 2)
-    nbvecs = length(overlaps[1])
+    nwann = size(gauges, 2)
+    nbvecs = size(overlaps, 3)
 
     wb = kstencil.bweights
     recip_lattice = reciprocal_lattice(kstencil)
@@ -871,14 +602,14 @@ function compute_berry_connection_kspace(
     # - m, n: WF indices
     # - α ∈ {1, 2, 3} for x, y, z directions
     Aᵂ = map(1:nkpts) do ik
-        Uₖ = gauges[ik]
+        Uₖ = view(gauges, :, :, ik)
         Aᵂₖ = zeros(Vec3{eltype(Uₖ)}, nwann, nwann)
         for ib in 1:nbvecs
-            ik2 = kstencil.kpb_k[ik][ib]
-            Mᴴ = overlaps[ik][ib]
-            Uₖ₂ = gauges[ik2]
+            ik2 = kstencil.kpb_k[ib, ik]
+            Mᴴ = view(overlaps, :, :, ib, ik)
+            Uₖ₂ = view(gauges, :, :, ik2)
             Mᵂ = Uₖ' * Mᴴ * Uₖ₂
-            G = kstencil.kpb_G[ik][ib]
+            G = kstencil.kpb_G[ib, ik]
             # b isa Vec3, along x, y, z directions
             b = recip_lattice * (kpoints[ik2] + G - kpoints[ik])
             if imlog_diag
@@ -899,9 +630,50 @@ function compute_berry_connection_kspace(
 end
 
 @inline function compute_berry_connection_kspace(
-        model::Model, gauges::AbstractVector = model.gauges; kwargs...
+        model::Model, gauges::AbstractArray{<:Complex, 3} = model.gauges; kwargs...
     )
     return compute_berry_connection_kspace(
         model.kstencil, model.overlaps, gauges; kwargs...
     )
+end
+
+"""
+    omega_local(bvectors, M, U)
+
+Local part of the contribution to `r^2`.
+
+# Arguments
+- `bvectors`: bvecoters
+- `M`: `n_bands * n_bands * n_bvecs * n_kpts` overlap array
+- `U`: `n_bands × n_wann × n_kpts` array
+"""
+function omega_local(
+        bvectors::KspaceStencil{FT},
+        M::AbstractArray{Complex{FT}, 4},
+        U::AbstractArray{Complex{FT}, 3},
+    ) where {FT <: Real}
+    n_bands = size(U, 1)
+    n_wann = size(U, 2)
+    n_kpts = size(U, 3)
+    n_bvecs = size(M, 3)
+
+    kpb_k = bvectors.kpb_k
+    wb = bvectors.bweights
+
+    loc = zeros(FT, n_kpts)
+
+    Nᵏᵇ = zeros(Complex{FT}, n_wann, n_wann)
+
+    for ik in 1:n_kpts
+        for ib in 1:n_bvecs
+            ikpb = kpb_k[ib, ik]
+            Nᵏᵇ .= view(U, :, :, ik)' * M[:, :, ib, ik] * view(U, :, :, ikpb)
+
+            for n in 1:n_wann
+                loc[ik] += wb[ib] * (1 - abs(Nᵏᵇ[n, n])^2 + imaglog(Nᵏᵇ[n, n])^2)
+            end
+        end
+    end
+
+    return loc
 end

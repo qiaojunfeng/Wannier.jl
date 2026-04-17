@@ -59,10 +59,7 @@ end
     #   norm(H[:, :, ik] - Hdiag[:, :, ik]) ≈ 1e-14
     # is still false
     # @test all(isdiag(H[:, :, ik]) for ik in axes(H, 3))
-    Hdiag = map(H) do h
-        Hermitian(Diagonal(h))
-    end
-    @test H ≈ Hdiag
+    @test all(ik -> view(H, :, :, ik) ≈ Hermitian(Diagonal(diag(view(H, :, :, ik)))), axes(H, 3))
     # the unitary matrix should be the same
     @test model.gauges ≈ WannierIO.gauge_matrices(chk)
 

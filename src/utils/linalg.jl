@@ -36,6 +36,14 @@ Lowdin orthonormalize a series of matrices `U`.
 """
 orthonorm_lowdin(U::AbstractVector) = orthonorm_lowdin.(U)
 
+function orthonorm_lowdin(U::AbstractArray{T, 3}) where {T}
+    U2 = similar(U)
+    for ik in axes(U, 3)
+        U2[:, :, ik] .= orthonorm_lowdin(view(U, :, :, ik))
+    end
+    return U2
+end
+
 function orthonorm_cholesky(U)
     return U / chol(U'U)
 end
@@ -112,9 +120,13 @@ the indices of kpoints, bands, and WFs, respectively.
 - `nwann`: number of Wannier functions
 """
 function identity_gauge(T::Type, nkpts::Integer, nwann::Integer)
-    return map(1:nkpts) do _
-        diagm(0 => ones(T, nwann))
+    U = zeros(T, nwann, nwann, nkpts)
+    for ik in 1:nkpts
+        for i in 1:nwann
+            U[i, i, ik] = one(T)
+        end
     end
+    return U
 end
 
 """
@@ -128,9 +140,7 @@ See also [`identity_gauge`](@ref).
 function zeros_gauge end
 
 function zeros_gauge(T::Type, nkpts::Integer, nbands::Integer, nwann::Integer)
-    return map(1:nkpts) do _
-        zeros(T, nbands, nwann)
-    end
+    return zeros(T, nbands, nwann, nkpts)
 end
 
 function zeros_gauge(T::Type, nkpts::Integer, nwann::Integer)
@@ -148,10 +158,16 @@ For each kpoint ``\\mathbf{k}``, return ``U_{\\mathbf{k}} V_{\\mathbf{k}}``.
 - `U`: a series of gauge matrices
 - `V`: a series of gauge matrices
 """
-function merge_gauge(U::AbstractVector, V::AbstractVector)
-    return map(zip(U, V)) do (u, v)
-        u * v
+function merge_gauge(U::AbstractArray{T1, 3}, V::AbstractArray{T2, 3}) where {T1, T2}
+    T = promote_type(T1, T2)
+    nkpts = size(U, 3)
+    nbands = size(U, 1)
+    nwann = size(V, 2)
+    W = zeros(T, nbands, nwann, nkpts)
+    for ik in 1:nkpts
+        W[:, :, ik] .= view(U, :, :, ik) * view(V, :, :, ik)
     end
+    return W
 end
 
 """
@@ -180,9 +196,11 @@ end
 @inline rand_gauge(T::Type, nwann::Integer) = rand_gauge(T, nwann, nwann)
 
 function rand_gauge(T::Type, nkpts::Integer, nbands::Integer, nwann::Integer)
-    return map(1:nkpts) do _
-        rand_gauge(T, nbands, nwann)
+    U = zeros(T, nbands, nwann, nkpts)
+    for ik in 1:nkpts
+        U[:, :, ik] .= rand_gauge(T, nbands, nwann)
     end
+    return U
 end
 
 """
@@ -190,27 +208,23 @@ end
 
 Allocate overlap `M` matrices filled with zeros.
 
-The `M` can be accessed by `M[ik][ib][m, n]`, where `ik`, `ib`, `m`, `n` are
+The `M` can be accessed by `view(M,:,:,ib,ik)`, where `ik`, `ib`, `m`, `n` are
 the indices of kpoints, b-vectors, bands, and WFs, respectively.
 """
 function zeros_overlap(T::Type, nkpts::Integer, nbvecs::Integer, nbands::Integer)
-    return map(1:nkpts) do _
-        map(1:nbvecs) do _
-            zeros(T, nbands, nbands)
-        end
-    end
+    return zeros(T, nbands, nbands, nbvecs, nkpts)
 end
 
 """
     $(SIGNATURES)
 
-Allocate eigenvalues matrices filled with zeros.
+Allocate eigenvalues matrix filled with zeros.
 
-The returned `E` can be accessed by `E[ik][m]`, where `ik`, `m` are the indices
-of kpoints and bands, respectively.
+The returned `E` can be accessed by `E[n, ik]`, where `n`, `ik` are the indices
+of bands and kpoints, respectively.
 """
 function zeros_eigenvalues(T::Type, nkpts::Integer, nwann::Integer)
-    return [zeros(T, nwann) for _ in 1:nkpts]
+    return zeros(T, nwann, nkpts)
 end
 
 """
@@ -220,8 +234,9 @@ Check if matrix is unitary or semi-unitary for all the kpoints.
 
 I.e. if it has orthogonal columns.
 """
-function isunitary(U::AbstractVector; atol = 1.0e-10)
-    map(U) do u
+function isunitary(U::AbstractArray{T, 3}; atol = 1.0e-10) where {T}
+    for ik in axes(U, 3)
+        u = view(U, :, :, ik)
         if norm(u' * u - I) > atol
             @debug "not unitary" ik norm(u' * u - I)
             return false
@@ -290,11 +305,19 @@ function projectability(U::AbstractVector, index_map::AbstractVector{<:AbstractV
 end
 
 """
-Projectability for each eigenstate onto each orbital, accessed by P[ip][ib][ik].
+Projectability for each eigenstate onto each orbital, accessed by P[ip][ib, ik].
 """
 function projectability(U::AbstractVector)
     index_map = [[i] for i in 1:size(U[1], 2)]
     return projectability(U, index_map)
+end
+
+function projectability(U::AbstractArray{<:Any, 3})
+    return projectability([view(U, :, :, ik) for ik in axes(U, 3)])
+end
+
+function projectability(U::AbstractArray{<:Any, 3}, index_map::AbstractVector{<:AbstractVector{<:Integer}})
+    return projectability([view(U, :, :, ik) for ik in axes(U, 3)], index_map)
 end
 
 """

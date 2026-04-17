@@ -19,8 +19,8 @@ Read `prefix_tb.dat` and `prefix_wsvec.dat` and construct tight-binding models.
 function read_w90_tb(prefix::AbstractString)
     dat = _raw_read_w90_tb(prefix)
     Rspace = dat.Rspace
-    H = dat.hamiltonian
-    pos = dat.position
+    H = _array3_to_vector(dat.hamiltonian)
+    pos = _combine_position(dat.rx, dat.ry, dat.rz)
 
     bare_Rspace, bare_H, bare_pos = simplify(Rspace, H, pos)
     hamiltonian = TBHamiltonian(bare_Rspace, bare_H)
@@ -28,6 +28,9 @@ function read_w90_tb(prefix::AbstractString)
 
     return (; hamiltonian, position)
 end
+
+_array3_to_vector(A::AbstractArray{T, 3}) where {T} =
+    [collect(view(A, :, :, i)) for i in axes(A, 3)]
 
 """Only read tb files, without further processing"""
 function _raw_read_w90_tb(prefix::AbstractString)
@@ -43,13 +46,12 @@ function _raw_read_w90_tb(prefix::AbstractString)
         Rspace = WignerSeitzRspace(tbdat.lattice, tbdat.Rvectors, tbdat.Rdegens)
     end
 
-    # convert to matrix of MVec3, here mutable since we might need to invoke
-    # some in-place functions in later interpolation steps
-    position = map(zip(tbdat.r_x, tbdat.r_y, tbdat.r_z)) do (x, y, z)
-        MVec3.(x, y, z)
-    end
+    return (; Rspace, hamiltonian = tbdat.H, rx = tbdat.rx, ry = tbdat.ry, rz = tbdat.rz)
+end
 
-    return (; Rspace, hamiltonian = tbdat.H, position)
+function _combine_position(rx, ry, rz)
+    nR = size(rx, 3)
+    return [MVec3.(view(rx, :, :, iR), view(ry, :, :, iR), view(rz, :, :, iR)) for iR in 1:nR]
 end
 
 """

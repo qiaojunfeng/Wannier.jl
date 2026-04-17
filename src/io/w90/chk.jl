@@ -28,7 +28,7 @@ Write a `Model` to a wannier90 `chk` file.
 function write_chk(
         filename::AbstractString,
         model::Model,
-        gauges::AbstractVector = model.gauges;
+        gauges::AbstractArray{<:Complex, 3} = model.gauges;
         exclude_bands::AbstractVector = default_exclude_bands(),
         binary::Bool = false,
         header = default_header(),
@@ -48,14 +48,22 @@ function write_chk(
         @assert !iszero(model.eigenvalues) "E is all zero, cannot write chk file"
 
         H = transform_gauge(model.eigenvalues, gauges)
-        if all(h -> isdiag(h), H)
+        if all(ik -> isdiag(view(H, :, :, ik)), axes(H, 3))
             # Udis saved as disentanglement matrix, Uml saved as max loc matrix
             Udis = gauges
             Uml = identity_gauge(eltype(gauges), n_kpoints(model), n_wannier(model))
         else
-            V = map(h -> eigen(h).vectors, H)
+            nkpts = size(H, 3)
+            nwann = size(H, 1)
+            V = zeros(eltype(H), nwann, nwann, nkpts)
+            for ik in 1:nkpts
+                V[:, :, ik] .= eigen(Hermitian(H[:, :, ik])).vectors
+            end
             Udis = merge_gauge(gauges, V)
-            Uml = map(v -> v', V)
+            Uml = zeros(eltype(V), nwann, nwann, nkpts)
+            for ik in 1:nkpts
+                Uml[:, :, ik] .= view(V, :, :, ik)'
+            end
         end
     else
         Udis = zeros_gauge(eltype(gauges), n_kpoints(model), n_wannier(model))
@@ -124,19 +132,19 @@ function Model(chk::WannierIO.Chk; kmesh_tol = default_w90_kmesh_tol())
         "its default value."
     @assert n_bvectors(kstencil) == chk.n_bvecs "n_bvecs different from chk file"
 
-    frozen_bands = [falses(chk.n_bands) for _ in 1:(chk.n_kpts)]
+    frozen_bands = falses(chk.n_bands, chk.n_kpts)
     @warn "chk file does not contain info on frozen bands, set all to false"
 
     # the M in chk is already rotated by the U matrix
     overlaps = chk.M
     # set U matrix as identity
-    T = eltype(overlaps[1][1])
+    T = eltype(overlaps)
     gauges = identity_gauge(T, chk.n_kpts, chk.n_wann)
     @warn "chk file only contains `overlaps` matrix rotated by the gauge " *
         "transformation, thus the `gauges` matrix is set to identity."
 
     # no eig in chk file
-    eigenvalues = [zeros(real(T), chk.n_wann) for _ in 1:(chk.n_kpts)]
+    eigenvalues = zeros(real(T), chk.n_wann, chk.n_kpts)
     @warn "chk file does not contain energy eigenvalues, set all to zero"
 
     return Model(

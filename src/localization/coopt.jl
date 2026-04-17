@@ -13,7 +13,7 @@ struct MagModel{T <: Real}
     dn::Model{T}
 
     # < u_nk^↑ | u_mk^↓ >, size: (n_bands, n_bands, n_kpts)
-    M::Vector{Matrix{Complex{T}}}
+    M::Array{Complex{T}, 3}
 end
 
 function Base.show(io::IO, ::MIME"text/plain", model::MagModel)
@@ -28,19 +28,6 @@ function Base.show(io::IO, ::MIME"text/plain", model::MagModel)
     println(io, "spin down:")
     return show(io, model.dn)
 end
-
-# function MagModel(up::Model{T}, dn::Model{T}) where {T<:Real}
-#     @assert up.n_bands == dn.n_bands
-#     @assert up.n_wann == dn.n_wann
-#     @assert up.n_kpts == dn.n_kpts
-#     @assert up.n_bvecs == dn.n_bvecs
-#     @assert up.kgrid == dn.kgrid
-#     @assert up.kpoints == dn.kpoints
-#     @assert up.bvectors == dn.bvectors
-#     # @assert up.frozen_bands == dn.frozen_bands
-
-#     MagModel(up, dn)
-# end
 
 struct SpreadMag{T <: Real, S <: AbstractSpread} <: AbstractSpread
     # up spread
@@ -100,27 +87,27 @@ function Base.show(io::IO, M::MIME"text/plain", Ω::SpreadMag)
 end
 
 """
-    overlap_updn(up::Model{T}, dn::Model{T}, M::Array{Complex{T},3}) where {T<:Real}
+    overlap_updn(M, Uup, Udn)
 
 Compute the overlap between up and down WFs.
 
 Actually N - Ω↑↓, according to QPPM Eq. 8, where N = n_wann.
 
 # Arguments
-- `M`: the `MagModel.M` matrices, size (n_bands, n_bands, n_kpts)
-- `Uup`: the up gauge matrices, size: (n_bands, n_wann, n_kpts)
-- `Udn`: the down gauge matrices, size: (n_bands, n_wann, n_kpts)
+- `M`: the `MagModel.M` matrices, `(n_bands, n_bands, n_kpts)`
+- `Uup`: the up gauge matrices, `(n_bands, n_wann, n_kpts)`
+- `Udn`: the down gauge matrices, `(n_bands, n_wann, n_kpts)`
 """
-function overlap_updn(M::Vector, Uup::Vector, Udn::Vector)
-    n_bands, n_wann = size(Uup[1])
-    n_kpts = length(Uup)
-    Mᵂ = zeros(eltype(M[1]), n_wann, n_wann)
+function overlap_updn(
+        M::AbstractArray{<:Complex, 3},
+        Uup::AbstractArray{<:Complex, 3},
+        Udn::AbstractArray{<:Complex, 3},
+    )
+    n_bands, n_wann, n_kpts = size(Uup)
+    Mᵂ = zeros(eltype(M), n_wann, n_wann)
 
     for ik in 1:n_kpts
-        Uupk = Uup[ik]
-        Udnk = Udn[ik]
-        Mk = M[ik]
-        Mᵂ .+= Uupk' * Mk * Udnk
+        Mᵂ .+= view(Uup, :, :, ik)' * view(M, :, :, ik) * view(Udn, :, :, ik)
     end
 
     return abs2.(Mᵂ) ./ n_kpts^2
@@ -168,34 +155,37 @@ Compute gradients of [`overlap_updn`](@ref overlap_updn).
 TODO: this is actually the gradient of Tr[overlap_updn]
 
 # Arguments
-- `M`: the `MagModel.M` matrices, size (n_bands, n_bands, n_kpts)
-- `Uup`: the up gauge matrices, size: (n_bands, n_wann, n_kpts)
-- `Udn`: the down gauge matrices, size: (n_bands, n_wann, n_kpts)
+- `M`: the `MagModel.M` matrices, `(n_bands, n_bands, n_kpts)`
+- `Uup`: the up gauge matrices, `(n_bands, n_wann, n_kpts)`
+- `Udn`: the down gauge matrices, `(n_bands, n_wann, n_kpts)`
 """
-function overlap_updn_grad(M::Vector, Uup::Vector, Udn::Vector)
-    n_bands, n_wann = size(Uup[1])
-    n_kpts = length(Uup)
+function overlap_updn_grad(
+        M::AbstractArray{<:Complex, 3},
+        Uup::AbstractArray{<:Complex, 3},
+        Udn::AbstractArray{<:Complex, 3},
+    )
+    n_bands, n_wann, n_kpts = size(Uup)
 
-    T = eltype(Uup[1])
+    T = eltype(Uup)
     Mᵂ = zeros(T, n_wann, n_wann)
-    GUup = [zeros(T, size(Uup[1])) for i in 1:n_kpts]
-    GUdn = [zeros(T, size(Udn[1])) for i in 1:n_kpts]
+    GUup = zeros(T, n_bands, n_wann, n_kpts)
+    GUdn = zeros(T, n_bands, n_wann, n_kpts)
 
     for ik in 1:n_kpts
-        Uupk = Uup[ik]
-        Udnk = Udn[ik]
-        Mk = M[ik]
+        Uupk = view(Uup, :, :, ik)
+        Udnk = view(Udn, :, :, ik)
+        Mk = view(M, :, :, ik)
         MUdn = Mk * Udnk
         Mᵂ += Uupk' * MUdn
 
-        GUup[ik] = MUdn
-        GUdn[ik] = Mk' * Uupk
+        GUup[:, :, ik] .= MUdn
+        GUdn[:, :, ik] .= Mk' * Uupk
     end
 
     diagM = diagm(diag(Mᵂ))
     for ik in 1:n_kpts
-        GUup[ik] .= GUup[ik] * diagM'
-        GUdn[ik] .= GUdn[ik] * diagM
+        view(GUup, :, :, ik) .= view(GUup, :, :, ik) * diagM'
+        view(GUdn, :, :, ik) .= view(GUdn, :, :, ik) * diagM
     end
     return GUup ./ n_kpts^2, GUdn ./ n_kpts^2
 end
@@ -318,14 +308,7 @@ function disentangle(
     show(Ω)
     println("\n")
 
-    # stepsize_mult = 1
-    # step = 0.5/(4*8*p.wb)*(p.N1*p.N2*p.N3)*stepsize_mult
-    # ls = LineSearches.Static(step)
     ls = Optim.HagerZhang()
-    # ls = LineSearches.BackTracking()
-
-    # meth = Optim.GradientDescent
-    # meth = Optim.ConjugateGradient
     meth = Optim.LBFGS
 
     opt = Optim.optimize(

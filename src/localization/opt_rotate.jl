@@ -18,7 +18,7 @@ function get_fg!_rotate(model::Model)
     function g!(G, W)
         n_wann = size(W, 1)
         M = model.overlaps
-        n_bvecs = length(M[1])
+        n_bvecs = size(M, 3)
         n_kpts = n_kpoints(model)
 
         bvectors = model.kstencil
@@ -43,12 +43,12 @@ function get_fg!_rotate(model::Model)
 
         for ik in 1:n_kpts
             for ib in 1:n_bvecs
-                ikpb = kpb_k[ik][ib]
+                ikpb = kpb_k[ib, ik]
 
                 # need to use UW[:, :, ik] instead of W, if model.U is not identity
-                MWᵏᵇ .= M[ik][ib] * W
+                MWᵏᵇ .= view(M, :, :, ib, ik) * W
                 Nᵏᵇ .= W' * MWᵏᵇ
-                b = recip_lattice * (kpoints[ikpb] + kpb_G[ik][ib] - kpoints[ik])
+                b = recip_lattice * (kpoints[ikpb] + kpb_G[ib, ik] - kpoints[ik])
 
                 q = imaglog.(diag(Nᵏᵇ))
                 for iw in 1:n_wann
@@ -113,14 +113,14 @@ function opt_rotate(
     model2.overlaps .= transform_gauge(
         model2.overlaps, model2.kstencil.kpb_k, model2.gauges
     )
-    model2.gauges .= identity_gauge(eltype(model2.gauges[1]), n_kpoints(model2), n_wann)
+    model2.gauges .= identity_gauge(eltype(model2.gauges), n_kpoints(model2), n_wann)
 
     wManif = Optim.Stiefel_SVD()
 
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS
 
-    W0 = Matrix{eltype(model2.gauges[1])}(I, n_wann, n_wann)
+    W0 = Matrix{eltype(model2.gauges)}(I, n_wann, n_wann)
 
     f, g! = get_fg!_rotate(model2)
 
@@ -163,13 +163,6 @@ Rotate the `U` matrices at each kpoint by the same `W` matrix.
 Useful once we have the optimal rotation matrix `W`, then update the initial
 `U` matrices by rotating them by `W`.
 """
-function merge_gauge(U::Vector, W::Matrix{T}) where {T <: Complex}
-    n_bands, n_wann = size(U[1])
-
-    size(W) != (n_wann, n_wann) && error("W must be a n_wann x n_wann matrix")
-    return map(u -> u * W, U)
-end
-
 function merge_gauge(U::Array{T, 3}, W::Matrix{T}) where {T <: Complex}
     n_bands, n_wann, n_kpts = size(U)
     size(W) != (n_wann, n_wann) && error("W must be a n_wann x n_wann matrix")

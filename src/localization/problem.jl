@@ -202,11 +202,13 @@ function _build_fg_disentangle(problem::LocalizationProblem)
             n = n_wannier(model)^2
 
             @inbounds for ik in 1:n_kpoints(model)
-                for i in eachindex(GX[ik])
-                    G[i, ik] = GX[ik][i]
+                gxk = view(GX, :, :, ik)
+                gyk = view(GY, :, :, ik)
+                for i in eachindex(gxk)
+                    G[i, ik] = gxk[i]
                 end
-                for i in eachindex(GY[ik])
-                    G[n + i, ik] = GY[ik][i]
+                for i in eachindex(gyk)
+                    G[n + i, ik] = gyk[i]
                 end
             end
         end
@@ -266,16 +268,16 @@ function _build_fg_mag_disentangle(problem::LocalizationProblem)
 
         n = nw^2
         for ik in 1:nk
-            for (i, v) in enumerate(GXup[ik])
+            for (i, v) in enumerate(view(GXup, :, :, ik))
                 G[i, ik] = v
             end
-            for (i, v) in enumerate(GYup[ik])
+            for (i, v) in enumerate(view(GYup, :, :, ik))
                 G[n + i, ik] = v
             end
-            for (i, v) in enumerate(GXdn[ik])
+            for (i, v) in enumerate(view(GXdn, :, :, ik))
                 G[n_inner + i, ik] = v
             end
-            for (i, v) in enumerate(GYdn[ik])
+            for (i, v) in enumerate(view(GYdn, :, :, ik))
                 G[n_inner + n + i, ik] = v
             end
         end
@@ -354,10 +356,10 @@ function _build_fg_mag_disentangle_center(problem::LocalizationProblem)
 
         n = nw^2
         for ik in 1:nk
-            G[1:n, ik] = vec(GXup[ik])
-            G[(n + 1):n_inner, ik] = vec(GYup[ik])
-            G[(n_inner + 1):(n_inner + n), ik] = vec(GXdn[ik])
-            G[(n_inner + n + 1):end, ik] = vec(GYdn[ik])
+            G[1:n, ik] = vec(view(GXup, :, :, ik))
+            G[(n + 1):n_inner, ik] = vec(view(GYup, :, :, ik))
+            G[(n_inner + 1):(n_inner + n), ik] = vec(view(GXdn, :, :, ik))
+            G[(n_inner + n + 1):end, ik] = vec(view(GYdn, :, :, ik))
         end
 
         return nothing

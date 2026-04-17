@@ -21,10 +21,7 @@ end
     model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
     fg! = Wannier.get_fg!_maxloc(model)
 
-    nb = n_bands(model)
-    nw = n_wannier(model)
-    nk = n_kpoints(model)
-    U = [model.gauges[ik][ib, ic] for ib in 1:nb, ic in 1:nw, ik in 1:nk]
+    U = copy(model.gauges)
     G = zero(U)
     fg!(nothing, G, U)
 

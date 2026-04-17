@@ -41,11 +41,11 @@ end
     nk = n_kpoints(model)
     nb = n_bands(model)
     nw = n_wannier(model)
-    UVv = [similar(U[1], nb, n_val) for i in 1:nk]
-    UVc = [similar(U[1], nb, nw - n_val) for i in 1:nk]
+    UVv = zeros(eltype(U), nb, n_val, nk)
+    UVc = zeros(eltype(U), nb, nw - n_val, nk)
     for ik in 1:nk
-        UVv[ik] = U[ik] * Vv[ik]
-        UVc[ik] = U[ik] * Vc[ik]
+        view(UVv, :, :, ik) .= view(U, :, :, ik) * view(Vv, :, :, ik)
+        view(UVc, :, :, ik) .= view(U, :, :, ik) * view(Vc, :, :, ik)
     end
     Mv = transform_gauge(M, kpb_k(model), UVv)
     Mc = transform_gauge(M, kpb_k(model), UVc)

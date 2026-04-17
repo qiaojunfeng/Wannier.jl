@@ -239,9 +239,9 @@ function (interp::EffectiveMassInterpolator)(
         map(1:nwann) do n
             MMat3{T}(
                 [
-                    d²ε[1][1][ik][n] d²ε[1][2][ik][n] d²ε[1][3][ik][n]
-                    d²ε[2][1][ik][n] d²ε[2][2][ik][n] d²ε[2][3][ik][n]
-                    d²ε[3][1][ik][n] d²ε[3][2][ik][n] d²ε[3][3][ik][n]
+                    d²ε[1][1][n, ik] d²ε[1][2][n, ik] d²ε[1][3][n, ik]
+                    d²ε[2][1][n, ik] d²ε[2][2][n, ik] d²ε[2][3][n, ik]
+                    d²ε[3][1][n, ik] d²ε[3][2][n, ik] d²ε[3][3][n, ik]
                 ],
             )
         end

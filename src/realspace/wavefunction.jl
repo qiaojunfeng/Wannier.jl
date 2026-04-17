@@ -41,19 +41,19 @@ Read `UNK` files, rotate gauge, and generate real space WFs.
     See also the section [Normalization convention of WFs](@ref) for further explanation.
 """
 function read_realspace_wf(
-        U::Vector{Matrix{Complex{T}}},
+        U::AbstractArray{Complex{T}, 3},
         kpoints::Vector{Vec3{T}},
         lattice,
         n_supercells::AbstractVector{Int},
         unkdir::AbstractString;
         R::AbstractVector{Int} = [0, 0, 0],
-        wan_plot_list = 1:size(U[1], 2),
+        wan_plot_list = 1:size(U, 2),
     ) where {T <: Real}
-    n_bands, n_wann = size(U[1])
+    n_bands, n_wann = size(U, 1), size(U, 2)
 
     nwfun = length(wan_plot_list)
 
-    n_kpts = length(U)
+    n_kpts = size(U, 3)
     length(n_supercells) == 3 || error("n_supercells must be 3-vector")
 
     supercells = Vector{UnitRange}()
@@ -79,7 +79,7 @@ function read_realspace_wf(
     nb == n_bands || error("incompatible n_bands")
 
     # WF in realspace
-    W = zeros(eltype(U[1]), n_gx * n_sx, n_gy * n_sy, n_gz * n_sz, ns, nwfun)
+    W = zeros(eltype(U), n_gx * n_sx, n_gy * n_sy, n_gz * n_sz, ns, nwfun)
 
     # # generate X, Y, Z fractional coordinates relative to lattice (here unknown)
     # # actually X./n_gx, Y./n_gy, Z./n_gz are the fractional coordinates w.r.t lattice
@@ -109,7 +109,7 @@ function read_realspace_wf(
         for is in 1:ns
             ΨUₖ = reshape(
                 reshape(view(Ψₖ, :, :, :, :, is), :, n_bands) *
-                    view(U[ik], :, wan_plot_list),
+                    view(U, :, wan_plot_list, ik),
                 n_gx,
                 n_gy,
                 n_gz,
@@ -199,7 +199,7 @@ function read_realspace_wf(
 end
 
 function read_realspace_wf(
-        U::Vector{Matrix{Complex{T}}},
+        U::AbstractArray{Complex{T}, 3},
         kpoints::Vector{Vec3{T}},
         lattice,
         n_supercells::Int,
@@ -225,7 +225,7 @@ where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data fo
 """
 function read_realspace_wf(
         lattice::AbstractMatrix{T},
-        U::Vector{Matrix{Complex{T}}},
+        U::AbstractArray{Complex{T}, 3},
         kpoints::Vector{Vec3{T}},
         n_supercells::Union{AbstractArray{Int}, Int} = 2,
         unkdir::AbstractString = ".";
@@ -251,7 +251,7 @@ where `RGrid` is the grid on which `W` is defined, and `W` is volumetric data fo
 """
 function read_realspace_wf(
         model::Model{T},
-        U::Vector{Matrix{Complex{T}}},
+        U::AbstractArray{Complex{T}, 3},
         n_supercells::Union{AbstractArray{Int}, Int} = 2,
         unkdir::AbstractString = ".";
         R::AbstractVector{Int} = [0, 0, 0],

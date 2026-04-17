@@ -27,7 +27,7 @@
     @test all(norm.(kpoints - ref_kpt.kpoints) .< 1.0e-6)
     ##
     eigenvalues = HamiltonianInterpolator(hamiltonian)(kpoints)[1]
-    @test all(norm.(eigenvalues - ref_dat.eigenvalues) .< 2.0e-6)
+    @test all(norm(view(eigenvalues, :, ik) - ref_dat.eigenvalues[ik]) < 2.0e-6 for ik in axes(eigenvalues, 2))
 
     Sz = interp(kpoints)
     @test all(isapprox.(Sz, ref_dat.extras; atol = 5.0e-5))

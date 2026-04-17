@@ -15,7 +15,7 @@
     kseg = KSegment(reciprocal_lattice(win["unit_cell_cart"]), win["kpoint_path"])
     kpath = KPath(kseg)
     eigenvalues = interp(collect(kpath))[1]
-    @test all(isapprox.(eigenvalues, ref_band.eigenvalues; atol = 2.0e-6))
+    @test all(isapprox(view(eigenvalues, :, ik), ref_band.eigenvalues[ik]; atol = 2.0e-6) for ik in axes(eigenvalues, 2))
 end
 
 @testitem "Hamiltonian MDRS" begin
@@ -36,5 +36,5 @@ end
     kseg = KSegment(reciprocal_lattice(win["unit_cell_cart"]), win["kpoint_path"])
     kpath = KPath(kseg)
     eigenvalues = interp(collect(kpath))[1]
-    @test all(isapprox.(eigenvalues, ref_band.eigenvalues; atol = 1.0e-7))
+    @test all(isapprox(view(eigenvalues, :, ik), ref_band.eigenvalues[ik]; atol = 1.0e-7) for ik in axes(eigenvalues, 2))
 end
