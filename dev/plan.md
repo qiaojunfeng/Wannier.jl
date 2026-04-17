@@ -258,7 +258,7 @@ Structural conversion first, then math hygiene on top of the new shape.
 - One `Spread` type with optional center fields (`Nothing` or values). Printing branches on presence.
 - Delete `SpreadCenter` and its `# TODO` comment.
 
-**Commit E — Rename `Cache` → `Workspace`, fix `.G` reassignment.**
+**Commit E — Rename `Cache` → `Workspace`, fix `.G` reassignment.** ✅ Done.
 - Rename [mutable struct Cache{T}](src/spread.jl#L126) to `Workspace{T}`; update all call sites.
 - Fix the `cache.G = G` reassignment pattern in [src/localization/problem.jl](src/localization/problem.jl#L112-L133): size `Workspace.G` as `(n_bands, n_wannier, n_kpoints)` at construction, never reassign the field. Sub-functions that need a local gradient accumulator get a separate buffer, not field mutation.
 

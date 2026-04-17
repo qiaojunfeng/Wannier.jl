@@ -109,35 +109,31 @@ function _accumulate_spread_terms_grad!(
     # short-iteration localization trajectories.
     if _is_variance_plus_center_terms(terms)
         center_term = _find_center_term(terms)
-        cache.G = Gacc
-        omega_grad!(center_penalty(center_term.r0, center_term.λ), cache, kstencil, overlaps)
+        omega_grad!(center_penalty(center_term.r0, center_term.λ), Gacc, cache, kstencil, overlaps)
         return Gacc
     end
 
     need_base = _has_variance_term(terms) || _has_center_term(terms)
     if need_base
-        cache.G = Gbase
-        omega_grad!(cache, kstencil, overlaps)
+        omega_grad!(Gbase, cache, kstencil, overlaps)
     end
 
     @inbounds for term in terms
         if term isa VarianceTerm
             Gacc .+= Gbase
         elseif term isa CenterConstraintTerm
-            cache.G = Gtmp
-            omega_grad!(center_penalty(term.r0, term.λ), cache, kstencil, overlaps)
+            omega_grad!(center_penalty(term.r0, term.λ), Gtmp, cache, kstencil, overlaps)
             Gacc .+= (Gtmp .- Gbase)
         end
     end
 
-    cache.G = Gacc
     return Gacc
 end
 
 function _build_fg_maxloc(problem::LocalizationProblem)
     terms = problem.terms
     model = problem.model
-    cache = Cache(model)
+    cache = Workspace(model)
     Gbase = similar(cache.G)
     Gtmp = similar(cache.G)
 
@@ -150,7 +146,6 @@ function _build_fg_maxloc(problem::LocalizationProblem)
         end
 
         if G !== nothing
-            cache.G = G
             _accumulate_spread_terms_grad!(
                 G,
                 terms,
@@ -172,7 +167,7 @@ end
 function _build_fg_disentangle(problem::LocalizationProblem)
     terms = problem.terms
     model = problem.model
-    cache = Cache(model)
+    cache = Workspace(model)
     Gbase = similar(cache.G)
     Gtmp = similar(cache.G)
     Gacc = similar(cache.G)

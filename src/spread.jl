@@ -72,8 +72,14 @@ end
 
 has_center_penalty(Ω::Spread) = Ω.Ωc !== nothing
 
-#TODO a bit generic
-mutable struct Cache{T}
+"""
+Preallocated scratch buffers for spread/gradient computation.
+
+`G` is sized `(n_bands, n_wannier, n_kpoints)` at construction and never
+reassigned; sub-functions that need their own gradient accumulator allocate
+a separate buffer and pass it explicitly.
+"""
+struct Workspace{T}
     X::Array{Complex{T}, 3}
     Y::Array{Complex{T}, 3}
     U::Array{Complex{T}, 3}
@@ -84,7 +90,7 @@ mutable struct Cache{T}
     MU::Array{Complex{T}, 4}
 end
 
-function Cache(bvectors::KspaceStencil{FT}, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3}) where {FT}
+function Workspace(bvectors::KspaceStencil{FT}, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3}) where {FT}
     n_kpts = size(M, 4)
     n_bands = size(M, 1)
     n_wann = size(U, 2)
@@ -99,14 +105,14 @@ function Cache(bvectors::KspaceStencil{FT}, M::AbstractArray{<:Complex, 4}, U::A
     MU = zeros(Complex{FT}, n_bands, n_wann, n_bvecs, n_kpts)
     UtMU = zeros(Complex{FT}, n_wann, n_wann, n_bvecs, n_kpts)
 
-    return Cache(X, Y, Ucopy, G, r, UtMU, MU)
+    return Workspace(X, Y, Ucopy, G, r, UtMU, MU)
 end
 
-Cache(model::Model) = Cache(model.kstencil, model.overlaps, model.gauges)
+Workspace(model::Model) = Workspace(model.kstencil, model.overlaps, model.gauges)
 
-n_bands(c::Cache) = size(c.G, 1)
-n_wann(c::Cache) = size(c.G, 2)
-n_kpts(c::Cache) = size(c.G, 3)
+n_bands(w::Workspace) = size(w.G, 1)
+n_wann(w::Workspace) = size(w.G, 2)
+n_kpts(w::Workspace) = size(w.G, 3)
 
 function _alloc_mu_utmu_packed(::Type{FT}, n_kpts, n_bvecs, n_bands, n_wann) where {FT}
     MU = zeros(Complex{FT}, n_bands, n_wann, n_bvecs, n_kpts)
@@ -225,7 +231,7 @@ function omega!(
     return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r)
 end
 
-function omega!(cache::Cache, bvectors::KspaceStencil{FT}, M) where {FT <: Real}
+function omega!(cache::Workspace, bvectors::KspaceStencil{FT}, M) where {FT <: Real}
     return omega!(cache.r, cache.UtMU, cache.MU, bvectors, M)
 end
 
@@ -290,7 +296,14 @@ function Base.show(io::IO, ::MIME"text/plain", Ω::Spread)
     end
 end
 
-omega_grad!(cache::Cache, bvectors, M) = omega_grad!((r, _) -> r, cache, bvectors, M)
+omega_grad!(cache::Workspace, bvectors, M) = omega_grad!((r, _) -> r, cache, bvectors, M)
+
+"""Gradient with an externally-provided buffer `G`; leaves `cache.G` untouched."""
+omega_grad!(G::AbstractArray{<:Complex, 3}, cache::Workspace, bvectors, M) =
+    omega_grad!((r, _) -> r, G, cache.r, cache.UtMU, cache.MU, bvectors, M)
+
+omega_grad!(penalty::Function, G::AbstractArray{<:Complex, 3}, cache::Workspace, bvectors, M) =
+    omega_grad!(penalty, G, cache.r, cache.UtMU, cache.MU, bvectors, M)
 
 function omega_grad!(
         penalty::Function,
@@ -344,7 +357,7 @@ function omega_grad!(
     return G
 end
 
-function omega_grad!(penalty::Function, cache::Cache{T}, bvectors, M) where {T}
+function omega_grad!(penalty::Function, cache::Workspace{T}, bvectors, M) where {T}
     return omega_grad!(penalty, cache.G, cache.r, cache.UtMU, cache.MU, bvectors, M)
 end
 
