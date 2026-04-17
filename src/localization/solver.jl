@@ -116,6 +116,44 @@ function solve!(prob::Problem{<:Variance, <:Model, <:WLayout}, solver::OptimLBFG
     return Optim.minimizer(opt)
 end
 
+function solve!(
+        prob::Problem{<:CoOptVariance, <:SpinModel, <:ProductLayout}, solver::OptimLBFGS
+    )
+    model = prob.model
+    nb = n_bands(model.up)
+    nw = n_wannier(model.up)
+    n_inner = nw^2 + nb * nw
+
+    legacy = LocalizationProblem(
+        (VarianceTerm(),), model, :mag_disentangle; lambda = prob.objective.λs
+    )
+    _, _, fg! = _build_fg_mag_disentangle(legacy)
+
+    Xup0, Yup0 = U_to_X_Y(model.up.gauges, model.up.frozen_bands)
+    Xdn0, Ydn0 = U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
+    XY0 = vcat(X_Y_to_XY(Xup0, Yup0), X_Y_to_XY(Xdn0, Ydn0))
+
+    man = manifold(prob.layout, model)
+    opt = Optim.optimize(
+        Optim.only_fg!(fg!),
+        XY0,
+        Optim.LBFGS(; manifold = man, linesearch = solver.linesearch, m = solver.history_size),
+        Optim.Options(;
+            f_tol = solver.f_tol,
+            g_tol = solver.g_tol,
+            iterations = solver.max_iter,
+            allow_f_increases = true,
+            show_trace = true,
+        ),
+    )
+    XYmin = Optim.minimizer(opt)
+    XYupmin = XYmin[1:n_inner, :]
+    XYdnmin = XYmin[(n_inner + 1):end, :]
+    Xupmin, Yupmin = XY_to_X_Y(XYupmin, nb, nw)
+    Xdnmin, Ydnmin = XY_to_X_Y(XYdnmin, nb, nw)
+    return X_Y_to_U(Xupmin, Yupmin), X_Y_to_U(Xdnmin, Ydnmin)
+end
+
 """
     solve!(prob; kwargs...) = solve!(prob, OptimLBFGS(; kwargs...))
 

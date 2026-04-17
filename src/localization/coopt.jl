@@ -1,3 +1,5 @@
+export coopt
+
 """
 Model for spin polarized system with constraint.
 
@@ -264,91 +266,14 @@ function get_fg!_disentangle(model::SpinModel, λ::Real = 1.0)
 end
 
 """
-    disentangle(model; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
+    coopt(sm; λs=1.0, kwargs...)
 
-Run disentangle on a `SpinModel`.
-
-# Arguments
-- `model`: SpinModel
-- `λ`: Lagrange multiplier of the ↑↓ overlap term
-
-# Keyword arguments
-- `f_tol`: tolerance for spread convergence
-- `g_tol`: tolerance for gradient convergence
-- `max_iter`: maximum number of iterations
-- `history_size`: history size of LBFGS
+Co-optimize the spin-up and spin-down Wannier gauges of a [`SpinModel`](@ref)
+with the ↑↓ overlap coupling weighted by `λs`.
 """
-function disentangle(
-        model::SpinModel{T},
-        λ::T = 1.0;
-        f_tol::T = 1.0e-7,
-        g_tol::T = 1.0e-5,
-        max_iter::Int = 200,
-        history_size::Int = 3,
-    ) where {T <: Real}
-    nb = n_bands(model.up)
-    nw = n_wannier(model.up)
-    nk = n_kpoints(model.up)
-
-    @assert n_bands(model.dn) == nb
-    @assert n_wannier(model.dn) == nw
-    @assert n_kpoints(model.dn) == nk
-
-    n_inner = nw^2 + nb * nw
-    XYManif = manifold(ProductLayout(XYGauge(), XYGauge()), model)
-
-    Xup0, Yup0 = U_to_X_Y(model.up.gauges, model.up.frozen_bands)
-    Xdn0, Ydn0 = U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
-    # compact storage
-    XYup0 = X_Y_to_XY(Xup0, Yup0)
-    XYdn0 = X_Y_to_XY(Xdn0, Ydn0)
-    XY0 = vcat(XYup0, XYdn0)
-
-    # We have three storage formats:
-    # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
-    # U: n_bands * n_wann * n_kpts
-    # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
-    _, _, fg! = get_fg!_disentangle(model, λ)
-
-    @info "Initial spread"
-    Ω = omega(model, λ)
-    show(Ω)
-    println("\n")
-
-    @info "Initial spread (with states freezed)"
-    Ω = omega(model, X_Y_to_U(Xup0, Yup0), X_Y_to_U(Xdn0, Ydn0), λ)
-    show(Ω)
-    println("\n")
-
-    ls = Optim.HagerZhang()
-    meth = Optim.LBFGS
-
-    opt = Optim.optimize(
-        Optim.only_fg!(fg!),
-        XY0,
-        meth(; manifold = XYManif, linesearch = ls, m = history_size),
-        Optim.Options(;
-            show_trace = true,
-            iterations = max_iter,
-            f_tol = f_tol,
-            g_tol = g_tol,
-            allow_f_increases = true,
-        ),
-    )
-    display(opt)
-
-    XYmin = Optim.minimizer(opt)
-
-    XYupmin = XYmin[1:n_inner, :]
-    XYdnmin = XYmin[(n_inner + 1):end, :]
-    Xupmin, Yupmin = XY_to_X_Y(XYupmin, nb, nw)
-    Xdnmin, Ydnmin = XY_to_X_Y(XYdnmin, nb, nw)
-    Uupmin = X_Y_to_U(Xupmin, Yupmin)
-    Udnmin = X_Y_to_U(Xdnmin, Ydnmin)
-
-    @info "Final spread"
-    Ω = omega(model, Uupmin, Udnmin, λ)
-    show(Ω)
-
-    return Uupmin, Udnmin
+function coopt(sm::SpinModel; λs::Real = 1.0, kwargs...)
+    return solve!(Problem(CoOptVariance(λs), sm), OptimLBFGS(; kwargs...))
 end
+
+# Back-compat shim — the historical entry point is `disentangle(sm, λ; ...)`.
+disentangle(sm::SpinModel, λ::Real = 1.0; kwargs...) = coopt(sm; λs = λ, kwargs...)
