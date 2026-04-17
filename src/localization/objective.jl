@@ -214,3 +214,30 @@ required_layout(::CenteredCoOptVariance, ::SpinModel) = ProductLayout(XYGauge(),
 function allocate_workspace(::CenteredCoOptVariance, model::SpinModel, ::Layout)
     return SpinWorkspace(Workspace(model.up), Workspace(model.dn))
 end
+
+# -------------------------------------------------------------------------
+# Problem (commit Q): solver-agnostic bundle (objective, model, layout, ws)
+# -------------------------------------------------------------------------
+
+"""
+    Problem(objective, model)
+    Problem(objective, model, layout)
+
+Solver-agnostic bundle carrying one `Objective`, its `Model` (or
+`SpinModel`), the `Layout` dictating parameter packing, and the
+preallocated `Workspace`. Constructed per optimization run; reused across
+iterations but discarded once the run returns. No solver options inside —
+solver choice/tolerances/linesearch live on an
+[`AbstractLocalizationSolver`](@ref) passed separately to `solve!`.
+"""
+struct Problem{O <: Objective, M, L <: Layout, W}
+    objective::O
+    model::M
+    layout::L
+    workspace::W
+end
+
+function Problem(objective::Objective, model, layout::Layout = required_layout(objective, model))
+    ws = allocate_workspace(objective, model, layout)
+    return Problem(objective, model, layout, ws)
+end

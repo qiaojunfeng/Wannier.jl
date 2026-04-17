@@ -315,7 +315,8 @@ Finite-difference gradient tests per objective subtype (added with each commit).
 
 ### Phase 4 — Problem + Solver adapter
 
-**Commit Q** — solver-agnostic `Problem{O<:Objective, M, L, W}` with fields `(objective, model, layout, workspace)` only. Outer constructor `Problem(objective, model)` dispatches `required_layout(objective, model)` to pick a layout, then `allocate_workspace`. Drop the current `parameterization::Symbol` dispatch and `solver_options` field from [`LocalizationProblem`](src/localization/problem.jl#L12-L17).
+**Commit Q** — solver-agnostic `Problem{O<:Objective, M, L, W}` with fields `(objective, model, layout, workspace)` only. Outer constructor `Problem(objective, model)` dispatches `required_layout(objective, model)` to pick a layout, then `allocate_workspace`. Drop the current `parameterization::Symbol` dispatch and `solver_options` field from [`LocalizationProblem`](src/localization/problem.jl#L12-L17). ✅ Done (shell).
+- New `Problem{O,M,L,W}` + outer constructor in [src/localization/objective.jl](src/localization/objective.jl). Legacy `LocalizationProblem(:symbol)` still drives the optimizers; drop lands with commit X after all entry points migrate.
 
 **Commit R** — define `AbstractLocalizationSolver` + concrete `OptimLBFGS`. Implement `solve!(prob, solver::OptimLBFGS)`: builds `Optim.only_fg!` closure over `fg!(G, prob.objective, decoded_state, prob.workspace)` (single objective call — no tuple summation), pulls manifold from `manifold(prob.layout, prob.model, solver)`, applies solver-boundary ½ factor for the gradient convention. Returns the optimized gauge; does not mutate `prob.model`.
 
