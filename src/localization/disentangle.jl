@@ -263,31 +263,6 @@ function orthonorm_freeze(U::AbstractMatrix{T}, frozen::AbstractVector{Bool}) wh
     return V
 end
 
-# This leads to another 5% speedup but I don't know how
-function GU_to_G!(G, GU, X::AbstractArray{T, 3}, Y::AbstractArray{T, 3}, frozen::AbstractMatrix{Bool}) where {T}
-    n_kpts = size(X, 3)
-
-    nw = size(X, 1)
-    nb = size(Y, 1)
-    n = nw^2
-
-    d = size(G, 1)
-
-    return @inbounds for ik in 1:n_kpts
-        idx_f = view(frozen, :, ik)
-        n_froz = count(idx_f)
-
-        GX = reshape(view(G, 1:n, ik), (nw, nw))
-        GY = reshape(view(G, (n + 1):d, ik), (nb, nw))
-
-        mul!(GX, view(Y, :, :, ik)', view(GU, :, :, ik))
-        mul!(GY, view(GU, :, :, ik), view(X, :, :, ik)')
-
-        GY[idx_f, :] .= 0
-        GY[:, 1:n_froz] .= 0
-    end
-end
-
 """
     zero_froz_grad!(G, frozen)
 

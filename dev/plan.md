@@ -269,8 +269,8 @@ Structural conversion first, then math hygiene on top of the new shape.
 
 Done so far: collapsed the scattered convention commentary into a single top-of-module note in [src/spread.jl](src/spread.jl) and tightened the `coopt.jl` callout. Deferred: the explicit ½ rescale at the solver-adapter boundary — it requires re-running the parity gate against Optim's LBFGS because the current omission has been absorbed into the line-search behavior, and the explicit rescale is best introduced at the same time as the pluggable solver adapter (commit R).
 
-**Commit G — Collapse `GU_to_GX_GY` and `GU_to_G!`.**
-- One implementation. If the documented "5% speedup I don't know how" reappears, investigate.
+**Commit G — Collapse `GU_to_GX_GY` and `GU_to_G!`.** ✅ Done.
+- Deleted the unused `GU_to_G!` helper in `disentangle.jl`; `GU_to_GX_GY` is the single implementation.
 
 **Commit H — Unify `compute_MU_UtMU!` dispatch.**
 - One method over dense 3D / 4D array views. No more `Vector{Vector{Matrix}}` path after Commit B1.
