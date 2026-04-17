@@ -46,8 +46,7 @@ function localize_isolated_bands(
     show(Ωⁱ)
     println("\n")
 
-    kManif = Optim.Stiefel_SVD()
-    Manif = Optim.PowerManifold(kManif, (n_wannier(model), n_wannier(model)), (n_kpoints(model),))
+    Manif = manifold(UGauge(), model)
 
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS

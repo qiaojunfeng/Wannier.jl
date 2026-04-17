@@ -62,15 +62,8 @@ function disentangle(
     @assert n_wannier(model.dn) == nw
     @assert n_kpoints(model.dn) == nk
 
-    XYk_up_Manif = Optim.ProductManifold(
-        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw)
-    )
-    XYk_dn_Manif = Optim.ProductManifold(
-        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw)
-    )
     n_inner = nw^2 + nb * nw
-    XYkManif = Optim.ProductManifold(XYk_up_Manif, XYk_dn_Manif, (n_inner,), (n_inner,))
-    XYManif = Optim.PowerManifold(XYkManif, (2 * n_inner,), (nk,))
+    XYManif = manifold(ProductLayout(XYGauge(), XYGauge()), model)
 
     Xup0, Yup0 = U_to_X_Y(model.up.gauges, model.up.frozen_bands)
     Xdn0, Ydn0 = U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)

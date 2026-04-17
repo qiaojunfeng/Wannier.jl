@@ -115,7 +115,7 @@ function opt_rotate(
     )
     model2.gauges .= identity_gauge(eltype(model2.gauges), n_kpoints(model2), n_wann)
 
-    wManif = Optim.Stiefel_SVD()
+    wManif = manifold(WLayout(), model2)
 
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS

@@ -1,3 +1,5 @@
+using Optim: Optim
+
 """
 Layout is an abstract interface for how the optimization parameters `x` are
 packed out of / into the canonical gauge array `U` of a [`Model`](@ref).
@@ -151,6 +153,43 @@ decode!((Uup, Udn), layout::ProductLayout, x) = (
 encode!(x::AbstractMatrix, ::WLayout, W::AbstractMatrix, _frozen) = (copyto!(x, W); x)
 decode!(W::AbstractMatrix, ::WLayout, x::AbstractMatrix) = (copyto!(W, x); W)
 pack_gradient!(g::AbstractMatrix, ::WLayout, GW::AbstractMatrix, _frozen) = (copyto!(g, GW); g)
+
+# ---- Manifold construction ----------------------------------------------
+
+"""
+    manifold(layout, model)
+
+Build the Optim manifold appropriate for `(layout, model)`. Solver
+parameterization (e.g. `ManoptLBFGS`) is added later via a third argument;
+until then the single-argument form returns an Optim.jl manifold.
+"""
+function manifold end
+
+function manifold(::UGauge, model)
+    nw = n_wannier(model)
+    return Optim.PowerManifold(Optim.Stiefel_SVD(), (nw, nw), (n_kpoints(model),))
+end
+
+function manifold(::XYGauge, model)
+    nw = n_wannier(model)
+    nb = n_bands(model)
+    nk = n_kpoints(model)
+    per_k = Optim.ProductManifold(Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw))
+    return Optim.PowerManifold(per_k, (nw^2 + nb * nw,), (nk,))
+end
+
+manifold(::WLayout, _model) = Optim.Stiefel_SVD()
+
+function manifold(::ProductLayout{XYGauge, XYGauge}, model)
+    nw = n_wannier(model.up)
+    nb = n_bands(model.up)
+    nk = n_kpoints(model.up)
+    per_k_up = Optim.ProductManifold(Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw))
+    per_k_dn = Optim.ProductManifold(Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw))
+    n_inner = nw^2 + nb * nw
+    k_combined = Optim.ProductManifold(per_k_up, per_k_dn, (n_inner,), (n_inner,))
+    return Optim.PowerManifold(k_combined, (2 * n_inner,), (nk,))
+end
 
 # ---- Legacy conversion helpers ------------------------------------------
 

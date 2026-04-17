@@ -345,11 +345,7 @@ function disentangle_bands(
     @info "Initial spread (with states frozen)" Ωⁱ
     println("\n")
 
-    # need QR orthogonalization rather than SVD to preserve the sparsity structure of Y
-    XYkManif = Optim.ProductManifold(
-        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nwann, nwann), (nbands, nwann)
-    )
-    XYManif = Optim.PowerManifold(XYkManif, (nwann^2 + nbands * nwann,), (nkpts,))
+    XYManif = manifold(XYGauge(), model)
 
     ls = Optim.HagerZhang()
     meth = Optim.LBFGS

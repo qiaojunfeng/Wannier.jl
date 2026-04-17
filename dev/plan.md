@@ -287,7 +287,9 @@ Done so far: collapsed the scattered convention commentary into a single top-of-
 **Commit K** — centralize frozen-band masking inside layout encode/decode. Remove per-call-site masking. ✅ Verified.
 - Audit confirms masking only fires inside `U_to_X_Y` (XYGauge encode) and `GU_to_GX_GY` / `pack_gradient_xy!` (XYGauge gradient pack) plus the new `UGauge.pack_gradient!`. The remaining `frozen_bands` uses in src are mask *construction* (`get_frozen_bands`, `io/w90/model.jl`, `io/truncate.jl`, `io/w90/chk.jl`) — not per-call-site mask application. The test-only `zero_froz_grad!(G, frozen)` reference-gradient shim stays, as it zeros the NLSolversBase FD gradient that bypassed our layout path. No production call sites apply frozen outside the layout interface.
 
-**Commit L** — move manifold construction (`Stiefel`, `Stiefel_SVD`, `ProductManifold`, `PowerManifold`) into `manifold(layout, model)` methods. Solver code stops constructing manifolds.
+**Commit L** — move manifold construction (`Stiefel`, `Stiefel_SVD`, `ProductManifold`, `PowerManifold`) into `manifold(layout, model)` methods. Solver code stops constructing manifolds. ✅ Done.
+- `manifold(layout, model)` methods live in [src/common/layouts.jl](src/common/layouts.jl); `max_localize`, `disentangle`, `opt_rotate`, `coopt`, and `constrain_center/coopt` call `manifold(UGauge()/XYGauge()/WLayout()/ProductLayout(...), model)` instead of hand-rolling `Optim.ProductManifold(...)` piles.
+- Solver-parameterized dispatch (e.g. `manifold(layout, model, ::OptimLBFGS)`) lands with commit R when `AbstractLocalizationSolver` arrives.
 
 Tests (with Commit J):
 - Round-trip: `decode(encode(U)) ≈ U`, `encode(decode(x)) ≈ x`, isolated and entangled.
