@@ -1,3 +1,6 @@
+export Variance, CenteredVariance, CoOptVariance, CenteredCoOptVariance
+export Problem, required_layout
+
 """
 Objective interface (commit M shell).
 

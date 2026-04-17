@@ -1,3 +1,5 @@
+export SpinModel
+
 """
 Model for spin polarized system with constraint.
 

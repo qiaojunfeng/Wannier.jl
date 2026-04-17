@@ -1,5 +1,7 @@
 using Optim: Optim
 
+export UGauge, XYGauge, WLayout, ProductLayout
+
 """
 Layout is an abstract interface for how the optimization parameters `x` are
 packed out of / into the canonical gauge array `U` of a [`Model`](@ref).

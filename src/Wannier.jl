@@ -43,7 +43,6 @@ include("Datasets.jl")
 
 include("localization/gauge.jl")
 include("localization/disentangle.jl")
-include("localization/opt_rotate.jl")
 include("localization/parallel_transport/parallel_transport.jl")
 include("localization/split.jl")
 include("localization/coopt.jl")

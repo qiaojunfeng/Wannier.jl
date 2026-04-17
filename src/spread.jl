@@ -126,8 +126,8 @@ end
 Workspace(model::Model) = Workspace(model.kstencil, model.overlaps, model.gauges)
 
 n_bands(w::Workspace) = size(w.G, 1)
-n_wann(w::Workspace) = size(w.G, 2)
-n_kpts(w::Workspace) = size(w.G, 3)
+n_wannier(w::Workspace) = size(w.G, 2)
+n_kpoints(w::Workspace) = size(w.G, 3)
 
 function _alloc_mu_utmu_packed(::Type{FT}, n_kpts, n_bvecs, n_bands, n_wann) where {FT}
     MU = zeros(Complex{FT}, n_bands, n_wann, n_bvecs, n_kpts)

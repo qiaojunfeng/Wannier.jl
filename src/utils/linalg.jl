@@ -170,6 +170,19 @@ function merge_gauge(U::AbstractArray{T1, 3}, V::AbstractArray{T2, 3}) where {T1
     return W
 end
 
+"""Apply the same `W` rotation to every k-point of `U`."""
+function merge_gauge(U::AbstractArray{T1, 3}, W::AbstractMatrix{T2}) where {T1, T2}
+    T = promote_type(T1, T2)
+    nbands, nwann_in, nkpts = size(U)
+    size(W, 1) == nwann_in || error("W rows ($(size(W, 1))) must equal n_wann_in ($nwann_in)")
+    nwann_out = size(W, 2)
+    UW = zeros(T, nbands, nwann_out, nkpts)
+    for ik in 1:nkpts
+        UW[:, :, ik] .= view(U, :, :, ik) * W
+    end
+    return UW
+end
+
 """
     rand_gauge(T, nwann)
     rand_gauge(T, nbands, nwann)

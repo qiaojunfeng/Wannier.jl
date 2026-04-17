@@ -1,6 +1,8 @@
 using Optim: Optim
 using LinearAlgebra: I
 
+export solve!, OptimLBFGS
+
 """
     AbstractLocalizationSolver
 
@@ -172,7 +174,7 @@ end
 
 function _make_optim_fg!(prob::Problem{<:CoOptVariance, <:SpinModel, <:ProductLayout})
     model = prob.model
-    ws = prob.workspace
+    ws = prob.workspace::SpinWorkspace
     λ = prob.objective.λs
     nb = n_bands(model.up)
     nw = n_wannier(model.up)
@@ -183,25 +185,19 @@ function _make_optim_fg!(prob::Problem{<:CoOptVariance, <:SpinModel, <:ProductLa
         XYr = reshape(XY, (2 * n_inner, nk))
         XYup = @view XYr[1:n_inner, :]
         XYdn = @view XYr[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, nb, nw)
-        Xdn, Ydn = XY_to_X_Y(XYdn, nb, nw)
+        Xup, Yup = XY_to_X_Y!(ws.up.X, ws.up.Y, XYup)
+        Xdn, Ydn = XY_to_X_Y!(ws.dn.X, ws.dn.Y, XYdn)
+        Uup = X_Y_to_U!(ws.up.U, Xup, Yup)
+        Udn = X_Y_to_U!(ws.dn.U, Xdn, Ydn)
 
-        Ωtot = nothing
-        if F !== nothing
-            Ωup = spread(model.up.kstencil, model.up.overlaps, Xup, Yup).Ω
-            Ωdn = spread(model.dn.kstencil, model.dn.overlaps, Xdn, Ydn).Ω
-            Ωupdn = λ == 0 ? 0.0 :
-                omega_updn(model, X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn))
-            Ωtot = Ωup + Ωdn + λ * Ωupdn
-        end
+        compute_MU_UtMU!(ws.up, model.up.kstencil, model.up.overlaps, Uup)
+        compute_MU_UtMU!(ws.dn, model.dn.kstencil, model.dn.overlaps, Udn)
 
         if G !== nothing
-            GXup, GYup = omega_grad(
-                model.up.kstencil, model.up.overlaps, Xup, Yup, model.up.frozen_bands
-            )
-            GXdn, GYdn = omega_grad(
-                model.dn.kstencil, model.dn.overlaps, Xdn, Ydn, model.dn.frozen_bands
-            )
+            omega_grad!(ws.up.G, ws.up, model.up.kstencil, model.up.overlaps)
+            omega_grad!(ws.dn.G, ws.dn, model.dn.kstencil, model.dn.overlaps)
+            GXup, GYup = GU_to_GX_GY(ws.up.G, Xup, Yup, model.up.frozen_bands)
+            GXdn, GYdn = GU_to_GX_GY(ws.dn.G, Xdn, Ydn, model.dn.frozen_bands)
             if λ != 0
                 GOXup, GOYup, GOXdn, GOYdn = omega_updn_grad(model, Xup, Yup, Xdn, Ydn)
                 GXup += λ * GOXup
@@ -217,7 +213,13 @@ function _make_optim_fg!(prob::Problem{<:CoOptVariance, <:SpinModel, <:ProductLa
             end
         end
 
-        return F === nothing ? nothing : Ωtot
+        if F === nothing
+            return nothing
+        end
+        Ωup = omega!(ws.up, model.up.kstencil, model.up.overlaps).Ω
+        Ωdn = omega!(ws.dn, model.dn.kstencil, model.dn.overlaps).Ω
+        Ωupdn = λ == 0 ? 0.0 : omega_updn(model, Uup, Udn)
+        return Ωup + Ωdn + λ * Ωupdn
     end
 end
 
@@ -226,6 +228,7 @@ end
 function _make_optim_fg!(prob::Problem{<:CenteredCoOptVariance, <:SpinModel, <:ProductLayout})
     model = prob.model
     obj = prob.objective
+    ws = prob.workspace::SpinWorkspace
     λs = obj.λs
     pen = center_penalty(obj.r0, obj.λ)
     nb = n_bands(model.up)
@@ -234,35 +237,35 @@ function _make_optim_fg!(prob::Problem{<:CenteredCoOptVariance, <:SpinModel, <:P
     n_inner = nw^2 + nb * nw
     n = nw^2
 
-    function f(XY)
+    function _decode!(XY)
         XYr = reshape(XY, (2 * n_inner, nk))
-        XYup = @view XYr[1:n_inner, :]
-        XYdn = @view XYr[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, nb, nw)
-        Xdn, Ydn = XY_to_X_Y(XYdn, nb, nw)
+        Xup, Yup = XY_to_X_Y!(ws.up.X, ws.up.Y, @view XYr[1:n_inner, :])
+        Xdn, Ydn = XY_to_X_Y!(ws.dn.X, ws.dn.Y, @view XYr[(n_inner + 1):end, :])
+        Uup = X_Y_to_U!(ws.up.U, Xup, Yup)
+        Udn = X_Y_to_U!(ws.dn.U, Xdn, Ydn)
+        compute_MU_UtMU!(ws.up, model.up.kstencil, model.up.overlaps, Uup)
+        compute_MU_UtMU!(ws.dn, model.dn.kstencil, model.dn.overlaps, Udn)
+        return Xup, Yup, Xdn, Ydn, Uup, Udn
+    end
+
+    function f(XY)
+        _, _, _, _, Uup, Udn = _decode!(XY)
         Ωup = omega_center(
-            spread(model.up.kstencil, model.up.overlaps, Xup, Yup); r₀ = obj.r0, λ = obj.λ
+            omega!(ws.up, model.up.kstencil, model.up.overlaps); r₀ = obj.r0, λ = obj.λ
         ).Ωt
         Ωdn = omega_center(
-            spread(model.dn.kstencil, model.dn.overlaps, Xdn, Ydn); r₀ = obj.r0, λ = obj.λ
+            omega!(ws.dn, model.dn.kstencil, model.dn.overlaps); r₀ = obj.r0, λ = obj.λ
         ).Ωt
-        Ωupdn = λs == 0 ? 0.0 :
-            omega_updn(model, X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn))
+        Ωupdn = λs == 0 ? 0.0 : omega_updn(model, Uup, Udn)
         return Ωup + Ωdn + λs * Ωupdn
     end
 
     function g!(G, XY)
-        XYr = reshape(XY, (2 * n_inner, nk))
-        XYup = @view XYr[1:n_inner, :]
-        XYdn = @view XYr[(n_inner + 1):end, :]
-        Xup, Yup = XY_to_X_Y(XYup, nb, nw)
-        Xdn, Ydn = XY_to_X_Y(XYdn, nb, nw)
-        GXup, GYup = omega_grad(
-            pen, model.up.kstencil, model.up.overlaps, Xup, Yup, model.up.frozen_bands
-        )
-        GXdn, GYdn = omega_grad(
-            pen, model.dn.kstencil, model.dn.overlaps, Xdn, Ydn, model.dn.frozen_bands
-        )
+        Xup, Yup, Xdn, Ydn, _, _ = _decode!(XY)
+        omega_grad!(pen, ws.up.G, ws.up, model.up.kstencil, model.up.overlaps)
+        omega_grad!(pen, ws.dn.G, ws.dn, model.dn.kstencil, model.dn.overlaps)
+        GXup, GYup = GU_to_GX_GY(ws.up.G, Xup, Yup, model.up.frozen_bands)
+        GXdn, GYdn = GU_to_GX_GY(ws.dn.G, Xdn, Ydn, model.dn.frozen_bands)
         if λs != 0
             GOXup, GOYup, GOXdn, GOYdn = omega_updn_grad(model, Xup, Yup, Xdn, Ydn)
             GXup += λs * GOXup
@@ -357,7 +360,70 @@ function solve!(prob::Problem{<:CenteredVariance, <:Model}, solver::OptimLBFGS)
         end
 end
 
-# Variance + WLayout (opt_rotate) — keeps the rotation-specific fg!
+# Variance + WLayout (opt_rotate) — single-W rotation manifold
+"""
+Build `(f, g!)` closures for the opt_rotate path. The optimization variable
+is the single rotation matrix `W`; the gauges of `model` are assumed to be
+identity (see `solve!(::Problem{<:Variance, <:Model, <:WLayout}, ...)`).
+"""
+function get_fg!_rotate(model::Model)
+    function f(W)
+        U = merge_gauge(model.gauges, W)
+        return spread(model.kstencil, model.overlaps, U).Ω
+    end
+
+    function g!(G, W)
+        n_wann = size(W, 1)
+        M = model.overlaps
+        n_bvecs = size(M, 3)
+        n_kpts = n_kpoints(model)
+
+        bvectors = model.kstencil
+        kpb_k = bvectors.kpb_k
+        kpb_G = bvectors.kpb_G
+        wb = bvectors.bweights
+        recip_lattice = bvectors.recip_lattice
+        kpoints = bvectors.kpoints
+
+        fill!(G, 0.0)
+        T = zeros(eltype(W), n_wann, n_wann)
+        MWᵏᵇ = zeros(eltype(W), n_wann, n_wann)
+        Nᵏᵇ = zeros(eltype(W), n_wann, n_wann)
+
+        UW = merge_gauge(model.gauges, W)
+        r = center(bvectors, M, UW)
+
+        for ik in 1:n_kpts
+            for ib in 1:n_bvecs
+                ikpb = kpb_k[ib, ik]
+                MWᵏᵇ .= view(M, :, :, ib, ik) * W
+                Nᵏᵇ .= W' * MWᵏᵇ
+                b = recip_lattice * (kpoints[ikpb] + kpb_G[ib, ik] - kpoints[ik])
+
+                q = imaglog.(diag(Nᵏᵇ))
+                for iw in 1:n_wann
+                    q[iw] += r[iw] ⋅ b
+                end
+
+                for n in 1:n_wann
+                    abs(Nᵏᵇ[n, n]) < 1.0e-10 && error("Nᵏᵇ too small! $ik -> $ikpb, $Nᵏᵇ")
+                    t = -conj(Nᵏᵇ[n, n]) - im * q[n] / Nᵏᵇ[n, n]
+                    for m in 1:n_wann
+                        T[m, n] = t * MWᵏᵇ[m, n]
+                    end
+                end
+
+                G .+= 4 * wb[ib] * T
+            end
+        end
+
+        G ./= n_kpts
+        return nothing
+    end
+
+    return f, g!
+end
+
 function solve!(prob::Problem{<:Variance, <:Model, <:WLayout}, solver::OptimLBFGS)
     model = prob.model
     n_wann = n_wannier(model)

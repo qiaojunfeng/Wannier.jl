@@ -364,6 +364,12 @@ localize(obj::Objective, model, layout::Layout; kwargs...) = solve!(Problem(obj,
 ```
 Center-penalty cases now go through `localize(CenteredVariance(r0, λ), model)` or `localize(CenteredCoOptVariance(r0, λ, λs), sm)`; opt-rotate is `localize(Variance(), model, WLayout())`. `src/localization/constrain_center/` directory removed; `src/localization/max_localize.jl` renamed to `localize.jl`.
 
+API polish pass:
+- Concrete types now exported: `SpinModel`, `Problem`, `Variance`/`CenteredVariance`/`CoOptVariance`/`CenteredCoOptVariance`, `UGauge`/`XYGauge`/`WLayout`/`ProductLayout`, `OptimLBFGS`, `solve!`, `required_layout`. Abstract types `Objective`/`Layout`/`AbstractLocalizationSolver` stay un-exported per "no abstract exports" guideline.
+- `SpinWorkspace` is now used: the SpinModel `_make_optim_fg!` closures call `compute_MU_UtMU!` once per channel against `prob.workspace.up`/`.dn`, then reuse `ws.up.G` / `ws.dn.G` for `omega_grad!`. No more fresh `Workspace` allocation per Optim iteration.
+- `n_wann(::Workspace)` → `n_wannier(::Workspace)`, `n_kpts(::Workspace)` → `n_kpoints(::Workspace)` for naming consistency with the `Model` accessors.
+- `src/localization/opt_rotate.jl` deleted; `get_fg!_rotate` lives next to its `solve!(::WLayout)` consumer in `src/localization/solver.jl`. The redundant `merge_gauge(::Array{T,3}, ::Matrix{T})` overload is replaced by a generic `merge_gauge(U::AbstractArray{T1,3}, W::AbstractMatrix{T2})` in `src/utils/linalg.jl`.
+
 ### Phase 7 — Performance and alternative backends
 
 **Commit Z** — benchmark harness. Track `omega!`, `omega_grad!`, `fg!`, end-to-end iterations/sec, workspace allocations. Pin to a fixed test system; commit numbers.
