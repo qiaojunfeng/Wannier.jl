@@ -299,7 +299,8 @@ Tests (with Commit J):
 
 ### Phase 3 — Objective interface
 
-**Commit M** — define `Objective`, `Workspace` contracts (`value`, `gradient!`, `fg!`, `required_layout`, `allocate_workspace`). Empty shell + doctests.
+**Commit M** — define `Objective`, `Workspace` contracts (`value`, `gradient!`, `fg!`, `required_layout`, `allocate_workspace`). Empty shell + doctests. ✅ Done.
+- New [src/localization/objective.jl](src/localization/objective.jl) introduces `abstract type Objective` and the five contract functions plus a generic `fg!` fallback that routes through `gradient!` + `value`. Concrete subtypes land in N / O / P; the existing `VarianceTerm` / `CenterConstraintTerm` + `:symbol`-keyed `LocalizationProblem` keep running until the migration lands.
 
 **Commit N** — implement `Variance <: Objective`. `required_layout(::Variance, m::Model) = any_entangled(m) ? XYGauge() : UGauge()`. Port existing `omega` / `omega_grad` math into `fg!`.
 
