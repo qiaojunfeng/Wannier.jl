@@ -94,63 +94,8 @@ Maximally localize spread functional w.r.t. single unitary matrix `W`.
 - `max_iter`: maximum number of iterations
 - `history_size`: history size of LBFGS
 """
-function opt_rotate(
-        model::Model{T}; f_tol::T = 1.0e-7, g_tol::T = 1.0e-5, max_iter::Int = 200, history_size::Int = 3
-    ) where {T <: Real}
-    n_wann = n_wannier(model)
-    n_bands(model) == n_wann || error("n_bands != n_wann, run instead disentanglement?")
-
-    Ωⁱ = omega(model)
-    @info "Initial spread"
-    show(Ωⁱ)
-    println("\n")
-
-    # make sure U is identity matrices
-    # however I shouldn't modify the original model, deepcopy it
-    # note I cannot use `rotate_gauge(model, model.U)` because the rotated Hamiltonian
-    # might not be diagonal, however in this case I don't care about eigenvalues
-    model2 = deepcopy(model)
-    model2.overlaps .= transform_gauge(
-        model2.overlaps, model2.kstencil.kpb_k, model2.gauges
-    )
-    model2.gauges .= identity_gauge(eltype(model2.gauges), n_kpoints(model2), n_wann)
-
-    wManif = manifold(WLayout(), model2)
-
-    ls = Optim.HagerZhang()
-    meth = Optim.LBFGS
-
-    W0 = Matrix{eltype(model2.gauges)}(I, n_wann, n_wann)
-
-    f, g! = get_fg!_rotate(model2)
-
-    # Comment g! to use finite differences to compute the gradient
-    opt = Optim.optimize(
-        f,
-        g!,
-        W0,
-        meth(; manifold = wManif, linesearch = ls, m = history_size),
-        # autodiff=:forward,
-        Optim.Options(;
-            show_trace = true,
-            iterations = max_iter,
-            f_tol = f_tol,
-            g_tol = g_tol,
-            allow_f_increases = true,
-        ),
-    )
-    display(opt)
-
-    Wmin = Optim.minimizer(opt)
-
-    # model2.U is actually identity
-    U = merge_gauge(model2.gauges, Wmin)
-    Ωᶠ = omega(model2, U)
-    @info "Final spread"
-    show(Ωᶠ)
-    println("\n")
-
-    return Wmin
+function opt_rotate(model::Model; kwargs...)
+    return solve!(Problem(Variance(), model, WLayout()), OptimLBFGS(; kwargs...))
 end
 
 """

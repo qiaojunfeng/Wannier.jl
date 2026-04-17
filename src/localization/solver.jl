@@ -1,4 +1,5 @@
 using Optim: Optim
+using LinearAlgebra: I
 
 """
     AbstractLocalizationSolver
@@ -84,6 +85,35 @@ function solve!(prob::Problem{<:Variance, <:Model}, solver::OptimLBFGS)
         Xmin, Ymin = XY_to_X_Y(xmin, n_bands(model), n_wannier(model))
         return X_Y_to_U(Xmin, Ymin)
     end
+end
+
+function solve!(prob::Problem{<:Variance, <:Model, <:WLayout}, solver::OptimLBFGS)
+    model = prob.model
+    n_wann = n_wannier(model)
+    n_bands(model) == n_wann || error("n_bands != n_wann, run disentanglement instead")
+
+    # Work on a copy with transformed overlaps + identity gauges so the
+    # optimization variable is purely the W rotation.
+    model2 = deepcopy(model)
+    model2.overlaps .= transform_gauge(model2.overlaps, model2.kstencil.kpb_k, model2.gauges)
+    model2.gauges  .= identity_gauge(eltype(model2.gauges), n_kpoints(model2), n_wann)
+
+    f, g! = get_fg!_rotate(model2)
+    man   = manifold(WLayout(), model2)
+    W0    = Matrix{eltype(model2.gauges)}(I, n_wann, n_wann)
+
+    opt = Optim.optimize(
+        f, g!, W0,
+        Optim.LBFGS(; manifold = man, linesearch = solver.linesearch, m = solver.history_size),
+        Optim.Options(;
+            f_tol = solver.f_tol,
+            g_tol = solver.g_tol,
+            iterations = solver.max_iter,
+            allow_f_increases = true,
+            show_trace = true,
+        ),
+    )
+    return Optim.minimizer(opt)
 end
 
 """
