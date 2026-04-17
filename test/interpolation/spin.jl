@@ -2,28 +2,28 @@
     using LinearAlgebra
     using Wannier.Datasets
     hamiltonian, position, spin = read_w90_tb_chk_spn(
-        dataset"Fe_soc/outputs/MDRS/Fe";
-        spn = dataset"Fe_soc/Fe.spn",
-        chk = dataset"Fe_soc/outputs/Fe.chk",
+        dataset"Fe_soc_coarse/outputs/Fe";
+        spn = dataset"Fe_soc_coarse/Fe.spn",
+        chk = dataset"Fe_soc_coarse/outputs/Fe.chk",
     )
     # project onto the z axis
     θ = 0.0
     ϕ = 0.0
     interp = SpinProjectionInterpolator(hamiltonian, spin, θ, ϕ)
 
-    ref_kpt = read_w90_band_kpt(dataset"Fe_soc/outputs/MDRS/postw90/Fe-path.kpt")
-    ref_dat = read_w90_band_dat(dataset"Fe_soc/outputs/MDRS/postw90/Fe-bands.dat")
+    ref_kpt = read_w90_band_kpt(dataset"Fe_soc_coarse/outputs/postw90/Fe-path.kpt")
+    ref_dat = read_w90_band_dat(dataset"Fe_soc_coarse/outputs/postw90/Fe-bands.dat")
 
     # if I use the kpoints in ref_kpt, the difference between eigenvalues is
     # around 1e-4, this is because the kpoints coordinates do not have enough
     # digits. Therefore, I read the win file and construct the kpoints myself.
     # kpoints = ref_kpt.kpoints
-    win = read_win(dataset"Fe_soc/Fe.win")
+    win = read_win(dataset"Fe_soc_coarse/Fe.win")
     kseg = KSegment(reciprocal_lattice(win["unit_cell_cart"]), win["kpoint_path"])
-    kpath = KPath(kseg)
-    # postw90.x has a bug, it misses the `H` point at 417
+    kpath = KPath(kseg, 5)
+    # postw90.x has a bug, it misses the `H` point at 22
     kpoints = collect(kpath)
-    deleteat!(kpoints, 417)
+    deleteat!(kpoints, 22)
     @test all(norm.(kpoints - ref_kpt.kpoints) .< 1.0e-6)
     ##
     eigenvalues = HamiltonianInterpolator(hamiltonian)(kpoints)[1]

@@ -1,91 +1,86 @@
-@testitem "TBHamiltonianPosition" begin
-    using LinearAlgebra
-    using Wannier: Vec3
+@testmodule OrbitalMagnetizationEnv begin
+    using Wannier
     using Wannier.Datasets
+    export model, hamiltonian_position, position_hamiltonian_position, uHu
 
-    model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/outputs/Fe.chk")
+    model = read_w90_with_chk(dataset"Fe_soc_coarse/Fe", dataset"Fe_soc_coarse/outputs/Fe.chk")
     hamiltonian_position = TBHamiltonianPosition(model)
-
-    Hr_11 = Vec3(
-        -0.05655034287285573 - 0.0033676997474095015im,
-        0.14573076408128938 + 0.002481532972539341im,
-        -0.08495167782844368 + 0.0002025296058253332im,
-    )
-    Hr_12 = Vec3(
-        -0.004894341665464354 - 0.0035083746559635472im,
-        8.947905061703487e-5 - 0.0003222480961347094im,
-        -0.002246877325241364 - 0.010270224128882639im,
-    )
-    Hr_21 = Vec3(
-        -0.008879207283281055 + 0.017350636753024708im,
-        -0.001550320638839293 + 0.011450968898925317im,
-        -0.008105982416168542 + 0.0016898640836712176im,
-    )
-    Hr_22 = Vec3(
-        -0.0420601683301116 - 0.00033243732755332066im,
-        0.08705831014849093 + 0.009332448985531172im,
-        0.17436896103376767 - 0.0007776111447994936im,
-    )
-    ref_Hr_001 = [[Hr_11, Hr_21] [Hr_12, Hr_22]]
-    @test isapprox(hamiltonian_position[0, 1, 1][1:2, 1:2], ref_Hr_001; atol = 1.0e-8)
+    uHu = read_uHu(dataset"Fe_soc_coarse/Fe.uHu").uHu
+    position_hamiltonian_position = TBPositionHamiltonianPosition(model, uHu)
 end
 
-@testitem "TBPositionHamiltonianPosition" begin
+@testitem "TBHamiltonianPosition" setup = [OrbitalMagnetizationEnv] begin
     using LinearAlgebra
-    using Wannier: Vec3
-    using Wannier.Datasets
 
-    model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/outputs/Fe.chk")
-    uHu = read_uHu(dataset"Fe_soc/Fe.uHu").uHu
-    position_hamiltonian_position = TBPositionHamiltonianPosition(model, uHu)
+    Hr_11 = Vec3(
+        -0.1310914834482943 + 0.05853108710468198im,
+        -0.10609815871369616 - 0.06165462741261124im,
+        -0.22750100392145212 + 0.12742014536973748im
+    )
+    Hr_12 = Vec3(
+        0.0 + 0.0im,
+        0.0 + 0.0im,
+        0.0 + 0.0im
+    )
+    Hr_21 = Vec3(
+        0.2858787836391398 + 0.5800944404791165im,
+        0.07700692054319432 - 0.24674019231253563im,
+        -0.6998327066540999 - 0.6544517149242701im
+    )
+    Hr_22 = Vec3(
+        -0.08208690744174643 + 0.122948638299064im,
+        -0.13302713637817998 - 0.13666634789988658im,
+        -0.004434708333426407 - 0.12706594346508193im
+    )
+    ref_Hr_001 = [[Hr_11, Hr_21] [Hr_12, Hr_22]]
+    @test isapprox(hamiltonian_position[0, 1, 0][1:2, 1:2], ref_Hr_001; atol = 1.0e-8)
+end
+
+@testitem "TBPositionHamiltonianPosition" setup = [OrbitalMagnetizationEnv] begin
+    using LinearAlgebra
 
     ref_rHr_011 = [
         [
-            0.1791744538931292 + 0.0020955816183890405im -0.186068778524343 - 0.0020362406364252553im -0.09391057298063965 - 0.0018317497603643198im
-            0.04124275653175067 - 0.009008304363442845im 0.04282298381236467 - 0.0029005984505842833im -0.13165388156091815 + 0.008739659094908092im
-            -0.24195275404031225 - 0.005679662165088098im 0.13953004528724272 + 0.0035418448818636747im 0.20921953895157094 + 0.006034632637907919im
+            -0.011344631721247528 - 8.797323657074556e-18im   0.08061997095049099 + 0.055782599683839265im       0.1512117475770554 - 0.008811001411659518im
+            0.08061997095049099 - 0.055782599683839265im   -0.06864220679169453 + 1.3972282670756823e-17im    -0.1294603039919712 + 0.08477139042404999im
+            0.1512117475770554 + 0.008811001411659518im    -0.1294603039919712 - 0.08477139042404999im     -0.024328266922674535 + 1.6971365538098622e-17im
         ],
         [
-            0.03957686145822008 - 0.06685710036635506im -0.003926564560497527 + 0.0023361688298376535im 0.008057284311593447 - 0.0030866754673423806im
-            0.001472662662175219 + 0.0006408293375997858im -0.014179847648214864 + 0.03323642945856213im -0.0036383288813261407 - 0.002937128744984542im
-            -0.0027410446394830847 + 0.0068988661552413285im 0.002527434016376507 + 0.0033246397145206582im -0.002834534631742737 - 0.0072179750352187625im
+            -0.13102251317841107 - 0.0872578912067857im     0.22701200284340356 + 0.0552532493128975im    0.27189683515426977 + 0.21875009920028324im
+            0.3298083924817641 + 0.16327194339453072im     -0.076738703576335 - 0.010582808772552924im  -0.3573711109596745 - 0.24639555412040082im
+            0.24099374405778362 + 0.056959474467350446im  -0.21820206700118655 + 0.03269998910832419im   0.10510780019703406 + 0.08897746731961312im
         ],
     ]
-    @test isapprox(position_hamiltonian_position[0, 1, 1][1:2, 1], ref_rHr_011; atol = 1.0e-8)
+    @test isapprox(position_hamiltonian_position[0, 1, 0][1:2, 1], ref_rHr_011; atol = 1.0e-8)
 end
 
-@testitem "OrbitalMagnetizationInterpolator" begin
+@testitem "OrbitalMagnetizationInterpolator" setup = [OrbitalMagnetizationEnv] begin
     using LinearAlgebra
     using DelimitedFiles
     using Wannier.Datasets
+
     # note that when w90 writes tb.dat, it use imag(log(...)) for
     # the diagonal part of position operator, thus it will be different from
     # the one used in postw90.x, which directly use the overlap matrices for
     # position operator. Therefore, we read directly from chk file to reproduce
     # the same results.
-    # hamiltonian, position = read_w90_tb(dataset"Fe_soc/outputs/MDRS/Fe")
-    model = read_w90_with_chk(dataset"Fe_soc/Fe", dataset"Fe_soc/outputs/Fe.chk")
+    # hamiltonian, position = read_w90_tb(dataset"Fe_soc_coarse/outputs/Fe")
     hamiltonian = TBHamiltonian(model)
     Rspace = generate_Rspace(model)
     position = TBPosition(Rspace, model; imlog_diag = false)
-    hamiltonian_position = TBHamiltonianPosition(Rspace, model)
-    uHu = read_uHu(dataset"Fe_soc/Fe.uHu").uHu
-    position_hamiltonian_position = TBPositionHamiltonianPosition(Rspace, model, uHu)
-    win = read_win(dataset"Fe_soc/Fe.win")
+    hamiltonian_position1 = TBHamiltonianPosition(Rspace, model)
+    position_hamiltonian_position1 = TBPositionHamiltonianPosition(Rspace, model, uHu)
+    win = read_win(dataset"Fe_soc_coarse/Fe.win")
     interp = Wannier.OrbitalMagnetizationInterpolator(
         hamiltonian,
         position,
-        hamiltonian_position,
-        position_hamiltonian_position,
+        hamiltonian_position1,
+        position_hamiltonian_position1,
         win["fermi_energy"],
     )
 
-    # I use less kpoints to speedup the test
-    COARSE = true
-    postw90_dir = COARSE ? "postw90_coarse" : "postw90"
-
-    ref_kpt = read_w90_band_kpt(dataset"Fe_soc/outputs/MDRS/" * postw90_dir * "/Fe-path.kpt")
-    ref_dat = readdlm(dataset"Fe_soc/outputs/MDRS/" * postw90_dir * "/Fe-morb.dat")
+    ref_kpt = read_w90_band_kpt(dataset"Fe_soc_coarse/outputs/postw90/Fe-path.kpt")
+    ref_dat = readdlm(dataset"Fe_soc_coarse/outputs/postw90/Fe-morb.dat")
     # w90 actually writes -1/2 * M, where M = LVTS12 Eq. 97
     ref_M = map(eachrow(ref_dat[:, 2:end])) do M
         -2 * Wannier.axialvector_to_antisymmetrictensor(M)
@@ -96,10 +91,11 @@ end
     # digits. Therefore, I read the win file and construct the kpoints myself.
     # kpoints = ref_kpt.kpoints
     kseg = KSegment(reciprocal_lattice(win["unit_cell_cart"]), win["kpoint_path"])
-    kpath = KPath(kseg, COARSE ? 5 : 100)
+    # I use less kpoints to speedup the test
+    kpath = KPath(kseg, 5)
     kpoints = collect(kpath)
     # postw90.x has a bug, it misses the `H` point
-    ik_H = COARSE ? 22 : 417
+    ik_H = 22
     deleteat!(kpoints, ik_H)
     @test all(norm.(kpoints - ref_kpt.kpoints) .< 1.0e-6)
 
