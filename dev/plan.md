@@ -305,7 +305,8 @@ Tests (with Commit J):
 **Commit N** — implement `Variance <: Objective`. `required_layout(::Variance, m::Model) = any_entangled(m) ? XYGauge() : UGauge()`. Port existing `omega` / `omega_grad` math into `fg!`. ✅ Done (shell).
 - `Variance` subtype, `required_layout` (UGauge/XYGauge branch on `isentangled(model)`), `allocate_workspace(::Variance, model, ::Layout) = Workspace(model)`, and a `fg!` that fuses `compute_MU_UtMU!` + `omega_grad!` + `omega!` live in [src/localization/objective.jl](src/localization/objective.jl). `value` and `gradient!` are intentionally error paths so callers use `fg!` and avoid re-filling MU/UtMU twice; this matches the fusion discipline the plan requires for each Objective subtype.
 
-**Commit O** — implement `CenteredVariance{T} <: Objective` (fields `r0::Vector{Vec3{T}}`, `λ::T`). Same layout trait as `Variance`. `fg!` fuses MV spread with the center penalty in one pass over `MU`/`UtMU`.
+**Commit O** — implement `CenteredVariance{T} <: Objective` (fields `r0::Vector{Vec3{T}}`, `λ::T`). Same layout trait as `Variance`. `fg!` fuses MV spread with the center penalty in one pass over `MU`/`UtMU`. ✅ Done (shell).
+- Concrete `CenteredVariance{T}` lives in [src/localization/objective.jl](src/localization/objective.jl) alongside `Variance`; `required_layout` / `allocate_workspace` mirror the variance case, and `fg!` threads `center_penalty(r0, λ)` into `omega_grad!` so the penalty is folded in during the same MU/UtMU sweep that computes the base spread.
 
 **Commit P** — implement `CoOptVariance{T} <: Objective` (field `λs::T`) and `CenteredCoOptVariance{T} <: Objective` (fields `r0`, `λ`, `λs`) for `SpinModel`. `required_layout(::_, ::SpinModel) → ProductLayout(...)`. Each subtype's `fg!` hand-orders `omega` on up, `omega` on dn, `Ωupdn`, and (for `Centered…`) the center penalty — a single explicit compute sequence per subtype, no tuple traversal at runtime.
 

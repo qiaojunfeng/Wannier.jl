@@ -123,3 +123,43 @@ function fg!(
     Ω = omega!(ws, kstencil, overlaps).Ω
     return Ω
 end
+
+# -------------------------------------------------------------------------
+# CenteredVariance (commit O): variance + WF-center penalty on a Model
+# -------------------------------------------------------------------------
+
+"""
+    CenteredVariance(r0, λ)
+
+Marzari-Vanderbilt variance with a per-WF center penalty
+`Ωc = λ · Σₙ |r_n − r0[n]|²`. `r0` is a length-`n_wann` vector of target
+centers (Cartesian, Å); `λ` is the penalty strength.
+"""
+struct CenteredVariance{T <: Real} <: Objective
+    r0::Vector{Vec3{T}}
+    λ::T
+end
+
+required_layout(::CenteredVariance, model::Model) = isentangled(model) ? XYGauge() : UGauge()
+
+allocate_workspace(::CenteredVariance, model::Model, ::Layout) = Workspace(model)
+
+function fg!(
+        G,
+        obj::CenteredVariance,
+        state::AbstractArray{<:Complex, 3},
+        ws::Workspace,
+        kstencil,
+        overlaps,
+    )
+    compute_MU_UtMU!(ws, kstencil, overlaps, state)
+    if G !== nothing && G !== false
+        # Center penalty is applied by the penalty-aware omega_grad! kernel
+        # in a single sweep; the factor is folded into the kernel via
+        # `center_penalty(r0, λ)`.
+        omega_grad!(center_penalty(obj.r0, obj.λ), G, ws, kstencil, overlaps)
+    end
+    Ωbase = omega!(ws, kstencil, overlaps)
+    Ωc = sum(n -> obj.λ * sum((Ωbase.r[n] - obj.r0[n]) .^ 2), eachindex(obj.r0))
+    return Ωbase.Ω + Ωc
+end
