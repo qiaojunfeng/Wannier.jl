@@ -280,7 +280,9 @@ Done so far: collapsed the scattered convention commentary into a single top-of-
 
 ### Phase 2 — Layout abstraction
 
-**Commit J** — define `Layout`, `UGauge`, `XYGauge`, `ProductLayout`, `WLayout`. Port the following into methods on these layouts: `U_to_X_Y`, `X_Y_to_U`, `XY_to_X_Y`, `X_Y_to_XY`, `GU_to_G!`. One module owns all conversions.
+**Commit J** — define `Layout`, `UGauge`, `XYGauge`, `ProductLayout`, `WLayout`. Port the following into methods on these layouts: `U_to_X_Y`, `X_Y_to_U`, `XY_to_X_Y`, `X_Y_to_XY`, `GU_to_G!`. One module owns all conversions. ✅ Done (shim layer).
+- Types + `encode!`/`decode!`/`pack_gradient!` interface added in [src/common/layouts.jl](src/common/layouts.jl); for now they delegate to the existing `U_to_X_Y` / `X_Y_to_XY` / `GU_to_GX_GY` helpers. Legacy free functions stay callable; objective/problem migration to the layout interface lands with commits Q/R.
+- `XYGauge.pack_gradient!` intentionally errors and points callers at `pack_gradient_xy!(g, GU, X, Y, frozen)` since the caller already has decoded X/Y in hand.
 
 **Commit K** — centralize frozen-band masking inside layout encode/decode. Remove per-call-site masking.
 

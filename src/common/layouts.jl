@@ -1,4 +1,160 @@
 """
+Layout is an abstract interface for how the optimization parameters `x` are
+packed out of / into the canonical gauge array `U` of a [`Model`](@ref).
+
+Four concrete types are used by the rewrite:
+
+- [`UGauge`](@ref) — `x ≡ U` directly, `(n_bands, n_wannier, n_kpoints)`.
+- [`XYGauge`](@ref) — disentangled form as a contiguous
+  `(n_wannier² + n_bands·n_wannier) × n_kpoints` matrix.
+- [`ProductLayout`](@ref) — bundle two layouts for [`SpinModel`](@ref).
+- [`WLayout`](@ref) — single rotation matrix `W` in `opt_rotate`.
+
+Every concrete `Layout` should implement the small core interface:
+
+    encode!(x, layout, U, frozen_bands)          -> x
+    decode!(U, layout, x)                        -> U
+    pack_gradient!(g, layout, GU, frozen_bands)  -> g
+
+and — once the manifold machinery lands — `manifold(layout, model, solver)`.
+"""
+abstract type Layout end
+
+"""Identity layout: `x` is the gauge array `U` itself."""
+struct UGauge <: Layout end
+
+"""Disentangled layout: `x` is the packed `XY` matrix."""
+struct XYGauge <: Layout end
+
+"""Product of two layouts; used to encode `SpinModel` gauges."""
+struct ProductLayout{L1 <: Layout, L2 <: Layout} <: Layout
+    first::L1
+    second::L2
+end
+
+"""Single `W` matrix layout for `opt_rotate`. `x ≡ W`."""
+struct WLayout <: Layout end
+
+"""
+    encode!(x, layout, U, frozen_bands)
+
+Pack the gauge array `U` into the parameter container `x` dictated by `layout`.
+"""
+function encode! end
+
+"""
+    decode!(U, layout, x)
+
+Unpack the parameter container `x` back into the canonical gauge array `U`.
+"""
+function decode! end
+
+"""
+    pack_gradient!(g, layout, GU, frozen_bands)
+
+Translate the canonical dΩ/dU* gradient `GU` into the layout-native gradient
+buffer `g`, applying any frozen-band masking that belongs to the layout.
+"""
+function pack_gradient! end
+
+# ---- UGauge --------------------------------------------------------------
+
+encode!(x::AbstractArray{<:Complex, 3}, ::UGauge, U::AbstractArray{<:Complex, 3}, _frozen) = (copyto!(x, U); x)
+decode!(U::AbstractArray{<:Complex, 3}, ::UGauge, x::AbstractArray{<:Complex, 3}) = (copyto!(U, x); U)
+
+function pack_gradient!(
+        g::AbstractArray{<:Complex, 3},
+        ::UGauge,
+        GU::AbstractArray{<:Complex, 3},
+        frozen::AbstractMatrix{Bool},
+    )
+    copyto!(g, GU)
+    @inbounds for ik in axes(g, 3)
+        idx_f = view(frozen, :, ik)
+        view(g, idx_f, :, ik) .= 0
+    end
+    return g
+end
+
+# ---- XYGauge -------------------------------------------------------------
+
+function encode!(
+        x::AbstractMatrix,
+        ::XYGauge,
+        U::AbstractArray{<:Complex, 3},
+        frozen::AbstractMatrix{Bool},
+    )
+    X, Y = U_to_X_Y(U, frozen)
+    return X_Y_to_XY!(x, X, Y)
+end
+
+function decode!(U::AbstractArray{<:Complex, 3}, ::XYGauge, x::AbstractMatrix)
+    T = eltype(U)
+    n_bands, n_wann, n_kpts = size(U)
+    X = Array{T, 3}(undef, n_wann, n_wann, n_kpts)
+    Y = Array{T, 3}(undef, n_bands, n_wann, n_kpts)
+    XY_to_X_Y!(X, Y, x)
+    return X_Y_to_U!(U, X, Y)
+end
+
+function pack_gradient!(
+        g::AbstractMatrix,
+        ::XYGauge,
+        GU::AbstractArray{<:Complex, 3},
+        frozen::AbstractMatrix{Bool},
+    )
+    # Callers that already have decoded X/Y on hand can call
+    # `pack_gradient_xy!(g, GU, X, Y, frozen)` directly to avoid re-decoding.
+    error(
+        "pack_gradient!(g, ::XYGauge, GU, frozen) needs decoded X/Y; call " *
+            "pack_gradient_xy!(g, GU, X, Y, frozen) with the stored decoded X/Y."
+    )
+end
+
+"""
+    pack_gradient_xy!(g, GU, X, Y, frozen)
+
+Transform `dΩ/dU*` into the packed `XY` gradient, using the already-decoded
+`X`, `Y` components. Frozen-band masking is applied inside.
+"""
+function pack_gradient_xy!(
+        g::AbstractMatrix,
+        GU::AbstractArray{<:Complex, 3},
+        X::AbstractArray{<:Complex, 3},
+        Y::AbstractArray{<:Complex, 3},
+        frozen::AbstractMatrix{Bool},
+    )
+    GX, GY = GU_to_GX_GY(GU, X, Y, frozen)
+    return X_Y_to_XY!(g, GX, GY)
+end
+
+# ---- ProductLayout -------------------------------------------------------
+
+# `x` for a `ProductLayout` is a `NamedTuple{(:up, :dn), Tuple{X1, X2}}` for
+# now — the concrete packing into a single contiguous buffer is handled in
+# the SpinModel problem constructor (commit Q/R), not here.
+
+encode!(x, layout::ProductLayout, (Uup, Udn), (frozen_up, frozen_dn)) = (
+    encode!(x.up, layout.first,  Uup, frozen_up);
+    encode!(x.dn, layout.second, Udn, frozen_dn);
+    x
+)
+
+decode!((Uup, Udn), layout::ProductLayout, x) = (
+    decode!(Uup, layout.first,  x.up);
+    decode!(Udn, layout.second, x.dn);
+    (Uup, Udn)
+)
+
+# ---- WLayout -------------------------------------------------------------
+
+encode!(x::AbstractMatrix, ::WLayout, W::AbstractMatrix, _frozen) = (copyto!(x, W); x)
+decode!(W::AbstractMatrix, ::WLayout, x::AbstractMatrix) = (copyto!(W, x); W)
+pack_gradient!(g::AbstractMatrix, ::WLayout, GW::AbstractMatrix, _frozen) = (copyto!(g, GW); g)
+
+# ---- Legacy conversion helpers ------------------------------------------
+
+"""
     X_Y_to_U(X, Y)
 
 Convert the `(X, Y)` layout to the `U` layout.
