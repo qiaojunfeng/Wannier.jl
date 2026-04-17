@@ -7,7 +7,7 @@
     model_up = read_w90(dataset"Fe_collinear_coarse/Fe_up")
     model_dn = read_w90(dataset"Fe_collinear_coarse/Fe_dn")
     Mupdn = read_amn(dataset"Fe_collinear_coarse/Fe_updn.mud").A
-    model = Wannier.MagModel(model_up, model_dn, Mupdn)
+    model = Wannier.SpinModel(model_up, model_dn, Mupdn)
     # if λs=0, equivalent to two independent Wannierizations of up and down
     # λs = 0
     λs = 1.0

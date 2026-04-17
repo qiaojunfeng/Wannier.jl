@@ -89,7 +89,7 @@ end
 Magnetic moment of each WF.
 
 # Arguments
-- `model`: a `MagModel` in COWF or COWF+C gauge
+- `model`: a `SpinModel` in COWF or COWF+C gauge
 - `ϵF`: Fermi energy, in eV
 - `T`: temperature, in Kelvin
 
@@ -97,7 +97,7 @@ Magnetic moment of each WF.
 
     This function returns sensible results only for COWF or COWF+C gauge.
 """
-function magnetic_moment(model::MagModel, ϵF::Real, T::Real)
+function magnetic_moment(model::SpinModel, ϵF::Real, T::Real)
     Q_up = charge(model.up, ϵF, T)
     Q_dn = charge(model.dn, ϵF, T)
     return Q_up - Q_dn

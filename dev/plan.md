@@ -246,6 +246,10 @@ Structural conversion first, then math hygiene on top of the new shape.
 - Update every file that uses `MagModel` (`localization/coopt.jl`, `localization/constrain_center/coopt.jl`).
 - Add accessor dispatches for `SpinModel` (delegate to `up`).
 
+✅ Done. Deviations to follow up later:
+- `SpinModel` still carries the Bloch `M` overlap field. The plan target (`up`, `dn` only) requires moving `M` into the coopt `Objective`/`Workspace`, which is deferred until commits P/Q introduce that infrastructure.
+- Invariant checks use `isapprox` rather than `==` on `lattice` / `atom_positions` / `kstencil` to tolerate float round-trip through parsers.
+
 **Commit C — Delete broken branches.**
 - Remove `random_gauge` branch in `disentangle.jl` (undefined symbols).
 - Other dead code surfaced in review.

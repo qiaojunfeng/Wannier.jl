@@ -1,6 +1,6 @@
 function omega(
         terms::Tuple,
-        model::MagModel,
+        model::SpinModel,
         Uup::AbstractArray{T, 3},
         Udn::AbstractArray{T, 3},
         λs::R,
@@ -15,17 +15,17 @@ function omega(
     return SpreadMag(up, dn, Ωupdn, Ωt, M, λs)
 end
 
-function omega(terms::Tuple, model::MagModel{T}, λs::T) where {T <: Real}
+function omega(terms::Tuple, model::SpinModel{T}, λs::T) where {T <: Real}
     return omega(terms, model, model.up.gauges, model.dn.gauges, λs)
 end
 
 """
-    get_fg!_disentangle(p, model::MagModel, λs)
+    get_fg!_disentangle(p, model::SpinModel, λs)
 
 Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
 """
 function get_fg!_disentangle(
-        terms::Tuple, model::MagModel{T}, λs::T
+        terms::Tuple, model::SpinModel{T}, λs::T
     ) where {T <: Real}
     problem = LocalizationProblem(terms, model, :mag_disentangle_center; lambda = λs)
     return build_fg!(problem)
@@ -34,10 +34,10 @@ end
 """
     disentangle(model; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
 
-Run disentangle on a `MagModel`, with center constraints.
+Run disentangle on a `SpinModel`, with center constraints.
 
 # Arguments
-- `model`: MagModel
+- `model`: SpinModel
 - `λs`: Lagrange multiplier of the spin-up and spin-down overlap term
 
 # Keyword arguments
@@ -48,7 +48,7 @@ Run disentangle on a `MagModel`, with center constraints.
 """
 function disentangle(
     terms::Tuple,
-        model::MagModel{T},
+        model::SpinModel{T},
         λs::T = 1.0;
         f_tol::T = 1.0e-7,
         g_tol::T = 1.0e-5,
