@@ -284,7 +284,8 @@ Done so far: collapsed the scattered convention commentary into a single top-of-
 - Types + `encode!`/`decode!`/`pack_gradient!` interface added in [src/common/layouts.jl](src/common/layouts.jl); for now they delegate to the existing `U_to_X_Y` / `X_Y_to_XY` / `GU_to_GX_GY` helpers. Legacy free functions stay callable; objective/problem migration to the layout interface lands with commits Q/R.
 - `XYGauge.pack_gradient!` intentionally errors and points callers at `pack_gradient_xy!(g, GU, X, Y, frozen)` since the caller already has decoded X/Y in hand.
 
-**Commit K** — centralize frozen-band masking inside layout encode/decode. Remove per-call-site masking.
+**Commit K** — centralize frozen-band masking inside layout encode/decode. Remove per-call-site masking. ✅ Verified.
+- Audit confirms masking only fires inside `U_to_X_Y` (XYGauge encode) and `GU_to_GX_GY` / `pack_gradient_xy!` (XYGauge gradient pack) plus the new `UGauge.pack_gradient!`. The remaining `frozen_bands` uses in src are mask *construction* (`get_frozen_bands`, `io/w90/model.jl`, `io/truncate.jl`, `io/w90/chk.jl`) — not per-call-site mask application. The test-only `zero_froz_grad!(G, frozen)` reference-gradient shim stays, as it zeros the NLSolversBase FD gradient that bypassed our layout path. No production call sites apply frozen outside the layout interface.
 
 **Commit L** — move manifold construction (`Stiefel`, `Stiefel_SVD`, `ProductManifold`, `PowerManifold`) into `manifold(layout, model)` methods. Solver code stops constructing manifolds.
 
