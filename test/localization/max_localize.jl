@@ -1,5 +1,4 @@
 @testmodule MaxlocEnv begin
-    # This code runs once and the module is cached
     using Wannier
     using Wannier.Datasets
     export model, fg!
@@ -7,14 +6,13 @@
     # no disentanglement
     model = read_w90_with_chk(dataset"Si2_valence_coarse/Si2", dataset"Si2_valence_coarse/outputs/Si2.chk")
 
-    terms = (VarianceTerm(),)
-    fg! = Wannier.get_fg!_maxloc(terms, model)
+    fg! = Wannier._make_optim_fg!(Wannier.Problem(Wannier.Variance(), model, Wannier.UGauge()))
 end
 
 @testitem "maxloc spread gradient" setup = [MaxlocEnv] begin
     using NLSolversBase
 
-    U0 = stack(model.gauges)
+    U0 = copy(model.gauges)
     # analytical gradient
     G = similar(U0)
     fg!(nothing, G, U0)
@@ -28,7 +26,6 @@ end
 
     # Test 2nd iteration
     U1 = Wannier.max_localize(model; max_iter = 1)
-    U1 = stack(U1)
 
     fg!(nothing, G, U1)
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), U1, zero(eltype(real(U1))))
@@ -41,8 +38,7 @@ end
     # reset initial gauge
     model.gauges .= read_amn_ortho(dataset"Si2_valence_coarse/Si2.amn")
 
-    terms = (VarianceTerm(),)
-    Umin = max_localize(terms, model)
+    Umin = max_localize(model)
     Ω = omega(model.kstencil, model.overlaps, Umin)
 
     @test isapprox(Ω.Ω, 4.086818459; atol = 1.0e-7)

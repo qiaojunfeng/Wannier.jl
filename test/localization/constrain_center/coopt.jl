@@ -1,30 +1,35 @@
 @testmodule CooptCenterEnv begin
-    # This code runs once and the module is cached
     using Wannier
     using Wannier.Datasets
-    export model, f, g!, λs, terms
+    export model, f, g!, λs, obj
 
     model_up = read_w90(dataset"Fe_collinear_coarse/Fe_up")
     model_dn = read_w90(dataset"Fe_collinear_coarse/Fe_dn")
     Mupdn = read_amn(dataset"Fe_collinear_coarse/Fe_updn.mud").A
     model = Wannier.SpinModel(model_up, model_dn, Mupdn)
-    # if λs=0, equivalent to two independent Wannierizations of up and down
-    # λs = 0
     λs = 1.0
     r₀ = [Wannier.Vec3(zeros(3)) for i in 1:n_wannier(model.up)]
     λc = 10.0
-    terms = (VarianceTerm(), CenterConstraintTerm(r₀, λc))
-    f, g! = Wannier.get_fg!_disentangle(terms, model, λs)
+    obj = Wannier.CenteredCoOptVariance(r₀, λc, λs)
+    fg_bundle = Wannier._make_optim_fg!(Wannier.Problem(obj, model))
+    f, g! = fg_bundle
 end
 
 @testitem "coopt center spread" setup = [CooptCenterEnv] begin
-    Ω = Wannier.omega(terms, model, λs)
-    @test isapprox(Ω.up.Ω, 5.962059896476422; atol = 1.0e-10)
-    @test isapprox(Ω.up.Ωt, 7.581508110391737; atol = 1.0e-10)
-    @test isapprox(Ω.dn.Ω, 6.361552430790301; atol = 1.0e-10)
-    @test isapprox(Ω.dn.Ωt, 8.350994167955465; atol = 1.0e-10)
-    @test isapprox(Ω.Ωupdn, 0.6214634458453414; atol = 1.0e-10)
-    @test isapprox(Ω.Ωt, 16.553965724192544; atol = 1.0e-10)
+    Ω_up = Wannier.omega(model.up)
+    Ω_dn = Wannier.omega(model.dn)
+    Ω_up_c = Wannier.omega_center(Ω_up; r₀ = obj.r0, λ = obj.λ)
+    Ω_dn_c = Wannier.omega_center(Ω_dn; r₀ = obj.r0, λ = obj.λ)
+    M_overlap = Wannier.overlap_updn(model)
+    Ωupdn = Wannier.omega_updn(M_overlap)
+    Ωt = Ω_up_c.Ωt + Ω_dn_c.Ωt + λs * Ωupdn
+
+    @test isapprox(Ω_up.Ω, 5.962059896476422; atol = 1.0e-10)
+    @test isapprox(Ω_up_c.Ωt, 7.581508110391737; atol = 1.0e-10)
+    @test isapprox(Ω_dn.Ω, 6.361552430790301; atol = 1.0e-10)
+    @test isapprox(Ω_dn_c.Ωt, 8.350994167955465; atol = 1.0e-10)
+    @test isapprox(Ωupdn, 0.6214634458453414; atol = 1.0e-10)
+    @test isapprox(Ωt, 16.553965724192544; atol = 1.0e-10)
 
     M = [
         0.99979691600997 1.0804427231765106e-20 6.709979456174779e-20 1.4172867197472119e-19 5.4562115775280394e-21 3.447623847355787e-22 3.679953459008748e-22 5.755890238894293e-22 6.411200210202371e-22
@@ -37,7 +42,7 @@ end
         4.5195847621531553e-23 1.1930744532518502e-12 3.1372910651089115e-14 9.301697510058695e-13 2.6089707342721644e-23 4.538841507408542e-24 1.1418418775586505e-24 0.9999488252974881 8.581365868804793e-24
         2.2401277849582583e-22 6.808579760244394e-15 9.892324401437166e-15 4.285861909579054e-15 1.443019694963365e-22 1.7005975766179996e-23 5.073760340439049e-24 2.0913947642096764e-23 0.9999443421189137
     ]
-    @test isapprox(Ω.M, M; atol = 1.0e-10)
+    @test isapprox(M_overlap, M; atol = 1.0e-10)
 end
 
 @testitem "coopt center overlap gradient" setup = [CooptCenterEnv] begin
@@ -50,12 +55,10 @@ end
         return Wannier.omega_updn(model, model.up.gauges, Udn)
     end
 
-    # analytical gradient
     Gup, Gdn = Wannier.omega_updn_grad(model, model.up.gauges, model.dn.gauges)
     Gup *= λs
     Gdn *= λs
 
-    # finite diff gradient
     u_up0 = copy(model.up.gauges)
     d = OnceDifferentiable(fup, u_up0)
     Gup_ref = NLSolversBase.gradient!(d, u_up0)
@@ -63,7 +66,6 @@ end
     d = OnceDifferentiable(fdn, u_dn0)
     Gdn_ref = NLSolversBase.gradient!(d, u_dn0)
 
-    # I am using a looser tolerance here
     @test isapprox(Gup, Gup_ref; atol = 1.0e-6)
     @test isapprox(Gdn, Gdn_ref; atol = 1.0e-6)
 end
@@ -72,41 +74,30 @@ end
     using NLSolversBase
 
     nb, nw = size(model.up.gauges, 1), size(model.up.gauges, 2)
-    n_inner = nb * nw + nw^2  # size of XY at each k-point
+    n_inner = nb * nw + nw^2
 
     Xup0, Yup0 = Wannier.U_to_X_Y(model.up.gauges, model.up.frozen_bands)
     Xdn0, Ydn0 = Wannier.U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
-    # compact storage
-    XYup0 = Wannier.X_Y_to_XY(Xup0, Yup0)
-    XYdn0 = Wannier.X_Y_to_XY(Xdn0, Ydn0)
-    XY0 = vcat(XYup0, XYdn0)
+    XY0 = vcat(Wannier.X_Y_to_XY(Xup0, Yup0), Wannier.X_Y_to_XY(Xdn0, Ydn0))
 
-    # analytical gradient
     G = similar(XY0)
     g!(G, XY0)
 
-    # finite diff gradient
     d = OnceDifferentiable(f, XY0, zero(real(eltype(XY0))))
     G_ref = NLSolversBase.gradient!(d, XY0)
-    # I need to use @view so that zero_froz_grad! can change it inplace
     Gu = @view G_ref[1:n_inner, :]
     Gd = @view G_ref[(n_inner + 1):end, :]
-    # The gradient for frozen bands need to be set as 0 explicitly
     Wannier.zero_froz_grad!(Gu, model.up.frozen_bands)
     Wannier.zero_froz_grad!(Gd, model.dn.frozen_bands)
 
-    # I am using a looser tolerance here
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    Uup, Udn = Wannier.disentangle(terms, model, λs; max_iter = 1)
+    Uup, Udn = Wannier.constrain_center_coopt(model, obj.r0, obj.λ; λs = λs, max_iter = 1)
 
     Xup0, Yup0 = Wannier.U_to_X_Y(Uup, model.up.frozen_bands)
     Xdn0, Ydn0 = Wannier.U_to_X_Y(Udn, model.dn.frozen_bands)
-    # compact storage
-    XYup0 = Wannier.X_Y_to_XY(Xup0, Yup0)
-    XYdn0 = Wannier.X_Y_to_XY(Xdn0, Ydn0)
-    XY0 = vcat(XYup0, XYdn0)
+    XY0 = vcat(Wannier.X_Y_to_XY(Xup0, Yup0), Wannier.X_Y_to_XY(Xdn0, Ydn0))
 
     g!(G, XY0)
     d = OnceDifferentiable(f, XY0, zero(real(eltype(XY0))))
@@ -118,6 +109,5 @@ end
     Wannier.zero_froz_grad!(Gu, model.up.frozen_bands)
     Wannier.zero_froz_grad!(Gd, model.dn.frozen_bands)
 
-    # I am using a looser tolerance here
     @test isapprox(G, G_ref; atol = 1.0e-6)
 end

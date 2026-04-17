@@ -11,7 +11,12 @@
     # if λ=0, equivalent to two independent Wannierizations of up and down
     # λ = 0
     λ = 1.0
-    f, g! = Wannier.get_fg!_disentangle(model, λ)
+    fg! = Wannier._make_optim_fg!(Wannier.Problem(Wannier.CoOptVariance(λ), model))
+    f(XY) = fg!(1.0, nothing, XY)
+    function g!(G, XY)
+        fg!(nothing, G, XY)
+        return nothing
+    end
 end
 
 @testitem "coopt spread" setup = [CooptEnv] begin
@@ -94,7 +99,7 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    Uup, Udn = Wannier.disentangle(model, λ; max_iter = 1)
+    Uup, Udn = Wannier.coopt(model; λs = λ, max_iter = 1)
 
     Xup0, Yup0 = Wannier.U_to_X_Y(Uup, model.up.frozen_bands)
     Xdn0, Ydn0 = Wannier.U_to_X_Y(Udn, model.dn.frozen_bands)

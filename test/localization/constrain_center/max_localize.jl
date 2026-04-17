@@ -1,21 +1,20 @@
 @testmodule MaxlocCenterEnv begin
-    # This code runs once and the module is cached
     using Wannier
     using Wannier: Vec3
     using Wannier.Datasets
-    export model, fg!, terms
+    export model, fg!, obj
 
     model = read_w90(dataset"Si2_valence_coarse/Si2")
     r₀ = [Vec3(0.0, 0.0, 0.0) for i in 1:n_wannier(model)]
     λ = 10.0
-    terms = (VarianceTerm(), CenterConstraintTerm(r₀, λ))
-    fg! = Wannier.get_fg!_maxloc(terms, model)
+    obj = Wannier.CenteredVariance(r₀, λ)
+    fg! = Wannier._make_optim_fg!(Wannier.Problem(obj, model, Wannier.UGauge()))
 end
 
 @testitem "constraint center maxloc spread gradient" setup = [MaxlocCenterEnv] begin
     using NLSolversBase
 
-    U0 = stack(model.gauges)
+    U0 = copy(model.gauges)
 
     # analytical gradient
     G = similar(U0)
@@ -29,8 +28,7 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.max_localize(terms, model; max_iter = 1)
-    U1 = stack(U1)
+    U1 = Wannier.localize(model, obj.r0, obj.λ; max_iter = 1)
 
     fg!(nothing, G, U1)
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), U1, zero(eltype(real(U1))))
@@ -39,18 +37,15 @@ end
 end
 
 @testitem "constraint center maxloc valence" setup = [MaxlocCenterEnv] begin
-    Umin = Wannier.max_localize(terms, model; max_iter = 4)
+    Umin = Wannier.localize(model, obj.r0, obj.λ; max_iter = 4)
     Ω = Wannier.omega_center(
         Wannier.omega(model.kstencil, model.overlaps, Umin);
-        r₀ = terms[2].r0,
-        λ = terms[2].λ,
+        r₀ = obj.r0,
+        λ = obj.λ,
     )
 
     # NOTE: these fixtures intentionally track historical main-branch values
-    # at a fixed low iteration count. Small floating-point reordering in
-    # objective/gradient accumulation can move the optimizer trajectory even
-    # when formulas are mathematically equivalent.
-    # display(Ω)
+    # at a fixed low iteration count.
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
     @test Ω.Ω̃ ≈ Ω.ΩOD + Ω.ΩD
     @test isapprox(Ω.Ω, 30.11589846146567; atol = 1.0e-7)

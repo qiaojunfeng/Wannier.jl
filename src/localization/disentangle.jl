@@ -1,7 +1,7 @@
 using LinearAlgebra
 using Optim: Optim
 
-export disentangle_bands, disentangle
+export disentangle
 
 """
     get_frozen_bands(E, dis_froz_max, dis_froz_min)
@@ -291,96 +291,10 @@ function zero_froz_grad!(G::AbstractMatrix, frozen::AbstractMatrix{Bool})
 end
 
 """
-    get_fg!_disentangle(model::Model)
+    disentangle(model; kwargs...)
 
-Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
+Disentangle the Marzari-Vanderbilt spread on an entangled manifold. `kwargs`
+are forwarded to [`OptimLBFGS`](@ref).
 """
-function get_fg!_disentangle(terms::Tuple, model::Model{T}) where {T}
-    obj = _terms_to_objective(terms)
-    return _make_optim_fg!(Problem(obj, model, XYGauge()))
-end
-
-"""
-    disentangle(model; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
-
-Run disentangle on the `Model`.
-
-# Arguments
-- `model`: model
-
-# Keyword arguments
-- `f_tol`: tolerance for spread convergence
-- `g_tol`: tolerance for gradient convergence
-- `max_iter`: maximum number of iterations
-- `history_size`: history size of LBFGS
-"""
-function disentangle_bands(
-    terms::Tuple,
-        model::Model{T};
-        f_tol::T = 1.0e-7,
-        g_tol::T = 1.0e-5,
-        max_iter::Int = 200,
-        history_size::Int = 3,
-    ) where {T <: Real}
-    nbands = n_bands(model)
-    nwann = n_wannier(model)
-    nkpts = n_kpoints(model)
-
-    X0, Y0 = U_to_X_Y(model.gauges, model.frozen_bands)
-
-    # compact storage
-    XY0 = X_Y_to_XY(X0, Y0)
-
-    # We have three storage formats:
-    # (X, Y): n_wann * n_wann * n_kpts, nbands * n_wann * n_kpts
-    # U: nbands * n_wann * n_kpts
-    # XY: (n_wann * n_wann + nbands * n_wann) * n_kpts
-    fg! = get_fg!_disentangle(terms, model)
-
-    Ωⁱ = omega(model, model.gauges)
-    @info "Initial spread" Ωⁱ
-    println("\n")
-
-    Ωⁱ = omega(model, X_Y_to_U(X0, Y0))
-    @info "Initial spread (with states frozen)" Ωⁱ
-    println("\n")
-
-    XYManif = manifold(XYGauge(), model)
-
-    ls = Optim.HagerZhang()
-    meth = Optim.LBFGS
-
-    opt = Optim.optimize(
-        Optim.only_fg!(fg!),
-        XY0,
-        meth(; manifold = XYManif, linesearch = ls, m = history_size),
-        Optim.Options(;
-            show_trace = true,
-            iterations = max_iter,
-            f_tol = f_tol,
-            g_tol = g_tol,
-            allow_f_increases = true,
-        ),
-    )
-    display(opt)
-
-    XYmin = Optim.minimizer(opt)
-
-    Xmin, Ymin = XY_to_X_Y(XYmin, nbands, nwann)
-    Umin = X_Y_to_U(Xmin, Ymin)
-
-    Ωᶠ = omega(model, Umin)
-    @info "Final spread" Ωᶠ
-    println("\n")
-
-    return Umin
-end
-
-disentangle_bands(model::Model; kwargs...) =
-    disentangle_bands((VarianceTerm(),), model; kwargs...)
-
-disentangle(terms::Tuple, model::Model{T}; kwargs...) where {T <: Real} =
-    disentangle_bands(terms, model; kwargs...)
-
 disentangle(model::Model; kwargs...) =
     solve!(Problem(Variance(), model), OptimLBFGS(; kwargs...))

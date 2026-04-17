@@ -5,8 +5,7 @@
     export model, fg!
 
     model = read_w90(dataset"Si2_coarse/Si2")
-    terms = (VarianceTerm(),)
-    fg! = Wannier.get_fg!_disentangle(terms, model)
+    fg! = Wannier._make_optim_fg!(Wannier.Problem(Wannier.Variance(), model, Wannier.XYGauge()))
 end
 
 @testitem "U_to_X_Y X_Y_to_U" setup = [DisentangleEnv] begin
@@ -48,8 +47,7 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    terms = (VarianceTerm(),)
-    U1 = Wannier.disentangle(terms, model; max_iter = 1)
+    U1 = Wannier.disentangle(model; max_iter = 1)
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
@@ -61,8 +59,7 @@ end
 end
 
 @testitem "disentangle" setup = [DisentangleEnv] begin
-    terms = (VarianceTerm(),)
-    Umin = Wannier.disentangle(terms, model; max_iter = 4)
+    Umin = Wannier.disentangle(model; max_iter = 4)
     Ω = Wannier.omega(model.kstencil, model.overlaps, Umin)
 
     # display(Ω)

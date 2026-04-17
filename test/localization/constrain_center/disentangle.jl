@@ -3,7 +3,7 @@
     using Wannier
     using Wannier: Vec3
     using Wannier.Datasets
-    export model, fg!, terms
+    export model, fg!, obj
 
     model = read_w90(dataset"Si2_coarse/Si2")
     # Note I shift a little bit to avoid the center constraint being zero
@@ -15,8 +15,8 @@
         [Vec3(a2) for i in 1:(n_wannier(model) / 2)]
     ]
     λ = 10.0
-    terms = (VarianceTerm(), CenterConstraintTerm(r₀, λ))
-    fg! = Wannier.get_fg!_disentangle(terms, model)
+    obj = Wannier.CenteredVariance(r₀, λ)
+    fg! = Wannier._make_optim_fg!(Wannier.Problem(obj, model, Wannier.XYGauge()))
 end
 
 @testitem "constraint center disentangle spread gradient" setup = [DisCenterEnv] begin
@@ -39,7 +39,7 @@ end
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
-    U1 = Wannier.disentangle(terms, model; max_iter = 1)
+    U1 = Wannier.localize(model, obj.r0, obj.λ; max_iter = 1)
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
     XY = Wannier.X_Y_to_XY(X, Y)
 
@@ -53,11 +53,11 @@ end
 @testitem "constraint center disentangle" setup = [DisCenterEnv] begin
     using Wannier: Vec3
 
-    Umin = Wannier.disentangle(terms, model; max_iter = 4)
+    Umin = Wannier.localize(model, obj.r0, obj.λ; max_iter = 4)
     Ω = Wannier.omega_center(
         Wannier.omega(model.kstencil, model.overlaps, Umin);
-        r₀ = terms[2].r0,
-        λ = terms[2].λ,
+        r₀ = obj.r0,
+        λ = obj.λ,
     )
 
     @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃

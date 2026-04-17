@@ -256,29 +256,10 @@ function omega_updn_grad(model::SpinModel, Xup, Yup, Xdn, Ydn)
 end
 
 """
-    get_fg!_disentangle(model::SpinModel)
-
-Return a tuple of two functions `(f, g!)` for spread and gradient, respectively.
-"""
-function get_fg!_disentangle(model::SpinModel, λ::Real = 1.0)
-    fg! = _make_optim_fg!(Problem(CoOptVariance(float(λ)), model))
-    f(XY) = fg!(true, nothing, XY)
-    function g!(G, XY)
-        fg!(nothing, G, XY)
-        return nothing
-    end
-    return f, g!, fg!
-end
-
-"""
     coopt(sm; λs=1.0, kwargs...)
 
 Co-optimize the spin-up and spin-down Wannier gauges of a [`SpinModel`](@ref)
 with the ↑↓ overlap coupling weighted by `λs`.
 """
-function coopt(sm::SpinModel; λs::Real = 1.0, kwargs...)
-    return solve!(Problem(CoOptVariance(λs), sm), OptimLBFGS(; kwargs...))
-end
-
-# Back-compat shim — the historical entry point is `disentangle(sm, λ; ...)`.
-disentangle(sm::SpinModel, λ::Real = 1.0; kwargs...) = coopt(sm; λs = λ, kwargs...)
+coopt(sm::SpinModel; λs::Real = 1.0, kwargs...) =
+    solve!(Problem(CoOptVariance(float(λs)), sm), OptimLBFGS(; kwargs...))
