@@ -322,7 +322,8 @@ Finite-difference gradient tests per objective subtype (added with each commit).
 - `AbstractLocalizationSolver` + `OptimLBFGS` live in [src/localization/solver.jl](src/localization/solver.jl) alongside `solve!(prob::Problem{<:Variance, <:Model}, ::OptimLBFGS)` (delegates to the legacy `_build_fg_maxloc` / `_build_fg_disentangle` closures for now to keep a single gradient path under the parity gate). `CenteredVariance` / `CoOptVariance` / `CenteredCoOptVariance` branches land with T–W when the corresponding entry points migrate.
 - ½ solver-boundary factor still deferred (see commit F note); introducing it here required also flipping internal omega_grad!, left for Phase 5.
 
-**Commit S** — parity assertion: run one existing path alongside the new `Problem + solve!` path, assert numerical match. Temporary; removed in Phase 5.
+**Commit S** — parity assertion: run one existing path alongside the new `Problem + solve!` path, assert numerical match. Temporary; removed in Phase 5. ✅ Done.
+- `test/localization/parity.jl` runs `disentangle(model)` / `max_localize(model)` beside `solve!(Problem(Variance(), model), OptimLBFGS(...))` and asserts gauge equality at `atol = 1e-12`. Because `solve!` currently delegates to `_build_fg_maxloc` / `_build_fg_disentangle`, the trajectories are byte-identical; parity will tighten when the objective's own `fg!` replaces the legacy builders during Phase 5 migration.
 
 ### Phase 5 — Migrate entry points
 
