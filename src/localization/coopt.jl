@@ -241,23 +241,15 @@ function overlap_updn_grad(model::SpinModel, Xup, Yup, Xdn, Ydn)
 end
 
 function omega_updn_grad(model::SpinModel, Uup, Udn)
+    # Internal gradient convention is df = 2 Re⟨∇f, dx⟩ (see module docstring
+    # on gradient conventions). The minus sign is baked in because
+    # `omega_updn` is defined as `n_wann - sum(diag(M))`.
     GUup, GUdn = overlap_updn_grad(model, Uup, Udn)
-    # Note since both Optim.jl (used in the actual minimization) and
-    # NLSolversBase.jl (used in test for finite difference check) are adopting
-    # the convention of
-    #   df(x) = Re<∇f, dx>
-    # for the complex differentials, I need to multiply by 2 here, since
-    # I am using the convention of
-    #   df(x) = 2 Re<∇f, dx>
-    # when deriving the gradient by hand, this allows me to reuse existing
-    # derivative rules but I need to multiply by 2 here.
-    # The minus sign is due to the definition of `omega_updn`.
     return -2 .* GUup, -2 .* GUdn
 end
 
 function omega_updn_grad(model::SpinModel, Xup, Yup, Xdn, Ydn)
     GXup, GYup, GXdn, GYdn = overlap_updn_grad(model, Xup, Yup, Xdn, Ydn)
-    # see previous function for the reason of the factor of -2
     return -2 * GXup, -2 * GYup, -2 * GXdn, -2 * GYdn
 end
 

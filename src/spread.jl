@@ -2,6 +2,21 @@ using LinearAlgebra
 
 export omega, omega_grad, center
 
+# -----------------------------------------------------------------------------
+# Gradient convention
+#
+# Internally, every spread-related gradient follows the physics convention
+#     df(x) = 2 Re⟨∇f, dx⟩
+# i.e. `omega_grad!` and `omega_updn_grad` both return ∇f *in this convention*
+# (hence the explicit factor of 2 and the factor of 4 inside `omega_grad!`).
+#
+# Optim.jl / NLSolversBase.jl expect the other convention `df = Re⟨∇f, dx⟩`.
+# The ½ rescaling is applied once at the solver-adapter boundary when we hand
+# the gradient to Optim — not at every individual term. Finite-difference
+# gradient checks (NLSolversBase) are performed against the 2× internal
+# convention, so they compare element-wise with what `omega_grad!` returns.
+# -----------------------------------------------------------------------------
+
 abstract type AbstractSpread end
 
 @doc raw"""

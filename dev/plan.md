@@ -262,10 +262,12 @@ Structural conversion first, then math hygiene on top of the new shape.
 - Rename [mutable struct Cache{T}](src/spread.jl#L126) to `Workspace{T}`; update all call sites.
 - Fix the `cache.G = G` reassignment pattern in [src/localization/problem.jl](src/localization/problem.jl#L112-L133): size `Workspace.G` as `(n_bands, n_wannier, n_kpoints)` at construction, never reassign the field. Sub-functions that need a local gradient accumulator get a separate buffer, not field mutation.
 
-**Commit F — Factor-of-2 convention.**
+**Commit F — Factor-of-2 convention.** ✅ Partially done.
 - Internal convention: `df = 2 Re⟨∇f, dx⟩` throughout derivation and `omega_grad!`.
 - Apply `½` once at the solver adapter boundary (the `fg!` closure passed to Optim).
 - Remove the scattered convention notes in `coopt.jl`.
+
+Done so far: collapsed the scattered convention commentary into a single top-of-module note in [src/spread.jl](src/spread.jl) and tightened the `coopt.jl` callout. Deferred: the explicit ½ rescale at the solver-adapter boundary — it requires re-running the parity gate against Optim's LBFGS because the current omission has been absorbed into the line-search behavior, and the explicit rescale is best introduced at the same time as the pluggable solver adapter (commit R).
 
 **Commit G — Collapse `GU_to_GX_GY` and `GU_to_G!`.**
 - One implementation. If the documented "5% speedup I don't know how" reappears, investigate.
