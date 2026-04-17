@@ -1,3 +1,5 @@
+export constrain_center_coopt
+
 function omega(
         terms::Tuple,
         model::SpinModel,
@@ -32,100 +34,26 @@ function get_fg!_disentangle(
 end
 
 """
-    disentangle(model; f_tol=1e-7, g_tol=1e-5, max_iter=200, history_size=3)
+    constrain_center_coopt(sm, r0, λ; λs=1.0, kwargs...)
 
-Run disentangle on a `SpinModel`, with center constraints.
-
-# Arguments
-- `model`: SpinModel
-- `λs`: Lagrange multiplier of the spin-up and spin-down overlap term
-
-# Keyword arguments
-- `f_tol`: tolerance for spread convergence
-- `g_tol`: tolerance for gradient convergence
-- `max_iter`: maximum number of iterations
-- `history_size`: history size of LBFGS
+Co-optimize the spin-up and spin-down Wannier gauges of a [`SpinModel`](@ref)
+with both the ↑↓ overlap coupling (weighted by `λs`) and a per-WF center
+penalty `λ · Σₙ |r_n − r0[n]|²` on each channel.
 """
-function disentangle(
-    terms::Tuple,
-        model::SpinModel{T},
-        λs::T = 1.0;
-        f_tol::T = 1.0e-7,
-        g_tol::T = 1.0e-5,
-        max_iter::Int = 200,
-        history_size::Int = 3,
-    ) where {T <: Real}
-    nb = n_bands(model.up)
-    nw = n_wannier(model.up)
-    nk = n_kpoints(model.up)
-    @assert n_bands(model.dn) == nb
-    @assert n_wannier(model.dn) == nw
-    @assert n_kpoints(model.dn) == nk
-
-    n_inner = nw^2 + nb * nw
-    XYManif = manifold(ProductLayout(XYGauge(), XYGauge()), model)
-
-    Xup0, Yup0 = U_to_X_Y(model.up.gauges, model.up.frozen_bands)
-    Xdn0, Ydn0 = U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
-    # compact storage
-    XYup0 = X_Y_to_XY(Xup0, Yup0)
-    XYdn0 = X_Y_to_XY(Xdn0, Ydn0)
-    XY0 = vcat(XYup0, XYdn0)
-
-    # We have three storage formats:
-    # (X, Y): n_wann * n_wann * n_kpts, n_bands * n_wann * n_kpts
-    # U: n_bands * n_wann * n_kpts
-    # XY: (n_wann * n_wann + n_bands * n_wann) * n_kpts
-    f, g! = get_fg!_disentangle(terms, model, λs)
-
-    @info "Initial spread"
-    Ω = omega(terms, model, λs)
-    show(Ω)
-    println("\n")
-
-    @info "Initial spread (with states freezed)"
-    Ω = omega(terms, model, X_Y_to_U(Xup0, Yup0), X_Y_to_U(Xdn0, Ydn0), λs)
-    show(Ω)
-    println("\n")
-
-    # stepsize_mult = 1
-    # step = 0.5/(4*8*p.wb)*(p.N1*p.N2*p.N3)*stepsize_mult
-    # ls = LineSearches.Static(step)
-    ls = Optim.HagerZhang()
-    # ls = LineSearches.BackTracking()
-
-    # meth = Optim.GradientDescent
-    # meth = Optim.ConjugateGradient
-    meth = Optim.LBFGS
-
-    opt = Optim.optimize(
-        f,
-        g!,
-        XY0,
-        meth(; manifold = XYManif, linesearch = ls, m = history_size),
-        Optim.Options(;
-            show_trace = true,
-            iterations = max_iter,
-            f_tol = f_tol,
-            g_tol = g_tol,
-            allow_f_increases = true,
-        ),
+function constrain_center_coopt(
+        sm::SpinModel, r0::AbstractVector, λ::Real; λs::Real = 1.0, kwargs...
     )
-    display(opt)
+    obj = CenteredCoOptVariance(collect(Vec3{Float64}, r0), Float64(λ), Float64(λs))
+    return solve!(Problem(obj, sm), OptimLBFGS(; kwargs...))
+end
 
-    XYmin = Optim.minimizer(opt)
-
-    XYupmin = XYmin[1:n_inner, :]
-    XYdnmin = XYmin[(n_inner + 1):end, :]
-    Xupmin, Yupmin = XY_to_X_Y(XYupmin, nb, nw)
-    Xdnmin, Ydnmin = XY_to_X_Y(XYdnmin, nb, nw)
-    Uupmin = X_Y_to_U(Xupmin, Yupmin)
-    Udnmin = X_Y_to_U(Xdnmin, Ydnmin)
-
-    @info "Final spread"
-    Ω = omega(terms, model, Uupmin, Udnmin, λs)
-    show(Ω)
-
-    return Uupmin, Udnmin
+# Back-compat: accept the legacy tuple-terms signature for constrain_center coopt.
+function disentangle(
+        terms::Tuple, sm::SpinModel, λs::Real = 1.0; kwargs...
+    )
+    center_term = _find_center_term(terms)
+    isnothing(center_term) &&
+        error("constrain_center disentangle(terms, sm, λs) requires a CenterConstraintTerm")
+    return constrain_center_coopt(sm, center_term.r0, center_term.λ; λs = λs, kwargs...)
 end
 

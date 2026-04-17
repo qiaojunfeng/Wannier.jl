@@ -154,6 +154,84 @@ function solve!(
     return X_Y_to_U(Xupmin, Yupmin), X_Y_to_U(Xdnmin, Ydnmin)
 end
 
+function solve!(
+        prob::Problem{<:CenteredCoOptVariance, <:SpinModel, <:ProductLayout}, solver::OptimLBFGS
+    )
+    model = prob.model
+    obj = prob.objective
+    nb = n_bands(model.up)
+    nw = n_wannier(model.up)
+    n_inner = nw^2 + nb * nw
+
+    terms = (VarianceTerm(), CenterConstraintTerm(obj.r0, obj.λ))
+    legacy = LocalizationProblem(terms, model, :mag_disentangle_center; lambda = obj.λs)
+    f, g! = _build_fg_mag_disentangle_center(legacy)
+
+    Xup0, Yup0 = U_to_X_Y(model.up.gauges, model.up.frozen_bands)
+    Xdn0, Ydn0 = U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
+    XY0 = vcat(X_Y_to_XY(Xup0, Yup0), X_Y_to_XY(Xdn0, Ydn0))
+
+    man = manifold(prob.layout, model)
+    opt = Optim.optimize(
+        f, g!, XY0,
+        Optim.LBFGS(; manifold = man, linesearch = solver.linesearch, m = solver.history_size),
+        Optim.Options(;
+            f_tol = solver.f_tol,
+            g_tol = solver.g_tol,
+            iterations = solver.max_iter,
+            allow_f_increases = true,
+            show_trace = true,
+        ),
+    )
+    XYmin = Optim.minimizer(opt)
+    XYupmin = XYmin[1:n_inner, :]
+    XYdnmin = XYmin[(n_inner + 1):end, :]
+    Xupmin, Yupmin = XY_to_X_Y(XYupmin, nb, nw)
+    Xdnmin, Ydnmin = XY_to_X_Y(XYdnmin, nb, nw)
+    return X_Y_to_U(Xupmin, Yupmin), X_Y_to_U(Xdnmin, Ydnmin)
+end
+
+function solve!(prob::Problem{<:CenteredVariance, <:Model}, solver::OptimLBFGS)
+    model = prob.model
+    obj = prob.objective
+    layout = prob.layout
+    terms = (VarianceTerm(), CenterConstraintTerm(obj.r0, obj.λ))
+
+    if layout isa UGauge
+        legacy = LocalizationProblem(terms, model, :maxloc)
+        fg! = _build_fg_maxloc(legacy)
+        x0 = copy(model.gauges)
+    elseif layout isa XYGauge
+        legacy = LocalizationProblem(terms, model, :disentangle)
+        fg! = _build_fg_disentangle(legacy)
+        X0, Y0 = U_to_X_Y(model.gauges, model.frozen_bands)
+        x0 = X_Y_to_XY(X0, Y0)
+    else
+        error("solve!(CenteredVariance, ::$(typeof(layout))) not supported yet")
+    end
+
+    man = manifold(layout, model)
+    opt = Optim.optimize(
+        Optim.only_fg!(fg!), x0,
+        Optim.LBFGS(; manifold = man, linesearch = solver.linesearch, m = solver.history_size),
+        Optim.Options(;
+            f_tol = solver.f_tol,
+            g_tol = solver.g_tol,
+            iterations = solver.max_iter,
+            allow_f_increases = true,
+            show_trace = true,
+        ),
+    )
+    xmin = Optim.minimizer(opt)
+
+    if layout isa UGauge
+        return xmin
+    else
+        Xmin, Ymin = XY_to_X_Y(xmin, n_bands(model), n_wannier(model))
+        return X_Y_to_U(Xmin, Ymin)
+    end
+end
+
 """
     solve!(prob; kwargs...) = solve!(prob, OptimLBFGS(; kwargs...))
 

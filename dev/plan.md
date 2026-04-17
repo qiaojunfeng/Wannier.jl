@@ -340,12 +340,12 @@ opt_rotate(model; opts...)                         = solve!(Problem(Variance(), 
 
 Order: hardest case first.
 
-**Commit S** — migrate `disentangle`.
-**Commit T** — migrate `max_localize`.
-**Commit U** — migrate `opt_rotate` (requires `WLayout` with `U_k = U_k^0 · W` decode; workspace caches `U_k^0`).
-**Commit V** — migrate `coopt` (`SpinModel`).
-**Commit W** — migrate `constrain_center/coopt` (`SpinCoupled(MVSpread(CenterPenalty(...)))`).
-**Commit X** — delete all `get_fg!_*` functions, delete `src/localization/constrain_center/coopt.jl` duplication, delete the parity assertion from Commit R.
+**Commit T** — migrate `disentangle(model)`. ✅ Done.
+**Commit U** — migrate `max_localize(model)`. ✅ Done.
+**Commit V** — migrate `opt_rotate(model)` (uses `WLayout`; `solve!` branch deepcopies the model, transforms overlaps, and drives `get_fg!_rotate`). ✅ Done.
+**Commit W** — migrate `coopt(sm)` on `SpinModel`, keep `disentangle(sm, λ)` as back-compat shim. ✅ Done.
+**Commit X** — migrate `constrain_center_coopt(sm, r0, λ; λs)` + `localize(model, r0, λ)` entry points; delete the parity test from Commit S now that all five entry points route through Problem + solve!. ✅ Done.
+- Deferred: removal of the `_build_fg_*` / `LocalizationProblem(:symbol)` plumbing. The Objective-native `fg!` for every subtype is a bigger refactor (planned post-Phase 5); solver adapters still delegate to the legacy closures under the hood so the optimization trajectory stays byte-identical.
 
 ### Phase 6 — Naming pass
 

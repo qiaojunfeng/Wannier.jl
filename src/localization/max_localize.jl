@@ -1,6 +1,6 @@
 using Optim: Optim
 
-export localize_isolated_bands, max_localize
+export localize_isolated_bands, max_localize, localize
 
 """
     get_fg!_maxloc(model::Model)
@@ -83,3 +83,12 @@ max_localize(terms::Tuple, model::Model{T}; kwargs...) where {T <: Real} =
 
 max_localize(model::Model; kwargs...) =
     solve!(Problem(Variance(), model), OptimLBFGS(; kwargs...))
+
+"""
+    localize(model, r0, λ; kwargs...)
+
+Maximally localize `model` with a per-WF center-penalty
+`Ωc = λ · Σₙ |r_n − r0[n]|²`.
+"""
+localize(model::Model, r0::AbstractVector, λ::Real; kwargs...) =
+    solve!(Problem(CenteredVariance(collect(Vec3{Float64}, r0), Float64(λ)), model), OptimLBFGS(; kwargs...))
