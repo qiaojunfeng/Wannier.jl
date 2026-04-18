@@ -32,9 +32,12 @@ WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
 
 [weakdeps]
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+Manifolds = "1cead3c2-87b3-11e9-0ccd-23c62b72b94e"
+Manopt = "0fc0a36d-df90-57f3-8f93-d78a9fc72bb5"
 
 [extensions]
 WannierMakieExt = "Makie"
+WannierManoptExt = ["Manopt", "Manifolds"]
 
 [compat]
 Artifacts = "1"
@@ -44,6 +47,8 @@ FastLapackInterface = "2"
 LazyArtifacts = "1"
 LazyGrids = "0.4, 0.5, 1"
 Makie = "0.24"
+Manifolds = "0.10, 1"
+Manopt = "0.5, 0.6"
 NLSolversBase = "7.8"
 NearestNeighbors = "0.4"
 OffsetArrays = "1.12"

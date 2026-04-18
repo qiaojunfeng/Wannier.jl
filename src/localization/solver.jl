@@ -1,7 +1,7 @@
 using Optim: Optim
 using LinearAlgebra: I
 
-export solve!, OptimLBFGS
+export solve!, OptimLBFGS, ManoptLBFGS
 
 """
     AbstractLocalizationSolver
@@ -33,6 +33,44 @@ function OptimLBFGS(;
         linesearch = Optim.HagerZhang(),
     )
     return OptimLBFGS(Float64(f_tol), Float64(g_tol), Int(max_iter), Int(history_size), linesearch)
+end
+
+"""
+    ManoptLBFGS(; g_tol=1e-5, max_iter=200, memory_size=3)
+
+Manopt.jl L-BFGS driver on the Stiefel manifold. Requires loading
+`Manopt` and `Manifolds` — the actual `solve!` method lives in the
+`WannierManoptExt` package extension and is only compiled once those
+packages are `using`-ed.
+
+# Keyword arguments
+- `g_tol`: Riemannian gradient-norm stopping tolerance.
+- `max_iter`: iteration cap.
+- `memory_size`: L-BFGS history length.
+
+See also [`OptimLBFGS`](@ref) for the default Optim.jl backend.
+"""
+struct ManoptLBFGS <: AbstractLocalizationSolver
+    g_tol::Float64
+    max_iter::Int
+    memory_size::Int
+end
+
+function ManoptLBFGS(; g_tol::Real = 1.0e-5, max_iter::Integer = 200, memory_size::Integer = 3)
+    return ManoptLBFGS(Float64(g_tol), Int(max_iter), Int(memory_size))
+end
+
+# Fallback. The extension in ext/WannierManoptExt registers concrete
+# methods on supported (Objective, Model, Layout) combinations; anything
+# not overridden lands here. Works whether the extension is loaded or not.
+function solve!(::Problem, ::ManoptLBFGS)
+    return error(
+        "ManoptLBFGS is not available for this (Objective, Model, Layout). " *
+            "The current extension covers Variance + UGauge (isolated " *
+            "max_localize); other variants still route through OptimLBFGS. " *
+            "If Manopt / Manifolds are not yet loaded, `using Manopt, " *
+            "Manifolds` will activate the extension."
+    )
 end
 
 """

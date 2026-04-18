@@ -38,7 +38,18 @@ Objective calls expand to
 solve!(Problem(objective, model, layout), OptimLBFGS(; kwargs...))
 ```
 
+To swap the solver, construct a `Problem` explicitly and call `solve!` with the backend of choice:
+
+```julia
+using Manopt, Manifolds        # activates the WannierManoptExt extension
+prob = Problem(Variance(), model)
+U    = solve!(prob, ManoptLBFGS(; g_tol = 1e-8, max_iter = 500))
+```
+
 `ParallelTransport` calls expand to [`parallel_transport`](@ref) directly.
+
+!!! note "Manopt.jl backend coverage"
+    `ManoptLBFGS` currently implements only the `Variance + UGauge` combination (isolated `max_localize`). Other `(Objective, Layout)` pairs — `XYGauge`, `ProductLayout`, `WLayout` — still require `OptimLBFGS`.
 
 ## Migration from the pre-rewrite API
 
