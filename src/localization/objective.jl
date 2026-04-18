@@ -2,6 +2,17 @@ export Variance, CenteredVariance, CoOptVariance, CenteredCoOptVariance
 export Problem, required_layout
 
 """
+    CPU()
+
+Backend sentinel. `allocate_workspace(obj, model, layout; backend=CPU())`
+is the single abstraction point for swapping array storage; a future GPU
+backend (e.g. `CUDA()`) would dispatch `allocate_workspace` to return a
+`Workspace` parameterized on device arrays. No GPU implementation yet —
+the sentinel only encodes the seam.
+"""
+struct CPU end
+
+"""
 Objective interface (commit M shell).
 
 A concrete `Objective <: Objective` bundles the scalar spread functional and
@@ -62,10 +73,12 @@ when the manifold is isolated and `XYGauge()` when entangled.
 function required_layout end
 
 """
-    allocate_workspace(obj, model, layout)
+    allocate_workspace(obj, model, layout; backend=CPU())
 
 Construct the preallocated scratch [`Workspace`](@ref) used during
-optimization for `(obj, model, layout)`.
+optimization for `(obj, model, layout)`. `backend` is the single GPU
+seam — a future device backend would dispatch here to return a workspace
+holding device arrays. No GPU implementation yet.
 """
 function allocate_workspace end
 
@@ -83,7 +96,8 @@ struct Variance <: Objective end
 
 required_layout(::Variance, model::Model) = isentangled(model) ? XYGauge() : UGauge()
 
-allocate_workspace(::Variance, model::Model, ::Layout) = Workspace(model)
+allocate_workspace(::Variance, model::Model, ::Layout; backend = CPU()) =
+    Workspace(model)
 
 function value(::Variance, state::AbstractArray{<:Complex, 3}, ws::Workspace)
     return spread(ws, state).Ω
@@ -145,7 +159,8 @@ end
 
 required_layout(::CenteredVariance, model::Model) = isentangled(model) ? XYGauge() : UGauge()
 
-allocate_workspace(::CenteredVariance, model::Model, ::Layout) = Workspace(model)
+allocate_workspace(::CenteredVariance, model::Model, ::Layout; backend = CPU()) =
+    Workspace(model)
 
 function fg!(
         G,
@@ -196,7 +211,7 @@ end
 
 required_layout(::CoOptVariance, ::SpinModel) = ProductLayout(XYGauge(), XYGauge())
 
-function allocate_workspace(::CoOptVariance, model::SpinModel, ::Layout)
+function allocate_workspace(::CoOptVariance, model::SpinModel, ::Layout; backend = CPU())
     return SpinWorkspace(Workspace(model.up), Workspace(model.dn))
 end
 
@@ -214,7 +229,7 @@ end
 
 required_layout(::CenteredCoOptVariance, ::SpinModel) = ProductLayout(XYGauge(), XYGauge())
 
-function allocate_workspace(::CenteredCoOptVariance, model::SpinModel, ::Layout)
+function allocate_workspace(::CenteredCoOptVariance, model::SpinModel, ::Layout; backend = CPU())
     return SpinWorkspace(Workspace(model.up), Workspace(model.dn))
 end
 

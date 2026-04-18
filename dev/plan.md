@@ -382,7 +382,11 @@ API polish pass:
 
 **Commit AA** — micro-optimize hot kernels using dense-array-native operations (batched matmul, avoid per-k loops where possible). Only if benchmarks justify.
 
-**Commit BB** — GPU seam audit. `allocate_workspace(obj, model, layout; backend=CPU())` is the single abstraction point. Verify no objective code uses `Array{…}` concretely (use `AbstractArray{…}`). No GPU implementation yet.
+**Commit BB** — GPU seam audit. `allocate_workspace(obj, model, layout; backend=CPU())` is the single abstraction point. Verify no objective code uses `Array{…}` concretely (use `AbstractArray{…}`). No GPU implementation yet. ✅ Done.
+- `CPU()` sentinel + `backend = CPU()` kwarg added on all four `allocate_workspace` methods (`Variance`, `CenteredVariance`, `CoOptVariance`, `CenteredCoOptVariance`) in [src/localization/objective.jl](src/localization/objective.jl). Contract docstring updated.
+- Kernel signature audit: relaxed `omega_grad!(penalty, G::Array{Complex{T}, 3}, ...)` → `AbstractArray{<:Complex, 3}` in [src/spread.jl](src/spread.jl#L325). All other in-scope localization kernels (`omega!`, `compute_MU_UtMU!`, `omega_grad!(ws, …)`, `center!`, and the objective `fg!` bodies) already dispatched on `AbstractArray{<:Complex, N}`.
+- Known remaining concretion (deferred): the `Workspace{T}` struct fields are `Array{Complex{T}, N}`. Parameterizing the struct on array type (`Workspace{T, Arr3, Arr4}`) is the next GPU-seam commit; left out of BB because the kernel signatures already accept any `AbstractArray` and the struct change has broader blast radius.
+- Out-of-scope concrete-`Array` sightings in `parallel_transport/*` and the legacy `SpinModel.M::Array{Complex{T}, 3}` field stay as-is per the plan's "unchanged files" list.
 
 **Commit CC (optional)** — add `ManoptLBFGS <: AbstractLocalizationSolver`. Implement `solve!(prob, ::ManoptLBFGS)` using `Manopt.jl` + `Manifolds.jl`. `manifold(layout, model, ::ManoptLBFGS)` returns `Manifolds.Stiefel` variants. This is strictly additive — `OptimLBFGS` keeps working. Benchmark against `OptimLBFGS`; decision to promote `ManoptLBFGS` as default is a later call, not a Phase 7 deliverable.
 

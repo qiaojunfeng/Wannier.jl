@@ -322,13 +322,13 @@ omega_grad!(penalty::Function, G::AbstractArray{<:Complex, 3}, cache::Workspace,
 
 function omega_grad!(
         penalty::Function,
-        G::Array{Complex{T}, 3},
+        G::AbstractArray{<:Complex, 3},
         r,
         UtMU::AbstractArray{<:Complex, 4},
         MU::AbstractArray{<:Complex, 4},
         bvectors,
         M,
-    ) where {T}
+    )
     fill!(G, 0)
 
     n_bands, n_wann, n_kpts = size(G)
