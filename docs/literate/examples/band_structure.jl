@@ -11,9 +11,9 @@ In this tutorial, we will use Wananier interpolation to compute the band structu
 of silicon valence + conduction bands. A bit different from previous tutorials, we will
 
 1. Construct a [`Model`](@ref) by reading the `win`, `mmn`, `eig`, and `chk` files
-2. Construct a tight-binding Hamiltonian [`HamiltonianRspace`](@ref) from the `Model`
-2. Run [`interpolate`](@ref) on the `TBHamiltonian` to compute band structure
-3. Read wannier90 interpolated `band.dat` and compare with our interpolated bands
+2. Construct a [`TBHamiltonian`](@ref) from the `Model`
+3. Run [`HamiltonianInterpolator`](@ref) to compute band structure
+4. Read wannier90 interpolated `band.dat` and compare with our interpolated bands
 =#
 
 # ## Preparation
@@ -59,54 +59,38 @@ First read the `win` file,
 win = read_win(dataset"Si2/Si2.win")
 # the returned `win` is an `OrderedDict` that contains all the input tags in the `win` file.
 #
-# Then generate a `KPath` based on crystal structure and `kpoint_path` block,
-kpath = generate_kpath(win["unit_cell_cart"], win["kpoint_path"])
+# Then generate a `KPath` based on crystal structure and `kpoint_path` block:
+# `KSegment` holds the segment definitions, `KPath` samples the kpoints on them.
+# Passing `default_w90_kpath_num_points()` (=100) matches Wannier90's spacing.
+kseg = KSegment(reciprocal_lattice(win["unit_cell_cart"]), win["kpoint_path"])
+kpath = KPath(kseg, default_w90_kpath_num_points())
 
 #=
 ### Auto generate kpath from lattice
 
-Another approach is to auto generate a kpath from the lattice, which can be
-either conventional or primitive, the function [`generate_kpath`](@ref) will generate
-a correct kpath.
+Another approach is to auto-generate a kpath from the crystal structure
+stored in the `Model` (uses spacegroup symmetry via `Brillouin.jl` and `Spglib.jl`):
 =#
-kpath_auto = generate_kpath(model)
+using Spglib
+kpath_auto = KPath(KSegment(model), default_w90_kpath_num_points())
 
 #=
-### Set kpoint spacing along the kpath
-
-To help comparing with the `band.dat` file, we provide a function
-[`generate_w90_kpoint_path`](@ref) which will return the exact same kpoints as that
-in wannier90 `prefix_band.kpt` file.
-The function returns a `KPathInterpolant` object, containing a list of kpoint
-coordinates to be interpolated on,
-=#
-kpi = Wannier.generate_w90_kpoint_path(kpath)
-
-# you can also directly pass the inputs in `win` file to directly genereate
-# the kpoints,
-kpi = generate_w90_kpoint_path(win["unit_cell_cart"], win["kpoint_path"])
-
-#=
-!!! tip
-
-    In comparison, the `KPath` only stores the high-symmetry kpoints and their
-    labels, while the `KPathInterpolant` stores the kpoint coordinates.
-
 ## Band interpolation
 
 Computing band structure is very easy, we first construct a
-[`HamiltonianInterpolator`] from the `hamiltonian`,
+[`HamiltonianInterpolator`](@ref) from the Hamiltonian,
 =#
 interp = HamiltonianInterpolator(H)
 
 #=
-the returned `interp` is a functor, i.e., under the hood is a Julia `struct`
-but can be called as a function: in our case, we can pass kpoint coordinates
-to the interpolator and it will return the interpolated eigenvalues and eigenvectors.
-We can either pass a vector of 3-vectors for fractional coordinates, or directly
-a `KPathInterpolant` object,
+the returned `interp` is a functor that accepts a vector of fractional kpoint
+coordinates and returns `(eigenvalues, eigenvectors)`.
+`collect(kpath)` materialises the `KPath` into that vector.
+The eigenvalues matrix has shape `n_bands × n_kpoints`; `eachcol` converts it
+to the `Vector{Vector{Float64}}` format expected by plotting and IO functions.
 =#
-E, V = interp(kpi)
+E_mat, V = interp(collect(kpath))
+E = collect(eachcol(E_mat))
 
 #=
 ## Plotting band structure
@@ -116,7 +100,7 @@ E, V = interp(kpi)
 You can save the result to the same format
 as `Wannier90` `band.dat`, by
 =#
-write_w90_band("wjl", kpi, E)
+write_w90_band("wjl", kpath, E)
 #=
 where `wjl` is the prefix of the output,
 i.e., written files are
@@ -128,25 +112,15 @@ i.e., written files are
 #=
 ### Visualization in the Julia world
 
-Instead of saving, you can also plot the band structure by
-calling the [`Wannier.plot_band`](@ref) function.
-
-To activate the `plot_band` function, we need to first load `PlotlyJS` package,
+Instead of saving, you can also plot the band structure using the
+[`get_bandplot`](@ref) function, which is activated by loading any
+Makie backend:
 =#
-using PlotlyJS
+using WGLMakie
 
-# then we can plot the band structure by
-P = plot_band(kpi, E; fermi_energy = win["fermi_energy"])
-Main.HTMLPlot(P, 500) # hide
-#=
-Or, you can use the plotting functions provided by
-[`Brillouin.jl`](https://thchr.github.io/Brillouin.jl/stable/kpaths/#Band-structure),
-but requires a different memory layout: a vector of length-`n_kpoints`, each
-elmenet is a length-`n_bands` vector
-=#
-E_t = eachrow(reduce(hcat, E))
-P = plot(kpi, E_t)
-Main.HTMLPlot(P, 500) # hide
+# then plot the band structure by
+fig, ax, plt = get_bandplot(kpath, E; fermi_energy = win["fermi_energy"])
+fig
 
 #=
 ## Comparing band structures
@@ -154,26 +128,30 @@ Main.HTMLPlot(P, 500) # hide
 Now we load the `Wannier90` interpolated band,
 to compare between the two codes,
 =#
-kpi_w90, E_w90 = read_w90_band(dataset"Si2/outputs/MDRS/Si2", reciprocal_lattice(model))
+kpath_w90, E_w90 = read_w90_band(dataset"Si2/outputs/MDRS/Si2", reciprocal_lattice(model))
 #=
 !!! tip
 
-    Here I pass a `recip_lattice` to the `read_w90_band` function,
-    so that it will return a tuple of `(KPathInterpolant, Matrix)`.
-    You can also call the `read_w90_band` function without `recip_lattice`,
-    however, this "raw" version will return rather verbose outputs,
-    not very handy for usage. See the API [`read_w90_band`](@ref) for details.
+    Passing `recip_lattice` to [`read_w90_band`](@ref) returns a
+    `(KPath, Vector{Vector{Float64}})` pair ready for plotting.
+    Without it, the function returns verbose raw data.
+
+The two-argument form of [`get_bandplot`](@ref) overlays both band structures:
 =#
+fig, ax, plt = get_bandplot(kpath_w90, E_w90, E;
+    kwargs1 = (label = "Wannier90",),
+    kwargs2 = (label = "Wannier.jl", linestyle = :dash),
+)
+fig
 
-# and compare the two band structures,
-P = plot_band_diff(kpi, E_w90, E)
-Main.HTMLPlot(P, 500) # hide
-
-# Finally, we can also compare with DFT bands
-using WannierIO
-qe = WannierIO.read_qe_xml(dataset"Si2/outputs/qe_bands.xml")
-P = plot_band_diff(kpi, qe.eigenvalues, E)
-Main.HTMLPlot(P, 500) # hide
+# Finally, compare with DFT bands from the QE XML output
+using QuantumEspressoIO
+qe = QuantumEspressoIO.read_pw_xml(dataset"Si2/outputs/qe_bands.xml")
+fig, ax, plt = get_bandplot(kpath_w90, qe.eigenvalues, E;
+    kwargs1 = (label = "QE DFT",),
+    kwargs2 = (label = "Wannier.jl", linestyle = :dash),
+)
+fig
 #=
 As expected, the Wannier-interpolated band structures nicely reproduce
 DFT bands.

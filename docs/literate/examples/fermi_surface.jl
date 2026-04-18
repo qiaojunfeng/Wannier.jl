@@ -21,7 +21,7 @@ the copper and then compute the Fermi surface.
 using WannierIO
 using Wannier
 using Wannier.Datasets
-# using WannierPlots
+using WGLMakie
 
 #=
 !!! tip
@@ -72,51 +72,53 @@ model.gauges .= U;
     to further minimize a bit the spread.
 =#
 
-# load QE band structure
-kpoints_qe, E_qe = WannierIO.read_qe_band(dataset"Cu/outputs/qe_bands.dat");
+# load QE band structure from bands.x output
+using QuantumEspressoIO
+qe_bands = QuantumEspressoIO.read_band_dat(dataset"Cu/outputs/qe_bands.dat");
 # the Fermi energy from scf calculation
 εF = 16.8985
 
 #=
 ## Band structure interpolation
 =#
-# Force using `kpoint_path` in `win` file
-win = read_win(dataset"Cu/Cu.win")
-kpath = Wannier.generate_kpath(win["unit_cell_cart"], win["kpoint_path"])
-kpi = Wannier.generate_w90_kpoint_path(kpath)
+# Auto-generate kpath from Cu crystal structure (requires Spglib + Brillouin).
+# Cu.win only has a Monkhorst-Pack grid, no explicit kpoint_path block.
+using Spglib
+kpath = KPath(KSegment(model), default_w90_kpath_num_points())
 
 H = TBHamiltonian(model)
 interp = HamiltonianInterpolator(H)
 
-# interpolate band structure
-E, V = interp(kpi);
+# interpolate band structure; E_mat is n_bands × n_kpoints
+E_mat, V = interp(collect(kpath));
+E = collect(eachcol(E_mat))
 
-# plot band difference
-using PlotlyJS
-P = plot_band_diff(kpi, E_qe, E; fermi_energy = εF)
-Main.HTMLPlot(P, 500)  # hide
-
-#=
-then interpolate the Fermi surface on a ``30 \times 30 \times 30`` mesh
-=#
-kpoints, E_fs = Wannier.fermi_surface(interp; n_k = 30);
-
-#=
-save to a `bxsf` file
-=#
-# origin of the grid, always zeros
-origin = zeros(Float64, 3)
-WannierIO.write_bxsf("Cu.bxsf", εF, origin, reciprocal_lattice(model), E_fs)
-
-# show the Brillouin zone
-using Brillouin
-using PlotlyJS
-
-# primitive reciprocal basis associated with k-path
-bxsf = Wannier.read_bxsf(dataset"Cu/outputs/Cu.bxsf")
-fig = WannierPlots.plot_fermisurf_plotly(bxsf.rgrid, bxsf.fermi_energy, bxsf.E; kpath = kpath)
-fig.layout.width = 500
-fig.layout.height = 500
-fig.layout.autosize = false
+# plot band difference against QE reference
+fig, ax, plt = get_bandplot(kpath, qe_bands.eigenvalues, E;
+    kwargs1 = (label = "QE",),
+    kwargs2 = (label = "Wannier.jl", linestyle = :dash),
+    fermi_energy = εF,
+)
 fig
-Main.HTMLPlot(fig, 500)  # hide
+
+#=
+## Fermi surface
+
+Interpolate eigenvalues on a uniform ``30 \times 30 \times 30`` mesh.
+`Wannier.fermisurf` handles the endpoint convention (bxsf needs the last kpoint
+to be the periodic image of the first, so the actual grid is ``31^3``).
+=#
+Wannier.Tools.fermisurf(dataset"Cu/outputs/MDRS/Cu"; nk = 30, ef = εF, outprefix = "Cu")
+
+#=
+The output `Cu.bxsf` can be visualised with e.g. FermiSurfer or VESTA.
+=#
+bxsf = read_bxsf("Cu.bxsf")
+
+#=
+!!! note
+
+    To render the Fermi surface interactively, load a Makie backend and call
+    the `bandplot` recipe on the bxsf grid, or use an external tool such as
+    [FermiSurfer](https://fermisurfer.osdn.jp/).
+=#

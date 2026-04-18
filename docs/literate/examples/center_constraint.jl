@@ -32,7 +32,7 @@ WFs to be centered at the bond centers, i.e., bonding and anti-bonding orbitals.
 # Load the package
 using Wannier
 using Wannier.Datasets
-using StaticArrays: SVector
+using Wannier: Vec3
 
 #=
 ## Model construction
@@ -60,14 +60,14 @@ tutorial, we can use the [`find_nearests`](@ref) function to find the bond
 centers. Here we just hard-code the eight targets (Cartesian, Å):
 =#
 r₀ = [
-    SVector( 0.67882, -0.67882, -0.67882),
-    SVector(-0.67882, -0.67882,  0.67882),
-    SVector(-0.67882,  0.67882, -0.67882),
-    SVector( 0.67882,  0.67882,  0.67882),
-    SVector( 0.67882, -0.67882, -0.67882),
-    SVector(-0.67882, -0.67882,  0.67882),
-    SVector(-0.67882,  0.67882, -0.67882),
-    SVector( 0.67882,  0.67882,  0.67882),
+    Vec3( 0.67882, -0.67882, -0.67882),
+    Vec3(-0.67882, -0.67882,  0.67882),
+    Vec3(-0.67882,  0.67882, -0.67882),
+    Vec3( 0.67882,  0.67882,  0.67882),
+    Vec3( 0.67882, -0.67882, -0.67882),
+    Vec3(-0.67882, -0.67882,  0.67882),
+    Vec3(-0.67882,  0.67882, -0.67882),
+    Vec3( 0.67882,  0.67882,  0.67882),
 ]
 
 #=

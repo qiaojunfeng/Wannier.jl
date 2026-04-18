@@ -68,7 +68,7 @@ conduction manifolds without human intervention.
 # Load the package
 using Wannier
 using Wannier.Datasets
-using WannierPlots
+using WGLMakie
 
 #=
 ## Model construction
@@ -152,28 +152,45 @@ and 4 anti-bonding orbitals! 🚀
 
 Finally, let's compare band interpolation,
 =#
-using PlotlyJS
+# Auto-generate kpath from Si crystal structure
+using Spglib
+kseg = KSegment(model)
+kpath = KPath(kseg, default_w90_kpath_num_points())
+kpoints = collect(kpath)
+
 # the valence + conduction,
-interp_model = Wannier.InterpModel(model)
-kpi, E = interpolate(interp_model)
+H = TBHamiltonian(model)
+E_mat, _ = HamiltonianInterpolator(H)(kpoints)
+E = collect(eachcol(E_mat))
+
 # the valence,
-interp_model_v = Wannier.InterpModel(model_v)
-_, Ev = interpolate(interp_model_v)
+Hv = TBHamiltonian(model_v)
+Ev_mat, _ = HamiltonianInterpolator(Hv)(kpoints)
+Ev = collect(eachcol(Ev_mat))
+
 # the conduction,
-interp_model_c = Wannier.InterpModel(model_c)
-_, Ec = interpolate(interp_model_c)
-# and compare valence,
-P = plot_band_diff(kpi, E, Ev)
-Main.HTMLPlot(P, 500)  # hide
-# and conduction,
-P = plot_band_diff(kpi, E, Ec)
-Main.HTMLPlot(P, 500)  # hide
+Hc = TBHamiltonian(model_c)
+Ec_mat, _ = HamiltonianInterpolator(Hc)(kpoints)
+Ec = collect(eachcol(Ec_mat))
+
+# compare valence vs total,
+fig, ax, plt = get_bandplot(kpath, E, Ev;
+    kwargs1 = (label = "val+cond",),
+    kwargs2 = (label = "valence", linestyle = :dash),
+)
+fig
+# compare conduction vs total,
+fig, ax, plt = get_bandplot(kpath, E, Ec;
+    kwargs1 = (label = "val+cond",),
+    kwargs2 = (label = "conduction", linestyle = :dash),
+)
+fig
 #=
 !!! note
 
     Again, the interpolation quality is not good (especially for the conduction
-    which has much larger spread WFs), bacause of the very coarse
-    kgrid, increase the kgrid and compare the resulting band structures.
+    which has much larger spread WFs), because of the very coarse
+    kgrid. Increase the kgrid and compare the resulting band structures.
 
 Bravo, we have successfully Wannierized the valence and conduction manifolds,
 by splitting the gauge of a valence + conduction calculation!
