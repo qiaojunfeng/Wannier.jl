@@ -392,7 +392,11 @@ API polish pass:
 
 ### Phase 8 — Docs
 
-**Commit CC** — rewrite the localization section of the docs around `Problem` / `Objective` / `Layout`. One-page migration snippet (not a compat guide): "if you were calling `get_fg!_disentangle(model, λ=1.0)`, write `solve!(Problem(MVSpread(...), model))` instead."
+**Commit CC** — rewrite the localization section of the docs around `Problem` / `Objective` / `Layout`. One-page migration snippet (not a compat guide): "if you were calling `get_fg!_disentangle(model, λ=1.0)`, write `solve!(Problem(MVSpread(...), model))` instead." ✅ Done.
+- `docs/src/api/wannierize.md` → `docs/src/api/localization.md`; `docs/make.jl` page entry updated.
+- The new page opens with an `Objective` / `Layout` / `Solver` overview, a Quick-start snippet driving the single polymorphic `localize` entry point, and a one-table migration matrix from the pre-rewrite API (`max_localize` / `disentangle` / `coopt` / `constrain_center_coopt` / `opt_rotate` / `get_fg!_*` / `LocalizationProblem(:symbol)` / term composition).
+- `@autodocs` pages point at the post-rewrite source files (`localization/localize.jl`, `localization/objective.jl`, `localization/solver.jl`, `common/layouts.jl`, `localization/{disentangle,coopt,gauge,split}.jl`, `localization/parallel_transport/*`). `read_w90` CLI snippet in `docs/src/start.md` switched to `localize(model)`.
+- Build verified with `julia --project=docs docs/make.jl`; only pre-existing "docstring not linked" warnings from the interpolation / I/O surfaces remain, outside this refactor's scope.
 
 ---
 

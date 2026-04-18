@@ -69,7 +69,7 @@ makedocs(;
             "Input/Output" => "api/io.md",
             "Model" => "api/model.md",
             "``b``-vector" => "api/bvector.md",
-            "Localization" => "api/wannierize.md",
+            "Localization" => "api/localization.md",
             "Real space" => "api/realspace.md",
             "Interpolation" => "api/interpolation.md",
         ],
