@@ -78,7 +78,7 @@ kpoints_qe, E_qe = WannierIO.read_qe_band(dataset"Cu/outputs/qe_bands.dat");
 εF = 16.8985
 
 #=
-## Generate an [`InterpModel`](@ref)
+## Band structure interpolation
 =#
 # Force using `kpoint_path` in `win` file
 win = read_win(dataset"Cu/Cu.win")
