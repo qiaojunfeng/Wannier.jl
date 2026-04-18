@@ -57,7 +57,7 @@ Choose the column and the target point to contract the
 vector path of the columns of matrix_path
 """
 function choose_pole(
-        matrix_path::Array{T, 3}, columns::Vector{Int}, prev_poles::Matrix{T}
+        matrix_path::AbstractArray{T, 3}, columns::Vector{Int}, prev_poles::AbstractMatrix{T}
     ) where {T <: Complex}
     # Number of iterations to find a pole far enough from the path
     n_iter = 100
@@ -144,8 +144,8 @@ size(frame_path) = (n_col, n_col, n_k, n_t)
 size(matrix_path) = (n_col, n_col, n_k)
 """
 function matrix_parallel_transport(
-        frame_path::Array{T, 4},
-        matrix_path::Array{T, 3},
+        frame_path::AbstractArray{T, 4},
+        matrix_path::AbstractArray{T, 3},
         columns::Vector{Int},
         backwards::Bool = false,
     ) where {T <: Complex}
@@ -266,7 +266,7 @@ i.e., contract Obs(k) matrices to constant vectors.
 size(matrix_path) = n_wann x n_wann x n_k
 t: vector of kpoint indexes along a different k direction
 """
-function matrix_transport(matrix_path::Array{Complex{T}, 3}, t::Vector{T}) where {T <: Real}
+function matrix_transport(matrix_path::AbstractArray{Complex{T}, 3}, t::AbstractVector{T}) where {T <: Real}
     n_row, n_col, n_k = size(matrix_path)
     @assert n_row == n_col
 
