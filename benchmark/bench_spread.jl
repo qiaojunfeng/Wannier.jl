@@ -11,7 +11,11 @@ module BenchSpread
     overlaps = model.overlaps
     gauges = model.gauges
 
-    SUITE["omega"] = @benchmarkable omega($kstencil, $overlaps, $gauges)
+    SUITE["spread"] = @benchmarkable spread($kstencil, $overlaps, $gauges)
+
+    ws = Wannier.Workspace(model)
+    Wannier.compute_MU_UtMU!(ws, kstencil, overlaps, gauges)
+    SUITE["omega!"] = @benchmarkable Wannier.omega!($ws, $kstencil, $overlaps)
 
 end  # module
 

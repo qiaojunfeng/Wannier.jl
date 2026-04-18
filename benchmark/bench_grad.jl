@@ -7,11 +7,13 @@ module BenchGrad
     SUITE = BenchmarkGroup()
 
     model = load_dataset("Si2")
-    bvectors = model.bvectors
-    M = model.M
-    U = model.U
+    kstencil = model.kstencil
+    overlaps = model.overlaps
+    gauges = model.gauges
 
-    SUITE["omega_grad"] = @benchmarkable omega_grad($bvectors, $M, $U)
+    ws = Wannier.Workspace(model)
+    Wannier.compute_MU_UtMU!(ws, kstencil, overlaps, gauges)
+    SUITE["omega_grad!"] = @benchmarkable Wannier.omega_grad!($(ws.G), $ws, $kstencil, $overlaps)
 
 end  # module
 

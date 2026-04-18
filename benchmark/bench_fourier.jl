@@ -6,34 +6,21 @@ module BenchFourier
 
     SUITE = BenchmarkGroup()
 
+    # read_w90_tb already calls simplify -> BareRspace for fast invfourier
+    ham_ws, _   = read_w90_tb(dataset"Si2_valence/outputs/WS/Si2_valence")
+    ham_mdrs, _ = read_w90_tb(dataset"Si2_valence/outputs/MDRS/Si2_valence")
+
     model = load_dataset("Si2_valence")
-    model.U .= get_U(read_chk(dataset"Si2_valence/outputs/Si2_valence.chk.fmt"))
-    tb_ws = read_w90_tb(dataset"Si2_valence/outputs/ws/Si2_valence")
-    tb_mdrs = read_w90_tb(dataset"Si2_valence/outputs/mdrs/Si2_valence")
+    kpoints = Wannier.kpoints(model)
 
-    Hᵏ = Wannier.rotate_gauge(model.E, model.U)
-    kRvectors_ws = tb_ws.Rvectors
-    kRvectors_mdrs = tb_mdrs.Rvectors
+    SUITE["invfourier WS"]   = @benchmarkable invfourier($ham_ws, $kpoints)
+    SUITE["invfourier MDRS"] = @benchmarkable invfourier($ham_mdrs, $kpoints)
 
-    SUITE["rotate_gauge"] = @benchmarkable Wannier.rotate_gauge($(model.E), $(model.U))
-
-    tbhami = tb_ws.H
-
-    SUITE["fourier WS"] = @benchmarkable Wannier.HR_ws(
-        $Hᵏ, $(model.kpoints), $(kRvectors_ws.R), $(length(model.E[1]))
-    )
-
-    SUITE["fourier MDRS v2"] = @benchmarkable (
-        HR = Wannier.HR_ws($Hᵏ, $(model.kpoints), $(kRvectors_ws.R), $(length(model.E[1])));
-        Wannier.mdrs_v1tov2(HR, $(kRvectors_mdrs))
-    )
-
-    out = [Wannier.zeros_block(tbhami) for i in 1:length(model.kpoints)]
-    SUITE["invfourier MDRS v2"] = @benchmarkable map(enumerate($(model.kpoints))) do (i, k)
-        Wannier.invfourier($tbhami, k) do ib, iR, R_cart, b, fac
-            @inbounds $(out)[i][ib] += fac * b.block[ib]
-        end
-    end
+    # in-place variants reuse a preallocated output buffer
+    Hk_ws_buf   = [zero(ham_ws[1])   for _ in 1:length(kpoints)]
+    Hk_mdrs_buf = [zero(ham_mdrs[1]) for _ in 1:length(kpoints)]
+    SUITE["invfourier! WS"]   = @benchmarkable Wannier.invfourier!($Hk_ws_buf,   $ham_ws,   $kpoints)
+    SUITE["invfourier! MDRS"] = @benchmarkable Wannier.invfourier!($Hk_mdrs_buf, $ham_mdrs, $kpoints)
 
 end  # module
 

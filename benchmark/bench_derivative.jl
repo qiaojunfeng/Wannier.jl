@@ -7,17 +7,18 @@ module BenchDerivative
 
     SUITE = BenchmarkGroup()
 
-    tb = read_w90_tb(dataset"Si2_valence/outputs/mdrs/Si2_valence")
-    Rvectors = tb.Rvectors
-    H = tb.H
-    # choose a random k-point such that there is no degeneracy
+    hamiltonian, _ = read_w90_tb(dataset"Si2_valence/outputs/MDRS/Si2_valence")
+    # a non-degenerate kpoint
     k = [Vec3(0.1, 0.2, 0.3)]
 
-    SUITE["velocity_fd"] = @benchmarkable Wannier.velocity_fd(Rvectors, H, k)
-    SUITE["velocity"] = @benchmarkable Wannier.velocity(H, k)
-    SUITE["get_dH_da"] = @benchmarkable Wannier.get_dH_da(H, k)
-    SUITE["effmass_fd"] = @benchmarkable Wannier.effmass_fd(Rvectors, H, k)
-    SUITE["get_d2H_dadb"] = @benchmarkable Wannier.get_d2H_dadb(H, k)
+    vel  = Wannier.VelocityInterpolator(hamiltonian)
+    grad = Wannier.HamiltonianGradientInterpolator(hamiltonian)
+    hess = Wannier.HamiltonianHessianInterpolator(hamiltonian)
+
+    SUITE["velocity FD"]       = @benchmarkable $vel($k, Wannier.FiniteDifferenceVelocity())
+    SUITE["velocity analytic"] = @benchmarkable $vel($k, Wannier.AnalyticVelocity())
+    SUITE["hamiltonian gradient"] = @benchmarkable $grad($k)
+    SUITE["hamiltonian hessian"]  = @benchmarkable $hess($k)
 
 end  # module
 

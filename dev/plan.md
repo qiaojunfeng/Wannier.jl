@@ -372,7 +372,13 @@ API polish pass:
 
 ### Phase 7 — Performance and alternative backends
 
-**Commit Z** — benchmark harness. Track `omega!`, `omega_grad!`, `fg!`, end-to-end iterations/sec, workspace allocations. Pin to a fixed test system; commit numbers.
+**Commit Z** — benchmark harness. Track `omega!`, `omega_grad!`, `fg!`, end-to-end iterations/sec, workspace allocations. Pin to a fixed test system; commit numbers. ✅ Partially done.
+- [benchmark/bench_spread.jl](benchmark/bench_spread.jl) tracks `spread` + `omega!` on Si2.
+- [benchmark/bench_grad.jl](benchmark/bench_grad.jl) tracks `omega_grad!` against a preallocated `Workspace` on Si2.
+- [benchmark/bench_maxloc.jl](benchmark/bench_maxloc.jl) and [benchmark/bench_disentangle.jl](benchmark/bench_disentangle.jl) track the fused `_make_optim_fg!` closure + end-to-end `localize(model, max_iter=10)` on Si2_valence / Si2 (UGauge / XYGauge respectively); the disentangle suite also covers `U_to_X_Y` / `X_Y_to_U` / `X_Y_to_XY` / `XY_to_X_Y` layout hot paths.
+- [benchmark/bench_bvector.jl](benchmark/bench_bvector.jl) migrated to `generate_kspace_stencil`.
+- Interpolation benches (`bench_fourier.jl`, `bench_derivative.jl`, `bench_rvector.jl`) deleted — they referenced pre-rewrite API surfaces (`model.U`/`model.E`, `HR_ws`, `mdrs_v1tov2`, `get_Rvectors_ws`, `velocity_fd` …) and are out-of-scope for this refactor.
+- Deferred: pinning numbers to a fixed test system + committing `result.json` baselines. The harness loads green (`include("benchmark/benchmarks.jl")` returns `["maxloc", "disentangle", "bvector", "spread", "grad", "paralleltransport"]`); a dedicated commit will run `PkgBenchmark.benchmarkpkg` on the reference box and land the baseline numbers alongside AA.
 
 **Commit AA** — micro-optimize hot kernels using dense-array-native operations (batched matmul, avoid per-k loops where possible). Only if benchmarks justify.
 
