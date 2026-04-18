@@ -1,12 +1,11 @@
 # Localization
 
-The localization API is built around three orthogonal concepts:
+`localize(...)` has two independent dispatch paths that share no supertype:
 
-- **`Objective`** — the scalar functional to minimize (Marzari-Vanderbilt variance, variance + WF-center penalty, co-optimized spin-polarized spread, …). One concrete subtype per localization variant.
-- **`Layout`** — how the gauge parameter is packed on the Stiefel manifold (`UGauge`, `XYGauge`, `ProductLayout`, `WLayout`).
-- **`AbstractLocalizationSolver`** — the optimizer backend. `OptimLBFGS` (the default) drives `Optim.jl`; additional backends (e.g. `Manopt.jl`) can be added without touching the objective or layout code.
+- **Gradient-based** — pass a concrete [`Objective`](@ref) (`Variance`, `CenteredVariance`, `CoOptVariance`, `CenteredCoOptVariance`). `Objective` is a scalar functional (mathematical); the call bundles `(objective, model, layout, workspace)` into a [`Problem`](@ref) and hands it to [`solve!`](@ref) with an [`AbstractLocalizationSolver`](@ref) backend (`OptimLBFGS` by default; additional backends like `Manopt.jl` plug in here). `Layout` (`UGauge`, `XYGauge`, `ProductLayout`, `WLayout`) picks the parameter packing on the Stiefel manifold.
+- **Closed-form** — pass a [`ParallelTransport`](@ref). This routes through [`parallel_transport`](@ref) directly; there is no functional, no `Problem`, no solver.
 
-A `Problem` bundles `(objective, model, layout, workspace)` and is constructed per optimization run. `solve!(problem, solver)` returns the optimized gauge without mutating the `Model`.
+`Objective` and `ParallelTransport` live at different abstraction levels (a scalar functional versus a whole gauge-construction recipe), so there is no common ancestor. `localize` just dispatches on whichever the caller hands in.
 
 ## Quick start
 
@@ -27,13 +26,19 @@ U_up, U_dn = localize(sm; λs = 1.0)
 
 # Rotation-only refinement (single W matrix)
 W = localize(Variance(), model, WLayout())
+
+# Closed-form parallel-transport construction (no solver, no scalar functional)
+U = localize(ParallelTransport(), model)
+U = localize(ParallelTransport(; use_U = true, log_interp = true), model)
 ```
 
-Under the hood every one of these calls expands to
+Objective calls expand to
 
 ```julia
 solve!(Problem(objective, model, layout), OptimLBFGS(; kwargs...))
 ```
+
+`ParallelTransport` calls expand to [`parallel_transport`](@ref) directly.
 
 ## Migration from the pre-rewrite API
 
@@ -70,6 +75,13 @@ Pages = ["localization.md"]
 ```@autodocs
 Modules = [Wannier]
 Pages   = ["localization/localize.jl"]
+```
+
+## Gauge method
+
+```@autodocs
+Modules = [Wannier]
+Pages   = ["localization/method.jl"]
 ```
 
 ## Objective

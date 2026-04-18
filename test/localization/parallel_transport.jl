@@ -14,6 +14,14 @@
     @test isapprox(ϵ1, ϵ1_ref; atol = 1.0e-5)
 end
 
+@testitem "localize(ParallelTransport()) matches parallel_transport" begin
+    using Wannier.Datasets
+    model = read_w90(dataset"Si2_valence_coarse/Si2")
+    U1 = localize(ParallelTransport(), model)
+    U2, _ = parallel_transport(model)
+    @test U1 ≈ U2
+end
+
 @testitem "parallel_transport neg coord" begin
     using Wannier.Datasets
     # Test PTG with a kgrid that have negative coordinates, i.e., -0.25 instead of 0.75

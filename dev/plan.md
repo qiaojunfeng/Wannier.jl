@@ -14,7 +14,7 @@ Backward compatibility is not a constraint. Remove legacy names outright; no ali
 - Mixed-backend support (CPU + GPU in one run).
 - Transitional adapters around `WannierIO` — change `WannierIO.jl` in lockstep.
 - Solver package migration (Optim.jl stays as default; pluggable solver API only).
-- Parallel-transport / split.jl redesign — can adopt the Objective interface later.
+- Parallel-transport / split.jl full redesign. ✅ Partially adopted: `parallel_transport` and `split_*` keep their algorithmic bodies (neither iterates a scalar functional). PT now participates in the unified `localize` driver as its own type — `ParallelTransport` (see `src/localization/method.jl`) — with `localize(::ParallelTransport, model)` routing to the closed-form construction. `Objective` stays purely mathematical; the two types share no supertype because they live at different abstraction levels (a scalar functional vs. a whole gauge-construction recipe).
 
 ## Key design decisions (from discussion)
 

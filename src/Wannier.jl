@@ -41,6 +41,7 @@ include("io/interface/orbital_magnetization.jl")
 
 include("Datasets.jl")
 
+include("localization/method.jl")
 include("localization/gauge.jl")
 include("localization/disentangle.jl")
 include("localization/parallel_transport/parallel_transport.jl")
