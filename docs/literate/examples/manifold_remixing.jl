@@ -9,6 +9,12 @@ CurrentModule = Wannier
 #=
 In the previous tutorial, we have seen how to use the `parallel_transport` function
 to automate the construction of WFs for isolated manifold.
+
+!!! warning "Interpolation snippets pending update"
+    The `Wannier.InterpModel` / `interpolate` cells below reference the
+    pre-rewrite interpolation API and need a separate migration pass. The
+    localization section is current; treat the interpolation cells as
+    sketches.
 In this tutorial, we will again use this technique, combined with disentanglement,
 to Wannierize the valence and conduction manifolds of silicon, separately.
 
@@ -70,14 +76,14 @@ using WannierPlots
 We will use the [`read_w90`](@ref) function to read the
 `win`, `amn`, `mmn`, and `eig` files, and construct a [`Model`](@ref) that abstracts the calculation
 =#
-model = load_datasets("Si2")
+model = load_dataset("Si2")
 
 #=
 ## Disentanglement
 
 First let's disentangle the valence + conduction manifold,
 =#
-U = disentangle(model);
+U = localize(model);
 
 #=
 ## Splitting the model
@@ -98,13 +104,13 @@ in that case you need to pass these two matrices to the function
 Next, we construct PTG for the two `Model`s,
 =#
 Uv, _ = parallel_transport(model_v)
-model_v.U .= Uv;
+model_v.gauges .= Uv;
 # and
 Uc, _ = parallel_transport(model_c)
-model_c.U .= Uc;
+model_c.gauges .= Uc;
 # and take a look at the spread
-omega(model_v)
-omega(model_c)
+spread(model_v)
+spread(model_c)
 #=
 !!! tip
 
@@ -115,28 +121,28 @@ omega(model_c)
 
 We can further run maximal localization to smoothen the gauge,
 =#
-Uv = max_localize(model_v)
-model_v.U .= Uv;
+Uv = localize(model_v)
+model_v.gauges .= Uv;
 # and
-Uc = max_localize(model_c)
-model_c.U .= Uc;
+Uc = localize(model_c)
+model_c.gauges .= Uc;
 #=
 !!! tip
 
     For such simple case (few bands, very little kpoints) a direct maximal localization
-    is sufficient. But for more complex scenarios, running an [`opt_rotate`](@ref) might
-    be helpful.
+    is sufficient. But for more complex scenarios, running the `WLayout` form
+    (`localize(Variance(), model, WLayout())`) might be helpful.
 
 ## Comparing spreads
 
 The valence + conduction,
 =#
-model.U .= U;
-omega(model)
+model.gauges .= U;
+spread(model)
 # the valence,
-omega(model_v)
+spread(model_v)
 # the conduction,
-omega(model_c)
+spread(model_c)
 #=
 Look, we have well-localized WFs for all the three cases,
 the initial 8 s,p orbitals are separated into 4 bonding

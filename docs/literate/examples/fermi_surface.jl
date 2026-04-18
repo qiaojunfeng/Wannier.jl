@@ -12,7 +12,7 @@ the copper and then compute the Fermi surface.
 
 1. generate the `amn`, `mmn`, and `eig` files by using `Quantum ESPRESSO` (QE)
 2. construct a [`Model`](@ref) for `Wannier.jl`, by reading the `win`, `amn`, `mmn`, and `eig` files
-3. run `Wannier.jl` [`disentangle`](@ref) on the `Model` to minimize the spread
+3. run `Wannier.jl` [`localize`](@ref) on the `Model` to minimize the spread
 4. write the maximal localized gauge to a new `amn` file
 =#
 
@@ -48,17 +48,17 @@ model = load_dataset("Cu")
 #=
 ## Disentanglement and maximal localization
 
-The [`disentangle`](@ref) function
+The [`localize`](@ref) function
 will disentangle and maximally localize the spread
 functional, and returns the gauge matrices `U`,
 =#
-U = disentangle(model);
+U = localize(model);
 
 # The initial spread is
-omega(model)
+spread(model)
 
 # The final spread is
-omega(model, U)
+spread(model, U)
 
 # save the new gauge to the model
 model.gauges .= U;
@@ -67,7 +67,7 @@ model.gauges .= U;
 !!! note
 
     The convergence thresholds is determined by the
-    keyword arguments of [`disentangle`](@ref), e.g., `f_tol` for the tolerance on spread,
+    keyword arguments of [`localize`](@ref), e.g., `f_tol` for the tolerance on spread,
     and `g_tol` for the tolerance on the norm of spread gradient, etc. You can use stricter thresholds
     to further minimize a bit the spread.
 =#
@@ -82,7 +82,7 @@ kpoints_qe, E_qe = WannierIO.read_qe_band(dataset"Cu/outputs/qe_bands.dat");
 =#
 # Force using `kpoint_path` in `win` file
 win = read_win(dataset"Cu/Cu.win")
-kpath = Wannier.generate_kpath(win.unit_cell_cart, win.kpoint_path)
+kpath = Wannier.generate_kpath(win["unit_cell_cart"], win["kpoint_path"])
 kpi = Wannier.generate_w90_kpoint_path(kpath)
 
 H = TBHamiltonian(model)
@@ -99,14 +99,14 @@ Main.HTMLPlot(P, 500)  # hide
 #=
 then interpolate the Fermi surface on a ``30 \times 30 \times 30`` mesh
 =#
-kpoints, E_fs = Wannier.fermi_surface(interp_model; n_k = 30);
+kpoints, E_fs = Wannier.fermi_surface(interp; n_k = 30);
 
 #=
 save to a `bxsf` file
 =#
 # origin of the grid, always zeros
 origin = zeros(Float64, 3)
-WannierIO.write_bxsf("Cu.bxsf", εF, origin, interp_model.recip_lattice, E_fs)
+WannierIO.write_bxsf("Cu.bxsf", εF, origin, reciprocal_lattice(model), E_fs)
 
 # show the Brillouin zone
 using Brillouin

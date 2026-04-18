@@ -11,6 +11,12 @@ In this tutorial, we will use the [manifold-remixing method]()
 to construct MLWFs for the valence and the conduction manifolds of TiO$_2$,
 separately.
 
+!!! warning "Tutorial pending migration"
+    This tutorial still references several pre-rewrite helpers that no longer
+    exist in the current API (`Wannier.get_U`, `Wannier.Tools.mrwf`,
+    `Wannier.Tools.merge_gauge`, `has_cubic_neighbors`, `write_nnkp_cubic`, …).
+    Read it as conceptual overview until the example is fully migrated.
+
 ## Outline
 
 1. construct a [`Model`](@ref) for a Wannier90-Wannierized
@@ -116,10 +122,10 @@ model_c
 size(U_c[1])
 
 # and take a look at the spread
-omega(model_v)
+spread(model_v)
 
 # and the conduction bands
-omega(model_c)
+spread(model_c)
 
 #=
 Since after parallel transport, the WFs are still not maximally localized WFs,
@@ -137,7 +143,7 @@ model_v_test.gauges .= model_v.gauges;
 # the fields of the two models are the same
 model_v_test ≈ model_v
 # and compare the spreads with that of `model_v`
-omega(model_v_test)
+spread(model_v_test)
 
 # and the conduction bands
 model_c_test = transform_gauge(model, U_c)
@@ -146,7 +152,7 @@ model_c_test.gauges .= model_c.gauges;
 # the fields of the two models are the same
 model_c_test ≈ model_c
 # and compare the spreads with that of `model_c`
-omega(model_c_test)
+spread(model_c_test)
 
 #=
 !!! tip
@@ -168,7 +174,7 @@ U_v = read_amn("$path/TiO2/val/TiO2_split.amn");
 U_c = read_amn("$path/TiO2/cond/TiO2_split.amn");
 
 #=
-Now, we can call [`max_localize`](@ref) on the `model_v` and `model_c`, respectively.
+Now, we can call [`localize`](@ref) on the `model_v` and `model_c`, respectively.
 But here as an demonstration, we run Wannier90 inside the `val` directory and
 the `cond` directory. The `chk` file contains the final Wannierized
 valence and conduction.
@@ -181,7 +187,7 @@ Note that since each run of [`mrwf`](@ref) might give different gauge matrices,
 we use `U_v` from previous result so that we can compare spreads wrt. that from Wannier90.
 =#
 model_v = transform_gauge(model, U_v);
-omega(model_v, U_v2)
+spread(model_v, U_v2)
 
 # here is the Wannier90 `wout`
 open("$path/TiO2/outputs/val/TiO2.wout") do io
@@ -190,7 +196,7 @@ end
 
 # and the conduction bands
 model_c = transform_gauge(model, U_c);
-omega(model_c, U_c2)
+spread(model_c, U_c2)
 
 # here is the Wannier90 `wout`
 open("$path/TiO2/outputs/cond/TiO2.wout") do io
@@ -236,7 +242,7 @@ end;
 size(U_tot[1])
 # and let's check the spreads--the 1st 16 are valence MLWFs, and the last
 # 10 are conduction MLWFs
-omega(model, U_tot)
+spread(model, U_tot)
 #=
 !!! tip
 

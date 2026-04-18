@@ -28,17 +28,17 @@ the 2nd atom, then compute the middle point between each of these 4 atoms and th
 =#
 
 # the `atoms_frac` tag in the `win` file is a nested data structure
-win.atoms_frac
+win["atoms_frac"]
 
 # convert it to a Vector of atomic labels
-atom_labels = [first(x) for x in win.atoms_frac]
+atom_labels = [first(x) for x in win["atoms_frac"]]
 # and a Vector of fractional coordinates
-atom_positions = [last(x) for x in win.atoms_frac]
+atom_positions = [last(x) for x in win["atoms_frac"]]
 
 # the fractional coordinates of the 1st Si atom is
 atom1 = atom_positions[1]
 # convert to Cartesian coordinates in Å
-lattice = win.unit_cell_cart
+lattice = win["unit_cell_cart"]
 atom1_cart = lattice * atom1
 
 # find 4 nearest neighbors of `atom1`,

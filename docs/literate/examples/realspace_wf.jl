@@ -31,23 +31,23 @@ model = load_dataset("graphene")
 #=
 ## Disentanglement and maximal localization
 
-The [`disentangle`](@ref) function disentangles and maximally localizes the spread
+The [`localize`](@ref) function disentangles and maximally localizes the spread
 functional, and returns the gauge matrices `U`,
 =#
-U = disentangle(model);
+U = localize(model);
 
 # The initial spread is
-omega(model)
+spread(model)
 
 # The final spread is
-omega(model, U)
+spread(model, U)
 
 #=
 ## Write real space WFs
 
 Now assign the `U` back to the `model`,
 =#
-model.U .= U;
+model.gauges .= U;
 
 #=
 The [`write_realspace_wf`](@ref) function reads the `UNK` files,
@@ -103,9 +103,9 @@ There are some other functions that might be useful for evaluating operators
 in real space, e.g., computing WF centers.
 
 First we need to read the `UNK` files, and construct the real space WFs
-in a `3 * 3 * 1`-sized super cell (i.e., `model.kgrid`),
+in a `3 * 3 * 1`-sized super cell (i.e., `kgrid_size(model)`),
 =#
-rgrid, W = read_realspace_wf(model, model.kgrid)
+rgrid, W = read_realspace_wf(model, kgrid_size(model))
 #=
 The real space WFs `W`, are defined on the grid `rgrid`.
 

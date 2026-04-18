@@ -30,7 +30,7 @@ We will use the [`read_w90_with_chk`](@ref) function to read the `win`, `mmn`,
 model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/outputs/Si2.chk")
 
 # and check the spread to make sure our `Model` is sensible
-omega(model)
+spread(model)
 
 # Now construct a tight-binding Hamiltonian, the [`TBHamiltonian`](@ref) function
 # returns a [`TBOperator`](@ref) struct, which contains the ``\mathbf{R}``-space
@@ -57,10 +57,10 @@ There are two possible ways to generate a kpath for band-structure interpolation
 First read the `win` file,
 =#
 win = read_win(dataset"Si2/Si2.win")
-# the returned `win` is a `NamedTuple` that contains all the input tags in the `win` file.
+# the returned `win` is an `OrderedDict` that contains all the input tags in the `win` file.
 #
 # Then generate a `KPath` based on crystal structure and `kpoint_path` block,
-kpath = generate_kpath(win.unit_cell_cart, win.kpoint_path)
+kpath = generate_kpath(win["unit_cell_cart"], win["kpoint_path"])
 
 #=
 ### Auto generate kpath from lattice
@@ -84,7 +84,7 @@ kpi = Wannier.generate_w90_kpoint_path(kpath)
 
 # you can also directly pass the inputs in `win` file to directly genereate
 # the kpoints,
-kpi = generate_w90_kpoint_path(win.unit_cell_cart, win.kpoint_path)
+kpi = generate_w90_kpoint_path(win["unit_cell_cart"], win["kpoint_path"])
 
 #=
 !!! tip
@@ -97,7 +97,7 @@ kpi = generate_w90_kpoint_path(win.unit_cell_cart, win.kpoint_path)
 Computing band structure is very easy, we first construct a
 [`HamiltonianInterpolator`] from the `hamiltonian`,
 =#
-interp = HamiltonianInterpolator(hamiltonian)
+interp = HamiltonianInterpolator(H)
 
 #=
 the returned `interp` is a functor, i.e., under the hood is a Julia `struct`
@@ -136,7 +136,7 @@ To activate the `plot_band` function, we need to first load `PlotlyJS` package,
 using PlotlyJS
 
 # then we can plot the band structure by
-P = plot_band(kpi, E; win.fermi_energy)
+P = plot_band(kpi, E; fermi_energy = win["fermi_energy"])
 Main.HTMLPlot(P, 500) # hide
 #=
 Or, you can use the plotting functions provided by

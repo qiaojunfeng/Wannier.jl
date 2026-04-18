@@ -26,9 +26,17 @@ as the starting guess (computed by QE).
 
 1. plot QE band structure as a reference
 2. run two independent Wannierizations of spin-up and spin-down channels
-3. construct a [`MagModel`](@ref) that merges the two spin channels
-4. disentangle, with overlap constraint
-5. disentangle, with both WF center and overlap constraints
+3. construct a [`SpinModel`](@ref) that merges the two spin channels
+4. localize with overlap constraint — `localize(sm; λs)`
+5. localize with both WF center and overlap constraints —
+    `localize(CenteredCoOptVariance(r₀, λc, λs), sm)`
+
+!!! warning "Interpolation snippets pending update"
+    The interpolation/chk/plot cells below still reference the pre-rewrite
+    `Wannier.InterpModel` / `Wannier.interpolate` / `Wannier.rotate_gauge`
+    API. Use [`TBHamiltonian`](@ref) + [`HamiltonianInterpolator`](@ref)
+    from the current interpolation section until this tutorial is
+    migrated.
 
 !!! tip
 
@@ -94,10 +102,10 @@ The projection-only WFs, i.e., without any disentanglement or maximal
 localization, are usually centered on each atom. This can be checked
 by computing WF centers and spreads
 =#
-omega(model_up)
+spread(model_up)
 
 # and for spin-down channel
-omega(model_dn)
+spread(model_dn)
 
 #=
 However, their band interpolations are often not good, so they shouldn't
@@ -168,10 +176,10 @@ band structures.
 Note we just run 100 iterations here, this only converge to the order of
 5e-2, but is already good enough for band interpolation.
 =#
-U_up_mlwf = disentangle(model_up);
+U_up_mlwf = localize(model_up);
 
 # and WF centers and spreads
-omega(model_up, U_up_mlwf)
+spread(model_up, U_up_mlwf)
 
 # For band interpolations, we explicitly construct [`InterpModel`](@ref)s by
 # reusing previous ``\bm{R}`` vectors, and compute Hamiltonian ``H(\bm{R})``.
@@ -188,9 +196,9 @@ P = plot_band_diff(kpi, qe.E_up, E_up_mlwf; fermi_energy = qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
 # similarly, for spin-down channel
-U_dn_mlwf = disentangle(model_dn);
+U_dn_mlwf = localize(model_dn);
 # and WF centers and spreads
-omega(model_dn, U_dn_mlwf)
+spread(model_dn, U_dn_mlwf)
 # and the interpolated bands
 interpModel_dn_mlwf = Wannier.InterpModel(
     interpModel_dn.kRvectors,
@@ -221,31 +229,31 @@ to disentangle simeultaneously the two sets of WFs, so that they can accurately
 interpolate band structures, and more importantly, have the same centers and
 spreads.
 
-We first construct a [`MagModel`](@ref) for the two spin channels,
+We first construct a [`SpinModel`](@ref) for the two spin channels,
 using the previous two `Model`s and an additional overlap matrix.
 
 The spin-up and down overlap matrices is written in the same format as `amn`
 =#
 Mud = read_amn("updn/cri3_updn.mud");
 
-# then assemble into a [`MagModel`](@ref)
-model = Wannier.MagModel(model_up, model_dn, Mud)
+# then assemble into a [`SpinModel`](@ref)
+sm = SpinModel(model_up, model_dn, Mud)
 
 #=
-Now let's disentangle with spin overlap constraint.
+Now let's localize with spin overlap constraint.
 Here `λs` is the Lagrange multiplier for the constraint.
 =#
 λs = 10.0
-U_up, U_dn = disentangle(model, λs);
+U_up, U_dn = localize(sm; λs);
 #=
 The resulting spin-up and spin-down WFs have very similar centers and spreads,
 however, their centers drift from the original positions which were centered
 on atoms.
 =#
-omega(model, U_up, U_dn, λs)
+spread(sm, U_up, U_dn, λs)
 
 # as a comparison, the spreads of independent Wannierizations are
-omega(model, U_up_mlwf, U_dn_mlwf, λs)
+spread(sm, U_up_mlwf, U_dn_mlwf, λs)
 
 # Save the gauge into `chk` files
 Wannier.write_chk("up/wjl_up_cowf.chk", model_up, U_up; exclude_bands)
@@ -272,46 +280,40 @@ calculations, i.e., constructing a Heisenberg model with
 3. both spin channels accurately describe the electronic structure of
     the system.
 
-Since we want atom-centered WFs, our target centers are just atom positions.
-We store our target WF centers in a column-wise matrix,
+Since we want atom-centered WFs, our target centers are just atom positions,
+packed as a `Vector{Vec3{T}}` of length `n_wannier(sm.up)` in Cartesian
+coordinates (Å). The WF-to-atom assignment reflects the CrI₃ orbital layout:
+the first 6 WFs map to the `4s,3d` orbitals of the 1st `Cr`, the next 6 to the
+2nd `Cr`, and every subsequent block of 4 to a single `I` atom's `5s,5p`.
 =#
-r₀ = zeros(3, model.up.n_wann)
-# the first 6 WFs are the `4s,3d` orbitals of the 1st `Cr` atom
-r₀[:, 1:6] .= model_up.atom_positions[:, 1]
-# the next 6 WFs are the `4s,3d` orbitals of the 2nd `Cr` atom
-r₀[:, 7:12] .= model_up.atom_positions[:, 2]
-# the next 4 WFs are the `5s,5p` orbitals of `I` atom
-r₀[:, 13:16] .= model_up.atom_positions[:, 3]
-# and similarly for the remaining 5 `I` atoms
-r₀[:, 17:20] .= model_up.atom_positions[:, 4]
-r₀[:, 21:24] .= model_up.atom_positions[:, 5]
-r₀[:, 25:28] .= model_up.atom_positions[:, 6]
-r₀[:, 29:32] .= model_up.atom_positions[:, 7]
-r₀[:, 33:36] .= model_up.atom_positions[:, 8]
-
-# convert to Cartesian coordinates
-r₀ = model.up.lattice * r₀
+atom_idx = vcat(
+    fill(1, 6), fill(2, 6),                       # two Cr atoms, 6 WFs each
+    fill(3, 4), fill(4, 4), fill(5, 4),           # three I atoms, 4 WFs each
+    fill(6, 4), fill(7, 4), fill(8, 4),           # three more I atoms
+)
+r₀ = [sm.up.lattice * sm.up.atom_positions[i] for i in atom_idx]
 
 #=
 Now we need to choose the Lagrange multiplier factors for the two constraints.
-Here the `λc` is the Lagrange multiplier for the WF center constraint,
-and `λs` is for the spin overlap constraint.
-
-We use `10.0` for both `λc` and `λs` here, but you can try different values.
-
-On output, the second last column, ωc, is the penalty of the WF center
-constraint, i.e., the larger the ωc, the farther the WF center is from the
-target position r₀.
+`λc` is the Lagrange multiplier for the WF center constraint, `λs` is for the
+spin overlap constraint. We use `10.0` for both; try other values.
 =#
 λc = 10.0
 λs = 10.0
-U_up, U_dn = disentangle_center(model, r₀, λc, λs);
+U_up, U_dn = localize(CenteredCoOptVariance(r₀, λc, λs), sm);
 
-# the final centers and spreads are
-omega(model, U_up, U_dn, r₀, λc, λs)
+# Inspect the base (overlap-only) spread of the co-optimized gauge
+spread(sm, U_up, U_dn, λs)
 
-# as a comparison, the spreads of independent Wannierizations are
-omega(model, U_up_mlwf, U_dn_mlwf, r₀, λc, λs)
+# as a comparison, the base spread of independent Wannierizations is
+spread(sm, U_up_mlwf, U_dn_mlwf, λs)
+
+#=
+The full center-aware spread can be re-built by applying the penalty on each
+spin channel separately with `Wannier.omega_center`, e.g.
+`Wannier.omega_center(sm.up, U_up; r₀ = r₀, λ = λc)`; no dedicated
+centered-coopt spread helper exists in the current API.
+=#
 
 #=
 Notice the 2nd last column of ωc, which is the penalty for WF centers:

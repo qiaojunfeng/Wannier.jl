@@ -5,8 +5,8 @@ using Wannier
 using Wannier.Datasets
 
 prefix = dataset"Fe_soc/outputs/MDRS/Fe"
-tb = read_w90_tb(prefix)
-interp = HamiltonianInterpolator(tb.hamiltonian)
+hamiltonian, _ = read_w90_tb(prefix)
+interp = HamiltonianInterpolator(hamiltonian)
 
 lattice = real_lattice(interp)
 recip_lattice = reciprocal_lattice(lattice)
@@ -27,7 +27,7 @@ prefactor = 1
 smearing = Wannier.ColdSmearing()
 tol_εF = 5.0e-3  # convergence tolerance for Fermi energy in eV
 
-εF_scf = read_win(dataset"Fe_soc/Fe.win").fermi_energy
+εF_scf = read_win(dataset"Fe_soc/Fe.win")["fermi_energy"]
 
 # You can directly compute Fermi energy by
 εF = Wannier.compute_fermi_energy(

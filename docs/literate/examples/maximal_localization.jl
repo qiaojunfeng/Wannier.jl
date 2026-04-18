@@ -23,7 +23,7 @@ In general, a Wannierization of a material consists of the following steps:
         For more details, please refer to [WannierDatasets](@ref) section.
 2. Construct a `Wannier.jl` [`Model`](@ref), by reading the `win`, `amn`, `mmn`,
     and `eig` files
-3. Run `Wannier.jl` [`max_localize`](@ref) on the `Model` to minimize the spread
+3. Run `Wannier.jl` [`localize`](@ref) on the `Model` to minimize the spread
 4. Store the maximal-localized gauge matrices
 =#
 
@@ -104,20 +104,20 @@ end
 ## Maximal localization
 
 Maximal localization can be easily achieved by calling the
-[`max_localize`](@ref) function, which returns the maximally-localized gauge
+[`localize`](@ref) function, which returns the maximally-localized gauge
 matrices `U`,
 =#
-U = max_localize(model);
+U = localize(model);
 #=
 Here we append a semicolon `;` to suppress the printing of the content of `U`,
 which are many complex numbers.
 
 We can compute the initial spread by
 =#
-omega(model)
+spread(model)
 
 # The final spread is
-omega(model, U)
+spread(model, U)
 
 #=
 Since we have very good initial guess, the spreads only decrease a little bit.
@@ -125,7 +125,7 @@ Since we have very good initial guess, the spreads only decrease a little bit.
 !!! note
 
     The convergence thresholds is determined by the
-    keyword arguments of [`max_localize`](@ref), e.g., `f_tol` for
+    keyword arguments of [`localize`](@ref), e.g., `f_tol` for
     the tolerance on spread, and `g_tol` for the tolerance on the
     norm of spread gradient, etc. You can use stricter thresholds
     to further minimize a bit the spread.
@@ -141,7 +141,8 @@ model.gauges .= U;
 !!! tip
 
     You need to use `.=` to assign the `U` to the `model`,  because the `model`
-    is an immutable Julia `struct`, so it is not allowed to use `model.U = U`.
+    is an immutable Julia `struct`, so the field itself cannot be rebound —
+    i.e., `model.gauges = U` is not allowed, you have to mutate in place.
 
 Or save the new gauge to an `amn` file, which can be loaded again in
 `Wannier.jl`, or used as an initial guess in wannier90.

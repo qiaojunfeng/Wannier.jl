@@ -10,6 +10,12 @@ CurrentModule = Wannier
 In this tutorial, we will Wannierize a single isolated band of CuBr2,
 by constructing the parallel transport gauge (PTG).
 
+!!! warning "Interpolation snippets pending update"
+    The `Wannier.Model(...)` reconstruction and the `Wannier.InterpModel` /
+    `Wannier.interpolate` cells below reference the pre-rewrite API surfaces
+    (bvectors, 3D field access, old reducer) and need a separate migration pass.
+    Treat those cells as sketches until this tutorial is updated.
+
 However, the CuBr2 system has a special set of b-vectors: some nearest neighbors
 are not included. This breaks the requirement of the PTG, since it needs the
 overlap matrices of nearest neighbors along 6 directions. Therefore, we need to
@@ -66,12 +72,12 @@ model = load_dataset("CuBr2")
 !!! note
 
     This is a simple system, you can even get good WFs with a simple
-    `max_localize(model)`. However, we will use this tutorial to demonstrate
+    `localize(model)`. However, we will use this tutorial to demonstrate
     the method to overcome the b-vector problem in PTG.
 =#
 
 # The initial spread is
-omega(model)
+spread(model)
 
 #=
 ## Custom b-vectors
@@ -122,7 +128,7 @@ model_nn = Wannier.Model(
     bvectors_nn,
     model.frozen_bands,
     M_nn,
-    model.U,
+    model.gauges,
     model.E,
 )
 
@@ -133,15 +139,15 @@ U, _ = parallel_transport(model_nn)
 Since the b-vectors are not complete, computing spread on top of `model_nn`
 is meaningless, we assign back the gauge matrices to `model`
 =#
-model.U .= U;
+model.gauges .= U;
 
 # and the new spread is
-omega(model)
+spread(model)
 
 # then further maximal localize it
-U = max_localize(model)
-model.U .= U;
-omega(model)
+U = localize(model)
+model.gauges .= U;
+spread(model)
 
 #=
 ## Band interpolation

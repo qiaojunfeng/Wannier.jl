@@ -36,16 +36,16 @@ model = load_dataset("Si2")
 #=
 ## Disentanglement and maximal localization
 
-The [`disentangle`](@ref) function disentangles and maximally localizes the spread
+The [`localize`](@ref) function disentangles and maximally localizes the spread
 functional, and returns the final gauge matrices `U`,
 =#
-U = disentangle(model);
+U = localize(model);
 
 # The initial spreads are
-omega(model)
+spread(model)
 
 # The final spreads are
-omega(model, U)
+spread(model, U)
 
 #=
 It seems contradictory that the final spread is larger than the initial spread,
@@ -55,7 +55,7 @@ it is clear that the minimization decreases the spread to a large extent.
 
 !!! note
 
-    See keyword arguments of [`disentangle`](@ref) for convergence thresholds.
+    See keyword arguments of [`localize`](@ref) for convergence thresholds.
 =#
 
 #=
@@ -68,9 +68,9 @@ write_amn("si2.dis.amn", U)
 #=
 Great! Now you have finished the disentanglement tutorial.
 
-As you may have noticed, the workflow is very similar to the previous tutorial:
-the Wannierization functions, `max_localize` and `disentangle`,
-accept a `Model` and some convergence thresholds, and return the gauge matrices.
-This design is also adopted in other Wannierization algorithms,
-as shown in later tutorials.
+As you may have noticed, the workflow is identical to the previous tutorial —
+the same [`localize`](@ref) function drives both the isolated and entangled
+cases. Internally it picks a [`UGauge`](@ref) layout when the model has no
+frozen/disentangled bands and an [`XYGauge`](@ref) layout when it does; the
+caller does not have to distinguish.
 =#
