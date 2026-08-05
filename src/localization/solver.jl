@@ -98,7 +98,8 @@ convention: `df = Re⟨∇f, dx⟩`. A factor of ½ should be applied to gradien
 handed to Optim at this boundary. Currently the line-search has absorbed this
 factor; an explicit rescale is deferred to improve robustness.
 
-See also [`spread.jl`](@ref) gradient-convention block for full context.
+See the gradient-convention block at the top of `src/spread.jl` for the full
+derivation context.
 """
 function _make_optim_fg! end
 

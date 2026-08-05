@@ -56,6 +56,7 @@ makedocs(;
     pages = [
         "Home" => "index.md",
         "Getting Started" => "start.md",
+        "Architecture" => "architecture.md",
         "Examples" => examples_pages,
         "Theory" => [
             "Normalization" => "theory/normalization.md",
