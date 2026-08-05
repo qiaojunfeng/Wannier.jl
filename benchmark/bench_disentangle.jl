@@ -26,6 +26,8 @@ module BenchDisentangle
     SUITE["localize"] = @benchmarkable localize($model, max_iter = 10)
 
     # fused fg! closure, one call
+    # Note: _make_optim_fg! is private (for internal use) but exposed here for
+    # low-level micro-benchmarking the kernel. Public API routes through localize().
     prob = Wannier.Problem(Wannier.Variance(), model)
     fg!  = Wannier._make_optim_fg!(prob)
     XYbuf = copy(XY)
