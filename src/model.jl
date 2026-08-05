@@ -1,5 +1,6 @@
 export isisolated, isentangled
 export kpoints, kgrid_size, kpb_k, kpb_G, bweights
+export n_atoms, n_kpoints, n_bvectors, n_bands, n_wannier, real_lattice, reciprocal_lattice
 
 """
     $(TYPEDEF)
