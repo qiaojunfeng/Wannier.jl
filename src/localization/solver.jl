@@ -89,6 +89,16 @@ function solve! end
 Build an `Optim.only_fg!`-compatible `fg!(F, G, x)` closure for `prob`.
 Writes gradients into `G` (the layout-native buffer Optim hands us) and
 returns Ω when `F !== nothing`.
+
+## Gradient convention
+
+Internally, `omega_grad!` and related kernel functions compute gradients under
+the physics convention: `df(x) = 2 Re⟨∇f, dx⟩`. Optim.jl expects the other
+convention: `df = Re⟨∇f, dx⟩`. A factor of ½ should be applied to gradients
+handed to Optim at this boundary. Currently the line-search has absorbed this
+factor; an explicit rescale is deferred to improve robustness.
+
+See also [`spread.jl`](@ref) gradient-convention block for full context.
 """
 function _make_optim_fg! end
 
