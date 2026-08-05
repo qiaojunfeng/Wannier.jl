@@ -36,6 +36,11 @@ The concrete subtypes — `Variance`, `CenteredVariance`, `CoOptVariance`,
 `CenteredCoOptVariance` — land in commits N / O / P. This file only sets up
 the contract and a generic `fg!` fallback that routes through
 `value` + `gradient!`.
+
+Finite-difference gradient checks for each subtype are included in the test
+suite: `test/localization/disentangle.jl` (Variance), `test/localization/constrain_center/disentangle.jl`
+(CenteredVariance), `test/localization/coopt.jl` (CoOptVariance), and
+`test/localization/constrain_center/coopt.jl` (CenteredCoOptVariance).
 """
 abstract type Objective end
 
