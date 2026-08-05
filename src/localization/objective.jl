@@ -1,5 +1,5 @@
 export Variance, CenteredVariance, CoOptVariance, CenteredCoOptVariance
-export Problem, required_layout
+export Problem, default_layout
 
 """
     CPU()
@@ -13,69 +13,54 @@ the sentinel only encodes the seam.
 struct CPU end
 
 """
-Objective interface (commit M shell).
+A concrete `Objective` is the scalar functional being minimized, together with
+its gradient, for one localization variant.
 
-A concrete `Objective <: Objective` bundles the scalar spread functional and
-its gradient for one localization variant. Each subtype implements:
+Each subtype implements one kernel,
 
-    value(obj, state, ws)          :: Real
-    gradient!(G, obj, state, ws)   :: Nothing
-    fg!(G, obj, state, ws)         :: Real    # fused; default falls back to value + gradient!
+    fg!(F, GU, obj, U, model, ws) :: Real
 
-plus two trait methods consumed by `Problem`:
+plus two traits consumed when a [`Problem`](@ref) is built:
 
-    required_layout(obj, model)              :: Layout
-    allocate_workspace(obj, model, layout)   :: Workspace
+    default_layout(obj, model)             :: Layout
+    allocate_workspace(obj, model, layout) :: Workspace
 
-`state` is the decoded canonical gauge (e.g. `Array{Complex{T}, 3}` for
-`UGauge`); the layout is responsible for the encode/decode round-trip. `ws`
-is the preallocated scratch carrying `MU`, `UtMU`, and any objective-specific
-buffers.
+`fg!` works in **canonical coordinates** — it never sees the layout. Packing
+the gradient into layout-native parameters is [`encode_gradient!`](@ref)'s job,
+which is what keeps the objective axis and the layout axis independent: a new
+objective works with every layout, and a new layout works with every objective.
 
-The concrete subtypes — `Variance`, `CenteredVariance`, `CoOptVariance`,
-`CenteredCoOptVariance` — land in commits N / O / P. This file only sets up
-the contract and a generic `fg!` fallback that routes through
-`value` + `gradient!`.
-
-Finite-difference gradient checks for each subtype are included in the test
-suite: `test/localization/disentangle.jl` (Variance), `test/localization/constrain_center/disentangle.jl`
-(CenteredVariance), `test/localization/coopt.jl` (CoOptVariance), and
+Finite-difference gradient checks for each subtype live in the test suite:
+`test/localization/disentangle.jl` (Variance),
+`test/localization/constrain_center/disentangle.jl` (CenteredVariance),
+`test/localization/coopt.jl` (CoOptVariance), and
 `test/localization/constrain_center/coopt.jl` (CenteredCoOptVariance).
 """
 abstract type Objective end
 
 """
-    value(obj, state, ws)
+    fg!(F, GU, obj, U, model, ws) -> Ω
 
-Evaluate the scalar spread functional at `state` using the preallocated
-workspace `ws`. Subtypes override this.
-"""
-function value end
+Fused value-and-gradient evaluation for `obj` in canonical coordinates.
 
-"""
-    gradient!(G, obj, state, ws)
+`U` is the gauge array (`n_bands × n_wannier × n_kpoints`); the gradient
+`dΩ/dU*` is written into `GU`. Both slots follow the Optim.jl convention: pass
+`nothing` for `GU` to skip the gradient, and `nothing` for `F` to skip the
+value, in which case `nothing` is returned.
 
-Write `dΩ/dU*` (or the objective's native gradient) into `G` in place.
+Value and gradient share the expensive `MU` and `UtMU` products held in `ws`,
+which is why they are computed in one call rather than two.
 """
-function gradient! end
-
-"""
-    fg!(G, obj, state, ws)
-
-Fused value + gradient evaluation. Subtypes that can share `MU`/`UtMU`
-work between value and gradient should override; the fallback simply
-calls `gradient!` followed by `value`.
-"""
-fg!(G, obj::Objective, state, ws) = (gradient!(G, obj, state, ws); value(obj, state, ws))
+function fg! end
 
 """
-    required_layout(obj, model)
+    default_layout(obj, model)
 
 Return the [`Layout`](@ref) that `obj` expects the parameter array to use
-for this `model`. For `Variance` / `CenteredVariance` this is `UGauge()`
-when the manifold is isolated and `XYGauge()` when entangled.
+for this `model`. For `Variance` / `CenteredVariance` this is `ULayout()`
+when the manifold is isolated and `XYLayout()` when entangled.
 """
-function required_layout end
+function default_layout end
 
 """
     allocate_workspace(obj, model, layout; backend=CPU())
@@ -95,55 +80,28 @@ function allocate_workspace end
     Variance()
 
 Marzari-Vanderbilt variance spread functional. Works on `Model` for both
-the isolated (`UGauge`) and entangled (`XYGauge`) cases.
+the isolated (`ULayout`) and entangled (`XYLayout`) cases.
 """
 struct Variance <: Objective end
 
-required_layout(::Variance, model::Model) = isentangled(model) ? XYGauge() : UGauge()
+default_layout(::Variance, model::Model) = isentangled(model) ? XYLayout() : ULayout()
 
 allocate_workspace(::Variance, model::Model, ::Layout; backend = CPU()) =
     Workspace(model)
 
-function value(::Variance, state::AbstractArray{<:Complex, 3}, ws::Workspace)
-    return spread(ws, state).Ω
-end
-
-function spread(ws::Workspace, U::AbstractArray{<:Complex, 3})
-    # recomputes MU/UtMU against the current U; callers that already filled
-    # ws.MU/ws.UtMU can call omega!(ws, ...) directly
-    error(
-        "Variance.value called without ws.MU populated — use fg! which fuses " *
-            "compute_MU_UtMU! with omega!/omega_grad!."
-    )
-end
-
-function gradient!(
-        G::AbstractArray{<:Complex, 3},
-        ::Variance,
-        state::AbstractArray{<:Complex, 3},
-        ws::Workspace,
-    )
-    error(
-        "Variance.gradient! called without ws.MU populated — use fg! which " *
-            "fuses compute_MU_UtMU! with omega_grad!."
-    )
-end
-
 function fg!(
-        G,
+        F,
+        GU,
         ::Variance,
-        state::AbstractArray{<:Complex, 3},
+        U::AbstractArray{<:Complex, 3},
+        model::Model,
         ws::Workspace,
-        kstencil,
-        overlaps,
     )
-    compute_MU_UtMU!(ws, kstencil, overlaps, state)
-    Ω = nothing
-    if G !== nothing && G !== false
-        omega_grad!(G, ws, kstencil, overlaps)
-    end
-    Ω = omega!(ws, kstencil, overlaps).Ω
-    return Ω
+    kstencil, overlaps = model.kstencil, model.overlaps
+    compute_MU_UtMU!(ws, kstencil, overlaps, U)
+    GU === nothing || omega_grad!(GU, ws, kstencil, overlaps)
+    F === nothing && return nothing
+    return omega!(ws, kstencil, overlaps).Ω
 end
 
 # -------------------------------------------------------------------------
@@ -162,29 +120,26 @@ struct CenteredVariance{T <: Real} <: Objective
     λ::T
 end
 
-required_layout(::CenteredVariance, model::Model) = isentangled(model) ? XYGauge() : UGauge()
+default_layout(::CenteredVariance, model::Model) = isentangled(model) ? XYLayout() : ULayout()
 
 allocate_workspace(::CenteredVariance, model::Model, ::Layout; backend = CPU()) =
     Workspace(model)
 
 function fg!(
-        G,
+        F,
+        GU,
         obj::CenteredVariance,
-        state::AbstractArray{<:Complex, 3},
+        U::AbstractArray{<:Complex, 3},
+        model::Model,
         ws::Workspace,
-        kstencil,
-        overlaps,
     )
-    compute_MU_UtMU!(ws, kstencil, overlaps, state)
-    if G !== nothing && G !== false
-        # Center penalty is applied by the penalty-aware omega_grad! kernel
-        # in a single sweep; the factor is folded into the kernel via
-        # `center_penalty(r0, λ)`.
-        omega_grad!(center_penalty(obj.r0, obj.λ), G, ws, kstencil, overlaps)
-    end
-    Ωbase = omega!(ws, kstencil, overlaps)
-    Ωc = sum(n -> obj.λ * sum((Ωbase.r[n] - obj.r0[n]) .^ 2), eachindex(obj.r0))
-    return Ωbase.Ω + Ωc
+    kstencil, overlaps = model.kstencil, model.overlaps
+    compute_MU_UtMU!(ws, kstencil, overlaps, U)
+    # The center penalty rides along inside the penalty-aware `omega_grad!`
+    # kernel, so it costs no extra sweep over the b-vectors.
+    GU === nothing || omega_grad!(center_penalty(obj.r0, obj.λ), GU, ws, kstencil, overlaps)
+    F === nothing && return nothing
+    return omega_center(omega!(ws, kstencil, overlaps); r0 = obj.r0, λ = obj.λ).Ωt
 end
 
 # -------------------------------------------------------------------------
@@ -192,37 +147,38 @@ end
 # -------------------------------------------------------------------------
 
 """
-    SpinWorkspace{T}(up, dn)
+    SpinWorkspace{T}(up, dn, overlaps_updn)
 
 Paired workspace for `SpinModel` objectives. Up/down channels get
-independent `Workspace{T}` buffers; the `SpinModel.M` Bloch overlap stays
-on the model until the Problem/Workspace refactor (Q/R) relocates it.
+independent `Workspace{T}` buffers; `overlaps_updn` holds the Bloch-basis
+``\\uparrow\\downarrow`` overlap that the coupling term needs, copied out of
+the `SpinModel` when the workspace is allocated.
 """
 struct SpinWorkspace{T}
     up::Workspace{T}
     dn::Workspace{T}
-    M::Array{Complex{T}, 3}
+    overlaps_updn::Array{Complex{T}, 3}
 end
 
 """
-    CoOptVariance(λs)
+    CoOptVariance(λ_spin)
 
-Co-optimization of two spin channels: `Ω = Ωup + Ωdn + λs · Ωupdn` where
+Co-optimization of two spin channels: `Ω = Ωup + Ωdn + λ_spin · Ωupdn` where
 `Ωupdn = n_wann − tr(|⟨u↑|u↓⟩|²)` is the ↑↓ overlap penalty (see
 `omega_updn`). Operates on a `SpinModel`.
 """
 struct CoOptVariance{T <: Real} <: Objective
-    λs::T
+    λ_spin::T
 end
 
-required_layout(::CoOptVariance, ::SpinModel) = ProductLayout(XYGauge(), XYGauge())
+default_layout(::CoOptVariance, ::SpinModel) = ProductLayout(XYLayout(), XYLayout())
 
 function allocate_workspace(::CoOptVariance, model::SpinModel, ::Layout; backend = CPU())
-    return SpinWorkspace(Workspace(model.up), Workspace(model.dn), Array{eltype(model.M), 3}(model.M))
+    return SpinWorkspace(Workspace(model.up), Workspace(model.dn), Array{eltype(model.overlaps_updn), 3}(model.overlaps_updn))
 end
 
 """
-    CenteredCoOptVariance(r0, λ, λs)
+    CenteredCoOptVariance(r0, λ, λ_spin)
 
 `CoOptVariance` plus a shared-center penalty applied on both spin
 channels (see `CenteredVariance`).
@@ -230,13 +186,13 @@ channels (see `CenteredVariance`).
 struct CenteredCoOptVariance{T <: Real} <: Objective
     r0::Vector{Vec3{T}}
     λ::T
-    λs::T
+    λ_spin::T
 end
 
-required_layout(::CenteredCoOptVariance, ::SpinModel) = ProductLayout(XYGauge(), XYGauge())
+default_layout(::CenteredCoOptVariance, ::SpinModel) = ProductLayout(XYLayout(), XYLayout())
 
 function allocate_workspace(::CenteredCoOptVariance, model::SpinModel, ::Layout; backend = CPU())
-    return SpinWorkspace(Workspace(model.up), Workspace(model.dn), Array{eltype(model.M), 3}(model.M))
+    return SpinWorkspace(Workspace(model.up), Workspace(model.dn), Array{eltype(model.overlaps_updn), 3}(model.overlaps_updn))
 end
 
 # -------------------------------------------------------------------------
@@ -261,7 +217,90 @@ struct Problem{O <: Objective, M, L <: Layout, W}
     workspace::W
 end
 
-function Problem(objective::Objective, model, layout::Layout = required_layout(objective, model))
+function Problem(objective::Objective, model, layout::Layout = default_layout(objective, model))
     ws = allocate_workspace(objective, model, layout)
     return Problem(objective, model, layout, ws)
+end
+
+# `WLayout` optimizes one rotation shared by all kpoints, which only makes sense
+# against a model whose gauge has been folded into the overlaps. Doing that here
+# rather than in `solve!` keeps every solver method generic, and leaves the
+# caller's model untouched.
+function Problem(objective::Objective, model::Model, layout::WLayout)
+    nw = n_wannier(model)
+    n_bands(model) == nw ||
+        error("WLayout needs n_bands == n_wannier; run disentanglement first")
+    rotated = deepcopy(model)
+    rotated.overlaps .= transform_gauge(rotated.overlaps, rotated.kstencil.kpb_k, rotated.gauges)
+    rotated.gauges .= identity_gauge(eltype(rotated.gauges), n_kpoints(rotated), nw)
+    return Problem(objective, rotated, layout, allocate_workspace(objective, rotated, layout))
+end
+
+function Base.show(io::IO, ::MIME"text/plain", prob::Problem)
+    println(io, "Problem:")
+    println(io, "  objective  =  ", nameof(typeof(prob.objective)))
+    println(io, "  model      =  ", nameof(typeof(prob.model)), " (", n_bands(prob.model),
+        " bands, ", n_wannier(prob.model), " WFs, ", n_kpoints(prob.model), " kpoints)")
+    println(io, "  layout     =  ", prob.layout)
+    return print(io, "  workspace  =  ", nameof(typeof(prob.workspace)))
+end
+
+# --- SpinModel objectives, in canonical coordinates -----------------------
+#
+# `U` is the `(up, dn)` gauge pair and `GU` the matching gradient pair. The
+# ↑↓ coupling gradient is added here, in canonical coordinates; converting the
+# sum once is equivalent to converting each term separately because the
+# layout's gradient encoding is linear — and it is one conversion cheaper.
+
+function fg!(F, GU, obj::CoOptVariance, U::Tuple, model::SpinModel, ws::SpinWorkspace)
+    Uup, Udn = U
+    λ = obj.λ_spin
+    compute_MU_UtMU!(ws.up, model.up.kstencil, model.up.overlaps, Uup)
+    compute_MU_UtMU!(ws.dn, model.dn.kstencil, model.dn.overlaps, Udn)
+
+    if GU !== nothing
+        GUup, GUdn = GU
+        omega_grad!(GUup, ws.up, model.up.kstencil, model.up.overlaps)
+        omega_grad!(GUdn, ws.dn, model.dn.kstencil, model.dn.overlaps)
+        if λ != 0
+            Cup, Cdn = omega_updn_grad(ws.overlaps_updn, Uup, Udn)
+            GUup .+= λ .* Cup
+            GUdn .+= λ .* Cdn
+        end
+    end
+
+    F === nothing && return nothing
+    Ωup = omega!(ws.up, model.up.kstencil, model.up.overlaps).Ω
+    Ωdn = omega!(ws.dn, model.dn.kstencil, model.dn.overlaps).Ω
+    Ωupdn = λ == 0 ? 0.0 : omega_updn(ws.overlaps_updn, Uup, Udn)
+    return Ωup + Ωdn + λ * Ωupdn
+end
+
+function fg!(F, GU, obj::CenteredCoOptVariance, U::Tuple, model::SpinModel, ws::SpinWorkspace)
+    Uup, Udn = U
+    λ = obj.λ_spin
+    pen = center_penalty(obj.r0, obj.λ)
+    compute_MU_UtMU!(ws.up, model.up.kstencil, model.up.overlaps, Uup)
+    compute_MU_UtMU!(ws.dn, model.dn.kstencil, model.dn.overlaps, Udn)
+
+    if GU !== nothing
+        GUup, GUdn = GU
+        omega_grad!(pen, GUup, ws.up, model.up.kstencil, model.up.overlaps)
+        omega_grad!(pen, GUdn, ws.dn, model.dn.kstencil, model.dn.overlaps)
+        if λ != 0
+            Cup, Cdn = omega_updn_grad(ws.overlaps_updn, Uup, Udn)
+            GUup .+= λ .* Cup
+            GUdn .+= λ .* Cdn
+        end
+    end
+
+    F === nothing && return nothing
+    Ωup = omega_center(
+        omega!(ws.up, model.up.kstencil, model.up.overlaps); r0 = obj.r0, λ = obj.λ
+    ).Ωt
+    Ωdn = omega_center(
+        omega!(ws.dn, model.dn.kstencil, model.dn.overlaps); r0 = obj.r0, λ = obj.λ
+    ).Ωt
+    Ωupdn = λ == 0 ? 0.0 : omega_updn(ws.overlaps_updn, Uup, Udn)
+    return Ωup + Ωdn + λ * Ωupdn
 end

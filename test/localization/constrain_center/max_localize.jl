@@ -5,10 +5,10 @@
     export model, fg!, obj
 
     model = read_w90(dataset"Si2_valence_coarse/Si2")
-    r₀ = [Vec3(0.0, 0.0, 0.0) for i in 1:n_wannier(model)]
+    r0 = [Vec3(0.0, 0.0, 0.0) for i in 1:n_wannier(model)]
     λ = 10.0
-    obj = Wannier.CenteredVariance(r₀, λ)
-    fg! = Wannier._make_optim_fg!(Wannier.Problem(obj, model, Wannier.UGauge()))
+    obj = Wannier.CenteredVariance(r0, λ)
+    fg! = Wannier._make_fg!(Wannier.Problem(obj, model, Wannier.ULayout()))
 end
 
 @testitem "constraint center maxloc spread gradient" setup = [MaxlocCenterEnv] begin
@@ -40,7 +40,7 @@ end
     Umin = Wannier.localize(obj, model; max_iter = 4)
     Ω = Wannier.omega_center(
         Wannier.spread(model.kstencil, model.overlaps, Umin);
-        r₀ = obj.r0,
+        r0 = obj.r0,
         λ = obj.λ,
     )
 

@@ -1,6 +1,6 @@
 using Optim: Optim
 
-export UGauge, XYGauge, WLayout, ProductLayout
+export ULayout, XYLayout, WLayout, ProductLayout
 
 """
 Layout is an abstract interface for how the optimization parameters `x` are
@@ -8,8 +8,8 @@ packed out of / into the canonical gauge array `U` of a [`Model`](@ref).
 
 Four concrete types are used by the rewrite:
 
-- [`UGauge`](@ref) — `x ≡ U` directly, `(n_bands, n_wannier, n_kpoints)`.
-- [`XYGauge`](@ref) — disentangled form as a contiguous
+- [`ULayout`](@ref) — `x ≡ U` directly, `(n_bands, n_wannier, n_kpoints)`.
+- [`XYLayout`](@ref) — disentangled form as a contiguous
   `(n_wannier² + n_bands·n_wannier) × n_kpoints` matrix.
 - [`ProductLayout`](@ref) — bundle two layouts for [`SpinModel`](@ref).
 - [`WLayout`](@ref) — single rotation matrix `W` in `opt_rotate`.
@@ -18,17 +18,17 @@ Every concrete `Layout` should implement the small core interface:
 
     encode!(x, layout, U, frozen_bands)          -> x
     decode!(U, layout, x)                        -> U
-    pack_gradient!(g, layout, GU, frozen_bands)  -> g
+    encode_gradient!(g, layout, GU, frozen_bands)  -> g
 
 and — once the manifold machinery lands — `manifold(layout, model, solver)`.
 """
 abstract type Layout end
 
 """Identity layout: `x` is the gauge array `U` itself."""
-struct UGauge <: Layout end
+struct ULayout <: Layout end
 
 """Disentangled layout: `x` is the packed `XY` matrix."""
-struct XYGauge <: Layout end
+struct XYLayout <: Layout end
 
 """Product of two layouts; used to encode `SpinModel` gauges."""
 struct ProductLayout{L1 <: Layout, L2 <: Layout} <: Layout
@@ -40,88 +40,63 @@ end
 struct WLayout <: Layout end
 
 """
-    encode!(x, layout, U, frozen_bands)
+    initial_x(layout, model) -> x
 
-Pack the gauge array `U` into the parameter container `x` dictated by `layout`.
+Build the starting parameter container for `layout` out of `model.gauges`.
 """
-function encode! end
+function initial_x end
 
 """
-    decode!(U, layout, x)
+    decode!(layout, x, model, ws) -> U
 
-Unpack the parameter container `x` back into the canonical gauge array `U`.
+Convert the layout-native parameters `x` into the canonical gauge that
+objectives consume: an `(n_bands, n_wannier, n_kpoints)` array, or the
+`(up, dn)` pair for a [`ProductLayout`](@ref). Intermediates that the gradient
+encoding needs again — the `X`/`Y` blocks, the decoded `U` — are stashed in
+`ws`, so `encode_gradient!` does not recompute them.
 """
 function decode! end
 
 """
-    pack_gradient!(g, layout, GU, frozen_bands)
+    encode_gradient!(g, layout, model, ws) -> g
 
-Translate the canonical dΩ/dU* gradient `GU` into the layout-native gradient
-buffer `g`, applying any frozen-band masking that belongs to the layout.
+Translate the canonical gradient `dΩ/dU*`, which the objective left in `ws.GU`,
+into the layout-native gradient buffer `g`. Frozen-band masking belongs here —
+no other part of the code applies it.
 """
-function pack_gradient! end
+function encode_gradient! end
 
-# ---- UGauge --------------------------------------------------------------
+# ---- ULayout --------------------------------------------------------------
 
-encode!(x::AbstractArray{<:Complex, 3}, ::UGauge, U::AbstractArray{<:Complex, 3}, _frozen) = (copyto!(x, U); x)
-decode!(U::AbstractArray{<:Complex, 3}, ::UGauge, x::AbstractArray{<:Complex, 3}) = (copyto!(U, x); U)
+initial_x(::ULayout, model) = copy(model.gauges)
 
-function pack_gradient!(
-        g::AbstractArray{<:Complex, 3},
-        ::UGauge,
-        GU::AbstractArray{<:Complex, 3},
-        frozen::AbstractMatrix{Bool},
-    )
-    copyto!(g, GU)
-    @inbounds for ik in axes(g, 3)
-        idx_f = view(frozen, :, ik)
-        view(g, idx_f, :, ik) .= 0
-    end
-    return g
+# x ≡ U, so decoding is the identity — no copy, the objective reads `x` directly.
+decode!(::ULayout, x::AbstractArray{<:Complex, 3}, model, ws) = x
+
+encode_gradient!(g::AbstractArray{<:Complex, 3}, ::ULayout, model, ws) = copyto!(g, ws.GU)
+
+# ---- XYLayout -------------------------------------------------------------
+
+function initial_x(::XYLayout, model)
+    X, Y = U_to_X_Y(model.gauges, model.frozen_bands)
+    return X_Y_to_XY(X, Y)
 end
 
-# ---- XYGauge -------------------------------------------------------------
-
-function encode!(
-        x::AbstractMatrix,
-        ::XYGauge,
-        U::AbstractArray{<:Complex, 3},
-        frozen::AbstractMatrix{Bool},
-    )
-    X, Y = U_to_X_Y(U, frozen)
-    return X_Y_to_XY!(x, X, Y)
+function decode!(::XYLayout, x::AbstractMatrix, model, ws)
+    X, Y = XY_to_X_Y!(ws.X, ws.Y, x)
+    return X_Y_to_U!(ws.U, X, Y)
 end
 
-function decode!(U::AbstractArray{<:Complex, 3}, ::XYGauge, x::AbstractMatrix)
-    T = eltype(U)
-    n_bands, n_wann, n_kpts = size(U)
-    X = Array{T, 3}(undef, n_wann, n_wann, n_kpts)
-    Y = Array{T, 3}(undef, n_bands, n_wann, n_kpts)
-    XY_to_X_Y!(X, Y, x)
-    return X_Y_to_U!(U, X, Y)
-end
-
-function pack_gradient!(
-        g::AbstractMatrix,
-        ::XYGauge,
-        GU::AbstractArray{<:Complex, 3},
-        frozen::AbstractMatrix{Bool},
-    )
-    # Callers that already have decoded X/Y on hand can call
-    # `pack_gradient_xy!(g, GU, X, Y, frozen)` directly to avoid re-decoding.
-    error(
-        "pack_gradient!(g, ::XYGauge, GU, frozen) needs decoded X/Y; call " *
-            "pack_gradient_xy!(g, GU, X, Y, frozen) with the stored decoded X/Y."
-    )
-end
+encode_gradient!(g::AbstractMatrix, ::XYLayout, model, ws) =
+    encode_gradient_xy!(g, ws.GU, ws.X, ws.Y, model.frozen_bands)
 
 """
-    pack_gradient_xy!(g, GU, X, Y, frozen)
+    encode_gradient_xy!(g, GU, X, Y, frozen)
 
 Transform `dΩ/dU*` into the packed `XY` gradient, using the already-decoded
-`X`, `Y` components. Frozen-band masking is applied inside.
+`X`, `Y` blocks. Frozen-band masking is applied inside.
 """
-function pack_gradient_xy!(
+function encode_gradient_xy!(
         g::AbstractMatrix,
         GU::AbstractArray{<:Complex, 3},
         X::AbstractArray{<:Complex, 3},
@@ -134,27 +109,82 @@ end
 
 # ---- ProductLayout -------------------------------------------------------
 
-# `x` for a `ProductLayout` is a `NamedTuple{(:up, :dn), Tuple{X1, X2}}` for
-# now — the concrete packing into a single contiguous buffer is handled in
-# the SpinModel problem constructor (commit Q/R), not here.
+# `x` stacks the two channels' packed XY blocks into one `(2 n_inner, n_kpoints)`
+# matrix, up first. `_inner_size` is the per-channel row count.
+_inner_size(model) = n_wannier(model)^2 + n_bands(model) * n_wannier(model)
 
-encode!(x, layout::ProductLayout, (Uup, Udn), (frozen_up, frozen_dn)) = (
-    encode!(x.up, layout.first,  Uup, frozen_up);
-    encode!(x.dn, layout.second, Udn, frozen_dn);
-    x
-)
+function initial_x(::ProductLayout, model)
+    Xup, Yup = U_to_X_Y(model.up.gauges, model.up.frozen_bands)
+    Xdn, Ydn = U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
+    return vcat(X_Y_to_XY(Xup, Yup), X_Y_to_XY(Xdn, Ydn))
+end
 
-decode!((Uup, Udn), layout::ProductLayout, x) = (
-    decode!(Uup, layout.first,  x.up);
-    decode!(Udn, layout.second, x.dn);
-    (Uup, Udn)
-)
+function decode!(::ProductLayout, x, model, ws)
+    ni = _inner_size(model.up)
+    xr = reshape(x, (2 * ni, n_kpoints(model)))
+    Xup, Yup = XY_to_X_Y!(ws.up.X, ws.up.Y, @view xr[1:ni, :])
+    Xdn, Ydn = XY_to_X_Y!(ws.dn.X, ws.dn.Y, @view xr[(ni + 1):end, :])
+    return (X_Y_to_U!(ws.up.U, Xup, Yup), X_Y_to_U!(ws.dn.U, Xdn, Ydn))
+end
+
+function encode_gradient!(g, ::ProductLayout, model, ws)
+    ni = _inner_size(model.up)
+    gr = reshape(g, (2 * ni, n_kpoints(model)))
+    encode_gradient_xy!(
+        view(gr, 1:ni, :), ws.up.GU, ws.up.X, ws.up.Y, model.up.frozen_bands
+    )
+    encode_gradient_xy!(
+        view(gr, (ni + 1):(2 * ni), :), ws.dn.GU, ws.dn.X, ws.dn.Y, model.dn.frozen_bands
+    )
+    return g
+end
 
 # ---- WLayout -------------------------------------------------------------
 
-encode!(x::AbstractMatrix, ::WLayout, W::AbstractMatrix, _frozen) = (copyto!(x, W); x)
-decode!(W::AbstractMatrix, ::WLayout, x::AbstractMatrix) = (copyto!(W, x); W)
-pack_gradient!(g::AbstractMatrix, ::WLayout, GW::AbstractMatrix, _frozen) = (copyto!(g, GW); g)
+# A single rotation shared by all kpoints; the starting point is the identity.
+initial_x(::WLayout, model) =
+    Matrix{eltype(model.gauges)}(I, n_wannier(model), n_wannier(model))
+
+# The canonical gauge is the same rotation applied at every kpoint: UW_k = U_k W.
+function decode!(::WLayout, W::AbstractMatrix, model, ws)
+    @inbounds for ik in axes(ws.U, 3)
+        mul!(view(ws.U, :, :, ik), view(model.gauges, :, :, ik), W)
+    end
+    return ws.U
+end
+
+# Chain rule for UW_k = U_k W collapses the k index: dΩ/dW* = Σ_k U_k† dΩ/dUW_k*.
+function encode_gradient!(g::AbstractMatrix, ::WLayout, model, ws)
+    fill!(g, 0)
+    @inbounds for ik in axes(ws.GU, 3)
+        mul!(g, view(model.gauges, :, :, ik)', view(ws.GU, :, :, ik), true, true)
+    end
+    return g
+end
+
+"""
+    decode(layout, x, model) -> U
+
+Non-mutating counterpart of [`decode!`](@ref): turn final optimizer output into
+freshly allocated canonical gauges, with no aliasing of workspace buffers.
+"""
+function decode end
+
+decode(::ULayout, x, model) = x
+decode(::WLayout, x, model) = x
+
+function decode(::XYLayout, x, model)
+    X, Y = XY_to_X_Y(x, n_bands(model), n_wannier(model))
+    return X_Y_to_U(X, Y)
+end
+
+function decode(::ProductLayout, x, model)
+    ni = _inner_size(model.up)
+    nb, nw = n_bands(model.up), n_wannier(model.up)
+    Xup, Yup = XY_to_X_Y(x[1:ni, :], nb, nw)
+    Xdn, Ydn = XY_to_X_Y(x[(ni + 1):end, :], nb, nw)
+    return X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn)
+end
 
 # ---- Manifold construction ----------------------------------------------
 
@@ -167,12 +197,12 @@ until then the single-argument form returns an Optim.jl manifold.
 """
 function manifold end
 
-function manifold(::UGauge, model)
+function manifold(::ULayout, model)
     nw = n_wannier(model)
     return Optim.PowerManifold(Optim.Stiefel_SVD(), (nw, nw), (n_kpoints(model),))
 end
 
-function manifold(::XYGauge, model)
+function manifold(::XYLayout, model)
     nw = n_wannier(model)
     nb = n_bands(model)
     nk = n_kpoints(model)
@@ -182,7 +212,7 @@ end
 
 manifold(::WLayout, _model) = Optim.Stiefel_SVD()
 
-function manifold(::ProductLayout{XYGauge, XYGauge}, model)
+function manifold(::ProductLayout{XYLayout, XYLayout}, model)
     nw = n_wannier(model.up)
     nb = n_bands(model.up)
     nk = n_kpoints(model.up)

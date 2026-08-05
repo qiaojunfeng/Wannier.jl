@@ -19,7 +19,7 @@ end
     using NLSolversBase
     using Wannier.Datasets
     model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
-    fg! = Wannier._make_optim_fg!(Wannier.Problem(Wannier.Variance(), model, Wannier.UGauge()))
+    fg! = Wannier._make_fg!(Wannier.Problem(Wannier.Variance(), model, Wannier.ULayout()))
 
     U = copy(model.gauges)
     G = zero(U)

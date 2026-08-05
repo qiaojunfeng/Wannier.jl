@@ -8,14 +8,14 @@ module BenchMaxloc
 
     model = load_dataset("Si2_valence")
 
-    # just run 10 iterations (UGauge path — isolated bands)
+    # just run 10 iterations (ULayout path — isolated bands)
     SUITE["localize"] = @benchmarkable localize($model, max_iter = 10)
 
     # fused fg! closure, one call
-    # Note: _make_optim_fg! is private (for internal use) but exposed here for
+    # Note: _make_fg! is private (for internal use) but exposed here for
     # low-level micro-benchmarking the kernel. Public API routes through localize().
     prob = Wannier.Problem(Wannier.Variance(), model)
-    fg!  = Wannier._make_optim_fg!(prob)
+    fg!  = Wannier._make_fg!(prob)
     U    = copy(model.gauges)
     G    = similar(U)
     SUITE["fg!"] = @benchmarkable $fg!(1.0, $G, $U)

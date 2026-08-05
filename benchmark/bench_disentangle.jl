@@ -22,14 +22,14 @@ module BenchDisentangle
     XY = Wannier.X_Y_to_XY(X, Y)
     SUITE["XY_to_X_Y"] = @benchmarkable Wannier.XY_to_X_Y($XY, $nb, $nw)
 
-    # end-to-end XYGauge path — 10 iterations
+    # end-to-end XYLayout path — 10 iterations
     SUITE["localize"] = @benchmarkable localize($model, max_iter = 10)
 
     # fused fg! closure, one call
-    # Note: _make_optim_fg! is private (for internal use) but exposed here for
+    # Note: _make_fg! is private (for internal use) but exposed here for
     # low-level micro-benchmarking the kernel. Public API routes through localize().
     prob = Wannier.Problem(Wannier.Variance(), model)
-    fg!  = Wannier._make_optim_fg!(prob)
+    fg!  = Wannier._make_fg!(prob)
     XYbuf = copy(XY)
     Gbuf  = similar(XYbuf)
     SUITE["fg!"] = @benchmarkable $fg!(1.0, $Gbuf, $XYbuf)

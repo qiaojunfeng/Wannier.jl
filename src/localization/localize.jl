@@ -2,7 +2,7 @@ export localize
 
 """
     localize(model; kwargs...)
-    localize(sm::SpinModel; λs=1.0, kwargs...)
+    localize(sm::SpinModel; λ_spin=1.0, kwargs...)
     localize(obj::Objective, model; kwargs...)
     localize(obj::Objective, model, layout::Layout; kwargs...)
     localize(pt::ParallelTransport, model)
@@ -25,8 +25,8 @@ The no-method forms default to [`Variance`](@ref) on a `Model` and
 [`CoOptVariance`](@ref) on a `SpinModel`.
 """
 localize(model::Model; kwargs...) = localize(Variance(), model; kwargs...)
-localize(sm::SpinModel; λs::Real = 1.0, kwargs...) =
-    localize(CoOptVariance(float(λs)), sm; kwargs...)
+localize(sm::SpinModel; λ_spin::Real = 1.0, kwargs...) =
+    localize(CoOptVariance(float(λ_spin)), sm; kwargs...)
 
 localize(obj::Objective, model; kwargs...) =
     solve!(Problem(obj, model), OptimLBFGS(; kwargs...))

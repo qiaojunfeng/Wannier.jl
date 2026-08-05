@@ -13,7 +13,7 @@ module BenchGrad
 
     ws = Wannier.Workspace(model)
     Wannier.compute_MU_UtMU!(ws, kstencil, overlaps, gauges)
-    SUITE["omega_grad!"] = @benchmarkable Wannier.omega_grad!($(ws.G), $ws, $kstencil, $overlaps)
+    SUITE["omega_grad!"] = @benchmarkable Wannier.omega_grad!($(ws.GU), $ws, $kstencil, $overlaps)
 
 end  # module
 

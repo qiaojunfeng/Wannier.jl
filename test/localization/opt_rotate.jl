@@ -8,7 +8,7 @@
     model = read_w90(dataset"Si2_valence_coarse/Si2")
     # reset initial gauge
     model.gauges .= identity_gauge(eltype(model.gauges[1]), n_kpoints(model), n_wannier(model))
-    fg! = Wannier._make_optim_fg!(Wannier.Problem(Wannier.Variance(), model, Wannier.WLayout()))
+    fg! = Wannier._make_fg!(Wannier.Problem(Wannier.Variance(), model, Wannier.WLayout()))
 end
 
 @testitem "opt_rotate spread gradient" setup = [OptRotEnv] begin

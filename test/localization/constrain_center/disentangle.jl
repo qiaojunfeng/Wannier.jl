@@ -10,13 +10,13 @@
     δ = 0.1
     # In Cartesian coordinates
     a1, a2 = Ref(model.lattice) .* model.atom_positions
-    r₀ = [
+    r0 = [
         [Vec3(a1 .+ δ) for i in 1:(n_wannier(model) / 2)]
         [Vec3(a2) for i in 1:(n_wannier(model) / 2)]
     ]
     λ = 10.0
-    obj = Wannier.CenteredVariance(r₀, λ)
-    fg! = Wannier._make_optim_fg!(Wannier.Problem(obj, model, Wannier.XYGauge()))
+    obj = Wannier.CenteredVariance(r0, λ)
+    fg! = Wannier._make_fg!(Wannier.Problem(obj, model, Wannier.XYLayout()))
 end
 
 @testitem "constraint center disentangle spread gradient" setup = [DisCenterEnv] begin
@@ -56,7 +56,7 @@ end
     Umin = Wannier.localize(obj, model; max_iter = 4)
     Ω = Wannier.omega_center(
         Wannier.spread(model.kstencil, model.overlaps, Umin);
-        r₀ = obj.r0,
+        r0 = obj.r0,
         λ = obj.λ,
     )
 

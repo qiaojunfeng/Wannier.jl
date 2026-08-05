@@ -8,7 +8,7 @@ Here we add a constraint to maximally overlap the spin-up and spin-down WFs,
 so that they map one-by-one to each other.
 
 The constructor enforces that `up` and `dn` describe the same real-space /
-reciprocal-space system (lattice, atoms, kstencil); the `M` field stores the
+reciprocal-space system (lattice, atoms, kstencil); the `overlaps_updn` field stores the
 Bloch-basis ↑↓ overlap `< u_nk^↑ | u_mk^↓ >` read from the coupling amn file.
 """
 struct SpinModel{T <: Real}
@@ -16,7 +16,7 @@ struct SpinModel{T <: Real}
     dn::Model{T}
 
     "< u_nk^↑ | u_mk^↓ >, size: (n_bands, n_bands, n_kpts)"
-    M::Array{Complex{T}, 3}
+    overlaps_updn::Array{Complex{T}, 3}
 
     function SpinModel{T}(up::Model{T}, dn::Model{T}, M::AbstractArray{<:Complex, 3}) where {T <: Real}
         isapprox(up.lattice, dn.lattice) || error("SpinModel: up/dn lattice mismatch")
@@ -123,7 +123,7 @@ Compute the overlap between up and down WFs.
 Actually N - Ω↑↓, according to QPPM Eq. 8, where N = n_wann.
 
 # Arguments
-- `M`: the `SpinModel.M` matrices, `(n_bands, n_bands, n_kpts)`
+- `M`: the `SpinModel.overlaps_updn` matrices, `(n_bands, n_bands, n_kpts)`
 - `Uup`: the up gauge matrices, `(n_bands, n_wann, n_kpts)`
 - `Udn`: the down gauge matrices, `(n_bands, n_wann, n_kpts)`
 """
@@ -143,7 +143,7 @@ function overlap_updn(
 end
 
 function overlap_updn(model::SpinModel, Uup, Udn)
-    return overlap_updn(model.M, Uup, Udn)
+    return overlap_updn(model.overlaps_updn, Uup, Udn)
 end
 
 function overlap_updn(model::SpinModel)
@@ -189,7 +189,7 @@ Compute gradients of [`overlap_updn`](@ref overlap_updn).
 TODO: this is actually the gradient of Tr[overlap_updn]
 
 # Arguments
-- `M`: the `SpinModel.M` matrices, `(n_bands, n_bands, n_kpts)`
+- `M`: the `SpinModel.overlaps_updn` matrices, `(n_bands, n_bands, n_kpts)`
 - `Uup`: the up gauge matrices, `(n_bands, n_wann, n_kpts)`
 - `Udn`: the down gauge matrices, `(n_bands, n_wann, n_kpts)`
 """
@@ -225,7 +225,7 @@ function overlap_updn_grad(
 end
 
 function overlap_updn_grad(model::SpinModel, Uup, Udn)
-    return overlap_updn_grad(model.M, Uup, Udn)
+    return overlap_updn_grad(model.overlaps_updn, Uup, Udn)
 end
 
 @doc raw"""
@@ -294,3 +294,13 @@ function omega_updn_grad(
     return -2 * GXup, -2 * GYup, -2 * GXdn, -2 * GYdn
 end
 
+
+# Canonical-coordinate coupling gradient, taking the ↑↓ overlap directly.
+function omega_updn_grad(
+        M::AbstractArray{<:Complex, 3},
+        Uup::AbstractArray{<:Complex, 3},
+        Udn::AbstractArray{<:Complex, 3},
+    )
+    GUup, GUdn = overlap_updn_grad(M, Uup, Udn)
+    return -2 .* GUup, -2 .* GUdn
+end

@@ -1,28 +1,32 @@
 @testmodule CooptCenterEnv begin
     using Wannier
     using Wannier.Datasets
-    export model, f, g!, λs, obj
+    export model, f, g!, λ_spin, obj
 
     model_up = read_w90(dataset"Fe_collinear_coarse/Fe_up")
     model_dn = read_w90(dataset"Fe_collinear_coarse/Fe_dn")
     Mupdn = read_amn(dataset"Fe_collinear_coarse/Fe_updn.mud").A
     model = Wannier.SpinModel(model_up, model_dn, Mupdn)
-    λs = 1.0
-    r₀ = [Wannier.Vec3(zeros(3)) for i in 1:n_wannier(model.up)]
+    λ_spin = 1.0
+    r0 = [Wannier.Vec3(zeros(3)) for i in 1:n_wannier(model.up)]
     λc = 10.0
-    obj = Wannier.CenteredCoOptVariance(r₀, λc, λs)
-    fg_bundle = Wannier._make_optim_fg!(Wannier.Problem(obj, model))
-    f, g! = fg_bundle
+    obj = Wannier.CenteredCoOptVariance(r0, λc, λ_spin)
+    fg! = Wannier._make_fg!(Wannier.Problem(obj, model))
+    f(XY) = fg!(1.0, nothing, XY)
+    function g!(G, XY)
+        fg!(nothing, G, XY)
+        return nothing
+    end
 end
 
 @testitem "coopt center spread" setup = [CooptCenterEnv] begin
     Ω_up = Wannier.spread(model.up)
     Ω_dn = Wannier.spread(model.dn)
-    Ω_up_c = Wannier.omega_center(Ω_up; r₀ = obj.r0, λ = obj.λ)
-    Ω_dn_c = Wannier.omega_center(Ω_dn; r₀ = obj.r0, λ = obj.λ)
+    Ω_up_c = Wannier.omega_center(Ω_up; r0 = obj.r0, λ = obj.λ)
+    Ω_dn_c = Wannier.omega_center(Ω_dn; r0 = obj.r0, λ = obj.λ)
     M_overlap = Wannier.overlap_updn(model)
     Ωupdn = Wannier.omega_updn(M_overlap)
-    Ωt = Ω_up_c.Ωt + Ω_dn_c.Ωt + λs * Ωupdn
+    Ωt = Ω_up_c.Ωt + Ω_dn_c.Ωt + λ_spin * Ωupdn
 
     @test isapprox(Ω_up.Ω, 5.962059896476422; atol = 1.0e-10)
     @test isapprox(Ω_up_c.Ωt, 7.581508110391737; atol = 1.0e-10)
@@ -56,8 +60,8 @@ end
     end
 
     Gup, Gdn = Wannier.omega_updn_grad(model, model.up.gauges, model.dn.gauges)
-    Gup *= λs
-    Gdn *= λs
+    Gup *= λ_spin
+    Gdn *= λ_spin
 
     u_up0 = copy(model.up.gauges)
     d = OnceDifferentiable(fup, u_up0)

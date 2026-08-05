@@ -1,24 +1,24 @@
 module WannierManoptExt
 
 using Wannier
-using Wannier: Problem, Variance, UGauge, ManoptLBFGS, Model
-using Wannier: n_bands, n_wannier, n_kpoints, _make_optim_fg!
+using Wannier: Problem, Variance, ULayout, ManoptLBFGS, Model
+using Wannier: n_bands, n_wannier, n_kpoints, _make_fg!
 using Manopt
 using Manifolds
 using LinearAlgebra: norm
 
 # -------------------------------------------------------------------------
-# Variance + UGauge (isolated max_localize)
+# Variance + ULayout (isolated max_localize)
 #
 # Build a PowerManifold over Stiefel(n_bands, n_wannier; field = ℂ), wrap
-# the fused (F, G, U) closure from _make_optim_fg! as a Manopt cost and
+# the fused (F, G, U) closure from _make_fg! as a Manopt cost and
 # Riemannian gradient. Manopt does its own workspace for the quasi-Newton
 # state; the Euclidean gradient buffer is preallocated here and shared
 # between cost/grad calls to minimize allocations.
 # -------------------------------------------------------------------------
 
 function Wannier.solve!(
-        prob::Problem{<:Variance, <:Model, <:UGauge}, solver::ManoptLBFGS
+        prob::Problem{<:Variance, <:Model, <:ULayout}, solver::ManoptLBFGS
     )
     model = prob.model
     nb = n_bands(model)
@@ -30,7 +30,7 @@ function Wannier.solve!(
     M = PowerManifold(St, NestedPowerRepresentation(), nk)
 
     # Fused (F, G, U) closure shared with the OptimLBFGS path.
-    fg! = _make_optim_fg!(prob)
+    fg! = _make_fg!(prob)
 
     # Reusable Euclidean buffers, copied in/out of the nested power repr.
     U3 = zeros(T, nb, nw, nk)
@@ -75,7 +75,7 @@ function Wannier.solve!(
     return Umin
 end
 
-# Other Problem variants (XYGauge / ProductLayout / WLayout) fall through
+# Other Problem variants (XYLayout / ProductLayout / WLayout) fall through
 # to the catch-all in src/localization/solver.jl, which emits a
 # not-yet-implemented message. Add concrete methods here as they land.
 

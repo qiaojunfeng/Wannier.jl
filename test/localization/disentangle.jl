@@ -5,7 +5,7 @@
     export model, fg!
 
     model = read_w90(dataset"Si2_coarse/Si2")
-    fg! = Wannier._make_optim_fg!(Wannier.Problem(Wannier.Variance(), model, Wannier.XYGauge()))
+    fg! = Wannier._make_fg!(Wannier.Problem(Wannier.Variance(), model, Wannier.XYLayout()))
 end
 
 @testitem "U_to_X_Y X_Y_to_U" setup = [DisentangleEnv] begin

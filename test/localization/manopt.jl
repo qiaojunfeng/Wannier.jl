@@ -1,4 +1,4 @@
-@testitem "ManoptLBFGS matches OptimLBFGS on Variance+UGauge" begin
+@testitem "ManoptLBFGS matches OptimLBFGS on Variance+ULayout" begin
     using Wannier.Datasets
     using Manopt, Manifolds
 
@@ -19,7 +19,7 @@ end
     using Wannier.Datasets
     using Manopt, Manifolds
 
-    # XYGauge path (entangled) is not yet ported
+    # XYLayout path (entangled) is not yet ported
     model = load_dataset("Si2")
     prob = Wannier.Problem(Wannier.Variance(), model)
     @test_throws ErrorException Wannier.solve!(prob, ManoptLBFGS())

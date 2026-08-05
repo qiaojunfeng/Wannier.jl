@@ -10,11 +10,12 @@ export spread, center
 # i.e. `omega_grad!` and `omega_updn_grad` both return ∇f *in this convention*
 # (hence the explicit factor of 2 and the factor of 4 inside `omega_grad!`).
 #
-# Optim.jl / NLSolversBase.jl expect the other convention `df = Re⟨∇f, dx⟩`.
-# The ½ rescaling is applied once at the solver-adapter boundary when we hand
-# the gradient to Optim — not at every individual term. Finite-difference
-# gradient checks (NLSolversBase) are performed against the 2× internal
-# convention, so they compare element-wise with what `omega_grad!` returns.
+# That is a statement about the *derivation*, not about a mismatch to correct:
+# the explicit factors of 2 and 4 inside `omega_grad!` are exactly what make the
+# emitted gradient the true derivative of the spread in the real-inner-product
+# convention Optim.jl / NLSolversBase.jl consume. No rescaling is applied — or
+# needed — at the solver boundary, and the finite-difference gradient checks in
+# the test suite verify precisely that (analytic == FD, elementwise).
 # -----------------------------------------------------------------------------
 
 abstract type AbstractSpread end
@@ -90,16 +91,17 @@ has_center_penalty(Ω::Spread) = Ω.Ωc !== nothing
 """
 Preallocated scratch buffers for spread/gradient computation.
 
-`G` is sized `(n_bands, n_wannier, n_kpoints)` at construction and never
-reassigned; sub-functions that need their own gradient accumulator allocate
-a separate buffer and pass it explicitly.
+`GU` holds the gradient in canonical gauge coordinates, `dΩ/dU*`. It is sized
+`(n_bands, n_wannier, n_kpoints)` at construction and never reassigned;
+sub-functions that need their own gradient accumulator allocate a separate
+buffer and pass it explicitly.
 """
 struct Workspace{T}
     X::Array{Complex{T}, 3}
     Y::Array{Complex{T}, 3}
     U::Array{Complex{T}, 3}
-    # n_bands x n_wann x n_kpts
-    G::Array{Complex{T}, 3}
+    # gradient in canonical coordinates, dΩ/dU*: n_bands x n_wann x n_kpts
+    GU::Array{Complex{T}, 3}
     r::Vector{Vec3{T}}
     UtMU::Array{Complex{T}, 4}
     MU::Array{Complex{T}, 4}
@@ -114,20 +116,20 @@ function Workspace(bvectors::KspaceStencil{FT}, M::AbstractArray{<:Complex, 4}, 
     X = zeros(Complex{FT}, n_wann, n_wann, n_kpts)
     Y = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
     Ucopy = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
-    G = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
+    GU = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
     r = zeros(Vec3{FT}, n_wann)
 
     MU = zeros(Complex{FT}, n_bands, n_wann, n_bvecs, n_kpts)
     UtMU = zeros(Complex{FT}, n_wann, n_wann, n_bvecs, n_kpts)
 
-    return Workspace(X, Y, Ucopy, G, r, UtMU, MU)
+    return Workspace(X, Y, Ucopy, GU, r, UtMU, MU)
 end
 
 Workspace(model::Model) = Workspace(model.kstencil, model.overlaps, model.gauges)
 
-n_bands(w::Workspace) = size(w.G, 1)
-n_wannier(w::Workspace) = size(w.G, 2)
-n_kpoints(w::Workspace) = size(w.G, 3)
+n_bands(w::Workspace) = size(w.GU, 1)
+n_wannier(w::Workspace) = size(w.GU, 2)
+n_kpoints(w::Workspace) = size(w.GU, 3)
 
 function _alloc_mu_utmu_packed(::Type{FT}, n_kpts, n_bvecs, n_bands, n_wann) where {FT}
     MU = zeros(Complex{FT}, n_bands, n_wann, n_bvecs, n_kpts)
@@ -135,10 +137,10 @@ function _alloc_mu_utmu_packed(::Type{FT}, n_kpts, n_bvecs, n_bands, n_wann) whe
     return MU, UtMU
 end
 
-center_penalty(r₀, λ) = (r, n) -> (r - λ * (r - r₀[n]))
+center_penalty(r0, λ) = (r, n) -> (r - λ * (r - r0[n]))
 
 """
-    omega_center(bvectors, M, U, r₀, λ)
+    omega_center(bvectors, M, U, r0, λ)
 
 Compute WF spread with center penalty, for maximal localization.
 
@@ -146,7 +148,7 @@ Compute WF spread with center penalty, for maximal localization.
 - `bvectors`: bvecoters
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
 - `U`: `n_wann * n_wann * n_kpts` array
-- `r₀`: `3 * n_wann`, WF centers in cartesian coordinates
+- `r0`: `3 * n_wann`, WF centers in cartesian coordinates
 - `λ`: penalty strength
 """
 function omega_center(args...; kwargs...)
@@ -154,8 +156,8 @@ function omega_center(args...; kwargs...)
     return omega_center(Ω; kwargs...)
 end
 
-function omega_center(Ω::Spread; r₀::Vector{Vec3{T}}, λ::T) where {T <: Real}
-    ωc = λ .* map(i -> (t = Ω.r[i] - r₀[i]; sum(t .^ 2)), 1:length(r₀))
+function omega_center(Ω::Spread; r0::Vector{Vec3{T}}, λ::T) where {T <: Real}
+    ωc = λ .* map(i -> (t = Ω.r[i] - r0[i]; sum(t .^ 2)), 1:length(r0))
     ωt = Ω.ω + ωc
     Ωc = sum(ωc)
     Ωt = Ω.Ω + Ωc
@@ -256,7 +258,7 @@ end
 
 Compute WF spread for a [`Model`](@ref), potentially for a given gauge `U`, or by explicitely giving
 `bvectors` and `M`.
-In case of the first `bvectors = model.bvectors` and `M = model.M`.
+In case of the first `bvectors = model.bvectors` and `M = model.overlaps_updn`.
 """
 spread(model::Model) = spread(model, model.gauges)
 spread(model::Model, gauges) = spread(model.kstencil, model.overlaps, gauges)
@@ -313,7 +315,7 @@ end
 
 omega_grad!(cache::Workspace, bvectors, M) = omega_grad!((r, _) -> r, cache, bvectors, M)
 
-"""Gradient with an externally-provided buffer `G`; leaves `cache.G` untouched."""
+"""Gradient with an externally-provided buffer `G`; leaves `cache.GU` untouched."""
 omega_grad!(G::AbstractArray{<:Complex, 3}, cache::Workspace, bvectors, M) =
     omega_grad!((r, _) -> r, G, cache.r, cache.UtMU, cache.MU, bvectors, M)
 
@@ -373,7 +375,7 @@ function omega_grad!(
 end
 
 function omega_grad!(penalty::Function, cache::Workspace{T}, bvectors, M) where {T}
-    return omega_grad!(penalty, cache.G, cache.r, cache.UtMU, cache.MU, bvectors, M)
+    return omega_grad!(penalty, cache.GU, cache.r, cache.UtMU, cache.MU, bvectors, M)
 end
 
 """
