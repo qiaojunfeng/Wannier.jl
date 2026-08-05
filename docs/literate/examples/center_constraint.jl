@@ -25,7 +25,7 @@ WFs to be centered at the bond centers, i.e., bonding and anti-bonding orbitals.
 
 1. construct a [`Model`](@ref), by reading the `win`, `amn`, `mmn`, and `eig` files
 2. localize without WF center penalty — `localize(model)`
-3. localize with WF center penalty — `localize(CenteredVariance(r₀, λ), model)`
+3. localize with WF center penalty — `localize(CenteredVariance(r0, λ), model)`
 =#
 
 # ## Preparation
@@ -59,7 +59,7 @@ As has been done in the [1. Maximal localization of isolated manifold](@ref)
 tutorial, we can use the [`find_nearests`](@ref) function to find the bond
 centers. Here we just hard-code the eight targets (Cartesian, Å):
 =#
-r₀ = [
+r0 = [
     Vec3( 0.67882, -0.67882, -0.67882),
     Vec3(-0.67882, -0.67882,  0.67882),
     Vec3(-0.67882,  0.67882, -0.67882),
@@ -81,7 +81,7 @@ The fused penalty-aware spread + gradient is exposed through the
 dispatches to the same LBFGS driver used for the plain variance case, only
 with the WF-center penalty folded into every `fg!` sweep.
 =#
-U1 = localize(CenteredVariance(r₀, λ), model);
+U1 = localize(CenteredVariance(r0, λ), model);
 
 #=
 Inspect the final base spread and centers

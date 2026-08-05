@@ -113,20 +113,23 @@ so every one can hand-order its fused value+gradient sweep:
 | [`CoOptVariance`](@ref Wannier.CoOptVariance) | ``\Omega_\uparrow + \Omega_\downarrow + \lambda_s \Omega_{\uparrow\downarrow}`` | `SpinModel` |
 | [`CenteredCoOptVariance`](@ref Wannier.CenteredCoOptVariance) | co-optimization + center penalty | `SpinModel` |
 
-The interface each subtype participates in:
+Each subtype supplies one kernel and two traits:
 
 ```julia
-value(obj, state, ws)         # scalar
-gradient!(G, obj, state, ws)  # in-place
-fg!(G, obj, state, ws)        # fused; the path the solver actually drives
-
-required_layout(obj, model)               # trait → Layout
-allocate_workspace(obj, model, layout)    # trait → Workspace
+fg!(F, GU, obj, U, model, ws)          # fused value + gradient
+default_layout(obj, model)             # → Layout
+allocate_workspace(obj, model, layout) # → Workspace
 ```
 
-`fg!` is the important one: value and gradient share the expensive
-``MU`` and ``U^\dagger M U`` products, so computing them together avoids
-repeating that work. Solvers are driven through `fg!` exclusively.
+`fg!` works in **canonical coordinates**: `U` is the gauge array (or the
+`(up, dn)` pair for a `SpinModel`), and the gradient `dΩ/dU*` goes into `GU`.
+The objective never sees the layout. Both slots follow the Optim.jl convention
+— pass `nothing` for `GU` to skip the gradient, `nothing` for `F` to skip the
+value.
+
+Fusing matters because the value and the gradient share the expensive ``MU``
+and ``U^\dagger M U`` products held in `ws`; computing them in one sweep avoids
+repeating that work.
 
 ### Layout — how parameters are packed
 
@@ -136,16 +139,17 @@ manifold.
 
 | Layout | Parameter `x` | Used for |
 |---|---|---|
-| [`UGauge`](@ref Wannier.UGauge) | `U` itself, `(n_bands, n_wannier, n_kpoints)` | isolated manifold |
-| [`XYGauge`](@ref Wannier.XYGauge) | packed `XY`, `(n_wannier² + n_bands·n_wannier) × n_kpoints` | entangled manifold |
+| [`ULayout`](@ref Wannier.ULayout) | `U` itself, `(n_bands, n_wannier, n_kpoints)` | isolated manifold |
+| [`XYLayout`](@ref Wannier.XYLayout) | packed `XY`, `(n_wannier² + n_bands·n_wannier) × n_kpoints` | entangled manifold |
 | [`ProductLayout`](@ref Wannier.ProductLayout) | two layouts side by side | `SpinModel` |
 | [`WLayout`](@ref Wannier.WLayout) | a single rotation matrix `W` | rotation-only refinement |
 
 ```julia
-encode!(x, layout, U, frozen_bands)          # U → x
-decode!(U, layout, x)                        # x → U
-pack_gradient!(g, layout, GU, frozen_bands)  # dΩ/dU* → layout-native gradient
-manifold(layout, model)                      # → the manifold to optimize on
+initial_x(layout, model)               # model.gauges → starting x
+decode!(layout, x, model, ws)          # x → canonical U  (stashes X/Y in ws)
+encode_gradient!(g, layout, model, ws) # ws.GU → layout-native gradient
+decode(layout, x, model)               # final x → freshly allocated gauges
+manifold(layout, model)                # → the manifold to optimize on
 ```
 
 Two consequences worth knowing:
@@ -155,15 +159,15 @@ Two consequences worth knowing:
 - **Manifold construction lives here.** Solvers do not hand-assemble
   `Stiefel` / `ProductManifold` / `PowerManifold` piles; they ask the layout.
 
-The layout is normally picked for you: `required_layout(obj, model)` returns
-`UGauge()` for an isolated manifold and `XYGauge()` for an entangled one.
+The layout is normally picked for you: `default_layout(obj, model)` returns
+`ULayout()` for an isolated manifold and `XYLayout()` for an entangled one.
 Pass a layout explicitly only when you want something else, e.g. `WLayout()`.
 
 ### Workspace — preallocated scratch
 
 A `Workspace` holds the buffers reused across optimizer iterations: `MU`,
-`UtMU`, the gradient accumulator `G`, decoded `X` / `Y` / `U`, and the WF
-centers `r`. Buffers are sized once at construction and never reassigned, so
+`UtMU`, the canonical gradient `GU` (that is `dΩ/dU*`, as distinct from the
+layout-native `g`), the decoded `X` / `Y` / `U`, and the WF centers `r`. Buffers are sized once at construction and never reassigned, so
 the large per-``k``-point arrays are not rebuilt on every iteration.
 `SpinWorkspace` pairs two of them plus the ``\uparrow\downarrow`` overlap used
 by the co-optimization objectives.
@@ -171,19 +175,40 @@ by the co-optimization objectives.
 ### Problem and Solver
 
 ```julia
-Problem(objective, model)                 # layout via required_layout
+Problem(objective, model)                 # layout via default_layout
 Problem(objective, model, layout)         # explicit layout
 ```
 
-Construction resolves the layout, allocates the workspace, and stores the
-four pieces. That is all it does — a `Problem` is solver-agnostic.
+Construction resolves the layout, allocates the workspace, and stores the four
+pieces. That is all it does — a `Problem` is solver-agnostic. (`WLayout` is the
+one exception: because a shared rotation only makes sense against a model whose
+gauge has been folded into the overlaps, its constructor does that transform on
+a copy, leaving your model untouched.)
+
+Because the two axes compose rather than multiply, one bridge serves every
+combination:
+
+```julia
+function _make_fg!(prob::Problem)
+    obj, model, layout, ws = prob.objective, prob.model, prob.layout, prob.workspace
+    return function (F, G, x)
+        U = decode!(layout, x, model, ws)                       # layout
+        Ω = fg!(F, G === nothing ? nothing : ws.GU, obj, U, model, ws)   # objective
+        G === nothing || encode_gradient!(G, layout, model, ws) # layout
+        return Ω
+    end
+end
+```
+
+and one `solve!` drives it for every objective and layout. There is no
+per-combination method to write.
 
 Solvers are pluggable behind `AbstractLocalizationSolver`:
 
 | Solver | Backend | Coverage |
 |---|---|---|
 | [`OptimLBFGS`](@ref Wannier.OptimLBFGS) | Optim.jl | all objectives and layouts (default) |
-| [`ManoptLBFGS`](@ref Wannier.ManoptLBFGS) | Manopt.jl + Manifolds.jl, via package extension | `Variance` + `UGauge` |
+| [`ManoptLBFGS`](@ref Wannier.ManoptLBFGS) | Manopt.jl + Manifolds.jl, via package extension | `Variance` + `ULayout` |
 
 The solver owns tolerances, iteration limits, linesearch, and history size:
 
@@ -203,7 +228,7 @@ Everyday use goes through one polymorphic entry point:
 
 ```julia
 localize(model)                                  # Variance, layout auto-picked
-localize(sm; λs = 1.0)                           # CoOptVariance on a SpinModel
+localize(sm; λ_spin = 1.0)                           # CoOptVariance on a SpinModel
 localize(CenteredVariance(r0, λ), model)         # explicit objective
 localize(Variance(), model, WLayout())           # explicit layout
 localize(ParallelTransport(), model)             # closed-form, no solver
@@ -222,24 +247,26 @@ abstraction levels, and pretending otherwise would only blur both.
 
 ## Gradient convention
 
-Internally every spread gradient follows the physics convention
+The derivation behind `omega_grad!` uses the physics convention
 
 ```math
 \mathrm{d}f(x) = 2\,\mathrm{Re}\langle \nabla f, \mathrm{d}x \rangle
 ```
 
-Optim.jl expects ``\mathrm{d}f = \mathrm{Re}\langle \nabla f, \mathrm{d}x\rangle``,
-so the factor of ``\tfrac{1}{2}`` belongs at the solver-adapter boundary —
-applied once, in one place, rather than sprinkled through the kernels. Kernel
-code and finite-difference gradient checks both work in the internal
-convention.
+which is why explicit factors of 2 and 4 appear inside the kernel. That is a
+statement about the derivation, not a mismatch to correct: those factors are
+exactly what make the emitted gradient the true derivative of the spread in the
+real-inner-product convention Optim.jl consumes. **No rescaling is applied at
+the solver boundary, and none is needed** — the finite-difference gradient
+checks in the test suite verify it directly, comparing the analytic gradient
+elementwise against finite differences of the same value function.
 
 ## Extension points
 
 | You want to… | Do this |
 |---|---|
-| add a new functional (symmetry, custom penalty, …) | define a new `Objective` subtype with `fg!`, `required_layout`, `allocate_workspace` |
-| add a new parameterization | define a new `Layout` with `encode!` / `decode!` / `pack_gradient!` / `manifold` |
+| add a new functional (symmetry, custom penalty, …) | define a new `Objective` subtype with one `fg!` method plus `default_layout` and `allocate_workspace`. It then works with every layout and every solver backend |
+| add a new parameterization | define a new `Layout` with `initial_x` / `decode!` / `encode_gradient!` / `decode` / `manifold`. It then works with every objective |
 | add a new optimizer backend | define `S <: AbstractLocalizationSolver` and `solve!(::Problem, ::S)` |
 | run on a device (GPU) | dispatch `allocate_workspace(obj, model, layout; backend)` to return device arrays |
 

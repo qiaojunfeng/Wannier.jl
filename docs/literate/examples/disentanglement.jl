@@ -70,7 +70,7 @@ Great! Now you have finished the disentanglement tutorial.
 
 As you may have noticed, the workflow is identical to the previous tutorial —
 the same [`localize`](@ref) function drives both the isolated and entangled
-cases. Internally it picks a [`UGauge`](@ref) layout when the model has no
-frozen/disentangled bands and an [`XYGauge`](@ref) layout when it does; the
+cases. Internally it picks a [`ULayout`](@ref) layout when the model has no
+frozen/disentangled bands and an [`XYLayout`](@ref) layout when it does; the
 caller does not have to distinguish.
 =#

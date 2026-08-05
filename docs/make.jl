@@ -20,6 +20,7 @@ EXAMPLES = [
     "Manifold remixed WFs" => "examples/manifold_remixing.md",
     "Manifold remixed WFs with cubic b-vectors" => "examples/manifold_remixing_bvectors.md",
     "Constrain WF center" => "examples/center_constraint.md",
+    "Objectives, layouts & solvers" => "examples/objectives_and_solvers.md",
     "Fermi surface" => "examples/fermi_surface.md",
     # "Spin texture" => "examples/spin_texture.md",
     # "Cooptimize spin-polarized WFs" => "examples/10-coopt.md",

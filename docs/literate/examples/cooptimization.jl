@@ -27,9 +27,9 @@ as the starting guess (computed by QE).
 1. plot QE band structure as a reference
 2. run two independent Wannierizations of spin-up and spin-down channels
 3. construct a [`SpinModel`](@ref) that merges the two spin channels
-4. localize with overlap constraint — `localize(sm; λs)`
+4. localize with overlap constraint — `localize(sm; λ_spin)`
 5. localize with both WF center and overlap constraints —
-    `localize(CenteredCoOptVariance(r₀, λc, λs), sm)`
+    `localize(CenteredCoOptVariance(r0, λc, λ_spin), sm)`
 
 !!! warning "Interpolation snippets pending update"
     The interpolation/chk/plot cells below still reference the pre-rewrite
@@ -241,19 +241,19 @@ sm = SpinModel(model_up, model_dn, Mud)
 
 #=
 Now let's localize with spin overlap constraint.
-Here `λs` is the Lagrange multiplier for the constraint.
+Here `λ_spin` is the Lagrange multiplier for the constraint.
 =#
-λs = 10.0
-U_up, U_dn = localize(sm; λs);
+λ_spin = 10.0
+U_up, U_dn = localize(sm; λ_spin);
 #=
 The resulting spin-up and spin-down WFs have very similar centers and spreads,
 however, their centers drift from the original positions which were centered
 on atoms.
 =#
-spread(sm, U_up, U_dn, λs)
+spread(sm, U_up, U_dn, λ_spin)
 
 # as a comparison, the spreads of independent Wannierizations are
-spread(sm, U_up_mlwf, U_dn_mlwf, λs)
+spread(sm, U_up_mlwf, U_dn_mlwf, λ_spin)
 
 # Save the gauge into `chk` files
 Wannier.write_chk("up/wjl_up_cowf.chk", model_up, U_up; exclude_bands)
@@ -291,27 +291,27 @@ atom_idx = vcat(
     fill(3, 4), fill(4, 4), fill(5, 4),           # three I atoms, 4 WFs each
     fill(6, 4), fill(7, 4), fill(8, 4),           # three more I atoms
 )
-r₀ = [sm.up.lattice * sm.up.atom_positions[i] for i in atom_idx]
+r0 = [sm.up.lattice * sm.up.atom_positions[i] for i in atom_idx]
 
 #=
 Now we need to choose the Lagrange multiplier factors for the two constraints.
-`λc` is the Lagrange multiplier for the WF center constraint, `λs` is for the
+`λc` is the Lagrange multiplier for the WF center constraint, `λ_spin` is for the
 spin overlap constraint. We use `10.0` for both; try other values.
 =#
 λc = 10.0
-λs = 10.0
-U_up, U_dn = localize(CenteredCoOptVariance(r₀, λc, λs), sm);
+λ_spin = 10.0
+U_up, U_dn = localize(CenteredCoOptVariance(r0, λc, λ_spin), sm);
 
 # Inspect the base (overlap-only) spread of the co-optimized gauge
-spread(sm, U_up, U_dn, λs)
+spread(sm, U_up, U_dn, λ_spin)
 
 # as a comparison, the base spread of independent Wannierizations is
-spread(sm, U_up_mlwf, U_dn_mlwf, λs)
+spread(sm, U_up_mlwf, U_dn_mlwf, λ_spin)
 
 #=
 The full center-aware spread can be re-built by applying the penalty on each
 spin channel separately with `Wannier.omega_center`, e.g.
-`Wannier.omega_center(sm.up, U_up; r₀ = r₀, λ = λc)`; no dedicated
+`Wannier.omega_center(sm.up, U_up; r0 = r0, λ = λc)`; no dedicated
 centered-coopt spread helper exists in the current API.
 =#
 
