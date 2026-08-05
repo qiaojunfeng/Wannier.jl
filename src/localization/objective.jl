@@ -201,6 +201,7 @@ on the model until the Problem/Workspace refactor (Q/R) relocates it.
 struct SpinWorkspace{T}
     up::Workspace{T}
     dn::Workspace{T}
+    M::Array{Complex{T}, 3}
 end
 
 """
@@ -217,7 +218,7 @@ end
 required_layout(::CoOptVariance, ::SpinModel) = ProductLayout(XYGauge(), XYGauge())
 
 function allocate_workspace(::CoOptVariance, model::SpinModel, ::Layout; backend = CPU())
-    return SpinWorkspace(Workspace(model.up), Workspace(model.dn))
+    return SpinWorkspace(Workspace(model.up), Workspace(model.dn), Array{eltype(model.M), 3}(model.M))
 end
 
 """
@@ -235,7 +236,7 @@ end
 required_layout(::CenteredCoOptVariance, ::SpinModel) = ProductLayout(XYGauge(), XYGauge())
 
 function allocate_workspace(::CenteredCoOptVariance, model::SpinModel, ::Layout; backend = CPU())
-    return SpinWorkspace(Workspace(model.up), Workspace(model.dn))
+    return SpinWorkspace(Workspace(model.up), Workspace(model.dn), Array{eltype(model.M), 3}(model.M))
 end
 
 # -------------------------------------------------------------------------

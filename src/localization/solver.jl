@@ -247,7 +247,11 @@ function _make_optim_fg!(prob::Problem{<:CoOptVariance, <:SpinModel, <:ProductLa
             GXup, GYup = GU_to_GX_GY(ws.up.G, Xup, Yup, model.up.frozen_bands)
             GXdn, GYdn = GU_to_GX_GY(ws.dn.G, Xdn, Ydn, model.dn.frozen_bands)
             if λ != 0
-                GOXup, GOYup, GOXdn, GOYdn = omega_updn_grad(model, Xup, Yup, Xdn, Ydn)
+                GOXup, GOYup, GOXdn, GOYdn = overlap_updn_grad(ws.M, Xup, Yup, Xdn, Ydn, model.up.frozen_bands, model.dn.frozen_bands)
+                GOXup .*= -2
+                GOYup .*= -2
+                GOXdn .*= -2
+                GOYdn .*= -2
                 GXup += λ * GOXup
                 GYup += λ * GOYup
                 GXdn += λ * GOXdn
@@ -266,7 +270,7 @@ function _make_optim_fg!(prob::Problem{<:CoOptVariance, <:SpinModel, <:ProductLa
         end
         Ωup = omega!(ws.up, model.up.kstencil, model.up.overlaps).Ω
         Ωdn = omega!(ws.dn, model.dn.kstencil, model.dn.overlaps).Ω
-        Ωupdn = λ == 0 ? 0.0 : omega_updn(model, Uup, Udn)
+        Ωupdn = λ == 0 ? 0.0 : omega_updn(ws.M, Uup, Udn)
         return Ωup + Ωdn + λ * Ωupdn
     end
 end
@@ -304,7 +308,7 @@ function _make_optim_fg!(prob::Problem{<:CenteredCoOptVariance, <:SpinModel, <:P
         Ωdn = omega_center(
             omega!(ws.dn, model.dn.kstencil, model.dn.overlaps); r₀ = obj.r0, λ = obj.λ
         ).Ωt
-        Ωupdn = λs == 0 ? 0.0 : omega_updn(model, Uup, Udn)
+        Ωupdn = λs == 0 ? 0.0 : omega_updn(ws.M, Uup, Udn)
         return Ωup + Ωdn + λs * Ωupdn
     end
 
@@ -315,7 +319,7 @@ function _make_optim_fg!(prob::Problem{<:CenteredCoOptVariance, <:SpinModel, <:P
         GXup, GYup = GU_to_GX_GY(ws.up.G, Xup, Yup, model.up.frozen_bands)
         GXdn, GYdn = GU_to_GX_GY(ws.dn.G, Xdn, Ydn, model.dn.frozen_bands)
         if λs != 0
-            GOXup, GOYup, GOXdn, GOYdn = omega_updn_grad(model, Xup, Yup, Xdn, Ydn)
+            GOXup, GOYup, GOXdn, GOYdn = omega_updn_grad(ws.M, Xup, Yup, Xdn, Ydn, model.up.frozen_bands, model.dn.frozen_bands)
             GXup += λs * GOXup
             GYup += λs * GOYup
             GXdn += λs * GOXdn

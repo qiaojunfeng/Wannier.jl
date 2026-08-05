@@ -174,6 +174,11 @@ function omega_updn(model::SpinModel)
     return omega_updn(overlap_updn(model))
 end
 
+# Overload accepting M directly (for solver workspace use)
+function omega_updn(M::AbstractArray{<:Complex, 3}, Uup::AbstractArray{<:Complex, 3}, Udn::AbstractArray{<:Complex, 3})
+    return omega_updn(overlap_updn(M, Uup, Udn))
+end
+
 @doc raw"""
     overlap_updn_grad(model::SpinModel, Uup, Udn)
 
@@ -242,6 +247,26 @@ function overlap_updn_grad(model::SpinModel, Xup, Yup, Xdn, Ydn)
     return GXup, GYup, GXdn, GYdn
 end
 
+# Overloads accepting M directly (for solver workspace use)
+function overlap_updn_grad(
+        M::AbstractArray{<:Complex, 3},
+        Xup::AbstractArray{<:Complex, 3},
+        Yup::AbstractArray{<:Complex, 3},
+        Xdn::AbstractArray{<:Complex, 3},
+        Ydn::AbstractArray{<:Complex, 3},
+        frozen_up::AbstractMatrix{Bool},
+        frozen_dn::AbstractMatrix{Bool},
+    )
+    Uup = X_Y_to_U(Xup, Yup)
+    Udn = X_Y_to_U(Xdn, Ydn)
+    GUup, GUdn = overlap_updn_grad(M, Uup, Udn)
+
+    GXup, GYup = GU_to_GX_GY(GUup, Xup, Yup, frozen_up)
+    GXdn, GYdn = GU_to_GX_GY(GUdn, Xdn, Ydn, frozen_dn)
+
+    return GXup, GYup, GXdn, GYdn
+end
+
 function omega_updn_grad(model::SpinModel, Uup, Udn)
     # Internal gradient convention is df = 2 Re⟨∇f, dx⟩ (see module docstring
     # on gradient conventions). The minus sign is baked in because
@@ -252,6 +277,20 @@ end
 
 function omega_updn_grad(model::SpinModel, Xup, Yup, Xdn, Ydn)
     GXup, GYup, GXdn, GYdn = overlap_updn_grad(model, Xup, Yup, Xdn, Ydn)
+    return -2 * GXup, -2 * GYup, -2 * GXdn, -2 * GYdn
+end
+
+# Overload accepting M directly (for solver workspace use)
+function omega_updn_grad(
+        M::AbstractArray{<:Complex, 3},
+        Xup::AbstractArray{<:Complex, 3},
+        Yup::AbstractArray{<:Complex, 3},
+        Xdn::AbstractArray{<:Complex, 3},
+        Ydn::AbstractArray{<:Complex, 3},
+        frozen_up::AbstractMatrix{Bool},
+        frozen_dn::AbstractMatrix{Bool},
+    )
+    GXup, GYup, GXdn, GYdn = overlap_updn_grad(M, Xup, Yup, Xdn, Ydn, frozen_up, frozen_dn)
     return -2 * GXup, -2 * GYup, -2 * GXdn, -2 * GYdn
 end
 
