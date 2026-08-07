@@ -41,12 +41,12 @@ function unfold(
 
     isym = read_isym("$prefix.isym")
     # TODO really needed?
-    Wannier.rescale!(isym.repmat_band)
+    Wannier.rescale!(isym.littlegroup_reps)
 
     kpoints_ibz = isym.kpoints_ibz
     symops = isym.symops
-    repmat_band = isym.repmat_band
-    repmat_wann = isym.repmat_wann
+    littlegroup_reps = isym.littlegroup_reps
+    orbital_reps = isym.orbital_reps
 
     f2i = get_kpoint_mappings(kstencil.kpoints, kpoints_ibz, symops)
 
@@ -59,9 +59,9 @@ function unfold(
     Ai = WannierIO.read_amn("$prefix.iamn").A
     # The factor exp(-i kᵢ R_{n'}) appearing in CPC Eq. 9
     centers = [p.center for p in nnkp["projections"]]
-    Rs = Wannier.find_wf_symmetry_translations(centers, symops, repmat_wann)
-    Asymm = Wannier.symmetrize_gauges(Ai, kpoints_ibz, symops, repmat_band, repmat_wann, Rs)
-    Af = Wannier.unfold_gauges(Asymm, kpoints_ibz, f2i, symops, repmat_wann, Rs)
+    Rs = Wannier.find_wf_symmetry_translations(centers, symops, orbital_reps)
+    Asymm = Wannier.symmetrize_gauges(Ai, kpoints_ibz, symops, littlegroup_reps, orbital_reps, Rs)
+    Af = Wannier.unfold_gauges(Asymm, kpoints_ibz, f2i, symops, orbital_reps, Rs)
     write_amn("$out_prefix.amn", Af)
 
     # mmn
@@ -78,7 +78,7 @@ function unfold(
         kstencil.bweights, kpb_k_i, kpb_G_i
     )
     Mf, kpb_k_f, kpb_G_f = Wannier.unfold_overlaps(
-        Mi, kstencil_ibz, kstencil, f2i, isym.spinors, symops, repmat_band
+        Mi, kstencil_ibz, kstencil, f2i, isym.spinors, symops, littlegroup_reps
     )
 
     if reorder_bvec

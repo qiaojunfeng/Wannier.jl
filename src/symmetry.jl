@@ -1,10 +1,18 @@
 using LinearAlgebra
-using WannierIO: SymOp, RepMatWann, RepMatBand
+using WannierIO: SymOp, OrbitalRep, LittleGroupRep
+
+# All symmetry operations are in the standard (ITA) Seitz convention as
+# returned by `WannierIO.read_isym` (see `WannierIO.standardize`):
+# - real space (fractional): ĝ r = W r + v
+# - kpoints (fractional): k′ = Wk k, with Wk = transpose(inv(W));
+#   for antiunitary (time-reversal) operations k′ = -Wk k
+# - `littlegroup_reps` store d(ĥ, k) = ⟨ψ_m|ĥ ψ_n⟩ (column = original state)
+# - `orbital_reps[isym]` store D(ĝ_isym): ĝ w_n = Σ_{n′} D_{n′n} w_{n′}(r - R_{n′})
 
 """
 Ensure the eigenvalue of representation matrices are integers when possible.
 """
-function rescale(rep::RepMatBand)
+function rescale(rep::LittleGroupRep)
     nbnd = size(rep.d, 1)
 
     d = zeros(eltype(rep.d), nbnd, nbnd)
@@ -17,15 +25,15 @@ function rescale(rep::RepMatBand)
             d[n, n] = rep.d[n, n] * round(a) / a
         end
     end
-    return RepMatBand{nbnd}(rep.ik_ibz, rep.isym, d)
+    return LittleGroupRep{nbnd}(rep.ik_ibz, rep.isym, d)
 end
 
-function rescale!(reps::AbstractVector{<:RepMatBand})
+function rescale!(reps::AbstractVector{<:LittleGroupRep})
     return reps .= rescale.(reps)
 end
 
 function rotate_kpoint(k::AbstractVector, symop::SymOp)
-    Rk = symop.R * k
+    Rk = symop.Wk * k
     if symop.time_reversal
         Rk = -Rk
     end
@@ -174,49 +182,40 @@ The WFs are transformed according to the ``D`` matrices (around CPC Eq. 9):
 \\sum_{n^\\prime} D_{n^\\prime n}(\\hat{g})
 w_{n^\\prime \\mathbf{0}}( \\mathbf{r} - \\mathbf{R}_{n^\\prime} )
 ```
+so that ``\\hat{g} \\tau_n = \\tau_{n^\\prime} + R_{n^\\prime}(\\hat{g})``,
+where ``\\tau_n`` are the WF centers.
 
 # Arguments
 - `centers`: vector of Wannier function centers in fractional coordinates.
 - `symops`: vector of symmetry operations.
-- `repmat`: vector of representation matrices acting on Wannier functions.
+- `orbital_reps`: representation matrices `D(ĝ)` acting on the Wannier functions.
 
 # Return
 - `Rs`: a vector of length `n_symops`, each element is a vector of length `n_wann`,
-    where `Rs[is][iw]` is the translation vector for the `iw`-th Wannier function
-    under the `is`-th symmetry operation.
+    where `Rs[is][iw]` is the translation vector
+    ``R_{n^\\prime}(\\hat{g}_{is}) = \\hat{g}_{is} \\tau_{iw} - \\tau_{n^\\prime}``
+    for the row block ``n^\\prime`` connected to the `iw`-th *column* of
+    ``D(\\hat{g}_{is})``.
 """
 function find_wf_symmetry_translations(
         centers::AbstractVector,
         symops::AbstractVector{SymOp},
-        repmat::AbstractVector{<:RepMatWann},
+        orbital_reps::AbstractVector{<:OrbitalRep},
     )
     nwann = length(centers)
     nsymm = length(symops)
 
-    # Find where D rotates the Wannier centers
-    # The translation vectors of Wannier centers, rotated WF - original WF
     Rs = [[zeros(Int, 3) for _ in 1:nwann] for _ in 1:nsymm]
     for is in 1:nsymm
         for iw in 1:nwann
-            # First, find indices of the starting WFs that have connections
-            # to the target iw-th WF
-            jws = findall(!iszero, repmat[is].D[:, iw])
+            # Find the rows n′ connected to column iw: D_{n′,iw}(ĝ) ≠ 0 iff
+            # ĝ τ_iw = τ_{n′} + R with R an integer lattice vector
+            jws = findall(!iszero, orbital_reps[is].D[:, iw])
             # These WFs should have the same centers
             c = centers[jws[1]]
             @assert all(isapprox(c), [centers[jw] for jw in jws])
-            # Then compute the rotated center.
-            # Conventions of the `isym` file (QE `s` and `ft` as written by
-            # pw2wannier90 `compute_mmn_ibz`):
-            # - `R = s` acts on fractional kpoints as k' = R * k
-            # - the real-space action on fractional coordinates is
-            #   g r = inv(R') * (r + t), hence inv(g) r = R' * r - t
-            # - `repmat_wann[is].D` stores D(inv(g_is)), the representation of
-            #   the *inverse* operation (pw2wannier90 `get_rotation_matrix`
-            #   computes <g_m|S^-1|g_n>), whose sparsity connects
-            #   inv(g) tau_iw ~ tau_jw.
-            # Therefore the matching translation is R_n' = inv(g) tau_iw - tau_n',
-            # computed below.
-            Sw = symops[is].R' * centers[iw] - symops[is].t
+            # Rotated center in the standard Seitz convention: ĝ τ = W τ + v
+            Sw = symops[is].W * centers[iw] + symops[is].v
             d = Sw - c
             # They should be integer translations, but `all(isinteger.(d))` is too strict
             if isapprox(d, round.(d); atol = 1.0e-8)
@@ -234,6 +233,29 @@ end
 """
     $(SIGNATURES)
 
+Lattice translation ``L`` such that
+``\\hat{g}_{isym\\_inv} \\circ \\hat{g}_{isym} = t_L``, i.e. the *stored*
+inverse element differs from the exact inverse by a lattice translation:
+``\\hat{g}_{isym}^{-1} = t_{-L} \\circ \\hat{g}_{isym\\_inv}``.
+
+For symmorphic groups ``L = 0``; for nonsymmorphic groups it is generally
+nonzero and must be accounted for whenever the *exact* inverse operator is
+required (e.g. the translation vectors ``R_{n^\\prime}(g_0^{-1})`` in the
+gauge unfolding).
+"""
+function inverse_translation_mismatch(symops::AbstractVector{SymOp}, isym::Integer)
+    op = symops[isym]
+    opinv = symops[op.isym_inv]
+    L = opinv.v + opinv.W * op.v
+    Li = round.(Int, L)
+    isapprox(L, Li; atol = 1.0e-6) ||
+        error("stored inverse is not the inverse modulo a lattice translation for isym = $isym")
+    return Vec3{Int}(Li)
+end
+
+"""
+    $(SIGNATURES)
+
 Unfold the gauge matrix at a *single* IBZ kpoint to the corresponding FBZ kpoint.
 
 CPC Eq. 9.
@@ -246,8 +268,9 @@ U_{m n k_f}
 # Arguments
 - `Ui`: gauge matrix at IBZ kpoint.
 - `ki`: fractional coordinate of the IBZ kpoint.
-- `D`: representation matrix acting on the Wannier functions.
-- `R`: vector of translation vectors for each Wannier function, fractional coordinates (integers).
+- `D`: representation matrix ``D(g_0^{-1})`` acting on the Wannier functions.
+- `R`: vector of translation vectors ``R_{n^\\prime}(g_0^{-1})``, fractional
+    coordinates (integers), indexed by the *column* of `D`.
 - `time_reversal`: whether the symmetry operation involves time-reversal.
 """
 function unfold_gauge(
@@ -291,7 +314,7 @@ function unfold_gauges(
         kpoints_ibz::AbstractVector,
         fbz2ibz::AbstractVector,
         symops::AbstractVector{SymOp},
-        repmat_wann::AbstractVector{<:RepMatWann},
+        orbital_reps::AbstractVector{<:OrbitalRep},
         Rs::AbstractVector,
     )
     nk_fbz = length(fbz2ibz)
@@ -299,16 +322,18 @@ function unfold_gauges(
     U_fbz = zeros_gauge(ComplexF64, nk_fbz, nband, nwann)
 
     for ik in 1:nk_fbz
-        # `is` moves ik_ibz to ik_fbz
+        # `is` moves ik_ibz to ik_fbz, i.e. g₀(k_f) = symops[is]; the formula
+        # needs D(g₀⁻¹(k_f)) and R(g₀⁻¹(k_f)), so index by the inverse.
+        # The stored inverse element equals the exact inverse only up to a
+        # lattice translation, g₀⁻¹ = t₋L ∘ ĝ_isinv; D is unaffected but the
+        # translation vectors must be corrected: R(g₀⁻¹) = R(ĝ_isinv) - L.
         ik_ibz, is = fbz2ibz[ik]
         ki = kpoints_ibz[ik_ibz]
-        # In CPC Eq. 9, g_0(k_f) moves k_i to k_f and the formula needs
-        # D(g_0^{-1}(k_f)). No inverse indexing is required here because the
-        # `isym` file already stores D(g^{-1}): pw2wannier90's
-        # `get_rotation_matrix` computes rotmat = <g_m|S^-1|g_n> at index `is`.
-        D = repmat_wann[is].D
-        R = Rs[is]
-        t_rev = symops[is].time_reversal
+        isinv = symops[is].isym_inv
+        D = orbital_reps[isinv].D
+        L = inverse_translation_mismatch(symops, is)
+        R = [Ri - L for Ri in Rs[isinv]]
+        t_rev = symops[isinv].time_reversal
         view(U_fbz, :, :, ik) .= unfold_gauge(view(U_ibz, :, :, ik_ibz), ki, D, R, t_rev)
     end
     return U_fbz
@@ -337,38 +362,41 @@ function symmetrize_gauges(
         U_ibz::AbstractArray{<:Complex, 3},
         kpoints_ibz::AbstractVector,
         symops::AbstractVector{SymOp},
-        repmat_band::AbstractVector{<:RepMatBand},
-        repmat_wann::AbstractVector{<:RepMatWann},
+        littlegroup_reps::AbstractVector{<:LittleGroupRep},
+        orbital_reps::AbstractVector{<:OrbitalRep},
         Rs::AbstractVector,
     )
-    nband = size(repmat_band[1].d, 1)
-    nwann = size(repmat_wann[1].D, 1)
+    nband = size(littlegroup_reps[1].d, 1)
+    nwann = size(orbital_reps[1].D, 1)
     nk_ibz = length(kpoints_ibz)
     nsym = length(symops)
 
     U_sym = zeros_gauge(ComplexF64, nk_ibz, nband, nwann)
 
-    idx_repmat_band = WannierIO.build_mapping_ik_isym(
-        repmat_band; nkpts_ibz = nk_ibz, n_symops = nsym
+    idx_littlegroup = WannierIO.build_mapping_ik_isym(
+        littlegroup_reps; nkpts_ibz = nk_ibz, n_symops = nsym
     )
 
     for ik in 1:nk_ibz
         nh = 0
         for is in 1:nsym
-            # `repmat_wann[is]` already stores D(g_is^{-1}) (see
-            # `unfold_gauges`), so no inverse indexing is needed.
-            ih = idx_repmat_band[ik][is]
+            ih = idx_littlegroup[ik][is]
             isnothing(ih) && continue
             nh += 1
 
+            # The formula needs D(h⁻¹) and R(h⁻¹); index by the inverse, and
+            # correct the translations for the stored-inverse lattice mismatch
+            # (see `unfold_gauges`).
+            isinv = symops[is].isym_inv
+            L = inverse_translation_mismatch(symops, is)
             Uf = unfold_gauge(
                 view(U_ibz, :, :, ik),
                 kpoints_ibz[ik],
-                repmat_wann[is].D,
-                Rs[is],
-                symops[is].time_reversal,
+                orbital_reps[isinv].D,
+                [Ri - L for Ri in Rs[isinv]],
+                symops[isinv].time_reversal,
             )
-            view(U_sym, :, :, ik) .+= repmat_band[ih].d * Uf
+            view(U_sym, :, :, ik) .+= littlegroup_reps[ih].d * Uf
         end
         view(U_sym, :, :, ik) ./= nh
     end
@@ -383,8 +411,11 @@ Get the equivalent symmetry operation of the merged operations.
 
 This is used for CPC Eq. 19.
 ```math
-\\hat{h} = \\hat{g}_0^{-1}(k_i + b_i) * \\hat{g}_0^{-1}(k_f) * \\hat{g}(k_f + b_f)
+\\hat{h} = \\hat{g}_0^{-1}(k_i + b_i) * \\hat{g}_0^{-1}(k_f) * \\hat{g}_0(k_f + b_f)
 ```
+The list is composed as an operator product with the *rightmost* element
+applied first, i.e. `ops = [i₁, i₂, i₃]` with `invs = [true, true, false]`
+yields ``\\hat{h} = \\hat{g}_{i_1}^{-1} \\hat{g}_{i_2}^{-1} \\hat{g}_{i_3}``.
 
 # Arguments
 - `spinors`: whether spinors symmetry operations are used.
@@ -396,8 +427,10 @@ This is used for CPC Eq. 19.
 
 # Return
 - `isym_h`: index of the equivalent symmetry operation in `symops`.
-- `T`: translation vector, the difference between the l.h.s and r.h.s. of the
-    previous equation.
+- `factor`: ±1 sign relating the composed SU(2) matrix to the stored one
+    (double-group sign; always `1` for `spinors = false`).
+- `T`: integer lattice translation such that the composed operation equals
+    ``\\hat{g}_{isym_h} \\circ t_T``, i.e. ``r \\mapsto \\hat{g}_{isym_h}(r + T)``.
 """
 function merge_symops(
         spinors::Bool,
@@ -405,9 +438,11 @@ function merge_symops(
         ops::AbstractVector{<:Integer},
         invs::AbstractVector{Bool},
     )
-    # Initialize everything to identity
-    s0 = Matrix{Float64}(I, 3, 3)
-    t0 = zeros(3)
+    # Accumulate the operator product h = f₁ ∘ f₂ ∘ ... (rightmost applied
+    # first): appending the next factor f gives acc ∘ f, i.e.
+    # {W₀|v₀} ∘ {W₁|v₁} = {W₀W₁ | v₀ + W₀v₁}.
+    W0 = Mat3{Int}(I)
+    v0 = zeros(3)
     u0 = Matrix{ComplexF64}(I, 2, 2)
     t_rev = false
 
@@ -417,59 +452,60 @@ function merge_symops(
     Trev_inv = [0 -1; 1 0]
 
     for (isym, inv_op) in zip(ops, invs)
+        op = symops[isym]
         if inv_op
-            # inv(r*S-t) = (r+t)*S^-1 = r*S^-1 + t*S^-1
-            s1 = symops[symops[isym].isym_inv].R
-            t1 = -transpose(s1) * symops[isym].t
-            u1 = symops[isym].u'
-            if symops[isym].time_reversal
+            # {W|v}⁻¹ = {W⁻¹ | -W⁻¹v}; W⁻¹ is the (exact, integer) rotation
+            # of the stored inverse element.
+            W1 = symops[op.isym_inv].W
+            v1 = -(W1 * op.v)
+            u1 = op.u'
+            if op.time_reversal
                 u1 = u1 * Trev_inv
             end
         else
-            # r*S-t
-            s1 = symops[isym].R
-            t1 = symops[isym].t
-            u1 = symops[isym].u
-            if symops[isym].time_reversal
+            W1 = op.W
+            v1 = op.v
+            u1 = op.u
+            if op.time_reversal
                 u1 = Trev * conj.(u1)
             end
         end
 
-        # Now we merge operation 0 and 1
-        # r' = r*S0 - t0
-        # r''= r'*S1 - t1 = (r*S0 - t0)*S1 - t1 = r*S0*S1 - t0*S1 - t1
-        s0 *= s1
-        t0 = transpose(s1) * t0 + t1
+        # Spatial composition acc ∘ f (θ̂ commutes with spatial operations)
+        v0 = v0 + W0 * v1
+        W0 = W0 * W1
+        # SU(2) composition with the magnetic-group rule
+        # u(acc ∘ f) = u_acc ⋅ K_acc(u_f)
         if t_rev
             u1 = conj.(u1)
         end
         u0 *= u1
-        t_rev = xor(t_rev, symops[isym].time_reversal)
+        t_rev = xor(t_rev, op.time_reversal)
     end
 
-    # Find operation in symops
+    # Find the stored operation: the composite equals ĝ_isym ∘ t_T with
+    # T = W_isym⁻¹ (v₀ - v_isym) an integer lattice vector.
     for (isym, op) in enumerate(symops)
-        T = t0 - op.t
-        if isapprox(s0, op.R; atol = 1.0e-6) &&
-                isapprox(T, round.(T); atol = 1.0e-6) &&
-                (t_rev == op.time_reversal)
-            T = Int.(round.(T))
-            if spinors
-                if t_rev
-                    us = Trev * conj.(symops[isym].u)
-                else
-                    us = symops[isym].u
-                end
-                if isapprox(u0, us; atol = 1.0e-5)
-                    return isym, 1, T
-                elseif isapprox(u0, -us; atol = 1.0e-5)
-                    return isym, -1, T
-                else
-                    error("u does not match")
-                end
+        op.time_reversal == t_rev || continue
+        W0 == op.W || continue
+        T = symops[op.isym_inv].W * (v0 - op.v)
+        isapprox(T, round.(T); atol = 1.0e-6) || continue
+        T = Int.(round.(T))
+        if spinors
+            if t_rev
+                us = Trev * conj.(op.u)
             else
-                return isym, 1, T
+                us = op.u
             end
+            if isapprox(u0, us; atol = 1.0e-5)
+                return isym, 1, T
+            elseif isapprox(u0, -us; atol = 1.0e-5)
+                return isym, -1, T
+            else
+                error("u does not match")
+            end
+        else
+            return isym, 1, T
         end
     end
     return error("No equivalent symmetry operation found")
@@ -497,7 +533,7 @@ M_{m n}^{k_f, b_f} = \\sum_l M_{m l}^{k_i, b_i} d_{l n}(\\hat{h}, k_i)
 - `fbz2ibz`: output of `get_kpoint_mappings`.
 - `spinors`: whether spinors symmetry operations are used.
 - `symops`: vector of symmetry operations.
-- `repmat_band`: representation matrices acting on the Bloch states.
+- `littlegroup_reps`: representation matrices acting on the Bloch states.
 
 # Return
 - `M_fbz`: overlap matrices at each FBZ kpoint. The b vectors are ordered
@@ -513,7 +549,7 @@ function unfold_overlaps(
         fbz2ibz::AbstractVector,
         spinors::Bool,
         symops::AbstractVector{SymOp},
-        repmat_band::AbstractVector{<:RepMatBand},
+        littlegroup_reps::AbstractVector{<:LittleGroupRep},
     )
     nk_fbz = length(kpoints_fbz)
     length(fbz2ibz) == nk_fbz || error("Mismatch in number of FBZ kpoints")
@@ -524,7 +560,7 @@ function unfold_overlaps(
     kpb_G_fbz = Matrix{Vec3{Int}}(undef, nbvec, nk_fbz)
 
     ikisym2ih = WannierIO.build_mapping_ik_isym(
-        repmat_band; nkpts_ibz = length(kpoints_ibz), n_symops = length(symops)
+        littlegroup_reps; nkpts_ibz = length(kpoints_ibz), n_symops = length(symops)
     )
     # Get mapping between equivalent b vectors
     b2b = get_equivalence_mappings(bvectors, symops)
@@ -535,12 +571,9 @@ function unfold_overlaps(
         ki = kpoints_ibz[iki]
 
         for (ibf, bf) in enumerate(bvectors)
-            # In CPC Eq. 6, g_0(k_f) is from ki to kf, we need its inverse
-            # g_0^{-1}(k_f) to go from kf to ki, to obtain b_i
-            # b_i = R^{-1} b_f where g_0 = {R|t}
-            # bi = rotate_kpoint(bf, symops[symops[isym_kf].isym_inv])
-            # ibi = index_bvector(kpoints_ibz, kpb_k_ibz, kpb_G_ibz, iki, bi)
-            # isnothing(ibi) && error("No bvector found for ik = $(iki), bi = $(bi)")
+            # In CPC Eq. 6, g₀(k_f) is from ki to kf, we need its inverse
+            # g₀⁻¹(k_f) to go from kf to ki, to obtain b_i:
+            # b_i = Wk⁻¹ b_f (with time reversal: b_i = -Wk⁻¹ b_f)
             ibi = b2b[ibf, isym_kf]
             bi = bvectors[ibi]
 
@@ -556,10 +589,6 @@ function unfold_overlaps(
 
             kpb_k_ibz[ibi, iki] == ikbi_ibz ||
                 error("Mismatch in k+b index at iki=$(iki) ibi=$(ibi)")
-            # TODO check this
-            # G = ki + bi - rotate_kpoint(kpoints_ibz[ikbi_ibz], symops[isym_kbi])
-            # kpb_G_ibz[ibi, iki] == G ||
-            #     @warn("Mismatch in G vector at iki=$(iki) ibi=$(ibi)")
 
             kpb_k_fbz[ibf, ikf] = ikbf_fbz
             G = kf + bf - kpoints_fbz[ikbf_fbz]
@@ -567,36 +596,37 @@ function unfold_overlaps(
                 error("Non-integer G vector at ikf=$(ikf) ibf=$(ibf), G=$G")
             kpb_G_fbz[ibf, ikf] = Vec3{Int}(round.(Int, G))
 
-            # get equivalent operation of h = g₀⁻¹(ki+bi) * g₀⁻¹(kf) * g₀(kf+bf)
+            # get equivalent operation of h = g₀⁻¹(ki+bi) ∘ g₀⁻¹(kf) ∘ g₀(kf+bf)
             isym_h, factor, T = merge_symops(
                 spinors, symops, [isym_kbi, isym_kf, isym_kbf], [true, true, false]
             )
 
             ih = ikisym2ih[ikbi_ibz][isym_h]
-            d = repmat_band[ih].d
+            d = littlegroup_reps[ih].d
             Mf_view = view(Mf, :, :, ibf, ikf)
             M_ibz_view = view(M_ibz, :, :, ibi, iki)
+            # d(ĥ, k_b) passes through the antiunitary g₀(ki+bi): conjugate
             if symops[isym_kbi].time_reversal
                 Mf_view .= M_ibz_view * conj.(d) * factor
             else
                 Mf_view .= M_ibz_view * d * factor
             end
+            # ⟨g₀(k_f)ψ| ...: overall conjugation for antiunitary g₀(k_f)
             if symops[isym_kf].time_reversal
                 Mf_view .= conj.(Mf_view)
             end
 
-            kbi_ibz = kpoints_ibz[ikbi_ibz]
-            θ1 = dot(bi, symops[isym_kf].t)
-            θ2 = dot(kbi_ibz, T)
-            if symops[isym_kbi].time_reversal
-                θ2 *= -1
-            end
-            if symops[isym_kf].time_reversal
-                θ1 *= -1
-                θ2 *= -1
-            end
-            if symops[isym_h].time_reversal
-                θ2 *= -1
+            # Phase e^{-i b_f·v₀} where v₀ is the translation of g₀(k_f).
+            # Identical for unitary and antiunitary g₀(k_f): the conjugation
+            # from ⟨g₀ψ| combines with b_i = ∓Wk⁻¹b_f to give the same sign.
+            θ1 = dot(bf, symops[isym_kf].v)
+            # Phase e^{-i k_b·T} from the lattice translation t_T; it is
+            # conjugated once for each antiunitary operation it passes through
+            # (g₀(ki+bi), ĥ, and the final g₀(k_f) conjugation), giving a net
+            # sign (-1)^(t_rev_kbi ⊻ t_rev_h ⊻ t_rev_kf) = (-1)^(t_rev_kbf).
+            θ2 = dot(kpoints_ibz[ikbi_ibz], T)
+            if symops[isym_kbf].time_reversal
+                θ2 = -θ2
             end
             phase = exp(-im * 2π * (θ1 + θ2))
             Mf_view .*= phase
@@ -614,7 +644,7 @@ function unfold_overlaps(
         fbz2ibz::AbstractVector,
         spinors::Bool,
         symops::AbstractVector{SymOp},
-        repmat_band::AbstractVector{<:RepMatBand},
+        littlegroup_reps::AbstractVector{<:LittleGroupRep},
     )
     return unfold_overlaps(
         M_ibz,
@@ -626,7 +656,7 @@ function unfold_overlaps(
         fbz2ibz,
         spinors,
         symops,
-        repmat_band,
+        littlegroup_reps,
     )
 end
 

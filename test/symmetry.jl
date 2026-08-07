@@ -1,8 +1,8 @@
 @testitem "rescale" begin
-    using WannierIO: RepMatBand
+    using WannierIO: LittleGroupRep
 
     d = [1.0 0.0; 0.0 1 - 1.0e-4]
-    rep = RepMatBand{2}(1, 1, d)
+    rep = LittleGroupRep{2}(1, 1, d)
     r = Wannier.rescale(rep)
     ref = [1.0 0.0; 0.0 1.0]
 
@@ -48,7 +48,7 @@ end
     isym = read_isym(dataset"Si2_hse/Si2.isym")
 
     centers = [p.center for p in nnkp["projections"]]
-    Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.repmat_wann)
+    Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.orbital_reps)
 
     ref, header = readdlm(
         dataset"Si2_hse/outputs/test/R_translations.txt",
@@ -61,7 +61,16 @@ end
     # Reshape ref into ref[isym][iwf][1:3]
     ref = [eachrow(ref[((is - 1) * nwann + 1):(is * nwann), :]) for is in 1:nsym]
 
-    @test isapprox(Rs, ref)
+    # The reference file stores the translations of the *exact inverse*
+    # operations indexed by the forward operation (the historical
+    # convention): ref[is] = R(g_is^{-1}). In the standard convention
+    # `Rs[j] = R(g_j)` of the operation itself, related by
+    # Rs[invs(is)] = ref[is] + L(is), where g_is^{-1} = t_{-L} ∘ g_{invs(is)}.
+    for is in 1:nsym
+        isinv = isym.symops[is].isym_inv
+        L = Wannier.inverse_translation_mismatch(isym.symops, is)
+        @test all(Rs[isinv][iw] == ref[is][iw] + L for iw in 1:nwann)
+    end
 end
 
 @testitem "symmetrize_gauges" begin
@@ -72,14 +81,14 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.repmat_band)
+    Wannier.rescale!(isym.littlegroup_reps)
 
     centers = [p.center for p in nnkp["projections"]]
-    Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.repmat_wann)
+    Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.orbital_reps)
 
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     Asymm = Wannier.symmetrize_gauges(
-        Ai, isym.kpoints_ibz, isym.symops, isym.repmat_band, isym.repmat_wann, Rs
+        Ai, isym.kpoints_ibz, isym.symops, isym.littlegroup_reps, isym.orbital_reps, Rs
     )
 
     ref = read_amn(dataset"Si2_hse/outputs/test/symmetrized.iamn").A
@@ -95,15 +104,15 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.repmat_band)
+    Wannier.rescale!(isym.littlegroup_reps)
     f2i = get_kpoint_mappings(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
 
     centers = [p.center for p in nnkp["projections"]]
-    Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.repmat_wann)
+    Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.orbital_reps)
 
     Asymm = read_amn(dataset"Si2_hse/outputs/test/symmetrized.iamn").A
     Af = Wannier.unfold_gauges(
-        Asymm, isym.kpoints_ibz, f2i, isym.symops, isym.repmat_wann, Rs
+        Asymm, isym.kpoints_ibz, f2i, isym.symops, isym.orbital_reps, Rs
     )
 
     ref = read_amn(dataset"Si2_hse/Si2.amn").A
@@ -151,7 +160,7 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.repmat_band)
+    Wannier.rescale!(isym.littlegroup_reps)
     f2i = get_kpoint_mappings(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
 
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
@@ -170,7 +179,7 @@ end
         f2i,
         isym.spinors,
         isym.symops,
-        isym.repmat_band,
+        isym.littlegroup_reps,
     )
 
     mmn_ref = read_mmn(dataset"Si2_hse/Si2.mmn")
