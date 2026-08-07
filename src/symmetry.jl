@@ -198,22 +198,25 @@ function find_wf_symmetry_translations(
     Rs = [[zeros(Int, 3) for _ in 1:nwann] for _ in 1:nsymm]
     for is in 1:nsymm
         for iw in 1:nwann
-            # Let's say the symmetry operation is ĝ = {S|t},
-            # the Wannier centers as w,
-            # we calculate rotated center S * w .
-            #
             # First, find indices of the starting WFs that have connections
             # to the target iw-th WF
             jws = findall(!iszero, repmat[is].D[:, iw])
             # These WFs should have the same centers
             c = centers[jws[1]]
             @assert all(isapprox(c), [centers[jw] for jw in jws])
-            # Then compute the rotated center
-            # TODO check if QE source code is this convention
-            # Note that the transformation on a vector r, is
-            # ĝ r = r S - t
-            Sw = symops[is].R' * centers[iw] - symops[is].t  # TODO very strange
-            # Sw = symops[is].R * (centers[iw] + symops[is].t)
+            # Then compute the rotated center.
+            # Conventions of the `isym` file (QE `s` and `ft` as written by
+            # pw2wannier90 `compute_mmn_ibz`):
+            # - `R = s` acts on fractional kpoints as k' = R * k
+            # - the real-space action on fractional coordinates is
+            #   g r = inv(R') * (r + t), hence inv(g) r = R' * r - t
+            # - `repmat_wann[is].D` stores D(inv(g_is)), the representation of
+            #   the *inverse* operation (pw2wannier90 `get_rotation_matrix`
+            #   computes <g_m|S^-1|g_n>), whose sparsity connects
+            #   inv(g) tau_iw ~ tau_jw.
+            # Therefore the matching translation is R_n' = inv(g) tau_iw - tau_n',
+            # computed below.
+            Sw = symops[is].R' * centers[iw] - symops[is].t
             d = Sw - c
             # They should be integer translations, but `all(isinteger.(d))` is too strict
             if isapprox(d, round.(d); atol = 1.0e-8)
@@ -259,8 +262,10 @@ function unfold_gauge(
         error("Mismatch in size of Ui, D, R")
 
     phases = [exp(-im * 2π * dot(ki, Ri)) for Ri in R]
-    # TODO multiply phases on row or column?
-    # Uf = Ui * (phases .* D)
+    # `R[j]` is indexed by the *column* j of D; since D's nonzero pattern is a
+    # permutation of site blocks (row block n' fixed by column j), scaling
+    # column j by exp(-i k R[j]) is identical to the row scaling
+    # exp(-i k R_n') in the unfolding formula.
     Uf = Ui * (D .* transpose(phases))
     if time_reversal
         Uf = conj.(Uf)
@@ -297,16 +302,13 @@ function unfold_gauges(
         # `is` moves ik_ibz to ik_fbz
         ik_ibz, is = fbz2ibz[ik]
         ki = kpoints_ibz[ik_ibz]
-        # In CPC Eq. 9, g_0(k_f) moves k_i to k_f, therefore,
-        # we need the index for its inverse g_0^{-1}(k_f).
-        # TODO check this inverse needed or not
-        # isinv = symops[is].isym_inv
-        # For now I keep it the same as original
-        isinv = is
-        #
-        D = repmat_wann[isinv].D
-        R = Rs[isinv]
-        t_rev = symops[isinv].time_reversal
+        # In CPC Eq. 9, g_0(k_f) moves k_i to k_f and the formula needs
+        # D(g_0^{-1}(k_f)). No inverse indexing is required here because the
+        # `isym` file already stores D(g^{-1}): pw2wannier90's
+        # `get_rotation_matrix` computes rotmat = <g_m|S^-1|g_n> at index `is`.
+        D = repmat_wann[is].D
+        R = Rs[is]
+        t_rev = symops[is].time_reversal
         view(U_fbz, :, :, ik) .= unfold_gauge(view(U_ibz, :, :, ik_ibz), ki, D, R, t_rev)
     end
     return U_fbz
@@ -353,11 +355,8 @@ function symmetrize_gauges(
     for ik in 1:nk_ibz
         nh = 0
         for is in 1:nsym
-            # TODO check do we need inverse here
-            # isinv = symops[is].isym_inv
-            # for now I keep it as original
-            isinv = is
-            #
+            # `repmat_wann[is]` already stores D(g_is^{-1}) (see
+            # `unfold_gauges`), so no inverse indexing is needed.
             ih = idx_repmat_band[ik][is]
             isnothing(ih) && continue
             nh += 1
@@ -365,9 +364,9 @@ function symmetrize_gauges(
             Uf = unfold_gauge(
                 view(U_ibz, :, :, ik),
                 kpoints_ibz[ik],
-                repmat_wann[isinv].D,
-                Rs[isinv],
-                symops[isinv].time_reversal,
+                repmat_wann[is].D,
+                Rs[is],
+                symops[is].time_reversal,
             )
             view(U_sym, :, :, ik) .+= repmat_band[ih].d * Uf
         end
