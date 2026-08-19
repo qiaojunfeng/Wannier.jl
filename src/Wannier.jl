@@ -80,6 +80,7 @@ include("interpolation/fermi_energy.jl")
 # include("interpolation/magmom.jl")
 
 include("symmetry.jl")
+include("symmetry_localization.jl")
 
 # Some convenience functions for users
 include("tools/Tools.jl")
