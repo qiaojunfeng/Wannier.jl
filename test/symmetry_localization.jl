@@ -272,3 +272,42 @@ end
         @test isapprox(fd, an; rtol = 1.0e-3)
     end
 end
+
+@testitem "energy masking and breaking force" begin
+    using WannierIO, LinearAlgebra
+    using Wannier.Datasets
+
+    nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
+    ks0 = Wannier.KspaceStencil(
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
+    )
+    isym = read_isym(dataset"Si2_hse/Si2.isym")
+    Wannier.rescale!(isym.littlegroup_reps)
+    centers = [p.center for p in nnkp["projections"]]
+    Ei = read_eig(dataset"Si2_hse/Si2.ieig")
+
+    sc0 = Wannier.symmetry_constraint(ks0, isym, centers)
+    sc = Wannier.symmetry_constraint(ks0, isym, centers; eig_ibz = Ei)
+    # energy-based masking can only extend the d-norm-based mask, and it
+    # masks whole degenerate clusters
+    for iki in 1:sc.nk_ibz
+        @test all(sc.band_ok[iki] .<= sc0.band_ok[iki])
+        E = Ei[:, iki]
+        for n in 1:(sc.nbands - 1)
+            if E[n + 1] - E[n] <= 1.0e-4
+                @test sc.band_ok[iki][n] == sc.band_ok[iki][n + 1]
+            end
+        end
+    end
+
+    # breaking force: finite, in (0, 1], and ~0 for the projected gradient
+    mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
+    win = read_win(dataset"Si2_hse/Si2.win")
+    Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
+    frozen = Wannier.get_frozen_bands(Ef, get(win, "dis_froz_max", -Inf))
+    ws2 = Wannier.SymmetricWorkspace2(Ef, frozen, sc)
+    Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
+    U0 = Wannier.project_covariant(Wannier.orthonorm_lowdin(Ai), sc)
+    fb = Wannier.symmetry_breaking_force(U0, mmn_i.M, sc, ws2)
+    @test 0 <= fb <= 1
+end

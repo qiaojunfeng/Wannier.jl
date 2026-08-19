@@ -167,7 +167,9 @@ the symmetry data of an `.isym` file, and the WF centers (fractional).
 function symmetry_constraint(
         kstencil::KspaceStencil{T},
         isym,
-        centers::AbstractVector,
+        centers::AbstractVector;
+        eig_ibz::Union{Nothing, AbstractMatrix{<:Real}} = nothing,
+        atol_degeneracy::Real = 1.0e-4,
     ) where {T}
     symops = isym.symops
     kpts_ibz = isym.kpoints_ibz
@@ -234,6 +236,20 @@ function symmetry_constraint(
             if abs(1 - sum(abs2, view(d, :, n))) > 1.0e-4 ||
                     abs(1 - sum(abs2, view(d, n, :))) > 1.0e-4
                 ok[n] = false
+            end
+        end
+        # With eigenvalues available, extend the mask to whole energy
+        # multiplets: symmetry can only be broken multiplet-wise, so a
+        # partially flagged degenerate cluster is masked in full (robust
+        # against representation-matrix noise around the detection threshold).
+        if eig_ibz !== nothing
+            E = view(eig_ibz, :, iki)
+            lo = 1
+            for n in 1:nbands
+                if n == nbands || E[n + 1] - E[n] > atol_degeneracy
+                    any(!, view(ok, lo:n)) && (ok[lo:n] .= false)
+                    lo = n + 1
+                end
             end
         end
         proj[iki] = map(entries) do (d, A, trev)
@@ -867,6 +883,30 @@ function localize_symmetric(
     project_covariant!(U_ibz, sc)
     U_fbz = expand_gauges(U_ibz, sc)
     return U_fbz, U_ibz
+end
+
+"""
+    $(SIGNATURES)
+
+Symmetry-breaking force at a covariant IBZ gauge: the relative size of the
+component of the (unconstrained, IBZ-pulled-back) spread gradient that the
+covariance projector removes, `‖G − 𝒫[G]‖ / ‖G‖`. Zero would mean the
+constrained optimum is also an unconstrained stationary point; a sizable
+value quantifies how strongly the free MLWFs want to break the imposed
+symmetry (`Ω` is not invariant under the symmetry action on arbitrary
+gauges, so this is generically nonzero even at convergence).
+"""
+function symmetry_breaking_force(
+        U_ibz::AbstractArray{<:Complex, 3},
+        M_ibz::AbstractArray{<:Complex, 4},
+        sc::SymmetryConstraint,
+        ws::SymmetricWorkspace2,
+    )
+    ws.U_ibz .= U_ibz
+    _fg2_core!(nothing, ws.G_ibz, M_ibz, sc, ws)
+    G = copy(ws.G_ibz)
+    P = project_covariant(G, sc)
+    return norm(G - P) / norm(G)
 end
 
 # -----------------------------------------------------------------------------
