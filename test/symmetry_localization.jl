@@ -152,3 +152,64 @@ end
         @test isapprox(fd, an; rtol = 1.0e-4)
     end
 end
+
+@testitem "level-2 equals level-1" begin
+    using WannierIO, LinearAlgebra
+    using Wannier.Datasets
+
+    nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
+    ks0 = Wannier.KspaceStencil(
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
+    )
+    isym = read_isym(dataset"Si2_hse/Si2.isym")
+    Wannier.rescale!(isym.littlegroup_reps)
+    centers = [p.center for p in nnkp["projections"]]
+    sc = Wannier.symmetry_constraint(ks0, isym, centers)
+    ks = Wannier.globalize_stencil(ks0)
+
+    mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
+    Mf = Wannier.unfold_overlaps_cached(mmn_i.M, sc)
+    Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
+    Ei = read_eig(dataset"Si2_hse/Si2.ieig")
+    win = read_win(dataset"Si2_hse/Si2.win")
+    Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
+    frozen = Wannier.get_frozen_bands(Ef, get(win, "dis_froz_max", -Inf))
+    atom_positions = [p.second for p in win["atoms_frac"]]
+    atom_labels = map(x -> string(x.first), win["atoms_frac"])
+    model = Wannier.Model(
+        win["unit_cell_cart"], atom_positions, atom_labels,
+        ks, Mf, Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
+    )
+
+    ws1 = Wannier.SymmetricWorkspace(model, sc)
+    ws2 = Wannier.SymmetricWorkspace2(Ef, frozen, sc)
+    X, Y = Wannier.U_to_X_Y(Ai, ws1.frozen_ibz)
+    xy = Wannier.X_Y_to_XY(X, Y)
+    G1, G2 = zero(xy), zero(xy)
+    Ω1 = Wannier.symmetric_fg1!(1.0, G1, xy, model, sc, ws1)
+    Ω2 = Wannier.symmetric_fg2!(1.0, G2, xy, mmn_i.M, sc, ws2)
+
+    # The transport theorem is exact for a covariant gauge; the agreement is
+    # limited only by the projector's data-precision fixed point (Si2_hse d
+    # matrices carry ~1e-5 noise; on clean data agreement is ~1e-12).
+    @test isapprox(Ω1, Ω2; atol = 1.0e-6)
+    @test norm(G1 - G2) / norm(G1) < 1.0e-4
+
+    # transport identity for the Wannier-gauge overlaps themselves:
+    # M̃(kf, bf) = phase · K_f[L† M̃_i R] versus the full-mesh product
+    U_ibz = Wannier.project_covariant(Wannier.X_Y_to_U(X, Y), sc)
+    U_fbz = Wannier.expand_gauges(U_ibz, sc)
+    ikf = sc.stars[2][end]   # a star member away from its IBZ representative
+    iki = sc.fbz2ibz[ikf][1]
+    for ibf in 1:sc.nbvecs
+        ikpb = ks.kpb_k[ibf, ikf]
+        Mt_direct = U_fbz[:, :, ikf]' * Mf[:, :, ibf, ikf] * U_fbz[:, :, ikpb]
+        ibi = sc.ibi_of[ibf, ikf]
+        ikb = sc.ikb[ibi, iki]
+        Ukb = Wannier._kconj(U_ibz[:, :, ikb] * sc.Aib[ibi, iki], sc.trev_ib[ibi, iki])
+        Mt_i = U_ibz[:, :, iki]' * mmn_i.M[:, :, ibi, iki] * Ukb
+        Mt_trans = sc.phase[ibf, ikf] .*
+            Wannier._kconj(Matrix(sc.Lmat[ikf])' * Mt_i * Matrix(sc.Rmat[ibf, ikf]), sc.trev_f[ikf])
+        @test norm(Mt_trans - Mt_direct) < 1.0e-5
+    end
+end

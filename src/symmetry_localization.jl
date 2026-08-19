@@ -1,4 +1,5 @@
 using LinearAlgebra
+using SparseArrays: SparseMatrixCSC, sparse, droptol!, rowvals, nonzeros, nzrange
 using WannierIO: SymOp, OrbitalRep, LittleGroupRep
 
 export SymmetryConstraint, symmetry_constraint
@@ -57,8 +58,10 @@ struct SymmetryConstraint{T <: Real}
     stars::Vector{Vector{Int}}
 
     # Projector data, per IBZ kpoint: (d̂(ĥ), A(ĥ, ki), trev(ĥ)) for ĥ ∈ G_ki,
-    # with d̂ the little-group matrix masked on symmetry-broken bands
-    proj::Vector{Vector{Tuple{Matrix{Complex{T}}, Matrix{Complex{T}}, Bool}}}
+    # with d̂ the little-group matrix masked on symmetry-broken bands. Stored
+    # sparse: d̂ is block-diagonal over degenerate multiplets and A is block
+    # monomial, so the group average costs O(nnz) instead of dense GEMMs.
+    proj::Vector{Vector{Tuple{SparseMatrixCSC{Complex{T}, Int}, SparseMatrixCSC{Complex{T}, Int}, Bool}}}
     # Bands whose symmetry partners are fully inside the window (per IBZ kpoint).
     # A covariant gauge cannot carry weight on the others (their little-group
     # rows/columns are truncated), so the projector masks them out.
@@ -69,8 +72,10 @@ struct SymmetryConstraint{T <: Real}
     # composition Ω∘expand∘𝒫 only approximately differentiable.
     proj_niter::Int
 
-    # Gauge expansion (C2), per FBZ kpoint: U(kf) = 𝒦_f[U(ki) · Lmat[ikf]]
-    Lmat::Vector{Matrix{Complex{T}}}
+    # Gauge expansion (C2), per FBZ kpoint: U(kf) = 𝒦_f[U(ki) · Lmat[ikf]].
+    # Block monomial (permutation of site blocks × small dense blocks), hence
+    # stored sparse; same for the Level-2 transports Rmat below.
+    Lmat::Vector{SparseMatrixCSC{Complex{T}, Int}}
     trev_f::BitVector
 
     # Pass-0 tables, per (ibi, iki): U(ki+bi) = 𝒦_ib[U(kb) · Aib], kb IBZ point
@@ -84,7 +89,7 @@ struct SymmetryConstraint{T <: Real}
     # (needed to reconstruct full M^{(kf,bf)}; Level 2 itself only needs R)
     ibi_of::Matrix{Int}
     phase::Matrix{Complex{T}}
-    Rmat::Matrix{Matrix{Complex{T}}}
+    Rmat::Matrix{SparseMatrixCSC{Complex{T}, Int}}
     dmat::Matrix{Matrix{Complex{T}}}
     trev_bi::BitMatrix
 
@@ -144,6 +149,7 @@ function _expansion_matrix(
 end
 
 _kconj(A::AbstractArray, trev::Bool) = trev ? conj.(A) : A
+_kconj(a::Number, trev::Bool) = trev ? conj(a) : a
 
 """
     $(SIGNATURES)
@@ -207,7 +213,8 @@ function symmetry_constraint(
         littlegroup_reps; nkpts_ibz = nk_ibz, n_symops = length(symops)
     )
     CT = Complex{T}
-    proj = Vector{Vector{Tuple{Matrix{CT}, Matrix{CT}, Bool}}}(undef, nk_ibz)
+    SM = SparseMatrixCSC{CT, Int}
+    proj = Vector{Vector{Tuple{SM, SM, Bool}}}(undef, nk_ibz)
     band_ok = Vector{BitVector}(undef, nk_ibz)
     for iki in 1:nk_ibz
         entries = Tuple{Matrix{CT}, Matrix{CT}, Bool}[]
@@ -229,13 +236,14 @@ function symmetry_constraint(
                 ok[n] = false
             end
         end
-        entries = map(entries) do (d, A, trev)
+        proj[iki] = map(entries) do (d, A, trev)
             dm = copy(d)
             dm[.!ok, :] .= 0
             dm[:, .!ok] .= 0
-            (dm, A, trev)
+            # entries below the data noise floor of the representation
+            # matrices are dropped; they only add cost, not accuracy
+            (droptol!(sparse(dm), 1.0e-8), droptol!(sparse(A), 1.0e-8), trev)
         end
-        proj[iki] = entries
         band_ok[iki] = ok
     end
 
@@ -251,17 +259,20 @@ function symmetry_constraint(
         prev = copy(probe)
         _covariant_average_entries!(probe, proj, nk_ibz)
         r = norm(probe - prev)
-        (r <= 1.0e-13 || r > 0.5 * resid) && break
+        (r <= 1.0e-11 || r > 0.5 * resid) && break
         resid = r
         proj_niter += 1
     end
 
     # gauge expansion tables (C2)
-    Lmat = Vector{Matrix{CT}}(undef, nk_fbz)
+    Lmat = Vector{SM}(undef, nk_fbz)
     trev_f = falses(nk_fbz)
     for ikf in 1:nk_fbz
         iki, isym = fbz2ibz[ikf]
-        Lmat[ikf] = _expansion_matrix(isym, kpts_ibz[iki], symops, orbital_reps, Rs)
+        Lmat[ikf] = droptol!(
+            sparse(_expansion_matrix(isym, kpts_ibz[iki], symops, orbital_reps, Rs)),
+            1.0e-12,
+        )
         trev_f[ikf] = symops[isym].time_reversal
     end
 
@@ -272,7 +283,7 @@ function symmetry_constraint(
     trev_ib = falses(nbvecs, nk_ibz)
     ibi_of = zeros(Int, nbvecs, nk_fbz)
     phase = zeros(CT, nbvecs, nk_fbz)
-    Rmat = Matrix{Matrix{CT}}(undef, nbvecs, nk_fbz)
+    Rmat = Matrix{SM}(undef, nbvecs, nk_fbz)
     dmat = Matrix{Matrix{CT}}(undef, nbvecs, nk_fbz)
     trev_bi = falses(nbvecs, nk_fbz)
 
@@ -312,7 +323,7 @@ function symmetry_constraint(
 
             ibi_of[ibf, ikf] = ibi
             phase[ibf, ikf] = factor * exp(-im * 2π * (θ1 + θ2))
-            Rmat[ibf, ikf] = R
+            Rmat[ibf, ikf] = droptol!(sparse(R), 1.0e-12)
             dmat[ibf, ikf] = _kconj(
                 Matrix{CT}(littlegroup_reps[ih].d), symops[isym_kbi].time_reversal
             ) .* factor
@@ -357,14 +368,19 @@ orthogonal projector onto the covariant gauges — see
 [`project_covariant!`](@ref).
 """
 function _covariant_average_entries!(U_ibz, proj, nk_ibz)
-    scratch = similar(U_ibz, size(U_ibz, 1), size(U_ibz, 2))
+    nb, nw = size(U_ibz, 1), size(U_ibz, 2)
+    Uk = similar(U_ibz, nb, nw)
+    UA = similar(U_ibz, nb, nw)
+    acc = similar(U_ibz, nb, nw)
     for iki in 1:nk_ibz
-        Uk = U_ibz[:, :, iki]
-        fill!(scratch, 0)
+        Uk .= view(U_ibz, :, :, iki)
+        fill!(acc, 0)
         for (d, A, trev) in proj[iki]
-            scratch .+= d * _kconj(Uk * A, trev)
+            mul!(UA, Uk, A)
+            trev && (UA .= conj.(UA))
+            mul!(acc, d, UA, true, true)
         end
-        view(U_ibz, :, :, iki) .= scratch ./ length(proj[iki])
+        view(U_ibz, :, :, iki) .= acc ./ length(proj[iki])
     end
     return U_ibz
 end
@@ -559,4 +575,181 @@ function symmetric_fg1!(
 
     F === nothing && return nothing
     return omega!(ws.full, kstencil, overlaps).Ω
+end
+
+# -----------------------------------------------------------------------------
+# Level-2 evaluation: all band-dimension products stay on the IBZ; star
+# members are reached through the nw×nw orbital transports (transport theorem)
+#   M̃^{(kf,bf)} = phase · 𝒦_f[ L† M̃_i R ],
+# and the gradient seeds are accumulated back onto the IBZ pairs,
+#   𝒦^{(ki,bi)} = Σ_{kf ∈ star} (4 w_b/N_k) 𝒦_f[phase] · R 𝒦_f[diag T] L†,
+#   dΩ/dU*(ki) = Σ_bi MU_i 𝒦^{(ki,bi)}  (then projected).
+# -----------------------------------------------------------------------------
+
+"""
+Scratch buffers for the Level-2 evaluation. All arrays are IBZ-sized except
+the transported diagonals `tdiag`, which live on the full mesh but hold only
+`n_wann` numbers per (kpoint, b-vector).
+"""
+struct SymmetricWorkspace2{T}
+    U_ibz::Array{Complex{T}, 3}
+    G_ibz::Array{Complex{T}, 3}
+    X_ibz::Array{Complex{T}, 3}
+    Y_ibz::Array{Complex{T}, 3}
+    frozen_ibz::BitMatrix
+    # U(ki+bi), MU_i = M^{(ki,bi)} U(ki+bi), M̃_i = U(ki)† MU_i, per (ibi, iki)
+    Ukb::Array{Complex{T}, 4}
+    MU::Array{Complex{T}, 4}
+    Mt::Array{Complex{T}, 4}
+    # per-(ibi, iki) seed accumulators 𝒦
+    K::Array{Complex{T}, 4}
+    # transported diagonals t_n^{(kf, bf)} on the full mesh
+    tdiag::Array{Complex{T}, 3}
+    r::Vector{Vec3{T}}
+    # nw×nw scratch
+    tmp1::Matrix{Complex{T}}
+    tmp2::Matrix{Complex{T}}
+end
+
+function SymmetricWorkspace2(
+        eig::AbstractMatrix, frozen_bands::AbstractMatrix{Bool}, sc::SymmetryConstraint{T}
+    ) where {T}
+    nb, nw, nki, nkf, nbv = sc.nbands, sc.nwann, sc.nk_ibz, sc.nk_fbz, sc.nbvecs
+    size(eig, 1) == nb || error("eig has wrong number of bands")
+    CT = Complex{T}
+    return SymmetricWorkspace2(
+        zeros(CT, nb, nw, nki), zeros(CT, nb, nw, nki),
+        zeros(CT, nw, nw, nki), zeros(CT, nb, nw, nki),
+        BitMatrix(frozen_bands[:, sc.ibz2fbz]),
+        zeros(CT, nb, nw, nbv, nki), zeros(CT, nb, nw, nbv, nki),
+        zeros(CT, nw, nw, nbv, nki), zeros(CT, nw, nw, nbv, nki),
+        zeros(CT, nw, nbv, nkf), zeros(Vec3{T}, nw),
+        zeros(CT, nw, nw), zeros(CT, nw, nw),
+    )
+end
+
+"""
+    $(SIGNATURES)
+
+Level-2 fused value/gradient of the symmetry-constrained spread, consuming
+only the IBZ overlaps `M_ibz` (global b ordering, as in the `.immn` file).
+Same variables and same value/gradient as [`symmetric_fg1!`](@ref), evaluated
+without ever forming band-dimension objects on the full mesh.
+"""
+function symmetric_fg2!(
+        F, G, xy::AbstractMatrix,
+        M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint{T},
+        ws::SymmetricWorkspace2{T},
+    ) where {T}
+    nw, nki, nkf, nbv = sc.nwann, sc.nk_ibz, sc.nk_fbz, sc.nbvecs
+    wb = sc.bweights
+
+    # decode -> covariant U at IBZ
+    XY_to_X_Y!(ws.X_ibz, ws.Y_ibz, xy)
+    X_Y_to_U!(ws.U_ibz, ws.X_ibz, ws.Y_ibz)
+    project_covariant!(ws.U_ibz, sc)
+
+    # Pass 0 (heavy, IBZ only): U(ki+bi), MU_i, M̃_i
+    for iki in 1:nki, ibi in 1:nbv
+        ikb = sc.ikb[ibi, iki]
+        Uk = view(ws.Ukb, :, :, ibi, iki)
+        mul!(Uk, view(ws.U_ibz, :, :, ikb), sc.Aib[ibi, iki])
+        sc.trev_ib[ibi, iki] && (Uk .= conj.(Uk))
+        mul!(view(ws.MU, :, :, ibi, iki), view(M_ibz, :, :, ibi, iki), Uk)
+        mul!(
+            view(ws.Mt, :, :, ibi, iki), view(ws.U_ibz, :, :, iki)',
+            view(ws.MU, :, :, ibi, iki),
+        )
+    end
+
+    # Sweep 1 (light, full mesh): transported diagonals and centers
+    fill!(ws.r, zero(Vec3{T}))
+    for ikf in 1:nkf
+        iki = sc.fbz2ibz[ikf][1]
+        L = sc.Lmat[ikf]
+        Lrv, Lnz = rowvals(L), nonzeros(L)
+        for ibf in 1:nbv
+            ibi = sc.ibi_of[ibf, ikf]
+            R = sc.Rmat[ibf, ikf]
+            Rrv, Rnz = rowvals(R), nonzeros(R)
+            Mt = view(ws.Mt, :, :, ibi, iki)
+            ph = sc.phase[ibf, ikf]
+            trev = sc.trev_f[ikf]
+            # t_n = (L e_n)† M̃_i (R e_n): O(s²) per diagonal via the sparse
+            # columns of the block-monomial transports
+            @inbounds for n in 1:nw
+                t = zero(Complex{T})
+                for iL in nzrange(L, n), iR in nzrange(R, n)
+                    t += conj(Lnz[iL]) * Mt[Lrv[iL], Rrv[iR]] * Rnz[iR]
+                end
+                trev && (t = conj(t))
+                t *= ph
+                ws.tdiag[n, ibf, ikf] = t
+                ws.r[n] -= imaglog(t) * (wb[ibf] * sc.bvec_cart[ibf])
+            end
+        end
+    end
+    ws.r ./= nkf
+
+    Ω = nothing
+    if F !== nothing
+        Ω = zero(T)
+        @inbounds for ikf in 1:nkf, ibf in 1:nbv, n in 1:nw
+            t = ws.tdiag[n, ibf, ikf]
+            Ω += wb[ibf] * (1 - abs2(t) + imaglog(t)^2)
+        end
+        Ω = Ω / nkf - sum(r -> sum(abs2, r), ws.r)
+    end
+
+    if G !== nothing
+        # Sweep 2: accumulate the seeds 𝒦 on the IBZ pairs
+        fill!(ws.K, 0)
+        Tn = zeros(Complex{T}, nw)
+        for ikf in 1:nkf
+            iki = sc.fbz2ibz[ikf][1]
+            L = sc.Lmat[ikf]
+            Lrv, Lnz = rowvals(L), nonzeros(L)
+            trev = sc.trev_f[ikf]
+            for ibf in 1:nbv
+                ibi = sc.ibi_of[ibf, ikf]
+                c = 4 * wb[ibf] / nkf
+                # 𝒦_f[phase · diag(T)]: both factors conjugated for
+                # time-reversal star members, neither otherwise
+                ph = _kconj(sc.phase[ibf, ikf], trev)
+                @inbounds for n in 1:nw
+                    t = ws.tdiag[n, ibf, ikf]
+                    q = imaglog(t) + sc.bvec_cart[ibf] ⋅ ws.r[n]
+                    s = -im * q / t - conj(t)
+                    trev && (s = conj(s))
+                    Tn[n] = c * ph * s
+                end
+                # 𝒦 += R diag(Tn) L† = Σ_n Tn[n] (R e_n)(L e_n)†:
+                # O(s²) outer products over the sparse columns
+                R = sc.Rmat[ibf, ikf]
+                Rrv, Rnz = rowvals(R), nonzeros(R)
+                Kv = view(ws.K, :, :, ibi, iki)
+                @inbounds for n in 1:nw
+                    for iR in nzrange(R, n)
+                        rt = Rnz[iR] * Tn[n]
+                        m = Rrv[iR]
+                        for iL in nzrange(L, n)
+                            Kv[m, Lrv[iL]] += rt * conj(Lnz[iL])
+                        end
+                    end
+                end
+            end
+        end
+        # assembly: dΩ/dU*(ki) = Σ_bi MU_i 𝒦, then project and encode
+        fill!(ws.G_ibz, 0)
+        for iki in 1:nki, ibi in 1:nbv
+            mul!(
+                view(ws.G_ibz, :, :, iki), view(ws.MU, :, :, ibi, iki),
+                view(ws.K, :, :, ibi, iki), true, true,
+            )
+        end
+        project_covariant!(ws.G_ibz, sc)
+        encode_gradient_xy!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.frozen_ibz)
+    end
+
+    return Ω
 end
