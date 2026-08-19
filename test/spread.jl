@@ -43,3 +43,20 @@ end
     r = center(model)
     @test all(isapprox.(r, wout["centers"]; atol = 1.0e-6))
 end
+
+@testitem "imaglog_guided" begin
+    using LinearAlgebra
+    # principal branch at zero guide
+    for z in (1.0 + 0.5im, -1.0 + 1e-3im, cis(3.0))
+        @test Wannier.imaglog_guided(z, 0.0) == Wannier.imaglog(z)
+    end
+    # picks the branch closest to -θ: continuous across the cut
+    z = cis(3.14)   # imaglog ≈ +3.14
+    @test Wannier.imaglog_guided(z, 3.15) ≈ 3.14 - 2π atol = 1e-12
+    @test Wannier.imaglog_guided(z, -3.15) ≈ 3.14 atol = 1e-12
+    # guided value differs from principal by an exact multiple of 2π
+    for θ in (-7.0, 2.0, 9.9)
+        d = Wannier.imaglog_guided(z, θ) - Wannier.imaglog(z)
+        @test isapprox(rem(d, 2π, RoundNearest), 0; atol = 1e-12)
+    end
+end

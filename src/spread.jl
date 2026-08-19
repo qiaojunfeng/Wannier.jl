@@ -18,6 +18,17 @@ export spread, center
 # the test suite verify precisely that (analytic == FD, elementwise).
 # -----------------------------------------------------------------------------
 
+"""
+    imaglog_guided(z, θ)
+
+Branch-stable `Im log z`: evaluates `imaglog(z⋅cis(θ)) − θ`, i.e. picks the
+branch of the logarithm closest to `−θ`. With `θ = b ⋅ r_guide` (guiding
+centers, as in wannier90) the phases stay continuous across iterations even
+when a diagonal overlap approaches the negative real axis. `θ = 0` reproduces
+the principal branch.
+"""
+imaglog_guided(z::Complex, θ::Real) = imaglog(z * cis(θ)) - θ
+
 abstract type AbstractSpread end
 
 @doc raw"""
@@ -103,6 +114,13 @@ struct Workspace{T}
     # gradient in canonical coordinates, dΩ/dU*: n_bands x n_wann x n_kpts
     GU::Array{Complex{T}, 3}
     r::Vector{Vec3{T}}
+    # fixed guiding centers for the Im-log branch choice (see
+    # `imaglog_guided`); zeros = principal branch (the default). Set them
+    # explicitly (e.g. to the trial-orbital centers) when WFs sit far from
+    # the origin — like wannier90's `guiding_centres`, they are constants of
+    # the run, NOT updated from the current iterate (a self-updating guide
+    # would make the objective history-dependent).
+    guide::Vector{Vec3{T}}
     UtMU::Array{Complex{T}, 4}
     MU::Array{Complex{T}, 4}
 end
@@ -122,7 +140,7 @@ function Workspace(bvectors::KspaceStencil{FT}, M::AbstractArray{<:Complex, 4}, 
     MU = zeros(Complex{FT}, n_bands, n_wann, n_bvecs, n_kpts)
     UtMU = zeros(Complex{FT}, n_wann, n_wann, n_bvecs, n_kpts)
 
-    return Workspace(X, Y, Ucopy, GU, r, UtMU, MU)
+    return Workspace(X, Y, Ucopy, GU, r, zeros(Vec3{FT}, n_wann), UtMU, MU)
 end
 
 Workspace(model::Model) = Workspace(model.kstencil, model.overlaps, model.gauges)
@@ -169,8 +187,10 @@ function omega!(
         UtMU::AbstractArray{<:Complex, 4},
         MU::AbstractArray{<:Complex, 4},
         bvectors::KspaceStencil{FT},
-        M,
+        M;
+        guide::AbstractVector{<:Vec3} = zeros(Vec3{FT}, length(r)),
     ) where {FT <: Real}
+    rg = guide
     fill!(r, zero(eltype(r)))
 
     nw = length(r)
@@ -207,7 +227,7 @@ function omega!(
                     ts += a2
 
                     if i == j
-                        imlogN = imaglog(nt)
+                        imlogN = imaglog_guided(nt, b ⋅ rg[i])
 
                         r[i] -= imlogN * wb_b
                         r²[i] += wᵇ * (1 - a2 + imlogN^2)
@@ -222,7 +242,9 @@ function omega!(
         end
     end
 
-    r = map(x -> x ./ nk, r)
+    # in place: the caller's workspace keeps the true centers (they seed the
+    # Im-log branch guides of the next evaluation)
+    r .= r ./ nk
     r² /= nk
     ΩI /= nk
     ΩOD /= nk
@@ -235,7 +257,7 @@ function omega!(
             wᵇ = wb[ib]
 
             for n in 1:nw
-                ΩD += wᵇ * (-imaglog(Nᵏᵇ[n, n]) - b' * r[n])^2
+                ΩD += wᵇ * (-imaglog_guided(Nᵏᵇ[n, n], b ⋅ rg[n]) - b' * r[n])^2
             end
         end
     end
@@ -249,7 +271,7 @@ function omega!(
 end
 
 function omega!(cache::Workspace, bvectors::KspaceStencil{FT}, M) where {FT <: Real}
-    return omega!(cache.r, cache.UtMU, cache.MU, bvectors, M)
+    return omega!(cache.r, cache.UtMU, cache.MU, bvectors, M; guide = cache.guide)
 end
 
 """
@@ -317,10 +339,10 @@ omega_grad!(cache::Workspace, bvectors, M) = omega_grad!((r, _) -> r, cache, bve
 
 """Gradient with an externally-provided buffer `G`; leaves `cache.GU` untouched."""
 omega_grad!(G::AbstractArray{<:Complex, 3}, cache::Workspace, bvectors, M) =
-    omega_grad!((r, _) -> r, G, cache.r, cache.UtMU, cache.MU, bvectors, M)
+    omega_grad!((r, _) -> r, G, cache.r, cache.UtMU, cache.MU, bvectors, M; rg = cache.guide)
 
 omega_grad!(penalty::Function, G::AbstractArray{<:Complex, 3}, cache::Workspace, bvectors, M) =
-    omega_grad!(penalty, G, cache.r, cache.UtMU, cache.MU, bvectors, M)
+    omega_grad!(penalty, G, cache.r, cache.UtMU, cache.MU, bvectors, M; rg = cache.guide)
 
 function omega_grad!(
         penalty::Function,
@@ -329,7 +351,8 @@ function omega_grad!(
         UtMU::AbstractArray{<:Complex, 4},
         MU::AbstractArray{<:Complex, 4},
         bvectors,
-        M,
+        M;
+        rg::AbstractVector{<:Vec3} = zeros(eltype(r), length(r)),
     )
     fill!(G, 0)
 
@@ -338,7 +361,7 @@ function omega_grad!(
 
     n_bvecs = size(UtMU, 3)
 
-    center!(r, UtMU, bvectors)
+    center!(r, UtMU, bvectors; guide = rg)
 
     kpb_k = bvectors.kpb_k
     kpb_G = bvectors.kpb_G
@@ -357,7 +380,7 @@ function omega_grad!(
 
             for n in 1:n_wann
                 nn = Nkb[n, n]
-                q = imaglog(nn) + penalty(r[n], n) ⋅ b
+                q = imaglog_guided(nn, b ⋅ rg[n]) + penalty(r[n], n) ⋅ b
                 t = -im * q / nn
                 cnn = conj(nn)
                 for m in 1:n_bands
@@ -375,7 +398,7 @@ function omega_grad!(
 end
 
 function omega_grad!(penalty::Function, cache::Workspace{T}, bvectors, M) where {T}
-    return omega_grad!(penalty, cache.GU, cache.r, cache.UtMU, cache.MU, bvectors, M)
+    return omega_grad!(penalty, cache.GU, cache.r, cache.UtMU, cache.MU, bvectors, M; rg = cache.guide)
 end
 
 """
@@ -438,7 +461,11 @@ function center(bvectors::KspaceStencil, M::AbstractArray{<:Complex, 4}, U::Abst
     return center!(r, UtMU, bvectors)
 end
 
-function center!(r::Vector{<:Vec3}, UtMU::AbstractArray{<:Complex, 4}, bvectors)
+function center!(
+        r::Vector{<:Vec3}, UtMU::AbstractArray{<:Complex, 4}, bvectors;
+        guide::AbstractVector{<:Vec3} = zeros(eltype(r), length(r)),
+    )
+    rg = guide
     fill!(r, zero(eltype(r)))
     n_wann = length(r)
 
@@ -461,7 +488,7 @@ function center!(r::Vector{<:Vec3}, UtMU::AbstractArray{<:Complex, 4}, bvectors)
             w = wb[ib]
 
             for n in 1:n_wann
-                fac = w * imaglog(Nb[n, n])
+                fac = w * imaglog_guided(Nb[n, n], b ⋅ rg[n])
                 r[n] -= b * fac
             end
         end

@@ -606,6 +606,8 @@ struct SymmetricWorkspace2{T}
     # transported diagonals t_n^{(kf, bf)} on the full mesh
     tdiag::Array{Complex{T}, 3}
     r::Vector{Vec3{T}}
+    # fixed guiding centers for Im-log branches (zeros = principal branch)
+    guide::Vector{Vec3{T}}
     # nw×nw scratch
     tmp1::Matrix{Complex{T}}
     tmp2::Matrix{Complex{T}}
@@ -623,7 +625,7 @@ function SymmetricWorkspace2(
         BitMatrix(frozen_bands[:, sc.ibz2fbz]),
         zeros(CT, nb, nw, nbv, nki), zeros(CT, nb, nw, nbv, nki),
         zeros(CT, nw, nw, nbv, nki), zeros(CT, nw, nw, nbv, nki),
-        zeros(CT, nw, nbv, nkf), zeros(Vec3{T}, nw),
+        zeros(CT, nw, nbv, nkf), zeros(Vec3{T}, nw), zeros(Vec3{T}, nw),
         zeros(CT, nw, nw), zeros(CT, nw, nw),
     )
 end
@@ -681,7 +683,9 @@ function _fg2_core!(
         )
     end
 
-    # Sweep 1 (light, full mesh): transported diagonals and centers
+    # Sweep 1 (light, full mesh): transported diagonals and centers.
+    # `ws.guide` fixes the Im-log branches (cf. spread.jl; zeros by default).
+    rg = ws.guide
     fill!(ws.r, zero(Vec3{T}))
     for ikf in 1:nkf
         iki = sc.fbz2ibz[ikf][1]
@@ -704,7 +708,8 @@ function _fg2_core!(
                 trev && (t = conj(t))
                 t *= ph
                 ws.tdiag[n, ibf, ikf] = t
-                ws.r[n] -= imaglog(t) * (wb[ibf] * sc.bvec_cart[ibf])
+                gl = imaglog_guided(t, sc.bvec_cart[ibf] ⋅ rg[n])
+                ws.r[n] -= gl * (wb[ibf] * sc.bvec_cart[ibf])
             end
         end
     end
@@ -715,7 +720,8 @@ function _fg2_core!(
         Ω = zero(T)
         @inbounds for ikf in 1:nkf, ibf in 1:nbv, n in 1:nw
             t = ws.tdiag[n, ibf, ikf]
-            Ω += wb[ibf] * (1 - abs2(t) + imaglog(t)^2)
+            gl = imaglog_guided(t, sc.bvec_cart[ibf] ⋅ rg[n])
+            Ω += wb[ibf] * (1 - abs2(t) + gl^2)
         end
         Ω = Ω / nkf - sum(r -> sum(abs2, r), ws.r)
     end
@@ -737,7 +743,8 @@ function _fg2_core!(
                 ph = _kconj(sc.phase[ibf, ikf], trev)
                 @inbounds for n in 1:nw
                     t = ws.tdiag[n, ibf, ikf]
-                    q = imaglog(t) + sc.bvec_cart[ibf] ⋅ ws.r[n]
+                    q = imaglog_guided(t, sc.bvec_cart[ibf] ⋅ rg[n]) +
+                        sc.bvec_cart[ibf] ⋅ ws.r[n]
                     s = -im * q / t - conj(t)
                     trev && (s = conj(s))
                     Tn[n] = c * ph * s
