@@ -753,3 +753,72 @@ function symmetric_fg2!(
 
     return Ω
 end
+
+# -----------------------------------------------------------------------------
+# Optimization driver
+# -----------------------------------------------------------------------------
+
+export localize_symmetric
+
+"""
+    $(SIGNATURES)
+
+Minimize the MV spread over symmetry-covariant gauges parameterized at the
+IBZ kpoints only (the SAWF constrained problem). Returns `(U_fbz, U_ibz)`:
+the optimized covariant gauge expanded to the full mesh, and its IBZ
+representative.
+
+# Arguments
+- `model`: full-mesh model in the *global* b ordering (see
+  [`globalize_stencil`](@ref)), with overlaps unfolded from the IBZ. Its
+  `gauges` provide the starting point (their IBZ slices are projected onto
+  the covariant subspace).
+- `M_ibz`: IBZ overlaps (`.immn`), needed for `level = 2`.
+- `sc`: the [`SymmetryConstraint`](@ref).
+
+# Keyword arguments
+- `level`: `2` (default) evaluates value/gradient via the IBZ-only transport
+  kernels ([`symmetric_fg2!`](@ref)); `1` expands to the full mesh each
+  iteration ([`symmetric_fg1!`](@ref)). Identical results, different cost.
+- remaining kwargs are forwarded to [`OptimLBFGS`](@ref).
+"""
+function localize_symmetric(
+        model::Model,
+        M_ibz::AbstractArray{<:Complex, 4},
+        sc::SymmetryConstraint;
+        level::Integer = 2,
+        kwargs...,
+    )
+    solver = OptimLBFGS(; kwargs...)
+
+    U0_ibz = extract_ibz_gauges(model.gauges, sc)
+    project_covariant!(U0_ibz, sc)
+    frozen_ibz = model.frozen_bands[:, sc.ibz2fbz]
+    X0, Y0 = U_to_X_Y(U0_ibz, frozen_ibz)
+    x0 = X_Y_to_XY(X0, Y0)
+
+    if level == 1
+        ws1 = SymmetricWorkspace(model, sc)
+        fg! = (F, G, x) -> symmetric_fg1!(F, G, x, model, sc, ws1)
+    elseif level == 2
+        ws2 = SymmetricWorkspace2(model.eigenvalues, model.frozen_bands, sc)
+        fg! = (F, G, x) -> symmetric_fg2!(F, G, x, M_ibz, sc, ws2)
+    else
+        error("level must be 1 or 2")
+    end
+
+    nw, nb = sc.nwann, sc.nbands
+    per_k = Optim.ProductManifold(
+        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw)
+    )
+    man = Optim.PowerManifold(per_k, (nw^2 + nb * nw,), (sc.nk_ibz,))
+
+    opt = _run_optim_fg!(fg!, x0, man, solver)
+    xy = Optim.minimizer(opt)
+
+    X, Y = XY_to_X_Y(xy, nb, nw)
+    U_ibz = X_Y_to_U(X, Y)
+    project_covariant!(U_ibz, sc)
+    U_fbz = expand_gauges(U_ibz, sc)
+    return U_fbz, U_ibz
+end
