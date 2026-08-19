@@ -63,6 +63,11 @@ struct SymmetryConstraint{T <: Real}
     # A covariant gauge cannot carry weight on the others (their little-group
     # rows/columns are truncated), so the projector masks them out.
     band_ok::Vector{BitVector}
+    # Number of group-average iterations the projector applies. Fixed at build
+    # time (probed to stagnation on a test vector) so that 𝒫 is *exactly*
+    # linear — an input-dependent iteration count would make the objective
+    # composition Ω∘expand∘𝒫 only approximately differentiable.
+    proj_niter::Int
 
     # Gauge expansion (C2), per FBZ kpoint: U(kf) = 𝒦_f[U(ki) · Lmat[ikf]]
     Lmat::Vector{Matrix{Complex{T}}}
@@ -234,6 +239,23 @@ function symmetry_constraint(
         band_ok[iki] = ok
     end
 
+    # Probe how many group averages reach the (data-limited) fixed point.
+    probe = ComplexF64.(reshape(1:(nbands * nwann * nk_ibz), nbands, nwann, nk_ibz))
+    probe ./= norm(probe)
+    for iki in 1:nk_ibz
+        view(probe, .!band_ok[iki], :, iki) .= 0
+    end
+    proj_niter = 1
+    resid = Inf
+    for _ in 1:30
+        prev = copy(probe)
+        _covariant_average_entries!(probe, proj, nk_ibz)
+        r = norm(probe - prev)
+        (r <= 1.0e-13 || r > 0.5 * resid) && break
+        resid = r
+        proj_niter += 1
+    end
+
     # gauge expansion tables (C2)
     Lmat = Vector{Matrix{CT}}(undef, nk_fbz)
     trev_f = falses(nk_fbz)
@@ -309,7 +331,7 @@ function symmetry_constraint(
     return SymmetryConstraint{T}(
         nk_fbz, nk_ibz, nbvecs, nwann, nbands,
         fbz2ibz, ibz2fbz, stars,
-        proj, band_ok,
+        proj, band_ok, proj_niter,
         Lmat, trev_f,
         ikb, Aib, trev_ib,
         ibi_of, phase, Rmat, dmat, trev_bi,
@@ -334,52 +356,42 @@ and `𝒜` is a self-adjoint contraction whose *iterates* converge to the
 orthogonal projector onto the covariant gauges — see
 [`project_covariant!`](@ref).
 """
-function covariant_average!(
-        U_ibz::AbstractArray{<:Complex, 3}, sc::SymmetryConstraint
-    )
+function _covariant_average_entries!(U_ibz, proj, nk_ibz)
     scratch = similar(U_ibz, size(U_ibz, 1), size(U_ibz, 2))
-    for iki in 1:sc.nk_ibz
+    for iki in 1:nk_ibz
         Uk = U_ibz[:, :, iki]
         fill!(scratch, 0)
-        for (d, A, trev) in sc.proj[iki]
+        for (d, A, trev) in proj[iki]
             scratch .+= d * _kconj(Uk * A, trev)
         end
-        view(U_ibz, :, :, iki) .= scratch ./ length(sc.proj[iki])
+        view(U_ibz, :, :, iki) .= scratch ./ length(proj[iki])
     end
     return U_ibz
 end
 
+covariant_average!(U_ibz::AbstractArray{<:Complex, 3}, sc::SymmetryConstraint) =
+    _covariant_average_entries!(U_ibz, sc.proj, sc.nk_ibz)
+
 """
     $(SIGNATURES)
 
-Covariance projector ``𝒫``: iterate [`covariant_average!`](@ref) to its fixed
-point. Idempotent and self-adjoint; its image is the space of covariant
-gauges. For a symmetry-closed band window one iteration suffices; when the
-window truncates degenerate multiplets, the iteration geometrically damps the
-components living on symmetry-broken bands (a covariant gauge cannot carry
-weight there). Overwrites `U_ibz`.
+Covariance projector ``𝒫``: mask the symmetry-broken bands, then apply
+[`covariant_average!`](@ref) a *fixed* number of times (`sc.proj_niter`,
+probed at build time). Idempotent (to the numerical quality of the `d`
+matrices) and self-adjoint; its image is the space of covariant gauges. The
+fixed iteration count keeps 𝒫 exactly linear, so objective compositions
+through 𝒫 are exactly differentiable. Overwrites `U_ibz`.
 """
 function project_covariant!(
         U_ibz::AbstractArray{<:Complex, 3}, sc::SymmetryConstraint;
-        atol::Real = 1.0e-10, maxiter::Integer = 10,
+        niter::Integer = sc.proj_niter,
     )
     for iki in 1:sc.nk_ibz
         view(U_ibz, .!sc.band_ok[iki], :, iki) .= 0
     end
-    prev = similar(U_ibz)
-    resid = Inf
-    for _ in 1:maxiter
-        prev .= U_ibz
+    for _ in 1:niter
         covariant_average!(U_ibz, sc)
-        r = norm(U_ibz - prev)
-        r <= atol && return U_ibz
-        # The attainable fixed-point accuracy is limited by the numerical
-        # quality of the d matrices; stop when the residual stagnates.
-        r > 0.5 * resid && break
-        resid = r
     end
-    resid > 1.0e-4 &&
-        @warn "project_covariant! stagnated far from a fixed point" residual = resid
     return U_ibz
 end
 
@@ -476,4 +488,75 @@ function unfold_overlaps_cached(
         end
     end
     return Mf
+end
+
+# -----------------------------------------------------------------------------
+# Level-1 evaluation: expand the IBZ gauge to the full mesh, run the standard
+# full-mesh spread/gradient kernels, and pull the gradient back to the IBZ.
+# -----------------------------------------------------------------------------
+
+"""
+Scratch buffers for symmetry-constrained localization. `full` carries the
+standard full-mesh [`Workspace`](@ref) (its `U`/`GU`/`MU`/`UtMU` buffers are
+used by the Level-1 kernels); the `*_ibz` arrays hold the IBZ variables in
+the `(X, Y)` disentanglement layout.
+"""
+struct SymmetricWorkspace{T}
+    full::Workspace{T}
+    U_ibz::Array{Complex{T}, 3}
+    G_ibz::Array{Complex{T}, 3}
+    X_ibz::Array{Complex{T}, 3}
+    Y_ibz::Array{Complex{T}, 3}
+    frozen_ibz::BitMatrix
+end
+
+function SymmetricWorkspace(model::Model, sc::SymmetryConstraint{T}) where {T}
+    nb, nw = n_bands(model), n_wannier(model)
+    nb == sc.nbands && nw == sc.nwann ||
+        error("model and symmetry constraint sizes do not match")
+    n_kpoints(model) == sc.nk_fbz ||
+        error("model must live on the full mesh of the symmetry constraint")
+    full = Workspace(model)
+    U_ibz = zeros(Complex{T}, nb, nw, sc.nk_ibz)
+    G_ibz = zeros(Complex{T}, nb, nw, sc.nk_ibz)
+    X_ibz = zeros(Complex{T}, nw, nw, sc.nk_ibz)
+    Y_ibz = zeros(Complex{T}, nb, nw, sc.nk_ibz)
+    frozen_ibz = model.frozen_bands[:, sc.ibz2fbz]
+    return SymmetricWorkspace(full, U_ibz, G_ibz, X_ibz, Y_ibz, frozen_ibz)
+end
+
+"""
+    $(SIGNATURES)
+
+Level-1 fused value/gradient of the symmetry-constrained spread.
+
+`xy` packs the `(X, Y)` blocks at the IBZ kpoints. The gauge is decoded,
+projected onto the covariant subspace, expanded to the full mesh (C2), and the
+standard full-mesh kernels evaluate Ω and `dΩ/dU*`; the gradient is pulled
+back through the (linear, self-adjoint) expansion and projector, then packed
+into `G`. The `model` must be a full-mesh model in the *global* b ordering
+(see [`globalize_stencil`](@ref)) whose overlaps were unfolded from the IBZ.
+"""
+function symmetric_fg1!(
+        F, G, xy::AbstractMatrix,
+        model::Model, sc::SymmetryConstraint, ws::SymmetricWorkspace,
+    )
+    # decode (X,Y) -> covariant U at IBZ -> full mesh
+    XY_to_X_Y!(ws.X_ibz, ws.Y_ibz, xy)
+    X_Y_to_U!(ws.U_ibz, ws.X_ibz, ws.Y_ibz)
+    project_covariant!(ws.U_ibz, sc)
+    expand_gauges!(ws.full.U, ws.U_ibz, sc)
+
+    kstencil, overlaps = model.kstencil, model.overlaps
+    compute_MU_UtMU!(ws.full, kstencil, overlaps, ws.full.U)
+
+    if G !== nothing
+        omega_grad!(ws.full.GU, ws.full, kstencil, overlaps)
+        pullback_gauges!(ws.G_ibz, ws.full.GU, sc)
+        project_covariant!(ws.G_ibz, sc)
+        encode_gradient_xy!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.frozen_ibz)
+    end
+
+    F === nothing && return nothing
+    return omega!(ws.full, kstencil, overlaps).Ω
 end

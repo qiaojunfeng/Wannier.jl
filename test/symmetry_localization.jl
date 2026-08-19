@@ -97,3 +97,58 @@ end
     end
     @test gs.bweights ≈ kstencil.bweights
 end
+
+@testitem "level-1 symmetric fg" begin
+    using WannierIO, LinearAlgebra
+    using Wannier.Datasets
+
+    nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
+    ks0 = Wannier.KspaceStencil(
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
+    )
+    isym = read_isym(dataset"Si2_hse/Si2.isym")
+    Wannier.rescale!(isym.littlegroup_reps)
+    centers = [p.center for p in nnkp["projections"]]
+    sc = Wannier.symmetry_constraint(ks0, isym, centers)
+    ks = Wannier.globalize_stencil(ks0)
+
+    Mf = Wannier.unfold_overlaps_cached(read_mmn(dataset"Si2_hse/Si2.immn").M, sc)
+    Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
+    Ei = read_eig(dataset"Si2_hse/Si2.ieig")
+    win = read_win(dataset"Si2_hse/Si2.win")
+    Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
+    frozen = Wannier.get_frozen_bands(Ef, get(win, "dis_froz_max", -Inf))
+    atom_positions = [p.second for p in win["atoms_frac"]]
+    atom_labels = map(x -> string(x.first), win["atoms_frac"])
+    model = Wannier.Model(
+        win["unit_cell_cart"], atom_positions, atom_labels,
+        ks, Mf, Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
+    )
+
+    ws = Wannier.SymmetricWorkspace(model, sc)
+    X, Y = Wannier.U_to_X_Y(Ai, ws.frozen_ibz)
+    xy = Wannier.X_Y_to_XY(X, Y)
+    G = zero(xy)
+    Ω = Wannier.symmetric_fg1!(1.0, G, xy, model, sc, ws)
+
+    # value consistency with the plain full-mesh spread of the expanded gauge
+    Ufull = Wannier.expand_gauges(
+        Wannier.project_covariant(Wannier.X_Y_to_U(X, Y), sc), sc
+    )
+    @test Ω ≈ Wannier.spread(model.kstencil, model.overlaps, Ufull).Ω
+
+    # Directional finite-difference gradient check (frozen entries masked,
+    # since the XY layout fixes them and zeroes their gradient). The rtol is
+    # limited by FD truncation of the Si2_hse point (near-branch-point
+    # Im-log diagonals); the same check on clean data (Ge4Ru4) passes at 1e-9.
+    f = x -> Wannier.symmetric_fg1!(1.0, nothing, x, model, sc, ws)
+    for _ in 1:2
+        dx = randn(ComplexF64, size(xy))
+        Wannier.zero_froz_grad!(dx, ws.frozen_ibz)
+        dx ./= norm(dx)
+        ε = 1.0e-4
+        fd = (f(xy .+ ε .* dx) - f(xy .- ε .* dx)) / (2ε)
+        an = real(sum(conj.(G) .* dx))
+        @test isapprox(fd, an; rtol = 1.0e-4)
+    end
+end
