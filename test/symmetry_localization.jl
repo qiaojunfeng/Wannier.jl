@@ -213,3 +213,62 @@ end
         @test norm(Mt_trans - Mt_direct) < 1.0e-5
     end
 end
+
+@testitem "schur block parametrization" begin
+    using WannierIO, LinearAlgebra
+    using Wannier.Datasets
+
+    nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
+    ks0 = Wannier.KspaceStencil(
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
+    )
+    isym = read_isym(dataset"Si2_hse/Si2.isym")
+    Wannier.rescale!(isym.littlegroup_reps)
+    centers = [p.center for p in nnkp["projections"]]
+    sc = Wannier.symmetry_constraint(ks0, isym, centers)
+
+    Ei = read_eig(dataset"Si2_hse/Si2.ieig")
+    win = read_win(dataset"Si2_hse/Si2.win")
+    Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
+    frozen = Wannier.get_frozen_bands(Ef, get(win, "dis_froz_max", -Inf))
+    frozen_ibz = frozen[:, sc.ibz2fbz]
+
+    sb = Wannier.schur_basis(sc, frozen_ibz)
+    # parameter reduction and feasibility (schur_basis errors when infeasible)
+    @test 0 < sb.nx < (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz
+
+    # decode of the initial parameters: covariant (to the isym data noise),
+    # semi-unitary, and consistent with the Level-2 value at the same gauge
+    Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
+    U0 = Wannier.project_covariant(Ai, sc)
+    x0 = Wannier.schur_initial_x(U0, sb)
+    Ud = zeros(ComplexF64, sc.nbands, sc.nwann, sc.nk_ibz)
+    Wannier.schur_decode!(Ud, x0, sb)
+    @test Wannier.covariance_residual(Ud, sc) < 1.0e-3
+    # semi-unitarity of the decode is limited by the isym data noise through
+    # the anti-unitary coset average (1.9e-12 on the clean Ge4Ru4 data)
+    @test maximum(opnorm(Ud[:, :, k]'Ud[:, :, k] - I) for k in 1:sc.nk_ibz) < 1.0e-5
+
+    mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
+    ws2 = Wannier.SymmetricWorkspace2(Ef, frozen, sc)
+    fg! = function (F, G, x)
+        Wannier.schur_decode!(ws2.U_ibz, x, sb)
+        Ω = Wannier._fg2_core!(F, G === nothing ? nothing : ws2.G_ibz, mmn_i.M, sc, ws2)
+        G === nothing || Wannier.schur_encode_gradient!(G, ws2.G_ibz, x, sb)
+        return Ω
+    end
+    g = zero(x0)
+    Ω = fg!(1.0, g, x0)
+    @test isfinite(Ω)
+
+    # directional FD of the Schur objective (exact chain; tolerance set by
+    # FD truncation at this dataset's Im-log conditioning)
+    for _ in 1:2
+        dx = randn(ComplexF64, length(x0))
+        dx ./= norm(dx)
+        ε = 1.0e-4
+        fd = (fg!(1.0, nothing, x0 .+ ε .* dx) - fg!(1.0, nothing, x0 .- ε .* dx)) / (2ε)
+        an = real(sum(conj.(g) .* dx))
+        @test isapprox(fd, an; rtol = 1.0e-3)
+    end
+end

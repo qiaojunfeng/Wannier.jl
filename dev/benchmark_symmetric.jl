@@ -65,11 +65,33 @@ t_l1_f = mintime(() -> Wannier.symmetric_fg1!(1.0, nothing, xy, model, sc, ws1))
 t_l2_fg = mintime(() -> Wannier.symmetric_fg2!(1.0, G2, xy, mmn_i.M, sc, ws2))
 t_l2_f = mintime(() -> Wannier.symmetric_fg2!(1.0, nothing, xy, mmn_i.M, sc, ws2))
 
+frozen_ibz = frozen[:, sc.ibz2fbz]
+tsb = @elapsed sb = Wannier.schur_basis(sc, frozen_ibz)
+U0i = Wannier.project_covariant(Ai, sc)
+xs = Wannier.schur_initial_x(U0i, sb)
+gs = zero(xs)
+ws2s = Wannier.SymmetricWorkspace2(Ef, frozen, sc)
+fg_schur! = function (F, G, x)
+    Wannier.schur_decode!(ws2s.U_ibz, x, sb)
+    Ω = Wannier._fg2_core!(F, G === nothing ? nothing : ws2s.G_ibz, mmn_i.M, sc, ws2s)
+    G === nothing || Wannier.schur_encode_gradient!(G, ws2s.G_ibz, x, sb)
+    return Ω
+end
+t_sch_fg = mintime(() -> fg_schur!(1.0, gs, xs))
+t_sch_f = mintime(() -> fg_schur!(1.0, nothing, xs))
+
 println("per-evaluation wall time (min of 20):")
 @printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "full-mesh (unconstrained)", 1e3 * t_full_fg, 1e3 * t_full_f)
 @printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "Level 1 (constrained)", 1e3 * t_l1_fg, 1e3 * t_l1_f)
 @printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "Level 2 (constrained)", 1e3 * t_l2_fg, 1e3 * t_l2_f)
-@printf("  Level-2 speedup: %.2fx vs full mesh, %.2fx vs Level 1\n\n", t_full_fg / t_l2_fg, t_l1_fg / t_l2_fg)
+@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "Level 2 + Schur blocks", 1e3 * t_sch_fg, 1e3 * t_sch_f)
+@printf("  Level-2 speedup: %.2fx vs full mesh, %.2fx vs Level 1\n", t_full_fg / t_l2_fg, t_l1_fg / t_l2_fg)
+@printf("  Schur speedup:   %.2fx vs full mesh\n", t_full_fg / t_sch_fg)
+@printf(
+    "  parameters: XY %d complex, Schur %d complex (%.1fx fewer; basis setup %.1fs)\n\n",
+    (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz, sb.nx,
+    (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz / sb.nx, tsb,
+)
 
 # equivalence at the shared starting point
 Ω1 = Wannier.symmetric_fg1!(1.0, G1, xy, model, sc, ws1)
@@ -78,6 +100,7 @@ println("per-evaluation wall time (min of 20):")
 
 # ---- full optimizations ------------------------------------------------------
 NITER = parse(Int, get(ENV, "NITER", "100"))
+ts = @elapsed (Us, Usi) = Wannier.localize_symmetric(model, mmn_i.M, sc; level = 2, schur = true, max_iter = NITER)
 t2 = @elapsed (U2, U2i) = Wannier.localize_symmetric(model, mmn_i.M, sc; level = 2, max_iter = NITER)
 t1 = @elapsed (U1, _) = Wannier.localize_symmetric(model, mmn_i.M, sc; level = 1, max_iter = NITER)
 t0 = @elapsed U0 = Wannier.localize(model; max_iter = NITER)
@@ -90,7 +113,10 @@ println("optimization ($NITER LBFGS iterations):")
 @printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "full-mesh MLWF", s0.Ω, t0)
 @printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF Level 1", s1.Ω, t1)
 @printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF Level 2", s2.Ω, t2)
-@printf("  covariance residual of SAWF gauge: %.2e\n\n", Wannier.covariance_residual(U2i, sc))
+ss = Wannier.spread(model.kstencil, model.overlaps, Us)
+@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF Level 2 + Schur", ss.Ω, ts)
+@printf("  covariance residual: L2 %.2e, Schur %.2e\n\n",
+    Wannier.covariance_residual(U2i, sc), Wannier.covariance_residual(Usi, sc))
 
 # ---- spread symmetry ---------------------------------------------------------
 # WF orbits from the joint nonzero pattern of the orbital representations
@@ -106,9 +132,10 @@ println("per-orbit spread uniformity (max - min within symmetry orbit):")
 for r in unique(orbit_of)
     ws = findall(orbit_of .== r)
     @printf(
-        "  orbit %-12s  SAWF %.2e   MLWF %.2e\n",
+        "  orbit %-12s  SAWF %.2e   Schur %.2e   MLWF %.2e\n",
         string(ws[1]) * "-" * string(ws[end]),
         maximum(s2.ω[ws]) - minimum(s2.ω[ws]),
+        maximum(ss.ω[ws]) - minimum(ss.ω[ws]),
         maximum(s0.ω[ws]) - minimum(s0.ω[ws]),
     )
 end

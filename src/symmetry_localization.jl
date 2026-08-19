@@ -641,13 +641,32 @@ function symmetric_fg2!(
         M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint{T},
         ws::SymmetricWorkspace2{T},
     ) where {T}
-    nw, nki, nkf, nbv = sc.nwann, sc.nk_ibz, sc.nk_fbz, sc.nbvecs
-    wb = sc.bweights
-
     # decode -> covariant U at IBZ
     XY_to_X_Y!(ws.X_ibz, ws.Y_ibz, xy)
     X_Y_to_U!(ws.U_ibz, ws.X_ibz, ws.Y_ibz)
     project_covariant!(ws.U_ibz, sc)
+
+    Ω = _fg2_core!(F, G === nothing ? nothing : ws.G_ibz, M_ibz, sc, ws)
+
+    if G !== nothing
+        project_covariant!(ws.G_ibz, sc)
+        encode_gradient_xy!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.frozen_ibz)
+    end
+    return Ω
+end
+
+"""
+Level-2 core: value and (unprojected) canonical gradient `dΩ/dU*(ki)` for the
+covariant gauge already stored in `ws.U_ibz`. Writes the gradient into
+`G_ibz` when given.
+"""
+function _fg2_core!(
+        F, G_ibz,
+        M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint{T},
+        ws::SymmetricWorkspace2{T},
+    ) where {T}
+    nw, nki, nkf, nbv = sc.nwann, sc.nk_ibz, sc.nk_fbz, sc.nbvecs
+    wb = sc.bweights
 
     # Pass 0 (heavy, IBZ only): U(ki+bi), MU_i, M̃_i
     for iki in 1:nki, ibi in 1:nbv
@@ -701,7 +720,7 @@ function symmetric_fg2!(
         Ω = Ω / nkf - sum(r -> sum(abs2, r), ws.r)
     end
 
-    if G !== nothing
+    if G_ibz !== nothing
         # Sweep 2: accumulate the seeds 𝒦 on the IBZ pairs
         fill!(ws.K, 0)
         Tn = zeros(Complex{T}, nw)
@@ -739,16 +758,14 @@ function symmetric_fg2!(
                 end
             end
         end
-        # assembly: dΩ/dU*(ki) = Σ_bi MU_i 𝒦, then project and encode
-        fill!(ws.G_ibz, 0)
+        # assembly: dΩ/dU*(ki) = Σ_bi MU_i 𝒦
+        fill!(G_ibz, 0)
         for iki in 1:nki, ibi in 1:nbv
             mul!(
-                view(ws.G_ibz, :, :, iki), view(ws.MU, :, :, ibi, iki),
+                view(G_ibz, :, :, iki), view(ws.MU, :, :, ibi, iki),
                 view(ws.K, :, :, ibi, iki), true, true,
             )
         end
-        project_covariant!(ws.G_ibz, sc)
-        encode_gradient_xy!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.frozen_ibz)
     end
 
     return Ω
@@ -780,6 +797,10 @@ representative.
 - `level`: `2` (default) evaluates value/gradient via the IBZ-only transport
   kernels ([`symmetric_fg2!`](@ref)); `1` expands to the full mesh each
   iteration ([`symmetric_fg1!`](@ref)). Identical results, different cost.
+- `schur`: parameterize the covariant gauges by their per-irrep Schur blocks
+  ([`schur_basis`](@ref)) instead of full `(X, Y)` matrices plus projector —
+  fewer parameters, no projector calls, exact unitary covariance by
+  construction. Requires `level = 2`.
 - remaining kwargs are forwarded to [`OptimLBFGS`](@ref).
 """
 function localize_symmetric(
@@ -787,6 +808,7 @@ function localize_symmetric(
         M_ibz::AbstractArray{<:Complex, 4},
         sc::SymmetryConstraint;
         level::Integer = 2,
+        schur::Bool = false,
         kwargs...,
     )
     solver = OptimLBFGS(; kwargs...)
@@ -796,6 +818,23 @@ function localize_symmetric(
     frozen_ibz = model.frozen_bands[:, sc.ibz2fbz]
     X0, Y0 = U_to_X_Y(U0_ibz, frozen_ibz)
     x0 = X_Y_to_XY(X0, Y0)
+
+    if schur
+        level == 2 || error("the Schur parametrization requires level = 2")
+        sb = schur_basis(sc, frozen_ibz)
+        ws2 = SymmetricWorkspace2(model.eigenvalues, model.frozen_bands, sc)
+        xs0 = schur_initial_x(U0_ibz, sb)
+        fgs! = function (F, G, x)
+            schur_decode!(ws2.U_ibz, x, sb)
+            Ω = _fg2_core!(F, G === nothing ? nothing : ws2.G_ibz, M_ibz, sc, ws2)
+            G === nothing || schur_encode_gradient!(G, ws2.G_ibz, x, sb)
+            return Ω
+        end
+        opt = _run_optim_fg!(fgs!, xs0, SchurManifold(sb), solver)
+        U_ibz = zeros(eltype(U0_ibz), sc.nbands, sc.nwann, sc.nk_ibz)
+        schur_decode!(U_ibz, Optim.minimizer(opt), sb)
+        return expand_gauges(U_ibz, sc), U_ibz
+    end
 
     if level == 1
         ws1 = SymmetricWorkspace(model, sc)
@@ -821,4 +860,328 @@ function localize_symmetric(
     project_covariant!(U_ibz, sc)
     U_fbz = expand_gauges(U_ibz, sc)
     return U_fbz, U_ibz
+end
+
+# -----------------------------------------------------------------------------
+# Schur (per-irrep block) parametrization — "Phase B" of the design doc.
+#
+# At each IBZ kpoint the unitary little subgroup acts on the (unmasked) band
+# space by d̂(ĥ) and on the orbital space by W(ĥ) = A(ĥ)†. Simultaneous
+# block diagonalization (via eigenspaces of a generic commutant element)
+# splits both into irrep copies; aligning every copy to a per-class reference
+# irrep turns the covariance constraint into Schur block form
+#   U(ki) = Σ_λ Σ_{j=1..dλ} Bb_λ[j] · C_λ · Bo_λ[j]†,
+# with C_λ (m_b × m_o) free up to the Stiefel + frozen conditions, which are
+# handled by the per-block DLL (X, Y) parametrization. Unitary-subgroup
+# covariance is then exact by construction; anti-unitary little-group
+# elements are enforced by a single 2-term coset average in the decode.
+# -----------------------------------------------------------------------------
+
+using Random: MersenneTwister, randn!
+
+"""One irrep class at one IBZ kpoint: partner-stacked band/orbital bases."""
+struct SchurBlock{T}
+    dim::Int   # irrep dimension dλ
+    mb::Int    # band multiplicity (frozen copies first)
+    mo::Int    # orbital multiplicity
+    mf::Int    # frozen band multiplicity
+    Bb::Vector{Matrix{Complex{T}}}   # dλ matrices, n_bands × mb
+    Bo::Vector{Matrix{Complex{T}}}   # dλ matrices, n_wann  × mo
+end
+
+"""
+Schur-adapted bases for all IBZ kpoints, plus the anti-unitary coset
+representative (band rep, orbital matrix) where the little group is magnetic.
+"""
+struct SchurBasis{T}
+    blocks::Vector{Vector{SchurBlock{T}}}
+    aop::Vector{Union{Nothing, Tuple{Matrix{Complex{T}}, Matrix{Complex{T}}}}}
+    nx::Int
+end
+
+# eigenvalue clustering: indices grouped by gaps
+function _cluster(E::AbstractVector{<:Real}; rtol = 1.0e-4)
+    tol = rtol * (E[end] - E[1] + 1)
+    groups = Vector{UnitRange{Int}}()
+    lo = 1
+    for i in 1:(length(E) - 1)
+        if E[i + 1] - E[i] > tol
+            push!(groups, lo:i)
+            lo = i + 1
+        end
+    end
+    push!(groups, lo:length(E))
+    return groups
+end
+
+# irrep copies of the unitary representation ρs (list of dim×dim matrices):
+# eigenspaces of a generic commutant element. Returns (Q, ρQ) pairs.
+function _irrep_copies(ρs::Vector{Matrix{CT}}, rng) where {CT}
+    dim = size(ρs[1], 1)
+    H = randn(rng, CT, dim, dim)
+    H = Matrix(Hermitian(H + H'))
+    Hc = zeros(CT, dim, dim)
+    for ρ in ρs
+        Hc .+= ρ * H * ρ'
+    end
+    Hc ./= length(ρs)
+    E, V = eigen(Hermitian((Hc + Hc') / 2))
+    copies = Tuple{Matrix{CT}, Vector{Matrix{CT}}}[]
+    for g in _cluster(E)
+        Q = V[:, g]
+        ρQ = [Q' * ρ * Q for ρ in ρs]
+        push!(copies, (Q, ρQ))
+    end
+    return copies
+end
+
+# Schur intertwiner test/alignment: S = mean(ρQ Z ρref†). Returns the unitary
+# aligner (Q ← Q·u makes ρQ ≡ ρref) or nothing if inequivalent.
+function _align_to(ρQ::Vector{Matrix{CT}}, ρref::Vector{Matrix{CT}}, Z) where {CT}
+    d = size(Z, 1)
+    (size(ρQ[1], 1) == d && size(ρref[1], 1) == d) || return nothing
+    S = zeros(CT, d, d)
+    for (a, b) in zip(ρQ, ρref)
+        S .+= a * Z * b'
+    end
+    S ./= length(ρQ)
+    norm(S) < 1.0e-2 * norm(Z) && return nothing
+    return orthonorm_lowdin(S)
+end
+
+"""
+    $(SIGNATURES)
+
+Build the Schur-adapted bases for every IBZ kpoint. `frozen_ibz` is the
+frozen-band mask at the IBZ kpoints. Errors when the frozen window cuts a
+degenerate multiplet (the frozen subspace must be little-group invariant) or
+when the feasibility counts `m_f ≤ m_o ≤ m_b` fail for some irrep.
+"""
+function schur_basis(
+        sc::SymmetryConstraint{T}, frozen_ibz::AbstractMatrix{Bool}
+    ) where {T}
+    CT = Complex{T}
+    rng = MersenneTwister(20260819)
+    nb, nw = sc.nbands, sc.nwann
+    blocks = Vector{Vector{SchurBlock{T}}}(undef, sc.nk_ibz)
+    aop = Vector{Union{Nothing, Tuple{Matrix{CT}, Matrix{CT}}}}(undef, sc.nk_ibz)
+
+    for iki in 1:sc.nk_ibz
+        entries = sc.proj[iki]
+        uidx = findall(e -> !e[3], entries)
+        aidx = findall(e -> e[3], entries)
+        aop[iki] = isempty(aidx) ? nothing :
+            (Matrix(entries[aidx[1]][1]), Matrix(entries[aidx[1]][2]))
+
+        # orbital representation W(ĥ) = A(ĥ)†
+        Wo = [Matrix(entries[i][2])' for i in uidx]
+        db = [Matrix(entries[i][1]) for i in uidx]
+
+        ok = sc.band_ok[iki]
+        f = frozen_ibz[:, iki] .& ok
+        r = ok .& .!f
+        # the frozen subspace must be invariant (energy blocks)
+        for d in db
+            norm(d[f, r]) < 1.0e-5 * max(1, norm(d)) ||
+                error("frozen window cuts a degenerate multiplet at IBZ kpoint $iki")
+        end
+
+        # copies: orbital side (defines the references), then band side
+        ocopies = _irrep_copies([Matrix{CT}(w) for w in Wo], rng)
+        classes = Vector{Tuple{Vector{Matrix{CT}}, Vector{Matrix{CT}}, Vector{Matrix{CT}}, Int}}()
+        # per class: (ρref, orbital copies Qo, band copies Qb, n frozen band copies)
+        for (Q, ρQ) in ocopies
+            matched = false
+            for cl in classes
+                u = _align_to(ρQ, cl[1], randn(rng, CT, size(Q, 2), size(Q, 2)))
+                if u !== nothing
+                    push!(cl[2], Q * u)
+                    matched = true
+                    break
+                end
+            end
+            matched || push!(classes, (ρQ, [Q], Matrix{CT}[], 0))
+        end
+        # band side: frozen subspace first, then the rest
+        for (sub, is_froz) in ((f, true), (r, false))
+            count(sub) == 0 && continue
+            idx = findall(sub)
+            ρsub = [d[idx, idx] for d in db]
+            for (Qs, ρQ) in _irrep_copies(ρsub, rng)
+                Q = zeros(CT, nb, size(Qs, 2))
+                Q[idx, :] .= Qs
+                for (ci, cl) in enumerate(classes)
+                    u = _align_to(ρQ, cl[1], randn(rng, CT, size(Qs, 2), size(Qs, 2)))
+                    if u !== nothing
+                        if is_froz
+                            insert!(cl[3], cl[4] + 1, Q * u)
+                            classes[ci] = (cl[1], cl[2], cl[3], cl[4] + 1)
+                        else
+                            push!(cl[3], Q * u)
+                        end
+                        break
+                    end
+                end
+                # unmatched band copies carry irreps absent from the orbitals:
+                # a covariant gauge has no weight there; drop them.
+            end
+        end
+
+        blks = SchurBlock{T}[]
+        for (ρref, Qos, Qbs, nf) in classes
+            dλ = size(ρref[1], 1)
+            mo, mb, mf = length(Qos), length(Qbs), nf
+            mf <= mo <= mb || error(
+                "infeasible symmetry constraint at IBZ kpoint $iki: " *
+                    "irrep with (m_f, m_o, m_b) = ($mf, $mo, $mb) violates m_f ≤ m_o ≤ m_b"
+            )
+            Bo = [hcat((Q[:, j] for Q in Qos)...) for j in 1:dλ]
+            Bb = [hcat((Q[:, j] for Q in Qbs)...) for j in 1:dλ]
+            push!(blks, SchurBlock{T}(dλ, mb, mo, mf, Bb, Bo))
+        end
+        blocks[iki] = blks
+    end
+
+    nx = sum(
+        blk.mo^2 + (blk.mb - blk.mf) * (blk.mo - blk.mf)
+            for blks in blocks for blk in blks
+    )
+    return SchurBasis{T}(blocks, aop, nx)
+end
+
+# iterate the flat parameter vector: yields (iki, blk, Xrange, Yrange)
+function _schur_ranges(sb::SchurBasis)
+    out = Tuple{Int, SchurBlock, UnitRange{Int}, UnitRange{Int}}[]
+    off = 0
+    for (iki, blks) in enumerate(sb.blocks), blk in blks
+        nX = blk.mo^2
+        nY = (blk.mb - blk.mf) * (blk.mo - blk.mf)
+        push!(out, (iki, blk, (off + 1):(off + nX), (off + nX + 1):(off + nX + nY)))
+        off += nX + nY
+    end
+    return out
+end
+
+_blockC(blk, X, Y) = vcat(X[1:blk.mf, :], Y * X[(blk.mf + 1):end, :])
+
+# anti-unitary coset average and its real-inner-product adjoint
+_aavg(U, ::Nothing) = U
+_aavg(U, da_Aa) = (U .+ da_Aa[1] * conj.(U * da_Aa[2])) ./ 2
+_aavg_adj(G, ::Nothing) = G
+_aavg_adj(G, da_Aa) = (G .+ transpose(da_Aa[1]) * conj.(G) * da_Aa[2]') ./ 2
+
+"""
+    $(SIGNATURES)
+
+Decode the Schur parameters `x` into the covariant IBZ gauge `U_ibz`.
+"""
+function schur_decode!(
+        U_ibz::AbstractArray{<:Complex, 3}, x::AbstractVector, sb::SchurBasis
+    )
+    fill!(U_ibz, 0)
+    for (iki, blk, rX, rY) in _schur_ranges(sb)
+        X = reshape(view(x, rX), blk.mo, blk.mo)
+        Y = reshape(view(x, rY), blk.mb - blk.mf, blk.mo - blk.mf)
+        C = _blockC(blk, X, Y)
+        for j in 1:blk.dim
+            mul!(view(U_ibz, :, :, iki), blk.Bb[j] * C, blk.Bo[j]', true, true)
+        end
+    end
+    for iki in axes(U_ibz, 3)
+        view(U_ibz, :, :, iki) .= _aavg(U_ibz[:, :, iki], sb.aop[iki])
+    end
+    return U_ibz
+end
+
+"""
+    $(SIGNATURES)
+
+Chain the canonical IBZ gradient `G_ibz = dΩ/dU*` into the Schur parameter
+gradient `g` (layout of `x`).
+"""
+function schur_encode_gradient!(
+        g::AbstractVector, G_ibz::AbstractArray{<:Complex, 3},
+        x::AbstractVector, sb::SchurBasis,
+    )
+    Ga = [_aavg_adj(G_ibz[:, :, iki], sb.aop[iki]) for iki in axes(G_ibz, 3)]
+    for (iki, blk, rX, rY) in _schur_ranges(sb)
+        X = reshape(view(x, rX), blk.mo, blk.mo)
+        Y = reshape(view(x, rY), blk.mb - blk.mf, blk.mo - blk.mf)
+        GC = zeros(eltype(g), blk.mb, blk.mo)
+        for j in 1:blk.dim
+            mul!(GC, blk.Bb[j]', Ga[iki] * blk.Bo[j], true, true)
+        end
+        # C = J(Y) X: GX = J† GC ; GY = (GC X†) bottom-right block
+        GX = vcat(GC[1:blk.mf, :], Y' * GC[(blk.mf + 1):end, :])
+        GCXt = GC * X'
+        GY = GCXt[(blk.mf + 1):end, (blk.mf + 1):end]
+        view(g, rX) .= vec(GX)
+        view(g, rY) .= vec(GY)
+    end
+    return g
+end
+
+"""
+    $(SIGNATURES)
+
+Initial Schur parameters from an IBZ gauge (its covariant block content).
+"""
+function schur_initial_x(
+        U_ibz::AbstractArray{CT, 3}, sb::SchurBasis
+    ) where {CT <: Complex}
+    x = zeros(CT, sb.nx)
+    for (iki, blk, rX, rY) in _schur_ranges(sb)
+        C = zeros(CT, blk.mb, blk.mo)
+        for j in 1:blk.dim
+            mul!(C, blk.Bb[j]', view(U_ibz, :, :, iki) * blk.Bo[j], true, true)
+        end
+        C ./= blk.dim
+        # direct (empty-shape-safe) construction of the per-block (X, Y):
+        # Y spans the dominant non-frozen row space of C, X aligns J(Y)† C
+        mf, mo, mb = blk.mf, blk.mo, blk.mb
+        Y = zeros(eltype(x), mb - mf, mo - mf)
+        if mo > mf && mb > mf
+            Cr = C[(mf + 1):end, :]
+            P = Hermitian(Cr * Cr')
+            E, V = eigen(P)
+            Y .= V[:, (end - (mo - mf) + 1):end]
+        end
+        JtC = vcat(C[1:mf, :], Y' * C[(mf + 1):end, :])
+        X = orthonorm_lowdin(JtC)
+        view(x, rX) .= vec(X)
+        view(x, rY) .= vec(Y)
+    end
+    return x
+end
+
+"""Product-of-Stiefel manifold over the per-(kpoint, irrep) Schur blocks."""
+struct SchurManifold <: Optim.Manifold
+    ranges::Vector{Tuple{Int, SchurBlock, UnitRange{Int}, UnitRange{Int}}}
+end
+SchurManifold(sb::SchurBasis) = SchurManifold(_schur_ranges(sb))
+
+function Optim.retract!(M::SchurManifold, x)
+    for (_, blk, rX, rY) in M.ranges
+        X = reshape(view(x, rX), blk.mo, blk.mo)
+        X .= orthonorm_lowdin(Matrix(X))
+        if !isempty(rY)
+            Y = reshape(view(x, rY), blk.mb - blk.mf, blk.mo - blk.mf)
+            Y .= orthonorm_lowdin(Matrix(Y))
+        end
+    end
+    return x
+end
+
+function Optim.project_tangent!(M::SchurManifold, g, x)
+    for (_, blk, rX, rY) in M.ranges
+        X = reshape(view(x, rX), blk.mo, blk.mo)
+        GX = reshape(view(g, rX), blk.mo, blk.mo)
+        GX .-= X * ((X' * GX .+ GX' * X) ./ 2)
+        if !isempty(rY)
+            Y = reshape(view(x, rY), blk.mb - blk.mf, blk.mo - blk.mf)
+            GY = reshape(view(g, rY), blk.mb - blk.mf, blk.mo - blk.mf)
+            GY .-= Y * ((Y' * GY .+ GY' * Y) ./ 2)
+        end
+    end
+    return g
 end
