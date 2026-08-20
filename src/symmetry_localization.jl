@@ -83,6 +83,17 @@ struct SymmetryConstraint{T <: Real}
     Aib::Matrix{Matrix{Complex{T}}}
     trev_ib::BitMatrix
 
+    # Hermiticity-pair tables for the pass-0 halving of `_fg2_core!`:
+    # `ikpb_fbz[ibi, iki]` is the FBZ index of ki + bi (the base point of the
+    # dagger member (ki+bi, −bi) of the pair (ki, bi)), and `opp_b[ib]` the
+    # index of −b[ib] in the global b shell. The induced partner map
+    # P(iki, ibi) = (ikb[ibi, iki], ibi_of[opp_b[ibi], ikpb_fbz[ibi, iki]])
+    # is generally *not* an involution (P² can land on a little-group-related
+    # b at ki); `_fg2_core!` derives only the 2-cycle pairs of P and needs
+    # the dagger member to star-map to the stored kb (asserted at build time).
+    ikpb_fbz::Matrix{Int}
+    opp_b::Vector{Int}
+
     # Level-2 star tables, per (ibf, ikf): b index at the IBZ source, the
     # unfolding phase (± sign of merge_symops folded in), the orbital
     # transport R, and the band-space d(ĥ, kb) with its conjugation flag
@@ -297,6 +308,13 @@ function symmetry_constraint(
     ikb = zeros(Int, nbvecs, nk_ibz)
     Aib = Matrix{Matrix{CT}}(undef, nbvecs, nk_ibz)
     trev_ib = falses(nbvecs, nk_ibz)
+    ikpb_fbz = zeros(Int, nbvecs, nk_ibz)
+    opp_b = map(bvecs_frac) do b
+        ib2 = findfirst(isequiv(-b), bvecs_frac)
+        isnothing(ib2) && error("b shell is not inversion-closed: -b missing for b = $b")
+        ib2
+    end
+    opp_b[opp_b] == 1:nbvecs || error("opp_b is not an involution")
     ibi_of = zeros(Int, nbvecs, nk_fbz)
     phase = zeros(CT, nbvecs, nk_fbz)
     Rmat = Matrix{SM}(undef, nbvecs, nk_fbz)
@@ -350,10 +368,18 @@ function symmetry_constraint(
                 ikb[ibi, iki] = ikbi_ibz
                 Aib[ibi, iki] = A_bi
                 trev_ib[ibi, iki] = symops[isym_kbi].time_reversal
+                ikpb_fbz[ibi, iki] = ikbi_fbz
             end
         end
     end
     any(iszero, ikb) && error("Some (ibi, iki) pass-0 entries were never filled")
+    # Hermiticity-pair consistency: the dagger member (ki+bi, −bi) of the
+    # pair (ki, bi) must star-map to the same IBZ point kb as the pass-0
+    # tables (so `_fg2_core!` can read the partner M̃ at (kb, ibi2)).
+    for iki in 1:nk_ibz, ibi in 1:nbvecs
+        fbz2ibz[ikpb_fbz[ibi, iki]][1] == ikb[ibi, iki] ||
+            error("Hermiticity-pair map inconsistent at (ibi = $ibi, iki = $iki)")
+    end
 
     return SymmetryConstraint{T}(
         nk_fbz, nk_ibz, nbvecs, nwann, nbands,
@@ -361,6 +387,7 @@ function symmetry_constraint(
         proj, band_ok, proj_niter,
         Lmat, trev_f,
         ikb, Aib, trev_ib,
+        ikpb_fbz, opp_b,
         ibi_of, phase, Rmat, dmat, trev_bi,
         bvec_cart, bweights,
     )
@@ -686,17 +713,78 @@ function _fg2_core!(
     nw, nki, nkf, nbv = sc.nwann, sc.nk_ibz, sc.nk_fbz, sc.nbvecs
     wb = sc.bweights
 
-    # Pass 0 (heavy, IBZ only): U(ki+bi), MU_i, M̃_i
+    # Pass 0 (heavy, IBZ only): U(ki+bi), MU_i, M̃_i — with Hermiticity-pair
+    # halving of the band-dimension GEMMs. The pair (ki, bi) has its dagger
+    # member at the FBZ point ikpb = sc.ikpb_fbz[ibi, iki] with b-vector −bi:
+    # in the fixed gauge M̃^{(ikpb, −bi)} = (M̃_i^{(iki,ibi)})† exactly. The
+    # star tables at (ib2, ikpb), ib2 = sc.opp_b[ibi], map that same object
+    # to the IBZ pair p = (kb, ibi2) = (sc.ikb[ibi,iki], sc.ibi_of[ib2,ikpb]):
+    #   (M̃_q)† = phase2 · 𝒦_2[ L2† · M̃_p · R2 ],   q = (iki, ibi),
+    # with phase2 = sc.phase[ib2,ikpb], L2 = sc.Lmat[ikpb],
+    # R2 = sc.Rmat[ib2,ikpb], 𝒦_2 flag sc.trev_f[ikpb]. Solving (L2, R2
+    # unitary) gives the partner M̃ as a cheap nw-dimensional conjugation:
+    #   M̃_q = conj(phase2) · 𝒦_2[ R2† · M̃_p† · L2 ]                     (HP)
+    #
+    # The partner map q ↦ p is not an involution: P² can land on a
+    # little-group-related b at ki. Where q and p form a true 2-cycle
+    # (P(p) = q) the stored overlaps are Hermiticity-consistent and (HP) is
+    # machine-exact (max 5e-12 on Si2_hse, 3e-13 on Ge4Ru4); along P-chains
+    # the two data entries are related only through a little-group rotation,
+    # so (HP) holds only to the data's symmetry noise (4e-7 on Ge4Ru4, 7e-4
+    # on Si2_hse). Only 2-cycle pairs are therefore *derived* (the member
+    # with the larger linear key (iki−1)·nbv + ibi); everything else —
+    # including self-paired pairs — is *canonical* and computed directly,
+    # which keeps the Level-2 value/gradient identical to Level 1 instead of
+    # only data-noise-close.
+    pair_key(jki, jbi) = (jki - 1) * nbv + jbi
+    partner_of(jki, jbi) =
+        (sc.ikb[jbi, jki], sc.ibi_of[sc.opp_b[jbi], sc.ikpb_fbz[jbi, jki]])
+    function pair_derived(jki, jbi)
+        kb, jbi2 = partner_of(jki, jbi)
+        return pair_key(kb, jbi2) < pair_key(jki, jbi) &&
+            partner_of(kb, jbi2) == (jki, jbi)
+    end
+
+    # Loop A (all pairs): U(ki+bi); and MU_i when the gradient is requested —
+    # the gradient assembly needs MU for every pair, so there is no halving
+    # there. The value-only path skips MU here entirely and skips U(ki+bi)
+    # for the derived pairs (unused there) — that is where the pass-0 gain
+    # lives.
     for iki in 1:nki, ibi in 1:nbv
+        G_ibz === nothing && pair_derived(iki, ibi) && continue
         ikb = sc.ikb[ibi, iki]
         Uk = view(ws.Ukb, :, :, ibi, iki)
         mul!(Uk, view(ws.U_ibz, :, :, ikb), sc.Aib[ibi, iki])
         sc.trev_ib[ibi, iki] && (Uk .= conj.(Uk))
-        mul!(view(ws.MU, :, :, ibi, iki), view(M_ibz, :, :, ibi, iki), Uk)
-        mul!(
-            view(ws.Mt, :, :, ibi, iki), view(ws.U_ibz, :, :, iki)',
-            view(ws.MU, :, :, ibi, iki),
-        )
+        if G_ibz !== nothing
+            mul!(view(ws.MU, :, :, ibi, iki), view(M_ibz, :, :, ibi, iki), Uk)
+        end
+    end
+    # Loop B (canonical pairs only): M̃_i = U(ki)† (M·U(ki+bi)); on the
+    # value-only path the M·U product is formed here, for the canonical
+    # pairs only, reusing the MU slice as scratch.
+    for iki in 1:nki, ibi in 1:nbv
+        pair_derived(iki, ibi) && continue
+        MUv = view(ws.MU, :, :, ibi, iki)
+        if G_ibz === nothing
+            mul!(MUv, view(M_ibz, :, :, ibi, iki), view(ws.Ukb, :, :, ibi, iki))
+        end
+        mul!(view(ws.Mt, :, :, ibi, iki), view(ws.U_ibz, :, :, iki)', MUv)
+    end
+    # Loop C (derived pairs): M̃ from the canonical partner via the transport
+    # (HP) — no band-dimension GEMM. The partner of a derived pair is the
+    # smaller-key member of a 2-cycle, hence canonical and already computed.
+    for iki in 1:nki, ibi in 1:nbv
+        pair_derived(iki, ibi) || continue
+        kb, ibi2 = partner_of(iki, ibi)
+        ikpb = sc.ikpb_fbz[ibi, iki]
+        ib2 = sc.opp_b[ibi]
+        Mq = view(ws.Mt, :, :, ibi, iki)
+        ws.tmp1 .= view(ws.Mt, :, :, ibi2, kb)'
+        mul!(ws.tmp2, sc.Rmat[ib2, ikpb]', ws.tmp1)
+        mul!(Mq, ws.tmp2, sc.Lmat[ikpb])
+        sc.trev_f[ikpb] && (Mq .= conj.(Mq))
+        Mq .*= conj(sc.phase[ib2, ikpb])
     end
 
     # Sweep 1 (light, full mesh): transported diagonals and centers.

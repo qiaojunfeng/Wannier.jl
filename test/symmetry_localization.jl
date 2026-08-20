@@ -214,6 +214,69 @@ end
     end
 end
 
+@testitem "hermiticity-pair transport" begin
+    using WannierIO, LinearAlgebra
+    using Wannier.Datasets
+
+    nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
+    ks0 = Wannier.KspaceStencil(
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
+    )
+    isym = read_isym(dataset"Si2_hse/Si2.isym")
+    Wannier.rescale!(isym.littlegroup_reps)
+    centers = [p.center for p in nnkp["projections"]]
+    sc = Wannier.symmetry_constraint(ks0, isym, centers)
+
+    # table consistency: opp_b is the −b involution, ikpb_fbz points at ki+bi,
+    # and the dagger member star-maps to the pass-0 IBZ point kb
+    bvecs = get_bvectors(ks0; fractional = true)
+    @test all(ib -> Wannier.isequiv(bvecs[sc.opp_b[ib]], -bvecs[ib]), 1:sc.nbvecs)
+    @test sc.opp_b[sc.opp_b] == 1:sc.nbvecs
+    for iki in 1:sc.nk_ibz, ibi in 1:sc.nbvecs
+        @test Wannier.isequiv(
+            ks0.kpoints[sc.ikpb_fbz[ibi, iki]], isym.kpoints_ibz[iki] + bvecs[ibi]
+        )
+        @test sc.fbz2ibz[sc.ikpb_fbz[ibi, iki]][1] == sc.ikb[ibi, iki]
+    end
+
+    # partner-transport identity at a covariant gauge: with p = P(q) the
+    # Hermiticity pair of q = (iki, ibi),
+    #   M̃_q = conj(phase2) · 𝒦_2[ R2† · M̃_p† · L2 ]
+    # (the relation `_fg2_core!` uses in its loop C). For the 2-cycle pairs
+    # of P — the only ones the halving derives — the stored overlaps are
+    # Hermiticity-consistent and the identity is machine-exact even on this
+    # noisy dataset (max ~5e-12; tested at 1e-4 for margin). Along P-chains
+    # the two data entries are related only through a little-group rotation
+    # and the residual is the data's symmetry noise (up to ~7e-4 here, ~4e-7
+    # on clean Ge4Ru4 data); those pairs are computed directly.
+    mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
+    Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
+    U_i = Wannier.project_covariant(Wannier.orthonorm_lowdin(Ai), sc)
+    nw, nbv, nki = sc.nwann, sc.nbvecs, sc.nk_ibz
+    Mt = zeros(ComplexF64, nw, nw, nbv, nki)
+    for iki in 1:nki, ibi in 1:nbv
+        kb = sc.ikb[ibi, iki]
+        Ukb = Wannier._kconj(U_i[:, :, kb] * sc.Aib[ibi, iki], sc.trev_ib[ibi, iki])
+        Mt[:, :, ibi, iki] = U_i[:, :, iki]' * mmn_i.M[:, :, ibi, iki] * Ukb
+    end
+    partner(iki, ibi) = (sc.ikb[ibi, iki], sc.ibi_of[sc.opp_b[ibi], sc.ikpb_fbz[ibi, iki]])
+    n2cycle = 0
+    for iki in 1:nki, ibi in 1:nbv
+        kb, ibi2 = partner(iki, ibi)
+        partner(kb, ibi2) == (iki, ibi) || continue  # 2-cycle pairs only
+        global n2cycle += 1
+        ikpb = sc.ikpb_fbz[ibi, iki]
+        ib2 = sc.opp_b[ibi]
+        pred = conj(sc.phase[ib2, ikpb]) .* Wannier._kconj(
+            Matrix(sc.Rmat[ib2, ikpb])' * Mt[:, :, ibi2, kb]' * Matrix(sc.Lmat[ikpb]),
+            sc.trev_f[ikpb],
+        )
+        @test norm(pred - Mt[:, :, ibi, iki]) < 1.0e-4
+    end
+    # the halving must actually kick in: Si2_hse has 144 2-cycle pairs of 232
+    @test n2cycle > 0.5 * nbv * nki
+end
+
 @testitem "schur block parametrization" begin
     using WannierIO, LinearAlgebra
     using Wannier.Datasets

@@ -88,9 +88,21 @@ println("per-evaluation wall time (min of 20):")
 @printf("  Level-2 speedup: %.2fx vs full mesh, %.2fx vs Level 1\n", t_full_fg / t_l2_fg, t_l1_fg / t_l2_fg)
 @printf("  Schur speedup:   %.2fx vs full mesh\n", t_full_fg / t_sch_fg)
 @printf(
-    "  parameters: XY %d complex, Schur %d complex (%.1fx fewer; basis setup %.1fs)\n\n",
+    "  parameters: XY %d complex, Schur %d complex (%.1fx fewer; basis setup %.1fs)\n",
     (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz, sb.nx,
     (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz / sb.nx, tsb,
+)
+# Hermiticity-pair halving coverage of the Level-2 pass 0 (only the 2-cycle
+# pairs of the partner map are derived; see `_fg2_core!`)
+pkey(iki, ibi) = (iki - 1) * sc.nbvecs + ibi
+pof(iki, ibi) = (sc.ikb[ibi, iki], sc.ibi_of[sc.opp_b[ibi], sc.ikpb_fbz[ibi, iki]])
+nderived = count(
+    p -> pkey(pof(p...)...) < pkey(p...) && pof(pof(p...)...) == p,
+    ((iki, ibi) for iki in 1:sc.nk_ibz, ibi in 1:sc.nbvecs),
+)
+@printf(
+    "  Level-2 pass 0: %d of %d IBZ pairs derived via Hermiticity pairs\n\n",
+    nderived, sc.nbvecs * sc.nk_ibz,
 )
 
 # equivalence at the shared starting point
