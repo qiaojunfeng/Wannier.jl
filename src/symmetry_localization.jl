@@ -620,8 +620,12 @@ covariant gauge already stored in `ws.U_ibz` — expand to the full mesh, run
 the standard full-mesh kernels, pull the gradient back to the IBZ. Writes the
 gradient into `G_ibz` when given. Counterpart of [`_fg2_core!`](@ref).
 """
+_fg1_core!(F, G_ibz, model::Model, sc::SymmetryConstraint, ws::SymmetricWorkspace) =
+    _fg1_core!(F, G_ibz, (r, _) -> r, model, sc, ws)
+
 function _fg1_core!(
-        F, G_ibz, model::Model, sc::SymmetryConstraint, ws::SymmetricWorkspace
+        F, G_ibz, penalty::Function,
+        model::Model, sc::SymmetryConstraint, ws::SymmetricWorkspace,
     )
     expand_gauges!(ws.full.U, ws.U_ibz, sc)
 
@@ -629,11 +633,13 @@ function _fg1_core!(
     compute_MU_UtMU!(ws.full, kstencil, overlaps, ws.full.U)
 
     if G_ibz !== nothing
-        omega_grad!(ws.full.GU, ws.full, kstencil, overlaps)
+        omega_grad!(penalty, ws.full.GU, ws.full, kstencil, overlaps)
         pullback_gauges!(G_ibz, ws.full.GU, sc)
     end
 
     F === nothing && return nothing
+    # value of the *plain* spread; penalty terms are the objective's to add
+    # (the WF centers are left in `ws.full.r` for it)
     return omega!(ws.full, kstencil, overlaps).Ω
 end
 
@@ -720,10 +726,19 @@ end
 """
 Level-2 core: value and (unprojected) canonical gradient `dΩ/dU*(ki)` for the
 covariant gauge already stored in `ws.U_ibz`. Writes the gradient into
-`G_ibz` when given.
+`G_ibz` when given. The `penalty` function hooks a WF-center penalty into the
+gradient seeds' `q_n`, exactly as in the penalty-aware `omega_grad!` of
+src/spread.jl (the value of the penalty term is the objective's to add; the
+WF centers are left in `ws.r` for it). The identity default is a no-op.
 """
+_fg2_core!(
+    F, G_ibz,
+    M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint,
+    ws::SymmetricWorkspace2,
+) = _fg2_core!(F, G_ibz, (r, _) -> r, M_ibz, sc, ws)
+
 function _fg2_core!(
-        F, G_ibz,
+        F, G_ibz, penalty::Function,
         M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint{T},
         ws::SymmetricWorkspace2{T},
     ) where {T}
@@ -865,7 +880,7 @@ function _fg2_core!(
                 @inbounds for n in 1:nw
                     t = ws.tdiag[n, ibf, ikf]
                     q = imaglog_guided(t, sc.bvec_cart[ibf] ⋅ rg[n]) +
-                        sc.bvec_cart[ibf] ⋅ ws.r[n]
+                        sc.bvec_cart[ibf] ⋅ penalty(ws.r[n], n)
                     s = -im * q / t - conj(t)
                     trev && (s = conj(s))
                     Tn[n] = c * ph * s

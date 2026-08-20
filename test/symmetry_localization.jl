@@ -471,3 +471,80 @@ end
     Ω1 = Wannier.spread(model.kstencil, model.overlaps, U1_fbz).Ω
     @test isapprox(Ω1, Ω; atol = 1.0e-5)
 end
+
+@testitem "CenteredVariance on SymmetrizedModel" begin
+    using WannierIO, LinearAlgebra
+    using Wannier.Datasets
+
+    nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
+    ks0 = Wannier.KspaceStencil(
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
+    )
+    isym = read_isym(dataset"Si2_hse/Si2.isym")
+    Wannier.rescale!(isym.littlegroup_reps)
+    centers = [p.center for p in nnkp["projections"]]
+    sc = Wannier.symmetry_constraint(ks0, isym, centers)
+    ks = Wannier.globalize_stencil(ks0)
+
+    mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
+    Mf = Wannier.unfold_overlaps_cached(mmn_i.M, sc)
+    Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
+    Ei = read_eig(dataset"Si2_hse/Si2.ieig")
+    win = read_win(dataset"Si2_hse/Si2.win")
+    Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
+    frozen = Wannier.get_frozen_bands(Ef, get(win, "dis_froz_max", -Inf))
+    atom_positions = [p.second for p in win["atoms_frac"]]
+    atom_labels = map(x -> string(x.first), win["atoms_frac"])
+    model = Wannier.Model(
+        win["unit_cell_cart"], atom_positions, atom_labels,
+        ks, Mf, Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
+    )
+    sm = SymmetrizedModel(model, sc, mmn_i.M)
+
+    # target centers: those of the starting covariant gauge, shifted so the
+    # penalty gradient is nonzero
+    r0 = Wannier.spread(model.kstencil, model.overlaps, model.gauges).r
+    r0 = [r + Wannier.Vec3(0.05, -0.03, 0.02) for r in r0]
+    λ = 1.0
+    obj = CenteredVariance(r0, λ)
+
+    prob2 = Problem(obj, sm)                    # default: SymXYLayout (Level 2)
+    prob1 = Problem(obj, sm, SymXYLayout(1))
+    fg2 = Wannier._make_fg!(prob2)
+    fg1 = Wannier._make_fg!(prob1)
+    x = Wannier.initial_x(prob2.layout, sm)
+    g1, g2 = zero(x), zero(x)
+    Ω1 = fg1(1.0, g1, x)
+    Ω2 = fg2(1.0, g2, x)
+
+    # Level 1 equals the full-mesh penalized spread of the expanded covariant
+    # gauge exactly; Level 2 agrees to the isym data noise (as for Variance)
+    X, Y = Wannier.XY_to_X_Y(x, sc.nbands, sc.nwann)
+    Uf = Wannier.expand_gauges(
+        Wannier.project_covariant!(Wannier.X_Y_to_U(X, Y), sc), sc
+    )
+    Ωt_ref = Wannier.omega_center(model.kstencil, model.overlaps, Uf; r0, λ).Ωt
+    @test isapprox(Ω1, Ωt_ref; atol = 1.0e-10)
+    @test isapprox(Ω2, Ω1; atol = 1.0e-6)
+    @test norm(g1 - g2) / norm(g1) < 1.0e-4
+
+    # directional FD of the penalized Level-2 objective (rtol limited by FD
+    # truncation at this dataset's near-branch-point Im-log diagonals, which
+    # the center penalty amplifies; cf. the 1e-3 of the Schur FD test)
+    frozen_ibz = frozen[:, sc.ibz2fbz]
+    for _ in 1:2
+        dx = randn(ComplexF64, size(x))
+        Wannier.zero_froz_grad!(dx, frozen_ibz)
+        dx ./= norm(dx)
+        ε = 1.0e-4
+        fd = (fg2(1.0, nothing, x .+ ε .* dx) - fg2(1.0, nothing, x .- ε .* dx)) / (2ε)
+        an = real(sum(conj.(g2) .* dx))
+        @test isapprox(fd, an; rtol = 1.0e-3)
+    end
+
+    # a few localize iterations stay covariant and beat the starting value
+    Uc_fbz, Uc_ibz = localize(obj, sm; max_iter = 3)
+    @test Wannier.covariance_residual(Uc_ibz, sc) < 1.0e-3
+    Ωc = Wannier.omega_center(model.kstencil, model.overlaps, Uc_fbz; r0, λ).Ωt
+    @test Ωc < Ωt_ref
+end

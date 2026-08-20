@@ -213,17 +213,19 @@ _canonical_gradient(ws::SymmetricWorkspace) = ws.G_ibz
 _canonical_gradient(ws::SymmetricWorkspace2) = ws.G_ibz
 _canonical_gradient(ws::SchurWorkspace) = ws.inner.G_ibz
 
-default_layout(::Variance, ::SymmetrizedModel) = SymXYLayout()
+default_layout(::Union{Variance, CenteredVariance}, ::SymmetrizedModel) = SymXYLayout()
 
 function allocate_workspace(
-        ::Variance, sm::SymmetrizedModel, layout::SymXYLayout; backend = CPU()
+        ::Union{Variance, CenteredVariance}, sm::SymmetrizedModel,
+        layout::SymXYLayout; backend = CPU(),
     )
     layout.level == 1 && return SymmetricWorkspace(sm.model, sm.constraint)
     return SymmetricWorkspace2(sm.model.eigenvalues, sm.model.frozen_bands, sm.constraint)
 end
 
 function allocate_workspace(
-        ::Variance, sm::SymmetrizedModel{T}, ::SchurLayout; backend = CPU()
+        ::Union{Variance, CenteredVariance}, sm::SymmetrizedModel{T},
+        ::SchurLayout; backend = CPU(),
     ) where {T}
     inner = SymmetricWorkspace2(sm.model.eigenvalues, sm.model.frozen_bands, sm.constraint)
     return SchurWorkspace(inner, zeros(T, schur_basis(sm).nx))
@@ -253,6 +255,45 @@ function fg!(
     )
     U_ibz === ws.U_ibz || copyto!(ws.U_ibz, U_ibz)
     return _fg1_core!(F, G_ibz, sm.model, sm.constraint, ws)
+end
+
+# -----------------------------------------------------------------------------
+# CenteredVariance objective on a SymmetrizedModel
+# -----------------------------------------------------------------------------
+
+# The center penalty rides along inside the penalty-aware gradient kernels
+# (the same hook as `omega_grad!` in src/spread.jl); its value term is the
+# same `Ωc = λ Σₙ |rₙ − r0ₙ|²` as `omega_center`, computed from the WF
+# centers the core leaves behind.
+_omega_center_value(r, r0, λ) = λ * sum(n -> sum(abs2, r[n] - r0[n]), eachindex(r0))
+
+function fg!(
+        F, G_ibz, obj::CenteredVariance,
+        U_ibz::AbstractArray{<:Complex, 3}, sm::SymmetrizedModel,
+        ws::SymmetricWorkspace2,
+    )
+    U_ibz === ws.U_ibz || copyto!(ws.U_ibz, U_ibz)
+    pen = center_penalty(obj.r0, obj.λ)
+    Ω = _fg2_core!(F, G_ibz, pen, sm.overlaps_ibz, sm.constraint, ws)
+    F === nothing && return nothing
+    return Ω + _omega_center_value(ws.r, obj.r0, obj.λ)
+end
+
+fg!(
+    F, G_ibz, obj::CenteredVariance,
+    U_ibz::AbstractArray{<:Complex, 3}, sm::SymmetrizedModel, ws::SchurWorkspace,
+) = fg!(F, G_ibz, obj, U_ibz, sm, ws.inner)
+
+function fg!(
+        F, G_ibz, obj::CenteredVariance,
+        U_ibz::AbstractArray{<:Complex, 3}, sm::SymmetrizedModel,
+        ws::SymmetricWorkspace,
+    )
+    U_ibz === ws.U_ibz || copyto!(ws.U_ibz, U_ibz)
+    pen = center_penalty(obj.r0, obj.λ)
+    Ω = _fg1_core!(F, G_ibz, pen, sm.model, sm.constraint, ws)
+    F === nothing && return nothing
+    return Ω + _omega_center_value(ws.full.r, obj.r0, obj.λ)
 end
 
 """
