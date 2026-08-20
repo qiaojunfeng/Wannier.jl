@@ -300,6 +300,22 @@ end
     # parameter reduction and feasibility (schur_basis errors when infeasible)
     @test 0 < sb.nx < (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz
 
+    # anti-unitary pairing metadata: partner links are symmetric, derived
+    # blocks carry no parameters, and block shapes match across a pair
+    for (iki, blks) in enumerate(sb.blocks), (ic, b) in enumerate(blks)
+        if b.akind == 1
+            p = blks[b.partner]
+            @test p.akind == 2 && p.partner == ic
+            @test (p.dim, p.mb, p.mo, p.mf) == (b.dim, b.mb, b.mo, b.mf)
+        elseif b.akind == 0
+            @test b.partner == 0
+        end
+    end
+    @test sb.nx == sum(
+        b.akind == 2 ? 0 : b.mo^2 + (b.mb - b.mf) * (b.mo - b.mf)
+        for blks in sb.blocks for b in blks
+    )
+
     # decode of the initial parameters: covariant (to the isym data noise),
     # semi-unitary, and consistent with the Level-2 value at the same gauge
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A

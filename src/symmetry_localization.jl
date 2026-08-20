@@ -1008,8 +1008,19 @@ end
 #   U(ki) = Σ_λ Σ_{j=1..dλ} Bb_λ[j] · C_λ · Bo_λ[j]†,
 # with C_λ (m_b × m_o) free up to the Stiefel + frozen conditions, which are
 # handled by the per-block DLL (X, Y) parametrization. Unitary-subgroup
-# covariance is then exact by construction; anti-unitary little-group
-# elements are enforced by a single 2-term coset average in the decode.
+# covariance is then exact by construction.
+#
+# Anti-unitary little-group elements â₀ (action ρ(â₀)[U] = d_a · conj(U A_a))
+# permute the unitary-subgroup irrep classes, so the fixed-point condition
+# U = ρ(â₀)[U] is block-wise antilinear ("corepresentation Schur blocks"):
+# for every class λ there is a partner class λ′ and unitary intertwiners
+# (S_b, S_o) on the copy spaces — Kronecker factors of the stacked-basis
+# intertwiners, by Schur's lemma — such that
+#   C_{λ′} = S_b · conj(C_λ) · S_o†.
+# Pairing type (λ′ ≠ λ): C_{λ′} is derived from C_λ in the decode (S_b/S_o
+# absorbed into the λ′ bases), halving those parameters. Self-paired classes
+# (λ′ = λ, Wigner real/quaternionic type) currently keep the soft 2-term
+# coset average `_aavg` in the decode.
 # -----------------------------------------------------------------------------
 
 using Random: MersenneTwister, randn!
@@ -1022,7 +1033,16 @@ struct SchurBlock{T}
     mf::Int    # frozen band multiplicity
     Bb::Vector{Matrix{Complex{T}}}   # dλ matrices, n_bands × mb
     Bo::Vector{Matrix{Complex{T}}}   # dλ matrices, n_wann  × mo
+    # anti-unitary handling (see `_classify_aop`): 0 = none / soft coset
+    # average fallback; 1 = pairing source (free block, partner derived);
+    # 2 = pairing derived (no parameters; S_b/S_o absorbed into Bb/Bo, the
+    # block value is conj(C) of the source block `partner`)
+    akind::Int8
+    partner::Int   # class index of the pairing partner (akind 1/2), else 0
 end
+
+SchurBlock{T}(dim, mb, mo, mf, Bb, Bo) where {T} =
+    SchurBlock{T}(dim, mb, mo, mf, Bb, Bo, Int8(0), 0)
 
 """
 Schur-adapted bases for all IBZ kpoints, plus the anti-unitary coset
@@ -1084,6 +1104,116 @@ function _align_to(ρQ::Vector{Matrix{CT}}, ρref::Vector{Matrix{CT}}, Z) where 
     return orthonorm_lowdin(S)
 end
 
+# Kronecker factors of an irrep-class intertwiner T ≈ kron(R, S), with R
+# (d × d) acting on the partner index and S (m2 × m) on the copy index —
+# exact by Schur's lemma since every copy carries the same reference irrep.
+function _kron_factor(T::AbstractMatrix, d::Int, m2::Int, m::Int)
+    blk(j2, j) = T[((j2 - 1) * m2 + 1):(j2 * m2), ((j - 1) * m + 1):(j * m)]
+    nrm, j2m, jm = -1.0, 1, 1
+    for j2 in 1:d, j in 1:d
+        n = norm(blk(j2, j))
+        n > nrm && ((nrm, j2m, jm) = (n, j2, j))
+    end
+    S = blk(j2m, jm) .* (sqrt(m) / nrm)
+    R = [sum(conj.(S) .* blk(j2, j)) / m for j2 in 1:d, j in 1:d]
+    return R, S, norm(kron(R, S) - T)
+end
+
+# Corepresentation classification of the Schur classes at one IBZ kpoint.
+#
+# The anti-unitary coset representative â₀ maps the isotypic component of
+# class c antilinearly onto that of a partner class c′: on the stacked bases,
+#   d_a · conj([Bb_c[1] … Bb_c[d]]) = [Bb_c′[1] … Bb_c′[d]] · kron(R_b, S_b),
+#   A_aᵀ · conj([Bo_c[1] … Bo_c[d]]) = [Bo_c′[1] … Bo_c′[d]] · kron(R_o, S_o),
+# with R_b R_o† = φ·1 (the φ is folded into S_b below). The fixed point
+# U = ρ(â₀)[U] then reads block-wise C_{c′} = S_b · conj(C_c) · S_o†.
+#
+# Handled here: pairing type (c′ ≠ c). The lower-index class of the pair
+# keeps its free parameters (akind = 1); the partner block becomes derived
+# (akind = 2) with S_b/S_o absorbed into its bases, so its decode is simply
+# Σ_j Bb′[j] · conj(C_c) · Bo′[j]†. Every derived identity is verified
+# numerically (tolerance `rtol`, loose enough for noisy isym data); on any
+# failure the classes fall back to akind = 0 (soft coset average).
+function _classify_aop(
+        blks::Vector{SchurBlock{T}}, da::Matrix{Complex{T}},
+        Aa::Matrix{Complex{T}}, rng; rtol = 1.0e-3,
+    ) where {T}
+    CT = Complex{T}
+    ncl = length(blks)
+    SBb = [hcat(b.Bb...) for b in blks]
+    SBo = [hcat(b.Bo...) for b in blks]
+    Yb = [da * conj.(S) for S in SBb]
+    Yo = [transpose(Aa) * conj.(S) for S in SBo]
+
+    # intertwiner pair (S_b, S_o) mapping class c onto class c2, polished to
+    # exact unitarity and to the exact frozen split of S_b; nothing if the
+    # numerical Kronecker/phase structure fails
+    function block_maps(c, c2)
+        b, b2 = blks[c], blks[c2]
+        (b.dim == b2.dim && b.mb == b2.mb && b.mo == b2.mo && b.mf == b2.mf) ||
+            return nothing
+        Tb = SBb[c2]' * Yb[c]
+        To = SBo[c2]' * Yo[c]
+        tolb, tolo = rtol * sqrt(b.dim * b.mb), rtol * sqrt(b.dim * b.mo)
+        (norm(Tb' * Tb - I) < tolb && norm(To' * To - I) < tolo) || return nothing
+        Rb, Sb, resb = _kron_factor(Tb, b.dim, b2.mb, b.mb)
+        Ro, So, reso = _kron_factor(To, b.dim, b2.mo, b.mo)
+        (resb < tolb && reso < tolo) || return nothing
+        φ = tr(Rb * Ro') / b.dim
+        (norm(Rb * Ro' - φ * I) < rtol * sqrt(b.dim) && abs(abs(φ) - 1) < rtol) ||
+            return nothing
+        # â₀ preserves the frozen (energy-window) subspace, so S_b is exactly
+        # frozen-block-diagonal; enforce the split and polish per block
+        mf = b.mf
+        r = (mf + 1):b.mb
+        (norm(Sb[1:mf, r]) + norm(Sb[r, 1:mf])) < tolb || return nothing
+        Sb2 = zeros(CT, b.mb, b.mb)
+        Sb2[1:mf, 1:mf] .= orthonorm_lowdin(Sb[1:mf, 1:mf])
+        Sb2[r, r] .= orthonorm_lowdin(Sb[r, r])
+        Sb2 .*= φ / abs(φ)
+        return Sb2, Matrix{CT}(orthonorm_lowdin(So))
+    end
+
+    out = copy(blks)
+    assigned = falses(ncl)
+    for c in 1:ncl
+        assigned[c] && continue
+        assigned[c] = true
+        # partner class: the antilinear image of the copy spaces of c must
+        # lie in the span of exactly one class (same on band/orbital sides)
+        reso = [norm(SBo[c2] * (SBo[c2]' * Yo[c]) - Yo[c]) / norm(Yo[c]) for c2 in 1:ncl]
+        c2 = argmin(reso)
+        resb = norm(SBb[c2] * (SBb[c2]' * Yb[c]) - Yb[c]) / norm(Yb[c])
+        (reso[c2] < rtol && resb < rtol) || continue
+        (c2 == c || assigned[c2]) && continue   # self-paired: keep `_aavg`
+        fw = block_maps(c, c2)
+        bw = block_maps(c2, c)
+        assigned[c2] = true
+        # the two directions must invert each other (ρ(â₀)² acts trivially
+        # on covariant gauges) up to a common phase μ on both sides — each
+        # (S_b, S_o) pair is itself only defined up to a common phase
+        fw !== nothing && bw !== nothing || continue
+        Pb = bw[1] * conj.(fw[1])
+        Po = bw[2] * conj.(fw[2])
+        μ = tr(Pb) / blks[c].mb
+        (norm(Pb - μ * I) < rtol * sqrt(blks[c].mb) &&
+            norm(Po - μ * I) < rtol * sqrt(blks[c].mo) &&
+            abs(abs(μ) - 1) < rtol) || continue
+        b, b2 = blks[c], blks[c2]
+        Bb2 = [B * fw[1] for B in b2.Bb]
+        Bo2 = [B * fw[2] for B in b2.Bo]
+        # end-to-end check on a random block value C: the â₀ image of the
+        # class-c contribution must equal the derived class-c2 contribution
+        Ct = randn(rng, CT, b.mb, b.mo)
+        Dc = sum(b.Bb[j] * Ct * b.Bo[j]' for j in 1:b.dim)
+        Dc2 = sum(Bb2[j] * conj.(Ct) * Bo2[j]' for j in 1:b.dim)
+        norm(da * conj.(Dc * Aa) - Dc2) < rtol * norm(Dc) || continue
+        out[c] = SchurBlock{T}(b.dim, b.mb, b.mo, b.mf, b.Bb, b.Bo, Int8(1), c2)
+        out[c2] = SchurBlock{T}(b2.dim, b2.mb, b2.mo, b2.mf, Bb2, Bo2, Int8(2), c)
+    end
+    return out
+end
+
 """
     $(SIGNATURES)
 
@@ -1097,6 +1227,7 @@ function schur_basis(
     ) where {T}
     CT = Complex{T}
     rng = MersenneTwister(20260819)
+    arng = MersenneTwister(20260820)   # separate stream: keep `rng` draws stable
     nb, nw = sc.nbands, sc.nwann
     blocks = Vector{Vector{SchurBlock{T}}}(undef, sc.nk_ibz)
     aop = Vector{Union{Nothing, Tuple{Matrix{CT}, Matrix{CT}}}}(undef, sc.nk_ibz)
@@ -1174,21 +1305,29 @@ function schur_basis(
             Bb = [hcat((Q[:, j] for Q in Qbs)...) for j in 1:dλ]
             push!(blks, SchurBlock{T}(dλ, mb, mo, mf, Bb, Bo))
         end
+        if aop[iki] !== nothing
+            blks = _classify_aop(blks, aop[iki][1], aop[iki][2], arng)
+            # drop the soft coset average where every class is exact
+            all(b.akind != Int8(0) for b in blks) && (aop[iki] = nothing)
+        end
         blocks[iki] = blks
     end
 
     nx = sum(
-        blk.mo^2 + (blk.mb - blk.mf) * (blk.mo - blk.mf)
+        blk.akind == Int8(2) ? 0 :
+            blk.mo^2 + (blk.mb - blk.mf) * (blk.mo - blk.mf)
             for blks in blocks for blk in blks
     )
     return SchurBasis{T}(blocks, aop, nx)
 end
 
-# iterate the flat parameter vector: yields (iki, blk, Xrange, Yrange)
+# iterate the flat parameter vector over the parameter-bearing blocks
+# (derived pairing partners carry none): yields (iki, blk, Xrange, Yrange)
 function _schur_ranges(sb::SchurBasis)
     out = Tuple{Int, SchurBlock, UnitRange{Int}, UnitRange{Int}}[]
     off = 0
     for (iki, blks) in enumerate(sb.blocks), blk in blks
+        blk.akind == Int8(2) && continue
         nX = blk.mo^2
         nY = (blk.mb - blk.mf) * (blk.mo - blk.mf)
         push!(out, (iki, blk, (off + 1):(off + nX), (off + nX + 1):(off + nX + nY)))
@@ -1221,6 +1360,13 @@ function schur_decode!(
         for j in 1:blk.dim
             mul!(view(U_ibz, :, :, iki), blk.Bb[j] * C, blk.Bo[j]', true, true)
         end
+        if blk.akind == Int8(1)
+            pb = sb.blocks[iki][blk.partner]
+            Cc = conj.(C)
+            for j in 1:pb.dim
+                mul!(view(U_ibz, :, :, iki), pb.Bb[j] * Cc, pb.Bo[j]', true, true)
+            end
+        end
     end
     for iki in axes(U_ibz, 3)
         view(U_ibz, :, :, iki) .= _aavg(U_ibz[:, :, iki], sb.aop[iki])
@@ -1245,6 +1391,14 @@ function schur_encode_gradient!(
         GC = zeros(eltype(g), blk.mb, blk.mo)
         for j in 1:blk.dim
             mul!(GC, blk.Bb[j]', Ga[iki] * blk.Bo[j], true, true)
+        end
+        if blk.akind == Int8(1)
+            pb = sb.blocks[iki][blk.partner]
+            GCp = zeros(eltype(g), blk.mb, blk.mo)
+            for j in 1:pb.dim
+                mul!(GCp, pb.Bb[j]', Ga[iki] * pb.Bo[j], true, true)
+            end
+            GC .+= conj.(GCp)
         end
         # C = J(Y) X: GX = J† GC ; GY = (GC X†) bottom-right block
         GX = vcat(GC[1:blk.mf, :], Y' * GC[(blk.mf + 1):end, :])

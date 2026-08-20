@@ -92,6 +92,17 @@ println("per-evaluation wall time (min of 20):")
     (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz, sb.nx,
     (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz / sb.nx, tsb,
 )
+# corepresentation (anti-unitary) block statistics
+allblk = reduce(vcat, sb.blocks)
+nfall = sum(
+    count(b -> b.akind == 0, blks)
+        for (iki, blks) in enumerate(sb.blocks) if sb.aop[iki] !== nothing;
+    init = 0,
+)
+@printf(
+    "  anti-unitary classes: %d derived from pairing partners, %d soft-average fallback\n",
+    count(b -> b.akind == 2, allblk), nfall,
+)
 # Hermiticity-pair halving coverage of the Level-2 pass 0 (only the 2-cycle
 # pairs of the partner map are derived; see `_fg2_core!`)
 pkey(iki, ibi) = (iki - 1) * sc.nbvecs + ibi
