@@ -17,7 +17,7 @@ export SymmetryConstraint, symmetry_constraint
 #            star members through precomputed nw×nw orbital transports
 #            (`Rmat`, `Lmat`) and phases — the "transport theorem".
 #
-# Conventions follow src/symmetry.jl (standard Seitz; `unfold_gauge`,
+# Conventions follow src/symmetry/operations.jl (standard Seitz; `unfold_gauge`,
 # `unfold_overlaps`, `merge_symops`). Time-reversal (antiunitary) operations
 # are supported through explicit conjugation flags; 𝒦_x[A] below denotes
 # conj(A) if flag x is set.

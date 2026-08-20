@@ -149,7 +149,7 @@ and the [`SymXYLayout`](@ref Wannier.SymXYLayout) /
 
 ```@autodocs
 Modules = [Wannier]
-Pages   = ["symmetrized_model.jl", "symmetry_localization.jl"]
+Pages   = ["symmetry/model.jl", "symmetry/localization.jl"]
 ```
 
 ```@docs

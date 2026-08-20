@@ -6,7 +6,7 @@ export SymmetrizedModel, SymXYLayout, SchurLayout
 # `SymmetrizedModel` bundles everything the IBZ-constrained problem needs; the
 # two layouts below pack its IBZ variables; and the `Variance` objective
 # methods delegate to the existing Level-1/Level-2 kernels of
-# src/symmetry_localization.jl. This file is plumbing only — all numerics
+# src/symmetry/localization.jl. This file is plumbing only — all numerics
 # live in the kernels it reuses.
 # -----------------------------------------------------------------------------
 
