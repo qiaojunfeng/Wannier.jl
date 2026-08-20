@@ -227,7 +227,7 @@ function mrwf(
         kwargs...,
     )
     @info "reading config file: $config_file"
-    groups = parsefile(config)["groups"]
+    groups = parsefile(config_file)["groups"]
     indices = groups["indices"]
     outdirs = groups["outdirs"]
     return mrwf(prefix, indices, outdirs, mmn_cubic; kwargs...)
@@ -252,7 +252,7 @@ function mrwf(
         mmn_cubic::Union{AbstractString, Nothing} = nothing;
         kwargs...,
     )
-    win = read_win(joinpath(prefix, ".win"))
+    win = read_win("$prefix.win")
     nwan = win["num_wann"]
     (0 < nval < nwan) || @error "nval must > 0 and < n_wannier"
     @info "number of valence WFs = $nval"

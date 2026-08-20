@@ -178,7 +178,7 @@ function parallel_transport(
         for j in 1:n_ky
             ik = xyz_k[i, j, 1]
 
-            view(U, :, :, ik) .= view(U, :, :, ik) * (exp(im * logD[i] * ty[j] / 2) * Uxy[:, :, i, j])
+            view(U, :, :, ik) .= view(U, :, :, ik) * (exp(im * logD[i] * ty[j] / n_wann) * Uxy[:, :, i, j])
         end
     end
 
