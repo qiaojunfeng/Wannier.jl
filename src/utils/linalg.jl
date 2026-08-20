@@ -107,6 +107,54 @@ function powm(U::AbstractMatrix{T}, p::F) where {T <: Union{Complex, Real}, F <:
 end
 
 """
+    eig_log(O; guiding=false, tol=0.01)
+
+Eigendecomposition-based matrix logarithm of a (near-)unitary matrix `O`.
+
+Return `(V, logd)` such that `log(O) ≈ V * Diagonal(logd) * V'`, with `V`
+Löwdin-orthonormalized so the reconstruction is robust to degenerate
+eigenvalues. Since the eigenvector column phases cancel in `V * D * V'`, this
+matches the raw `eigen` result in the non-degenerate case.
+
+Branch of the logarithm (which `2π` window each eigenphase lands in):
+
+- Default (`guiding=false`): principal branch `angle(d) ∈ (-π, π]`, but
+  eigenphases within `tol` of `-π` are lifted by `+2π`. This keeps a cluster of
+  eigenvalues near `-1` on the same side of the cut and reproduces the legacy
+  heuristic used by [`parallel_transport`](@ref).
+- `guiding=true`: place the cut in the *largest empty arc* of the eigenvalue
+  distribution (the intrinsic analog of [`choose_pole`](@ref) picking a pole far
+  from the data). NOTE: this is *not* generally better — the branch that yields
+  the smoothest gauge depends on the propagation history, not on the spectrum of
+  `O` alone, so this option can degrade the result. Kept for experimentation.
+"""
+function eig_log(O::AbstractMatrix; guiding::Bool = false, tol::Real = 0.01)
+    d, V = eigen(Matrix(O))
+    V = orthonorm_lowdin(V)
+    θ = angle.(d)
+    if guiding && length(θ) > 1
+        θs = sort(θ)
+        n = length(θs)
+        # start with the wrap-around gap, then scan the interior gaps
+        gmax = θs[1] + 2π - θs[n]
+        cut = θs[n] + gmax / 2
+        for i in 1:(n - 1)
+            g = θs[i + 1] - θs[i]
+            if g > gmax
+                gmax = g
+                cut = θs[i] + g / 2
+            end
+        end
+        # lift each eigenphase into (cut - 2π, cut], i.e. away from the cut
+        θ = @. cut - mod(cut - θ, 2π)
+    else
+        # principal branch, keeping near-(-π) eigenphases on the +π side
+        θ = @. θ + 2π * (θ < -π + tol)
+    end
+    return V, im .* θ
+end
+
+"""
     $(SIGNATURES)
 
 Allocate gauge matrix `U` filled with identity matrices.

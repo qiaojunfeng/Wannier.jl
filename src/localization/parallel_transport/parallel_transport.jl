@@ -3,6 +3,32 @@ export parallel_transport
 include("contraction.jl")
 
 """
+Löwdin-orthonormalized obstruction matrix between kpoints `k1` and `k2` that are
+separated by `dk` (fractional coordinates).
+
+`b` is recomputed from the kpoint coordinates rather than assumed to be a unit
+vector, so that grids with negative coordinates (e.g. `-0.25` instead of `0.75`,
+as produced by `qe/open_grid.x`) are handled correctly.
+"""
+function overlap_obstruction(U, M, bvectors, k1::Integer, k2::Integer, dk)
+    b = round.(Int, bvectors.kpoints[k1] + dk - bvectors.kpoints[k2])
+    ib = index_bvector(bvectors, k1, k2, b)
+    Nᵏᵇ = view(U, :, :, k1)' * view(M, :, :, ib, k1) * view(U, :, :, k2)
+    return orthonorm_lowdin(Nᵏᵇ)
+end
+
+"""
+Right-multiply the gauge at kpoint `ik` by the pulled-back corner obstruction
+`exp(t · log O) = V · diag(exp(t · logd)) · V'`, where `(V, logd)` come from
+[`eig_log`](@ref).
+"""
+function pullback!(U, ik::Integer, V, logd, t::Real)
+    Oₖ = V * Diagonal(exp.(t .* logd)) * V'
+    view(U, :, :, ik) .= view(U, :, :, ik) * Oₖ
+    return nothing
+end
+
+"""
     parallel_transport(model::Model{T}; use_U=false, log_interp=false)
 
 Parallel transport the gauge from the first kpoint to all other kpoints.
@@ -42,7 +68,6 @@ function parallel_transport(
     # for overlap matrices
     M = model.overlaps
     bvectors = model.kstencil
-    kpts_frac = bvectors.kpoints
 
     # the new gauge
     if use_U
@@ -53,104 +78,44 @@ function parallel_transport(
 
     # 1. propagate along kx
     @info "Filling (kx,0,0)"
-    kpts = [xyz_k[i, 1, 1] for i in 1:n_kx]
     dk = [1 / n_kx, 0.0, 0.0]
-    propagate!(U, kpts, dk, M, bvectors)
+    propagate!(U, [xyz_k[i, 1, 1] for i in 1:n_kx], dk, M, bvectors)
 
-    # compute obstruction matrix for dimension d = 1
+    # Corner obstruction for dimension d = 1.
     # In GLS2019 paper, ũ(1) = ( τ₁ ũ(0) ) Vₒ, where Vₒ is the obstruction matrix.
-    # However, here we compute Vₒ = U(nkx)' * M(nkx,1) * U(0),
-    # since kpoints are discretized 1...nkx, we need approximations:
-    #     ũ(1) ≈ |ψ(nkx)> * U(nkx),
-    #     τ₁ ũ(0) = |ψ(1+nkx)> * U(1),
-    # so our Vₒ is actually the inverse of the Vₒ in the paper.
-    k1 = xyz_k[end, 1, 1]
-    k2 = xyz_k[1, 1, 1]
-
-    # Compute shifting b vector, for regular MP grid, b = [1, 0, 0].
-    # However, for grids having negative cooridnates (i.e, -0.25 instead of 0.75),
-    # we need to recompute b vector.
-    # For MP grid, k1 + dk == k2 + [1, 0, 0], so b = [1, 0, 0].
-    # For other grids, b = k1 + dk - k2.
-    b = round.(Int, kpts_frac[k1] + dk - kpts_frac[k2])
-    ib = index_bvector(bvectors, k1, k2, b)
-    Nᵏᵇ = view(U, :, :, k1)' * view(M, :, :, ib, k1) * view(U, :, :, k2)
-    O1 = orthonorm_lowdin(Nᵏᵇ)
-    @debug "Obstruction matrix =" V = O1
-
-    d, V = eigen(O1)
-    logd = log.(d)
-    # Hack to avoid separating eigenvalues at -1. TODO understand that
-    for i in 1:n_wann
-        if imag(logd[i]) < -π + 0.01
-            logd[i] += 2π * im
-        end
-    end
-    @debug "log(d) =" logd
-
-    # and pull it back
+    # Here we compute Vₒ = U(nkx)' * M(nkx,1) * U(0), which is the inverse of the
+    # Vₒ in the paper, so no minus sign is needed when pulling it back.
+    O1 = overlap_obstruction(U, M, bvectors, xyz_k[end, 1, 1], xyz_k[1, 1, 1], dk)
+    V, logd = eig_log(O1)
     for i in 1:n_kx
-        ik = xyz_k[i, 1, 1]
-        # Since our Vₒ is the inverse of the Vₒ in the paper,
-        # we don't need a minus sign here.
-        Oₖ = V * diagm(0 => exp.(tx[i] * logd)) * V'
-        view(U, :, :, ik) .= view(U, :, :, ik) * Oₖ
+        pullback!(U, xyz_k[i, 1, 1], V, logd, tx[i])
     end
 
     # 2. propagate along ky
     @info "Filling (kx,ky,0)"
     dk = [0.0, 1 / n_ky, 0.0]
     for ik in 1:n_kx
-        kpts = [xyz_k[ik, j, 1] for j in 1:n_ky]
-        propagate!(U, kpts, dk, M, bvectors)
+        propagate!(U, [xyz_k[ik, j, 1] for j in 1:n_ky], dk, M, bvectors)
     end
 
     # corner obstruction
-    k1 = xyz_k[1, end, 1]
-    k2 = xyz_k[1, 1, 1]
-    # For MP grid, b = [0, 1, 0]
-    # For other grids,
-    b = round.(Int, kpts_frac[k1] + dk - kpts_frac[k2])
-    ib = index_bvector(bvectors, k1, k2, b)
-    Nᵏᵇ = view(U, :, :, k1)' * view(M, :, :, ib, k1) * view(U, :, :, k2)
-    O2 = orthonorm_lowdin(Nᵏᵇ)
-
-    d, V = eigen(O2)
-    logd = log.(d)
-    # Hack to avoid separating eigenvalues at -1. TODO understand that
-    for i in 1:n_wann
-        if imag(logd[i]) < -π + 0.01
-            logd[i] += 2π * im
-        end
+    O2 = overlap_obstruction(U, M, bvectors, xyz_k[1, end, 1], xyz_k[1, 1, 1], dk)
+    V, logd = eig_log(O2)
+    for i in 1:n_kx, j in 1:n_ky
+        pullback!(U, xyz_k[i, j, 1], V, logd, ty[j])
     end
 
-    # pull it back
-    for i in 1:n_kx
-        for j in 1:n_ky
-            ik = xyz_k[i, j, 1]
-            # no need a minus sign here
-            Oₖ = V * diagm(0 => exp.(ty[j] * logd)) * V'
-            view(U, :, :, ik) .= view(U, :, :, ik) * Oₖ
-        end
-    end
-
-    # pull back the line obstruction, at ky = 1 along kx = 0 -> 1
+    # Line obstruction, at ky = 1 along kx = 0 -> 1
     Oxy = zeros(Complex{T}, n_wann, n_wann, n_kx)
     detO3 = zeros(Complex{T}, n_kx)
-    # eigs = zeros(Complex{T}, n_wann, n_kx)
     for i in 1:n_kx
-        k1 = xyz_k[i, n_ky, 1]
-        k2 = xyz_k[i, 1, 1]
-        # For MP grid, b = [0, 1, 0]
-        # For other grids,
-        b = round.(Int, kpts_frac[k1] + dk - kpts_frac[k2])
-        ib = index_bvector(bvectors, k1, k2, b)
-        Nᵏᵇ = view(U, :, :, k1)' * view(M, :, :, ib, k1) * view(U, :, :, k2)
-        Oxy[:, :, i] = orthonorm_lowdin(Nᵏᵇ)
+        Oxy[:, :, i] = overlap_obstruction(U, M, bvectors, xyz_k[i, n_ky, 1], xyz_k[i, 1, 1], dk)
         detO3[i] = det(Oxy[:, :, i])
     end
 
-    # find a continuous log of the determinant
+    # find a continuous log of the determinant, then factor the U(1) winding out
+    # so that `matrix_transport` only handles the SU(N) part; it is reintroduced
+    # below with the same `/ n_wann` divisor.
     logD = imag(log.(detO3))
     for i in 2:n_kx
         kmin = argmin([abs(logD[i] + 2π * k - logD[i - 1]) for k in -1:1])
@@ -159,151 +124,69 @@ function parallel_transport(
     for i in 1:n_kx
         Oxy[:, :, i] = exp(-im * logD[i] / n_wann) * Oxy[:, :, i]
     end
+
     # Interpolate the line obstruction
     Uxy = zeros(Complex{T}, n_wann, n_wann, n_kx, n_ky)
-
     if !log_interp
         Uxy = matrix_transport(Oxy, ty)
     end
     for i in 1:n_kx
-        O = Oxy[:, :, i]
-        d, V = eigen(O)
-
         if log_interp
             for j in 1:n_ky
-                Uxy[:, :, i, j] = powm(O, ty[j])
+                Uxy[:, :, i, j] = powm(Oxy[:, :, i], ty[j])
             end
         end
-
         for j in 1:n_ky
             ik = xyz_k[i, j, 1]
-
             view(U, :, :, ik) .= view(U, :, :, ik) * (exp(im * logD[i] * ty[j] / n_wann) * Uxy[:, :, i, j])
         end
     end
 
-    # Propagate along the third dimension
+    # 3. Propagate along the third dimension
     @info "Filling (k1,k2,k3)"
     dk = [0.0, 0.0, 1 / n_kz]
     for i in 1:n_kx, j in 1:n_ky
-        kpts = [xyz_k[i, j, k] for k in 1:n_kz]
-        propagate!(U, kpts, dk, M, bvectors)
+        propagate!(U, [xyz_k[i, j, k] for k in 1:n_kz], dk, M, bvectors)
     end
 
     # Fix corner
-    k1 = xyz_k[1, 1, n_kz]
-    k2 = xyz_k[1, 1, 1]
-    # For MP grid, b = [0, 0, 1]
-    # For other grids,
-    b = round.(Int, kpts_frac[k1] + dk - kpts_frac[k2])
-    ib = index_bvector(bvectors, k1, k2, b)
-    Nᵏᵇ = view(U, :, :, k1)' * view(M, :, :, ib, k1) * view(U, :, :, k2)
-    O4 = orthonorm_lowdin(Nᵏᵇ)
-    d, V = eigen(O4)
-    logd = log.(d)
-
-    # Hack to avoid separating eigenvalues at -1. TODO understand that
-    for i in 1:n_wann
-        if imag(logd[i]) < -π + 0.01
-            logd[i] += 2π * im
-        end
+    O4 = overlap_obstruction(U, M, bvectors, xyz_k[1, 1, n_kz], xyz_k[1, 1, 1], dk)
+    V, logd = eig_log(O4)
+    for k in 1:n_kz, i in 1:n_kx, j in 1:n_ky
+        pullback!(U, xyz_k[i, j, k], V, logd, tz[k])
     end
 
-    for k in 1:n_kz
-        # fixer = powm(O4, t3[k])
-        W = V * diagm(0 => exp.(tz[k] * logd)) * V'
-
-        for i in 1:n_kx, j in 1:n_ky
+    # Fix first edge, in x-z plane, at kz = 1 along kx = 0 -> 1
+    Oxz = zeros(Complex{T}, n_wann, n_wann, n_kx)
+    for i in 1:n_kx
+        Oxz[:, :, i] = overlap_obstruction(U, M, bvectors, xyz_k[i, 1, n_kz], xyz_k[i, 1, 1], dk)
+    end
+    Uxz = log_interp ? zeros(Complex{T}, n_wann, n_wann, n_kx, n_kz) : matrix_transport(Oxz, tz)
+    for i in 1:n_kx, k in 1:n_kz
+        W = log_interp ? powm(Oxz[:, :, i], tz[k]) : Uxz[:, :, i, k]
+        for j in 1:n_ky
             ik = xyz_k[i, j, k]
             view(U, :, :, ik) .= view(U, :, :, ik) * W
         end
     end
 
-    # Fix first edge, in x-z plane, at kz = 1 along kx = 0 -> 1
-    Oxz = zeros(Complex{T}, n_wann, n_wann, n_kx)
-    Uxz = zeros(Complex{T}, n_wann, n_wann, n_kx, n_kz)
-
-    for i in 1:n_kx
-        k1 = xyz_k[i, 1, n_kz]
-        k2 = xyz_k[i, 1, 1]
-        # For MP grid, b = [0, 0, 1]
-        # For other grids,
-        b = round.(Int, kpts_frac[k1] + dk - kpts_frac[k2])
-        ib = index_bvector(bvectors, k1, k2, b)
-        Nᵏᵇ = view(U, :, :, k1)' * view(M, :, :, ib, k1) * view(U, :, :, k2)
-        Oxz[:, :, i] = orthonorm_lowdin(Nᵏᵇ)
-    end
-
-    if !log_interp
-        Uxz = matrix_transport(Oxz, tz)
-    end
-
-    for i in 1:n_kx
-        for k in 1:n_kz
-            if log_interp
-                W = powm(Oxz[:, :, i], tz[k])
-
-                for j in 1:n_ky
-                    ik = xyz_k[i, j, k]
-                    view(U, :, :, ik) .= view(U, :, :, ik) * W
-                end
-            else
-                for j in 1:n_ky
-                    ik = xyz_k[i, j, k]
-                    view(U, :, :, ik) .= view(U, :, :, ik) * Uxz[:, :, i, k]
-                end
-            end
-        end
-    end
-
     # Fix second edge, in y-z plane, at kz = 1 along ky = 0 -> 1
     Oyz = zeros(Complex{T}, n_wann, n_wann, n_ky)
-    Uyz = zeros(Complex{T}, n_wann, n_wann, n_ky, n_kz)
-
     for j in 1:n_ky
-        k1 = xyz_k[1, j, n_kz]
-        k2 = xyz_k[1, j, 1]
-        # For MP grid, b = [0, 0, 1]
-        # For other grids,
-        b = round.(Int, kpts_frac[k1] + dk - kpts_frac[k2])
-        ib = index_bvector(bvectors, k1, k2, b)
-        Nᵏᵇ = view(U, :, :, k1)' * view(M, :, :, ib, k1) * view(U, :, :, k2)
-        Oyz[:, :, j] = orthonorm_lowdin(Nᵏᵇ)
+        Oyz[:, :, j] = overlap_obstruction(U, M, bvectors, xyz_k[1, j, n_kz], xyz_k[1, j, 1], dk)
     end
-
-    if !log_interp
-        Uyz = matrix_transport(Oyz, tz)
-    end
-
-    for j in 1:n_ky
-        for k in 1:n_kz
-            if log_interp
-                W = powm(Oyz[:, :, j], tz[k])
-
-                for i in 1:n_kx
-                    ik = xyz_k[i, j, k]
-                    view(U, :, :, ik) .= view(U, :, :, ik) * W
-                end
-            else
-                for i in 1:n_kx
-                    ik = xyz_k[i, j, k]
-                    view(U, :, :, ik) .= view(U, :, :, ik) * Uyz[:, :, j, k]
-                end
-            end
+    Uyz = log_interp ? zeros(Complex{T}, n_wann, n_wann, n_ky, n_kz) : matrix_transport(Oyz, tz)
+    for j in 1:n_ky, k in 1:n_kz
+        W = log_interp ? powm(Oyz[:, :, j], tz[k]) : Uyz[:, :, j, k]
+        for i in 1:n_kx
+            ik = xyz_k[i, j, k]
+            view(U, :, :, ik) .= view(U, :, :, ik) * W
         end
     end
 
     # Fix whole surface
     for i in 1:n_kx, j in 1:n_ky
-        k1 = xyz_k[i, j, n_kz]
-        k2 = xyz_k[i, j, 1]
-        # For MP grid, b = [0, 0, 1]
-        # For other grids,
-        b = round.(Int, kpts_frac[k1] + dk - kpts_frac[k2])
-        ib = index_bvector(bvectors, k1, k2, b)
-        Nᵏᵇ = view(U, :, :, k1)' * view(M, :, :, ib, k1) * view(U, :, :, k2)
-        O = orthonorm_lowdin(Nᵏᵇ)
-
+        O = overlap_obstruction(U, M, bvectors, xyz_k[i, j, n_kz], xyz_k[i, j, 1], dk)
         for k in 1:n_kz
             ik = xyz_k[i, j, k]
             view(U, :, :, ik) .= view(U, :, :, ik) * powm(O, tz[k])
@@ -312,8 +195,7 @@ function parallel_transport(
 
     compute_error(model, U)
 
-    obs = Obstruction(Oxy, Oxz, Oyz, Uxy, Uxz, Uyz)
-    return U, obs
+    return U, nothing
 end
 
 """
@@ -322,9 +204,8 @@ end
 Compute the smoothness error of the gauge.
 """
 function compute_error(model::Model{T}, U::AbstractArray{Complex{T}, 3}) where {T <: Real}
-    # initial error
+    # initial (ϵ0) and final (ϵ1) error
     ϵ0 = 0.0
-    # final error
     ϵ1 = 0.0
 
     n_kx, n_ky, n_kz = kgrid_size(model)
@@ -333,13 +214,9 @@ function compute_error(model::Model{T}, U::AbstractArray{Complex{T}, 3}) where {
 
     M = model.overlaps
     U0 = model.gauges
-    kpts_frac = model.kstencil.kpoints
+    bvectors = model.kstencil
 
-    epsilon(i, j, b, B) = begin
-        ib = index_bvector(model.kstencil, i, j, b)
-        Nᵏᵇ = view(B, :, :, i)' * view(M, :, :, ib, i) * view(B, :, :, j)
-        norm(orthonorm_lowdin(Nᵏᵇ) - I)^2
-    end
+    epsilon(k1, k2, dk, B) = norm(overlap_obstruction(B, M, bvectors, k1, k2, dk) - I)^2
 
     dkx = [1 / n_kx, 0.0, 0.0]
     dky = [0.0, 1 / n_ky, 0.0]
@@ -347,49 +224,18 @@ function compute_error(model::Model{T}, U::AbstractArray{Complex{T}, 3}) where {
 
     for i in 1:n_kx, j in 1:n_ky, k in 1:n_kz
         k1 = xyz_k[i, j, k]
-        if i == n_kx
-            k2 = xyz_k[1, j, k]
-            # For MP grid
-            # b = [1, 0, 0]
-        else
-            k2 = xyz_k[i + 1, j, k]
-            # For MP grid
-            # b = [0, 0, 0]
-        end
-        # For other grids
-        b = round.(Int, kpts_frac[k1] + dkx - kpts_frac[k2])
 
-        ϵ0 += epsilon(k1, k2, b, U0)
-        ϵ1 += epsilon(k1, k2, b, U)
+        k2 = xyz_k[i == n_kx ? 1 : i + 1, j, k]
+        ϵ0 += epsilon(k1, k2, dkx, U0)
+        ϵ1 += epsilon(k1, k2, dkx, U)
 
-        if j == n_ky
-            k2 = xyz_k[i, 1, k]
-            # For MP grid
-            # b = [0, 1, 0]
-        else
-            k2 = xyz_k[i, j + 1, k]
-            # For MP grid
-            # b = [0, 0, 0]
-        end
-        # For other grids
-        b = round.(Int, kpts_frac[k1] + dky - kpts_frac[k2])
-        ϵ0 += epsilon(k1, k2, b, U0)
-        ϵ1 += epsilon(k1, k2, b, U)
+        k2 = xyz_k[i, j == n_ky ? 1 : j + 1, k]
+        ϵ0 += epsilon(k1, k2, dky, U0)
+        ϵ1 += epsilon(k1, k2, dky, U)
 
-        if k == n_kz
-            k2 = xyz_k[i, j, 1]
-            # For MP grid
-            # b = [0, 0, 1]
-        else
-            k2 = xyz_k[i, j, k + 1]
-            # For MP grid
-            # b = [0, 0, 0]
-        end
-        # For other grids
-        b = round.(Int, kpts_frac[k1] + dkz - kpts_frac[k2])
-
-        ϵ0 += epsilon(k1, k2, b, U0)
-        ϵ1 += epsilon(k1, k2, b, U)
+        k2 = xyz_k[i, j, k == n_kz ? 1 : k + 1]
+        ϵ0 += epsilon(k1, k2, dkz, U0)
+        ϵ1 += epsilon(k1, k2, dkz, U)
     end
 
     ϵ0 = sqrt(ϵ0) / n_kpoints(model)

@@ -370,23 +370,3 @@ function matrix_transport(matrix_path::AbstractArray{Complex{T}, 3}, t::Abstract
 
     return U
 end
-
-struct Obstruction{T <: Complex}
-    # obstruction matrix in x-y plane, at ky = 1 along kx = 0 -> 1
-    Oxy::Array{T, 3}
-
-    # obstruction matrix in x-z plane, at kz = 1 along kx = 0 -> 1
-    Oxz::Array{T, 3}
-
-    # obstruction matrix in y-z plane, at kz = 1 along ky = 0 -> 1
-    Oyz::Array{T, 3}
-
-    # frame in x-y plane, at ky = 1 along kx = 0 -> 1
-    Uxy::Array{T, 4}
-
-    # frame in x-z plane, at kz = 1 along kx = 0 -> 1
-    Uxz::Array{T, 4}
-
-    # frame in y-z plane, at kz = 1 along ky = 0 -> 1
-    Uyz::Array{T, 4}
-end
