@@ -29,6 +29,40 @@ function pullback!(U, ik::Integer, V, logd, t::Real)
 end
 
 """
+Factor the U(1) determinant winding out of an edge obstruction path
+`O_path[:, :, i]`, so that the SU(N) contraction ([`matrix_transport`](@ref) or
+[`powm`](@ref)) only deals with the special-unitary part. Return
+`(O_normalized, logD)`, where `logD` is the continuous (unwrapped) phase of
+`det(O_path)` along the path.
+
+The winding is spread *equally over all `n_col` bands* (an `n_col`-th root),
+rather than dumped onto a single band, and is reattached afterwards with
+[`det_winding_phase`](@ref). This is applied identically to every edge (xy, xz,
+yz), so no edge is treated specially.
+"""
+function factor_det_winding(O_path::AbstractArray{Complex{T}, 3}) where {T <: Real}
+    n_col = size(O_path, 1)
+    n_k = size(O_path, 3)
+    logD = [imag(log(det(view(O_path, :, :, i)))) for i in 1:n_k]
+    for i in 2:n_k
+        kmin = argmin([abs(logD[i] + 2π * k - logD[i - 1]) for k in -1:1])
+        logD[i] += (kmin - 2) * 2π
+    end
+    O_norm = similar(O_path)
+    for i in 1:n_k
+        O_norm[:, :, i] = exp(-im * logD[i] / n_col) * view(O_path, :, :, i)
+    end
+    return O_norm, logD
+end
+
+"""
+Scalar phase reattaching the U(1) determinant winding removed by
+[`factor_det_winding`](@ref), spread equally over the `n_col` bands, for
+unwrapped determinant phase `logD_i` and interpolation parameter `t`.
+"""
+det_winding_phase(logD_i::Real, t::Real, n_col::Integer) = exp(im * logD_i * t / n_col)
+
+"""
     parallel_transport(model::Model{T}; use_U=false, log_interp=false)
 
 Parallel transport the gauge from the first kpoint to all other kpoints.
@@ -107,39 +141,16 @@ function parallel_transport(
 
     # Line obstruction, at ky = 1 along kx = 0 -> 1
     Oxy = zeros(Complex{T}, n_wann, n_wann, n_kx)
-    detO3 = zeros(Complex{T}, n_kx)
     for i in 1:n_kx
         Oxy[:, :, i] = overlap_obstruction(U, M, bvectors, xyz_k[i, n_ky, 1], xyz_k[i, 1, 1], dk)
-        detO3[i] = det(Oxy[:, :, i])
     end
+    Oxy, logDxy = factor_det_winding(Oxy)
 
-    # find a continuous log of the determinant, then factor the U(1) winding out
-    # so that `matrix_transport` only handles the SU(N) part; it is reintroduced
-    # below with the same `/ n_wann` divisor.
-    logD = imag(log.(detO3))
-    for i in 2:n_kx
-        kmin = argmin([abs(logD[i] + 2π * k - logD[i - 1]) for k in -1:1])
-        logD[i] += (kmin - 2) * 2π
-    end
-    for i in 1:n_kx
-        Oxy[:, :, i] = exp(-im * logD[i] / n_wann) * Oxy[:, :, i]
-    end
-
-    # Interpolate the line obstruction
-    Uxy = zeros(Complex{T}, n_wann, n_wann, n_kx, n_ky)
-    if !log_interp
-        Uxy = matrix_transport(Oxy, ty)
-    end
-    for i in 1:n_kx
-        if log_interp
-            for j in 1:n_ky
-                Uxy[:, :, i, j] = powm(Oxy[:, :, i], ty[j])
-            end
-        end
-        for j in 1:n_ky
-            ik = xyz_k[i, j, 1]
-            view(U, :, :, ik) .= view(U, :, :, ik) * (exp(im * logD[i] * ty[j] / n_wann) * Uxy[:, :, i, j])
-        end
+    Uxy = log_interp ? zeros(Complex{T}, n_wann, n_wann, n_kx, n_ky) : matrix_transport(Oxy, ty)
+    for i in 1:n_kx, j in 1:n_ky
+        base = log_interp ? powm(Oxy[:, :, i], ty[j]) : Uxy[:, :, i, j]
+        ik = xyz_k[i, j, 1]
+        view(U, :, :, ik) .= view(U, :, :, ik) * (det_winding_phase(logDxy[i], ty[j], n_wann) * base)
     end
 
     # 3. Propagate along the third dimension
@@ -161,9 +172,11 @@ function parallel_transport(
     for i in 1:n_kx
         Oxz[:, :, i] = overlap_obstruction(U, M, bvectors, xyz_k[i, 1, n_kz], xyz_k[i, 1, 1], dk)
     end
+    Oxz, logDxz = factor_det_winding(Oxz)
     Uxz = log_interp ? zeros(Complex{T}, n_wann, n_wann, n_kx, n_kz) : matrix_transport(Oxz, tz)
     for i in 1:n_kx, k in 1:n_kz
-        W = log_interp ? powm(Oxz[:, :, i], tz[k]) : Uxz[:, :, i, k]
+        base = log_interp ? powm(Oxz[:, :, i], tz[k]) : Uxz[:, :, i, k]
+        W = det_winding_phase(logDxz[i], tz[k], n_wann) * base
         for j in 1:n_ky
             ik = xyz_k[i, j, k]
             view(U, :, :, ik) .= view(U, :, :, ik) * W
@@ -175,9 +188,11 @@ function parallel_transport(
     for j in 1:n_ky
         Oyz[:, :, j] = overlap_obstruction(U, M, bvectors, xyz_k[1, j, n_kz], xyz_k[1, j, 1], dk)
     end
+    Oyz, logDyz = factor_det_winding(Oyz)
     Uyz = log_interp ? zeros(Complex{T}, n_wann, n_wann, n_ky, n_kz) : matrix_transport(Oyz, tz)
     for j in 1:n_ky, k in 1:n_kz
-        W = log_interp ? powm(Oyz[:, :, j], tz[k]) : Uyz[:, :, j, k]
+        base = log_interp ? powm(Oyz[:, :, j], tz[k]) : Uyz[:, :, j, k]
+        W = det_winding_phase(logDyz[j], tz[k], n_wann) * base
         for i in 1:n_kx
             ik = xyz_k[i, j, k]
             view(U, :, :, ik) .= view(U, :, :, ik) * W

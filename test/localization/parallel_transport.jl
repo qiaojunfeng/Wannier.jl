@@ -38,7 +38,7 @@ end
     ϵ0, ϵ1 = Wannier.compute_error(model, Umin)
 
     ϵ0_ref = 0.20036010968611806
-    ϵ1_ref = 0.200989986809465
+    ϵ1_ref = 0.20103804200989328
 
     @test isapprox(ϵ0, ϵ0_ref; atol = 1.0e-5)
     @test isapprox(ϵ1, ϵ1_ref; atol = 1.0e-5)
