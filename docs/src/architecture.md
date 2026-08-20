@@ -108,7 +108,7 @@ so every one can hand-order its fused value+gradient sweep:
 
 | Type | Minimizes | Runs on |
 |---|---|---|
-| [`Variance`](@ref Wannier.Variance) | Marzari–Vanderbilt spread ``\Omega`` | `Model` |
+| [`Variance`](@ref Wannier.Variance) | Marzari–Vanderbilt spread ``\Omega`` | `Model`, `SymmetrizedModel` |
 | [`CenteredVariance`](@ref Wannier.CenteredVariance) | ``\Omega`` + WF-center penalty | `Model` |
 | [`CoOptVariance`](@ref Wannier.CoOptVariance) | ``\Omega_\uparrow + \Omega_\downarrow + \lambda_s \Omega_{\uparrow\downarrow}`` | `SpinModel` |
 | [`CenteredCoOptVariance`](@ref Wannier.CenteredCoOptVariance) | co-optimization + center penalty | `SpinModel` |
@@ -143,6 +143,8 @@ manifold.
 | [`XYLayout`](@ref Wannier.XYLayout) | packed `XY`, `(n_wannier² + n_bands·n_wannier) × n_kpoints` | entangled manifold |
 | [`ProductLayout`](@ref Wannier.ProductLayout) | two layouts side by side | `SpinModel` |
 | [`WLayout`](@ref Wannier.WLayout) | a single rotation matrix `W` | rotation-only refinement |
+| [`SymXYLayout`](@ref Wannier.SymXYLayout) | packed `XY` at the IBZ kpoints only | `SymmetrizedModel` |
+| [`SchurLayout`](@ref Wannier.SchurLayout) | flat real per-irrep Schur block parameters | `SymmetrizedModel` |
 
 ```julia
 initial_x(layout, model)               # model.gauges → starting x
@@ -236,6 +238,32 @@ localize(ParallelTransport(), model)             # closed-form, no solver
 
 Objective calls expand to `solve!(Problem(obj, model, layout), OptimLBFGS(; kwargs...))`;
 keyword arguments forward to the solver.
+
+### Symmetry-adapted WFs ride the same rails
+
+Symmetry-constrained (SAWF) localization is not a separate driver — it is the
+same `Objective` × `Layout` × solver composition on a different model bundle.
+A [`SymmetrizedModel`](@ref Wannier.SymmetrizedModel) wraps a full-mesh `Model` (global-b stencil,
+overlaps unfolded from the IBZ) together with the
+[`SymmetryConstraint`](@ref Wannier.SymmetryConstraint) tables and the IBZ overlaps; the
+optimization variables live at the IBZ kpoints only. `Variance` dispatches to
+the IBZ transport kernels (`_fg2_core!`, Level 2) by default, and the layout
+owns the constraint handling: [`SymXYLayout`](@ref Wannier.SymXYLayout) decodes through the
+covariance projector (and pulls the gradient back through its adjoint), while
+[`SchurLayout`](@ref Wannier.SchurLayout) parameterizes the covariant gauges exactly by their
+per-irrep Schur blocks — fewer real parameters, no projector calls. Because
+the composition is the standard one, every solver backend and future
+objective works with both layouts unchanged:
+
+```julia
+U_fbz, U_ibz = localize(sm)                                # Variance + SymXYLayout (Level 2)
+U_fbz, U_ibz = localize(Variance(), sm, SchurLayout())     # Schur block parameters
+U_fbz, U_ibz = solve!(Problem(Variance(), sm), OptimLBFGS(; max_iter = 300))
+```
+
+[`localize_symmetric`](@ref Wannier.localize_symmetric) remains as a thin
+backwards-compatible wrapper that builds the `SymmetrizedModel` and selects
+the layout from its `level` / `schur` keywords.
 
 ### Parallel transport is a separate path
 

@@ -398,3 +398,76 @@ end
     fb = Wannier.symmetry_breaking_force(U0, mmn_i.M, sc, ws2)
     @test 0 <= fb <= 1
 end
+
+@testitem "localize on SymmetrizedModel" begin
+    using WannierIO, LinearAlgebra
+    using Wannier.Datasets
+
+    nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
+    ks0 = Wannier.KspaceStencil(
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
+    )
+    isym = read_isym(dataset"Si2_hse/Si2.isym")
+    Wannier.rescale!(isym.littlegroup_reps)
+    centers = [p.center for p in nnkp["projections"]]
+    sc = Wannier.symmetry_constraint(ks0, isym, centers)
+    ks = Wannier.globalize_stencil(ks0)
+
+    mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
+    Mf = Wannier.unfold_overlaps_cached(mmn_i.M, sc)
+    Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
+    Ei = read_eig(dataset"Si2_hse/Si2.ieig")
+    win = read_win(dataset"Si2_hse/Si2.win")
+    Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
+    frozen = Wannier.get_frozen_bands(Ef, get(win, "dis_froz_max", -Inf))
+    atom_positions = [p.second for p in win["atoms_frac"]]
+    atom_labels = map(x -> string(x.first), win["atoms_frac"])
+    model = Wannier.Model(
+        win["unit_cell_cart"], atom_positions, atom_labels,
+        ks, Mf, Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
+    )
+
+    sm = SymmetrizedModel(model, sc, mmn_i.M)
+    @test Wannier.n_bands(sm) == Wannier.n_bands(model)
+    @test Wannier.n_wannier(sm) == Wannier.n_wannier(model)
+    @test Wannier.n_kpoints(sm) == sc.nk_fbz
+    @test Wannier.n_kpoints_ibz(sm) == sc.nk_ibz
+    @test default_layout(Variance(), sm) == SymXYLayout()
+    @test SymXYLayout().level == 2
+
+    # framework path (Problem + solve! under the hood), a few LBFGS iterations
+    niter = 5
+    U_fbz, U_ibz = localize(sm; max_iter = niter)
+    # the optimized gauge is covariant to the data floor and consistently expanded
+    @test Wannier.covariance_residual(U_ibz, sc) < 1.0e-3
+    @test U_fbz ≈ Wannier.expand_gauges(U_ibz, sc)
+
+    # the backwards-compatible wrapper delegates to the same path: same Ω
+    U_fbz2, U_ibz2 = Wannier.localize_symmetric(model, mmn_i.M, sc; max_iter = niter)
+    Ω = Wannier.spread(model.kstencil, model.overlaps, U_fbz).Ω
+    Ω2 = Wannier.spread(model.kstencil, model.overlaps, U_fbz2).Ω
+    @test isapprox(Ω, Ω2; atol = 1.0e-10)
+    @test U_ibz ≈ U_ibz2
+
+    # SAWF improves on covariance-projected input and stays a semi-unitary gauge
+    @test Ω < Wannier.spread(model.kstencil, model.overlaps, model.gauges).Ω
+    @test maximum(
+        opnorm(U_ibz[:, :, k]' * U_ibz[:, :, k] - I) for k in 1:sc.nk_ibz
+    ) < 1.0e-4
+
+    # Schur layout through the explicit Problem + solve! route
+    prob = Problem(Variance(), sm, SchurLayout())
+    Us_fbz, Us_ibz = solve!(prob, OptimLBFGS(; max_iter = niter))
+    @test Wannier.covariance_residual(Us_ibz, sc) < 1.0e-3
+    Us_fbz2, Us_ibz2 = Wannier.localize_symmetric(
+        model, mmn_i.M, sc; schur = true, max_iter = niter
+    )
+    Ωs = Wannier.spread(model.kstencil, model.overlaps, Us_fbz).Ω
+    Ωs2 = Wannier.spread(model.kstencil, model.overlaps, Us_fbz2).Ω
+    @test isapprox(Ωs, Ωs2; atol = 1.0e-10)
+
+    # Level 1 through the layout: same variables, same optimum path as Level 2
+    U1_fbz, _ = localize(Variance(), sm, SymXYLayout(1); max_iter = niter)
+    Ω1 = Wannier.spread(model.kstencil, model.overlaps, U1_fbz).Ω
+    @test isapprox(Ω1, Ω; atol = 1.0e-5)
+end

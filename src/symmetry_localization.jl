@@ -600,20 +600,37 @@ function symmetric_fg1!(
         F, G, xy::AbstractMatrix,
         model::Model, sc::SymmetryConstraint, ws::SymmetricWorkspace,
     )
-    # decode (X,Y) -> covariant U at IBZ -> full mesh
+    # decode (X,Y) -> covariant U at IBZ
     XY_to_X_Y!(ws.X_ibz, ws.Y_ibz, xy)
     X_Y_to_U!(ws.U_ibz, ws.X_ibz, ws.Y_ibz)
     project_covariant!(ws.U_ibz, sc)
+
+    Ω = _fg1_core!(F, G === nothing ? nothing : ws.G_ibz, model, sc, ws)
+
+    if G !== nothing
+        project_covariant!(ws.G_ibz, sc)
+        encode_gradient_xy!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.frozen_ibz)
+    end
+    return Ω
+end
+
+"""
+Level-1 core: value and (unprojected) canonical gradient `dΩ/dU*(ki)` for the
+covariant gauge already stored in `ws.U_ibz` — expand to the full mesh, run
+the standard full-mesh kernels, pull the gradient back to the IBZ. Writes the
+gradient into `G_ibz` when given. Counterpart of [`_fg2_core!`](@ref).
+"""
+function _fg1_core!(
+        F, G_ibz, model::Model, sc::SymmetryConstraint, ws::SymmetricWorkspace
+    )
     expand_gauges!(ws.full.U, ws.U_ibz, sc)
 
     kstencil, overlaps = model.kstencil, model.overlaps
     compute_MU_UtMU!(ws.full, kstencil, overlaps, ws.full.U)
 
-    if G !== nothing
+    if G_ibz !== nothing
         omega_grad!(ws.full.GU, ws.full, kstencil, overlaps)
-        pullback_gauges!(ws.G_ibz, ws.full.GU, sc)
-        project_covariant!(ws.G_ibz, sc)
-        encode_gradient_xy!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.frozen_ibz)
+        pullback_gauges!(G_ibz, ws.full.GU, sc)
     end
 
     F === nothing && return nothing
@@ -896,6 +913,10 @@ IBZ kpoints only (the SAWF constrained problem). Returns `(U_fbz, U_ibz)`:
 the optimized covariant gauge expanded to the full mesh, and its IBZ
 representative.
 
+Thin wrapper over the framework path: builds a [`SymmetrizedModel`](@ref) and
+calls [`localize`](@ref) with the layout selected by `level` / `schur`
+([`SymXYLayout`](@ref) or [`SchurLayout`](@ref)).
+
 # Arguments
 - `model`: full-mesh model in the *global* b ordering (see
   [`globalize_stencil`](@ref)), with overlaps unfolded from the IBZ. Its
@@ -923,55 +944,11 @@ function localize_symmetric(
         schur::Bool = false,
         kwargs...,
     )
-    solver = OptimLBFGS(; kwargs...)
-
-    U0_ibz = extract_ibz_gauges(model.gauges, sc)
-    project_covariant!(U0_ibz, sc)
-    frozen_ibz = model.frozen_bands[:, sc.ibz2fbz]
-    X0, Y0 = U_to_X_Y(U0_ibz, frozen_ibz)
-    x0 = X_Y_to_XY(X0, Y0)
-
     if schur
         level == 2 || error("the Schur parametrization requires level = 2")
-        sb = schur_basis(sc, frozen_ibz)
-        ws2 = SymmetricWorkspace2(model.eigenvalues, model.frozen_bands, sc)
-        xs0 = schur_initial_x(U0_ibz, sb)
-        fgs! = function (F, G, x)
-            schur_decode!(ws2.U_ibz, x, sb)
-            Ω = _fg2_core!(F, G === nothing ? nothing : ws2.G_ibz, M_ibz, sc, ws2)
-            G === nothing || schur_encode_gradient!(G, ws2.G_ibz, x, sb)
-            return Ω
-        end
-        opt = _run_optim_fg!(fgs!, xs0, SchurManifold(sb), solver)
-        U_ibz = zeros(eltype(U0_ibz), sc.nbands, sc.nwann, sc.nk_ibz)
-        schur_decode!(U_ibz, Optim.minimizer(opt), sb)
-        return expand_gauges(U_ibz, sc), U_ibz
     end
-
-    if level == 1
-        ws1 = SymmetricWorkspace(model, sc)
-        fg! = (F, G, x) -> symmetric_fg1!(F, G, x, model, sc, ws1)
-    elseif level == 2
-        ws2 = SymmetricWorkspace2(model.eigenvalues, model.frozen_bands, sc)
-        fg! = (F, G, x) -> symmetric_fg2!(F, G, x, M_ibz, sc, ws2)
-    else
-        error("level must be 1 or 2")
-    end
-
-    nw, nb = sc.nwann, sc.nbands
-    per_k = Optim.ProductManifold(
-        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw)
-    )
-    man = Optim.PowerManifold(per_k, (nw^2 + nb * nw,), (sc.nk_ibz,))
-
-    opt = _run_optim_fg!(fg!, x0, man, solver)
-    xy = Optim.minimizer(opt)
-
-    X, Y = XY_to_X_Y(xy, nb, nw)
-    U_ibz = X_Y_to_U(X, Y)
-    project_covariant!(U_ibz, sc)
-    U_fbz = expand_gauges(U_ibz, sc)
-    return U_fbz, U_ibz
+    layout = schur ? SchurLayout() : SymXYLayout(level)
+    return localize(Variance(), SymmetrizedModel(model, sc, M_ibz), layout; kwargs...)
 end
 
 """

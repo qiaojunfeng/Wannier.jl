@@ -139,6 +139,19 @@ Modules = [Wannier]
 Pages   = ["localization/gauge.jl"]
 ```
 
+## Symmetry-adapted (SAWF) localization
+
+Symmetry-constrained localization on the irreducible Brillouin zone composes
+with the framework through [`SymmetrizedModel`](@ref Wannier.SymmetrizedModel)
+and the [`SymXYLayout`](@ref Wannier.SymXYLayout) /
+[`SchurLayout`](@ref Wannier.SchurLayout) layouts; see
+[Architecture](@ref) for the design.
+
+```@autodocs
+Modules = [Wannier]
+Pages   = ["symmetrized_model.jl", "symmetry_localization.jl"]
+```
+
 ## Parallel transport
 
 ```@autodocs

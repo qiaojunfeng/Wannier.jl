@@ -45,38 +45,37 @@ model = Wannier.Model(
 @printf("setup: constraint tables %.2fs, M unfolding %.3fs\n\n", tsc, tunf)
 
 # ---- per-evaluation cost ----------------------------------------------------
-ws1 = Wannier.SymmetricWorkspace(model, sc)
-ws2 = Wannier.SymmetricWorkspace2(Ef, frozen, sc)
-X, Y = Wannier.U_to_X_Y(Ai, ws1.frozen_ibz)
-xy = Wannier.X_Y_to_XY(X, Y)
-G1, G2 = zero(xy), zero(xy)
+# Everything routes through the framework: `Problem` resolves the layout and
+# workspace, `_make_fg!` builds the fused decode → fg! → encode closure the
+# solver iterates. Timings therefore include the full per-iteration chain.
+sm = Wannier.SymmetrizedModel(model, sc, mmn_i.M)
 
-prob = Wannier.Problem(Wannier.Variance(), model)
-fgfull = Wannier._make_fg!(prob)
-x0full = Wannier.initial_x(prob.layout, model)
+prob_full = Wannier.Problem(Wannier.Variance(), model)
+fgfull = Wannier._make_fg!(prob_full)
+x0full = Wannier.initial_x(prob_full.layout, model)
 Gfull = zero(x0full)
+
+prob_l1 = Wannier.Problem(Wannier.Variance(), sm, Wannier.SymXYLayout(1))
+prob_l2 = Wannier.Problem(Wannier.Variance(), sm)   # default: SymXYLayout(2)
+fg1 = Wannier._make_fg!(prob_l1)
+fg2 = Wannier._make_fg!(prob_l2)
+xy = Wannier.initial_x(prob_l2.layout, sm)   # both levels share the XY packing
+G1, G2 = zero(xy), zero(xy)
 
 mintime(f, n = 20) = minimum((f(); @elapsed f()) for _ in 1:n)
 
 t_full_fg = mintime(() -> fgfull(1.0, Gfull, x0full))
 t_full_f = mintime(() -> fgfull(1.0, nothing, x0full))
-t_l1_fg = mintime(() -> Wannier.symmetric_fg1!(1.0, G1, xy, model, sc, ws1))
-t_l1_f = mintime(() -> Wannier.symmetric_fg1!(1.0, nothing, xy, model, sc, ws1))
-t_l2_fg = mintime(() -> Wannier.symmetric_fg2!(1.0, G2, xy, mmn_i.M, sc, ws2))
-t_l2_f = mintime(() -> Wannier.symmetric_fg2!(1.0, nothing, xy, mmn_i.M, sc, ws2))
+t_l1_fg = mintime(() -> fg1(1.0, G1, xy))
+t_l1_f = mintime(() -> fg1(1.0, nothing, xy))
+t_l2_fg = mintime(() -> fg2(1.0, G2, xy))
+t_l2_f = mintime(() -> fg2(1.0, nothing, xy))
 
-frozen_ibz = frozen[:, sc.ibz2fbz]
-tsb = @elapsed sb = Wannier.schur_basis(sc, frozen_ibz)
-U0i = Wannier.project_covariant(Ai, sc)
-xs = Wannier.schur_initial_x(U0i, sb)
+tsb = @elapsed sb = Wannier.schur_basis(sm)   # lazily built, cached in `sm`
+prob_s = Wannier.Problem(Wannier.Variance(), sm, Wannier.SchurLayout())
+fg_schur! = Wannier._make_fg!(prob_s)
+xs = Wannier.initial_x(prob_s.layout, sm)
 gs = zero(xs)
-ws2s = Wannier.SymmetricWorkspace2(Ef, frozen, sc)
-fg_schur! = function (F, G, x)
-    Wannier.schur_decode!(ws2s.U_ibz, x, sb)
-    Ω = Wannier._fg2_core!(F, G === nothing ? nothing : ws2s.G_ibz, mmn_i.M, sc, ws2s)
-    G === nothing || Wannier.schur_encode_gradient!(G, ws2s.G_ibz, x, sb)
-    return Ω
-end
 t_sch_fg = mintime(() -> fg_schur!(1.0, gs, xs))
 t_sch_f = mintime(() -> fg_schur!(1.0, nothing, xs))
 
@@ -119,15 +118,15 @@ nderived = count(
 )
 
 # equivalence at the shared starting point
-Ω1 = Wannier.symmetric_fg1!(1.0, G1, xy, model, sc, ws1)
-Ω2 = Wannier.symmetric_fg2!(1.0, G2, xy, mmn_i.M, sc, ws2)
+Ω1 = fg1(1.0, G1, xy)
+Ω2 = fg2(1.0, G2, xy)
 @printf("L1/L2 equivalence: |ΔΩ| = %.2e, rel grad diff = %.2e\n\n", abs(Ω1 - Ω2), norm(G1 - G2) / norm(G1))
 
 # ---- full optimizations ------------------------------------------------------
 NITER = parse(Int, get(ENV, "NITER", "100"))
-ts = @elapsed (Us, Usi) = Wannier.localize_symmetric(model, mmn_i.M, sc; level = 2, schur = true, max_iter = NITER)
-t2 = @elapsed (U2, U2i) = Wannier.localize_symmetric(model, mmn_i.M, sc; level = 2, max_iter = NITER)
-t1 = @elapsed (U1, _) = Wannier.localize_symmetric(model, mmn_i.M, sc; level = 1, max_iter = NITER)
+ts = @elapsed (Us, Usi) = Wannier.localize(Wannier.Variance(), sm, Wannier.SchurLayout(); max_iter = NITER)
+t2 = @elapsed (U2, U2i) = Wannier.localize(sm; max_iter = NITER)
+t1 = @elapsed (U1, _) = Wannier.localize(Wannier.Variance(), sm, Wannier.SymXYLayout(1); max_iter = NITER)
 t0 = @elapsed U0 = Wannier.localize(model; max_iter = NITER)
 
 s2 = Wannier.spread(model.kstencil, model.overlaps, U2)
