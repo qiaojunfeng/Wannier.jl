@@ -442,12 +442,9 @@ end
     @test Wannier.covariance_residual(U_ibz, sc) < 1.0e-3
     @test U_fbz ≈ Wannier.expand_gauges(U_ibz, sc)
 
-    # the backwards-compatible wrapper delegates to the same path: same Ω
-    U_fbz2, U_ibz2 = Wannier.localize_symmetric(model, mmn_i.M, sc; max_iter = niter)
+    # hard-coded 5-iteration regression anchor (SymXYLayout, Level 2)
     Ω = Wannier.spread(model.kstencil, model.overlaps, U_fbz).Ω
-    Ω2 = Wannier.spread(model.kstencil, model.overlaps, U_fbz2).Ω
-    @test isapprox(Ω, Ω2; atol = 1.0e-10)
-    @test U_ibz ≈ U_ibz2
+    @test isapprox(Ω, 22.43757274472156; atol = 1.0e-7)
 
     # SAWF improves on covariance-projected input and stays a semi-unitary gauge
     @test Ω < Wannier.spread(model.kstencil, model.overlaps, model.gauges).Ω
@@ -459,16 +456,14 @@ end
     prob = Problem(Variance(), sm, SchurLayout())
     Us_fbz, Us_ibz = solve!(prob, OptimLBFGS(; max_iter = niter))
     @test Wannier.covariance_residual(Us_ibz, sc) < 1.0e-3
-    Us_fbz2, Us_ibz2 = Wannier.localize_symmetric(
-        model, mmn_i.M, sc; schur = true, max_iter = niter
-    )
+    # hard-coded 5-iteration regression anchor (SchurLayout)
     Ωs = Wannier.spread(model.kstencil, model.overlaps, Us_fbz).Ω
-    Ωs2 = Wannier.spread(model.kstencil, model.overlaps, Us_fbz2).Ω
-    @test isapprox(Ωs, Ωs2; atol = 1.0e-10)
+    @test isapprox(Ωs, 22.07929818239718; atol = 1.0e-7)
 
     # Level 1 through the layout: same variables, same optimum path as Level 2
     U1_fbz, _ = localize(Variance(), sm, SymXYLayout(1); max_iter = niter)
     Ω1 = Wannier.spread(model.kstencil, model.overlaps, U1_fbz).Ω
+    @test isapprox(Ω1, 22.43757275126563; atol = 1.0e-7)
     @test isapprox(Ω1, Ω; atol = 1.0e-5)
 end
 

@@ -261,10 +261,6 @@ U_fbz, U_ibz = localize(Variance(), sm, SchurLayout())     # Schur block paramet
 U_fbz, U_ibz = solve!(Problem(Variance(), sm), OptimLBFGS(; max_iter = 300))
 ```
 
-[`localize_symmetric`](@ref Wannier.localize_symmetric) remains as a thin
-backwards-compatible wrapper that builds the `SymmetrizedModel` and selects
-the layout from its `level` / `schur` keywords.
-
 ### Parallel transport is a separate path
 
 [`ParallelTransport`](@ref Wannier.ParallelTransport) is a *gauge-construction recipe*, not a scalar

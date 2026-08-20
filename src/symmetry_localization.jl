@@ -914,58 +914,6 @@ function _fg2_core!(
     return Ω
 end
 
-# -----------------------------------------------------------------------------
-# Optimization driver
-# -----------------------------------------------------------------------------
-
-export localize_symmetric
-
-"""
-    $(SIGNATURES)
-
-Minimize the MV spread over symmetry-covariant gauges parameterized at the
-IBZ kpoints only (the SAWF constrained problem). Returns `(U_fbz, U_ibz)`:
-the optimized covariant gauge expanded to the full mesh, and its IBZ
-representative.
-
-Thin wrapper over the framework path: builds a [`SymmetrizedModel`](@ref) and
-calls [`localize`](@ref) with the layout selected by `level` / `schur`
-([`SymXYLayout`](@ref) or [`SchurLayout`](@ref)).
-
-# Arguments
-- `model`: full-mesh model in the *global* b ordering (see
-  [`globalize_stencil`](@ref)), with overlaps unfolded from the IBZ. Its
-  `gauges` provide the starting point (their IBZ slices are projected onto
-  the covariant subspace).
-- `M_ibz`: IBZ overlaps (`.immn`), needed for `level = 2`.
-- `sc`: the [`SymmetryConstraint`](@ref).
-
-# Keyword arguments
-- `level`: `2` (default) evaluates value/gradient via the IBZ-only transport
-  kernels ([`symmetric_fg2!`](@ref)); `1` expands to the full mesh each
-  iteration ([`symmetric_fg1!`](@ref)). Identical results, different cost.
-- `schur`: parameterize the covariant gauges by their per-irrep Schur blocks
-  ([`schur_basis`](@ref)) instead of full `(X, Y)` matrices plus projector —
-  fewer (real) parameters, no projector calls, exact little-group covariance
-  (including anti-unitary elements, via corepresentation Schur blocks) by
-  construction. Requires `level = 2`.
-- remaining kwargs are forwarded to [`OptimLBFGS`](@ref).
-"""
-function localize_symmetric(
-        model::Model,
-        M_ibz::AbstractArray{<:Complex, 4},
-        sc::SymmetryConstraint;
-        level::Integer = 2,
-        schur::Bool = false,
-        kwargs...,
-    )
-    if schur
-        level == 2 || error("the Schur parametrization requires level = 2")
-    end
-    layout = schur ? SchurLayout() : SymXYLayout(level)
-    return localize(Variance(), SymmetrizedModel(model, sc, M_ibz), layout; kwargs...)
-end
-
 """
     $(SIGNATURES)
 
