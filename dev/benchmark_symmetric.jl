@@ -88,9 +88,10 @@ println("per-evaluation wall time (min of 20):")
 @printf("  Level-2 speedup: %.2fx vs full mesh, %.2fx vs Level 1\n", t_full_fg / t_l2_fg, t_l1_fg / t_l2_fg)
 @printf("  Schur speedup:   %.2fx vs full mesh\n", t_full_fg / t_sch_fg)
 @printf(
-    "  parameters: XY %d complex, Schur %d complex (%.1fx fewer; basis setup %.1fs)\n",
+    "  parameters: XY %d real (%d complex), Schur %d real (%.1fx fewer; basis setup %.1fs)\n",
+    2 * (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz,
     (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz, sb.nx,
-    (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz / sb.nx, tsb,
+    2 * (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz / sb.nx, tsb,
 )
 # corepresentation (anti-unitary) block statistics
 allblk = reduce(vcat, sb.blocks)
@@ -100,8 +101,9 @@ nfall = sum(
     init = 0,
 )
 @printf(
-    "  anti-unitary classes: %d derived from pairing partners, %d soft-average fallback\n",
-    count(b -> b.akind == 2, allblk), nfall,
+    "  anti-unitary classes: %d pairing-derived, %d Wigner-real, %d quaternionic, %d soft-average fallback\n",
+    count(b -> b.akind == 2, allblk), count(b -> b.akind == 3, allblk),
+    count(b -> b.akind == 4, allblk), nfall,
 )
 # Hermiticity-pair halving coverage of the Level-2 pass 0 (only the 2-cycle
 # pairs of the partner map are derived; see `_fg2_core!`)

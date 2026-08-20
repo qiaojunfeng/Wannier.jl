@@ -297,22 +297,29 @@ end
     frozen_ibz = frozen[:, sc.ibz2fbz]
 
     sb = Wannier.schur_basis(sc, frozen_ibz)
-    # parameter reduction and feasibility (schur_basis errors when infeasible)
-    @test 0 < sb.nx < (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz
+    # parameter reduction and feasibility (schur_basis errors when infeasible);
+    # nx counts REAL parameters, the XY reference is complex
+    @test 0 < sb.nx < 2 * (sc.nwann^2 + sc.nbands * sc.nwann) * sc.nk_ibz
 
-    # anti-unitary pairing metadata: partner links are symmetric, derived
-    # blocks carry no parameters, and block shapes match across a pair
+    # anti-unitary metadata: pairing partner links are symmetric, derived
+    # blocks carry no parameters, block shapes match across a pair, and
+    # quaternionic blocks have even multiplicities
     for (iki, blks) in enumerate(sb.blocks), (ic, b) in enumerate(blks)
         if b.akind == 1
             p = blks[b.partner]
             @test p.akind == 2 && p.partner == ic
             @test (p.dim, p.mb, p.mo, p.mf) == (b.dim, b.mb, b.mo, b.mf)
-        elseif b.akind == 0
+        elseif b.akind != 2
             @test b.partner == 0
+        end
+        if b.akind == 4
+            @test iseven(b.mf) && iseven(b.mo) && iseven(b.mb)
         end
     end
     @test sb.nx == sum(
-        b.akind == 2 ? 0 : b.mo^2 + (b.mb - b.mf) * (b.mo - b.mf)
+        b.akind == 2 ? 0 :
+            (b.akind == 3 || b.akind == 4 ? 1 : 2) *
+            (b.mo^2 + (b.mb - b.mf) * (b.mo - b.mf))
         for blks in sb.blocks for b in blks
     )
 
@@ -321,6 +328,7 @@ end
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     U0 = Wannier.project_covariant(Ai, sc)
     x0 = Wannier.schur_initial_x(U0, sb)
+    @test eltype(x0) <: Real   # re/im pairs; real/quaternion components
     Ud = zeros(ComplexF64, sc.nbands, sc.nwann, sc.nk_ibz)
     Wannier.schur_decode!(Ud, x0, sb)
     @test Wannier.covariance_residual(Ud, sc) < 1.0e-3
@@ -343,7 +351,7 @@ end
     # directional FD of the Schur objective (exact chain; tolerance set by
     # FD truncation at this dataset's Im-log conditioning)
     for _ in 1:2
-        dx = randn(ComplexF64, length(x0))
+        dx = randn(length(x0))
         dx ./= norm(dx)
         ε = 1.0e-4
         fd = (fg!(1.0, nothing, x0 .+ ε .* dx) - fg!(1.0, nothing, x0 .- ε .* dx)) / (2ε)

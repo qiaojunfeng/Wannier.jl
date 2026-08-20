@@ -910,7 +910,8 @@ representative.
   iteration ([`symmetric_fg1!`](@ref)). Identical results, different cost.
 - `schur`: parameterize the covariant gauges by their per-irrep Schur blocks
   ([`schur_basis`](@ref)) instead of full `(X, Y)` matrices plus projector —
-  fewer parameters, no projector calls, exact unitary covariance by
+  fewer (real) parameters, no projector calls, exact little-group covariance
+  (including anti-unitary elements, via corepresentation Schur blocks) by
   construction. Requires `level = 2`.
 - remaining kwargs are forwarded to [`OptimLBFGS`](@ref).
 """
@@ -1019,8 +1020,20 @@ end
 #   C_{λ′} = S_b · conj(C_λ) · S_o†.
 # Pairing type (λ′ ≠ λ): C_{λ′} is derived from C_λ in the decode (S_b/S_o
 # absorbed into the λ′ bases), halving those parameters. Self-paired classes
-# (λ′ = λ, Wigner real/quaternionic type) currently keep the soft 2-term
-# coset average `_aavg` in the decode.
+# (λ′ = λ) satisfy an antilinear block involution K[C] = S_b conj(C) S_o†
+# with K² = ω = ±1 (Wigner type, S conj(S) = ω·1 with consistent signs):
+#   real type (ω = +1): Takagi-factorize S = W Wᵀ and absorb W into the
+#     bases — the block becomes conj(C̃) = C̃, i.e. REAL (X, Y) parameters;
+#   quaternionic type (ω = −1): Youla-factorize S = W J Wᵀ (J the standard
+#     interleaved symplectic form) and absorb W — the block becomes
+#     conj(C̃) = J_b C̃ J_o†, i.e. quaternion-structured (X, Y) stored by
+#     their independent quaternion components.
+# The flat parameter vector `x` is therefore REAL: unconstrained blocks
+# store re/im pairs, real-type blocks store real entries, quaternionic
+# blocks store the (a, b) components of q = [a b; -conj(b) conj(a)].
+# Anti-unitary covariance is exact by construction wherever the numerical
+# classification succeeds; on any failure a class falls back to the soft
+# 2-term coset average `_aavg` in the decode.
 # -----------------------------------------------------------------------------
 
 using Random: MersenneTwister, randn!
@@ -1036,7 +1049,9 @@ struct SchurBlock{T}
     # anti-unitary handling (see `_classify_aop`): 0 = none / soft coset
     # average fallback; 1 = pairing source (free block, partner derived);
     # 2 = pairing derived (no parameters; S_b/S_o absorbed into Bb/Bo, the
-    # block value is conj(C) of the source block `partner`)
+    # block value is conj(C) of the source block `partner`); 3 = Wigner real
+    # type (Takagi W absorbed, real block); 4 = Wigner quaternionic type
+    # (Youla W absorbed, quaternion-structured block)
     akind::Int8
     partner::Int   # class index of the pairing partner (akind 1/2), else 0
 end
@@ -1046,7 +1061,9 @@ SchurBlock{T}(dim, mb, mo, mf, Bb, Bo) where {T} =
 
 """
 Schur-adapted bases for all IBZ kpoints, plus the anti-unitary coset
-representative (band rep, orbital matrix) where the little group is magnetic.
+representative (band rep, orbital matrix) where the little group is magnetic
+and some class needs the soft coset-average fallback. `nx` counts REAL
+parameters (see `_block_nparams`).
 """
 struct SchurBasis{T}
     blocks::Vector{Vector{SchurBlock{T}}}
@@ -1119,6 +1136,103 @@ function _kron_factor(T::AbstractMatrix, d::Int, m2::Int, m::Int)
     return R, S, norm(kron(R, S) - T)
 end
 
+# standard interleaved symplectic form: blkdiag([0 1; -1 0], …), n even
+function _jmat(::Type{CT}, n::Int) where {CT}
+    J = zeros(CT, n, n)
+    for i in 1:2:n
+        J[i, i + 1] = 1
+        J[i + 1, i] = -1
+    end
+    return J
+end
+
+# Takagi factor of a unitary SYMMETRIC S: unitary W with W Wᵀ = S, via the
+# principal square root with the branch cut placed in the largest spectral gap
+function _takagi_unitary(S::Matrix{CT}) where {CT}
+    n = size(S, 1)
+    n == 0 && return zeros(CT, 0, 0)
+    θ = sort(angle.(eigvals(S)))
+    gaps = [(i == n ? θ[1] + 2π : θ[i + 1]) - θ[i] for i in 1:n]
+    i = argmax(gaps)
+    α = θ[i] + gaps[i] / 2 - π
+    return Matrix(sqrt(Matrix(cis(-α) .* S)) .* cis(α / 2))
+end
+
+# Youla factor of a unitary ANTISYMMETRIC S (n even): unitary W with
+# W J Wᵀ = S, built two columns at a time from w₂ = -S conj(w₁)
+function _youla_unitary(S::Matrix{CT}) where {CT}
+    n = size(S, 1)
+    W = zeros(CT, n, 0)
+    for _ in 1:(n ÷ 2)
+        k = argmin(vec(sum(abs2, W; dims = 2)))   # least-covered canonical axis
+        v = -W * conj.(W[k, :])
+        v[k] += 1
+        v ./= norm(v)
+        w = -S * conj.(v)
+        w .-= W * (W' * w)
+        w .-= v .* (v' * w)
+        w ./= norm(w)
+        W = hcat(W, v, w)
+    end
+    return W
+end
+
+# quaternion-structured (2p)×(2q) matrix M (conj(M) = J M J† in the
+# interleaved convention) from its quaternion components q = [a b; -b̄ ā]
+function _quat_assemble(A::AbstractMatrix{CT}, B::AbstractMatrix{CT}) where {CT}
+    p, q = size(A)
+    M = zeros(CT, 2p, 2q)
+    for k in 1:q, i in 1:p
+        M[2i - 1, 2k - 1] = A[i, k]
+        M[2i - 1, 2k] = B[i, k]
+        M[2i, 2k - 1] = -conj(B[i, k])
+        M[2i, 2k] = conj(A[i, k])
+    end
+    return M
+end
+
+# inverse of `_quat_assemble` (with symmetrization = structure projection)
+function _quat_extract(M::AbstractMatrix)
+    p, q = size(M, 1) ÷ 2, size(M, 2) ÷ 2
+    A = [(M[2i - 1, 2k - 1] + conj(M[2i, 2k])) / 2 for i in 1:p, k in 1:q]
+    B = [(M[2i - 1, 2k] - conj(M[2i, 2k - 1])) / 2 for i in 1:p, k in 1:q]
+    return A, B
+end
+
+# Kramers partner J·conj(v) in the interleaved convention
+function _jconj(v::AbstractVector)
+    w = similar(v)
+    for i in 1:2:length(v)
+        w[i] = conj(v[i + 1])
+        w[i + 1] = -conj(v[i])
+    end
+    return w
+end
+
+# structured orthonormal basis (ncols columns, in Kramers pairs) of the
+# column range of a quaternion-structured matrix M
+function _quat_range(M::Matrix{CT}, ncols::Int) where {CT}
+    n = size(M, 1)
+    W = zeros(CT, n, ncols)
+    nw = 0
+    R = copy(M)
+    while nw < ncols
+        k = argmax(vec(sum(abs2, R; dims = 1)))
+        v = R[:, k] ./ norm(R[:, k])
+        w = -_jconj(v)   # col 2k = -J conj(col 2k-1), the `_quat_assemble` pairing
+        Wv = view(W, :, 1:nw)
+        w .-= Wv * (Wv' * w)
+        w .-= v .* (v' * w)
+        w ./= norm(w)
+        W[:, nw + 1] .= v
+        W[:, nw + 2] .= w
+        nw += 2
+        Wv = view(W, :, 1:nw)
+        R .= M .- Wv * (Wv' * M)
+    end
+    return W
+end
+
 # Corepresentation classification of the Schur classes at one IBZ kpoint.
 #
 # The anti-unitary coset representative â₀ maps the isotypic component of
@@ -1128,12 +1242,21 @@ end
 # with R_b R_o† = φ·1 (the φ is folded into S_b below). The fixed point
 # U = ρ(â₀)[U] then reads block-wise C_{c′} = S_b · conj(C_c) · S_o†.
 #
-# Handled here: pairing type (c′ ≠ c). The lower-index class of the pair
-# keeps its free parameters (akind = 1); the partner block becomes derived
-# (akind = 2) with S_b/S_o absorbed into its bases, so its decode is simply
-# Σ_j Bb′[j] · conj(C_c) · Bo′[j]†. Every derived identity is verified
-# numerically (tolerance `rtol`, loose enough for noisy isym data); on any
-# failure the classes fall back to akind = 0 (soft coset average).
+# Pairing type (c′ ≠ c): the lower-index class of the pair keeps its free
+# parameters (akind = 1); the partner block becomes derived (akind = 2) with
+# S_b/S_o absorbed into its bases, so its decode is simply
+# Σ_j Bb′[j] · conj(C_c) · Bo′[j]†.
+#
+# Self-paired classes (c′ = c): Wigner classification by the sign ω of
+# S conj(S) = ω·1. Real type (ω = +1): Takagi factors W (per frozen block on
+# the band side) are absorbed into the bases, making the block constraint
+# conj(C̃) = C̃ (akind = 3). Quaternionic type (ω = −1): Youla factors W with
+# the interleaved symplectic J are absorbed, making the constraint
+# conj(C̃) = J_b C̃ J_o† (akind = 4).
+#
+# Every derived identity is verified numerically (tolerance `rtol`, loose
+# enough for noisy isym data); on any failure the classes fall back to
+# akind = 0 (soft coset average).
 function _classify_aop(
         blks::Vector{SchurBlock{T}}, da::Matrix{Complex{T}},
         Aa::Matrix{Complex{T}}, rng; rtol = 1.0e-3,
@@ -1185,7 +1308,54 @@ function _classify_aop(
         c2 = argmin(reso)
         resb = norm(SBb[c2] * (SBb[c2]' * Yb[c]) - Yb[c]) / norm(Yb[c])
         (reso[c2] < rtol && resb < rtol) || continue
-        (c2 == c || assigned[c2]) && continue   # self-paired: keep `_aavg`
+        if c2 == c
+            # Wigner classification of the self-paired antilinear involution
+            fw = block_maps(c, c)
+            fw === nothing && continue
+            Sb, So = fw
+            b = blks[c]
+            mf = b.mf
+            r = (mf + 1):b.mb
+            tolb, tolo = rtol * sqrt(b.mb), rtol * sqrt(b.mo)
+            ωb = real(tr(Sb * conj.(Sb))) / b.mb
+            ωo = real(tr(So * conj.(So))) / b.mo
+            (abs(abs(ωb) - 1) < rtol && abs(ωb - ωo) < rtol &&
+                norm(Sb * conj.(Sb) - ωb * I) < tolb &&
+                norm(So * conj.(So) - ωo * I) < tolo) || continue
+            Wb = zeros(CT, b.mb, b.mb)
+            local Wo, kind, Ct
+            if ωb > 0   # real type: S = W Wᵀ
+                Wb[1:mf, 1:mf] .= _takagi_unitary(Sb[1:mf, 1:mf])
+                Wb[r, r] .= _takagi_unitary(Sb[r, r])
+                Wo = _takagi_unitary(So)
+                (norm(Wb * transpose(Wb) - Sb) < tolb &&
+                    norm(Wo * transpose(Wo) - So) < tolo) || continue
+                kind = Int8(3)
+                Ct = Matrix{CT}(randn(rng, T, b.mb, b.mo))
+            else        # quaternionic type: S = W J Wᵀ
+                (iseven(mf) && iseven(b.mb) && iseven(b.mo)) || continue
+                Wb[1:mf, 1:mf] .= _youla_unitary(Sb[1:mf, 1:mf])
+                Wb[r, r] .= _youla_unitary(Sb[r, r])
+                Wo = _youla_unitary(So)
+                (norm(Wb * _jmat(CT, b.mb) * transpose(Wb) - Sb) < tolb &&
+                    norm(Wo * _jmat(CT, b.mo) * transpose(Wo) - So) < tolo) ||
+                    continue
+                kind = Int8(4)
+                Ct = _quat_assemble(
+                    randn(rng, CT, b.mb ÷ 2, b.mo ÷ 2),
+                    randn(rng, CT, b.mb ÷ 2, b.mo ÷ 2),
+                )
+            end
+            Bb2 = [B * Wb for B in b.Bb]
+            Bo2 = [B * Wo for B in b.Bo]
+            # end-to-end: a random structured block value must give an
+            # exactly â₀-invariant contribution
+            D = sum(Bb2[j] * Ct * Bo2[j]' for j in 1:b.dim)
+            norm(da * conj.(D * Aa) - D) < rtol * norm(D) || continue
+            out[c] = SchurBlock{T}(b.dim, b.mb, b.mo, b.mf, Bb2, Bo2, kind, 0)
+            continue
+        end
+        assigned[c2] && continue
         fw = block_maps(c, c2)
         bw = block_maps(c2, c)
         assigned[c2] = true
@@ -1313,23 +1483,30 @@ function schur_basis(
         blocks[iki] = blks
     end
 
-    nx = sum(
-        blk.akind == Int8(2) ? 0 :
-            blk.mo^2 + (blk.mb - blk.mf) * (blk.mo - blk.mf)
-            for blks in blocks for blk in blks
-    )
+    nx = sum(sum(_block_nparams(blk)) for blks in blocks for blk in blks)
     return SchurBasis{T}(blocks, aop, nx)
 end
 
-# iterate the flat parameter vector over the parameter-bearing blocks
-# (derived pairing partners carry none): yields (iki, blk, Xrange, Yrange)
+# REAL parameter counts (nX, nY) of a block: complex entries as re/im pairs
+# for unconstrained/pairing-source blocks, one real per entry for real-type
+# blocks, 4 reals per quaternion (= one real per complex entry) for
+# quaternionic blocks; derived pairing partners carry none
+function _block_nparams(blk::SchurBlock)
+    blk.akind == Int8(2) && return (0, 0)
+    nX = blk.mo^2
+    nY = (blk.mb - blk.mf) * (blk.mo - blk.mf)
+    fac = blk.akind == Int8(3) || blk.akind == Int8(4) ? 1 : 2
+    return (fac * nX, fac * nY)
+end
+
+# iterate the flat REAL parameter vector over the parameter-bearing blocks:
+# yields (iki, blk, Xrange, Yrange)
 function _schur_ranges(sb::SchurBasis)
     out = Tuple{Int, SchurBlock, UnitRange{Int}, UnitRange{Int}}[]
     off = 0
     for (iki, blks) in enumerate(sb.blocks), blk in blks
         blk.akind == Int8(2) && continue
-        nX = blk.mo^2
-        nY = (blk.mb - blk.mf) * (blk.mo - blk.mf)
+        nX, nY = _block_nparams(blk)
         push!(out, (iki, blk, (off + 1):(off + nX), (off + nX + 1):(off + nX + nY)))
         off += nX + nY
     end
@@ -1337,6 +1514,44 @@ function _schur_ranges(sb::SchurBasis)
 end
 
 _blockC(blk, X, Y) = vcat(X[1:blk.mf, :], Y * X[(blk.mf + 1):end, :])
+
+# materialize / store the (X, Y) block matrices from / into the flat REAL
+# parameter vector, per akind storage layout. `grad = true` applies the
+# gradient convention: real-type gradients are Re-projected, quaternionic
+# component gradients carry the factor 2 from the two copies of each
+# component in the structured matrix.
+function _schur_getM(x::AbstractVector{T}, blk, r, m1::Int, m2::Int) where {T}
+    if blk.akind == Int8(3)
+        return Matrix(reshape(view(x, r), m1, m2))
+    elseif blk.akind == Int8(4)
+        v = reinterpret(Complex{T}, view(x, r))
+        h = (m1 ÷ 2) * (m2 ÷ 2)
+        return _quat_assemble(
+            reshape(v[1:h], m1 ÷ 2, m2 ÷ 2), reshape(v[(h + 1):end], m1 ÷ 2, m2 ÷ 2)
+        )
+    else
+        return Matrix(reshape(reinterpret(Complex{T}, view(x, r)), m1, m2))
+    end
+end
+
+function _schur_setM!(x::AbstractVector{T}, blk, r, M; grad::Bool = false) where {T}
+    if blk.akind == Int8(3)
+        reshape(view(x, r), size(M)) .= real.(M)
+    elseif blk.akind == Int8(4)
+        A, B = _quat_extract(M)
+        grad && (A .*= 2; B .*= 2)
+        v = reinterpret(Complex{T}, view(x, r))
+        h = length(A)
+        v[1:h] .= vec(A)
+        v[(h + 1):end] .= vec(B)
+    else
+        reshape(reinterpret(Complex{T}, view(x, r)), size(M)) .= M
+    end
+    return x
+end
+
+_schur_getX(x, blk, rX) = _schur_getM(x, blk, rX, blk.mo, blk.mo)
+_schur_getY(x, blk, rY) = _schur_getM(x, blk, rY, blk.mb - blk.mf, blk.mo - blk.mf)
 
 # anti-unitary coset average and its real-inner-product adjoint
 _aavg(U, ::Nothing) = U
@@ -1347,15 +1562,15 @@ _aavg_adj(G, da_Aa) = (G .+ transpose(da_Aa[1]) * conj.(G) * da_Aa[2]') ./ 2
 """
     $(SIGNATURES)
 
-Decode the Schur parameters `x` into the covariant IBZ gauge `U_ibz`.
+Decode the (real) Schur parameters `x` into the covariant IBZ gauge `U_ibz`.
 """
 function schur_decode!(
-        U_ibz::AbstractArray{<:Complex, 3}, x::AbstractVector, sb::SchurBasis
+        U_ibz::AbstractArray{<:Complex, 3}, x::AbstractVector{<:Real}, sb::SchurBasis
     )
     fill!(U_ibz, 0)
     for (iki, blk, rX, rY) in _schur_ranges(sb)
-        X = reshape(view(x, rX), blk.mo, blk.mo)
-        Y = reshape(view(x, rY), blk.mb - blk.mf, blk.mo - blk.mf)
+        X = _schur_getX(x, blk, rX)
+        Y = _schur_getY(x, blk, rY)
         C = _blockC(blk, X, Y)
         for j in 1:blk.dim
             mul!(view(U_ibz, :, :, iki), blk.Bb[j] * C, blk.Bo[j]', true, true)
@@ -1381,20 +1596,20 @@ Chain the canonical IBZ gradient `G_ibz = dΩ/dU*` into the Schur parameter
 gradient `g` (layout of `x`).
 """
 function schur_encode_gradient!(
-        g::AbstractVector, G_ibz::AbstractArray{<:Complex, 3},
-        x::AbstractVector, sb::SchurBasis,
+        g::AbstractVector{<:Real}, G_ibz::AbstractArray{<:Complex, 3},
+        x::AbstractVector{<:Real}, sb::SchurBasis,
     )
     Ga = [_aavg_adj(G_ibz[:, :, iki], sb.aop[iki]) for iki in axes(G_ibz, 3)]
     for (iki, blk, rX, rY) in _schur_ranges(sb)
-        X = reshape(view(x, rX), blk.mo, blk.mo)
-        Y = reshape(view(x, rY), blk.mb - blk.mf, blk.mo - blk.mf)
-        GC = zeros(eltype(g), blk.mb, blk.mo)
+        X = _schur_getX(x, blk, rX)
+        Y = _schur_getY(x, blk, rY)
+        GC = zeros(eltype(G_ibz), blk.mb, blk.mo)
         for j in 1:blk.dim
             mul!(GC, blk.Bb[j]', Ga[iki] * blk.Bo[j], true, true)
         end
         if blk.akind == Int8(1)
             pb = sb.blocks[iki][blk.partner]
-            GCp = zeros(eltype(g), blk.mb, blk.mo)
+            GCp = zeros(eltype(G_ibz), blk.mb, blk.mo)
             for j in 1:pb.dim
                 mul!(GCp, pb.Bb[j]', Ga[iki] * pb.Bo[j], true, true)
             end
@@ -1404,8 +1619,8 @@ function schur_encode_gradient!(
         GX = vcat(GC[1:blk.mf, :], Y' * GC[(blk.mf + 1):end, :])
         GCXt = GC * X'
         GY = GCXt[(blk.mf + 1):end, (blk.mf + 1):end]
-        view(g, rX) .= vec(GX)
-        view(g, rY) .= vec(GY)
+        _schur_setM!(g, blk, rX, GX; grad = true)
+        _schur_setM!(g, blk, rY, GY; grad = true)
     end
     return g
 end
@@ -1416,9 +1631,9 @@ end
 Initial Schur parameters from an IBZ gauge (its covariant block content).
 """
 function schur_initial_x(
-        U_ibz::AbstractArray{CT, 3}, sb::SchurBasis
-    ) where {CT <: Complex}
-    x = zeros(CT, sb.nx)
+        U_ibz::AbstractArray{CT, 3}, sb::SchurBasis{T}
+    ) where {CT <: Complex, T}
+    x = zeros(T, sb.nx)
     for (iki, blk, rX, rY) in _schur_ranges(sb)
         C = zeros(CT, blk.mb, blk.mo)
         for j in 1:blk.dim
@@ -1426,19 +1641,38 @@ function schur_initial_x(
         end
         C ./= blk.dim
         # direct (empty-shape-safe) construction of the per-block (X, Y):
-        # Y spans the dominant non-frozen row space of C, X aligns J(Y)† C
+        # Y spans the dominant non-frozen row space of C, X aligns J(Y)† C;
+        # for constrained blocks C is first projected onto the structure and
+        # Y is built structure-preserving (real / Kramers-paired columns)
         mf, mo, mb = blk.mf, blk.mo, blk.mb
-        Y = zeros(eltype(x), mb - mf, mo - mf)
-        if mo > mf && mb > mf
-            Cr = C[(mf + 1):end, :]
-            P = Hermitian(Cr * Cr')
-            E, V = eigen(P)
-            Y .= V[:, (end - (mo - mf) + 1):end]
+        if blk.akind == Int8(3)
+            Cs = real.(C)
+            Y = zeros(T, mb - mf, mo - mf)
+            if mo > mf && mb > mf
+                Cr = Cs[(mf + 1):end, :]
+                E, V = eigen(Symmetric(Cr * transpose(Cr)))
+                Y .= V[:, (end - (mo - mf) + 1):end]
+            end
+        elseif blk.akind == Int8(4)
+            Jb = cat(_jmat(CT, mf), _jmat(CT, mb - mf); dims = (1, 2))
+            Cs = (C .+ Jb * conj.(C) * transpose(_jmat(CT, mo))) ./ 2
+            Y = zeros(CT, mb - mf, mo - mf)
+            if mo > mf && mb > mf
+                Y .= _quat_range(Cs[(mf + 1):end, :], mo - mf)
+            end
+        else
+            Cs = C
+            Y = zeros(CT, mb - mf, mo - mf)
+            if mo > mf && mb > mf
+                Cr = Cs[(mf + 1):end, :]
+                E, V = eigen(Hermitian(Cr * Cr'))
+                Y .= V[:, (end - (mo - mf) + 1):end]
+            end
         end
-        JtC = vcat(C[1:mf, :], Y' * C[(mf + 1):end, :])
+        JtC = vcat(Cs[1:mf, :], Y' * Cs[(mf + 1):end, :])
         X = orthonorm_lowdin(JtC)
-        view(x, rX) .= vec(X)
-        view(x, rY) .= vec(Y)
+        _schur_setM!(x, blk, rX, X)
+        _schur_setM!(x, blk, rY, Y)
     end
     return x
 end
@@ -1451,11 +1685,9 @@ SchurManifold(sb::SchurBasis) = SchurManifold(_schur_ranges(sb))
 
 function Optim.retract!(M::SchurManifold, x)
     for (_, blk, rX, rY) in M.ranges
-        X = reshape(view(x, rX), blk.mo, blk.mo)
-        X .= orthonorm_lowdin(Matrix(X))
+        _schur_setM!(x, blk, rX, orthonorm_lowdin(_schur_getX(x, blk, rX)))
         if !isempty(rY)
-            Y = reshape(view(x, rY), blk.mb - blk.mf, blk.mo - blk.mf)
-            Y .= orthonorm_lowdin(Matrix(Y))
+            _schur_setM!(x, blk, rY, orthonorm_lowdin(_schur_getY(x, blk, rY)))
         end
     end
     return x
@@ -1463,13 +1695,15 @@ end
 
 function Optim.project_tangent!(M::SchurManifold, g, x)
     for (_, blk, rX, rY) in M.ranges
-        X = reshape(view(x, rX), blk.mo, blk.mo)
-        GX = reshape(view(g, rX), blk.mo, blk.mo)
+        X = _schur_getX(x, blk, rX)
+        GX = _schur_getX(g, blk, rX)
         GX .-= X * ((X' * GX .+ GX' * X) ./ 2)
+        _schur_setM!(g, blk, rX, GX)
         if !isempty(rY)
-            Y = reshape(view(x, rY), blk.mb - blk.mf, blk.mo - blk.mf)
-            GY = reshape(view(g, rY), blk.mb - blk.mf, blk.mo - blk.mf)
+            Y = _schur_getY(x, blk, rY)
+            GY = _schur_getY(g, blk, rY)
             GY .-= Y * ((Y' * GY .+ GY' * Y) ./ 2)
+            _schur_setM!(g, blk, rY, GY)
         end
     end
     return g
