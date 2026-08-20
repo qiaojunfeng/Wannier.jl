@@ -152,6 +152,10 @@ Modules = [Wannier]
 Pages   = ["symmetrized_model.jl", "symmetry_localization.jl"]
 ```
 
+```@docs
+Wannier.clean_littlegroup_reps!
+```
+
 ## Parallel transport
 
 ```@autodocs

@@ -32,6 +32,69 @@ function rescale!(reps::AbstractVector{<:LittleGroupRep})
     return reps .= rescale.(reps)
 end
 
+export clean_littlegroup_reps!
+
+"""
+    $(SIGNATURES)
+
+Remove the numerical noise from little-group representation matrices.
+
+For energy multiplets fully inside a symmetry-closed window the matrices
+`d(ĥ, k)` are *exactly* block-diagonal over degenerate multiplets (`ĥ`
+commutes with the Hamiltonian) and *exactly* unitary within each block; the
+`.isym` data carries them only to the accuracy of the generating DFT run
+(~1e-5 entry noise is common), and that noise floors every downstream
+symmetry tolerance. This function enforces both exact properties: the bands
+at each rep's IBZ kpoint are clustered by energy gaps larger than
+`atol_degeneracy` (the same rule as the energy-multiplet masking of
+[`symmetry_constraint`](@ref)), all cross-cluster entries are zeroed, and
+each within-cluster block is replaced by its closest unitary (polar factor,
+`orthonorm_lowdin`).
+
+A block is unitarized only when it is already unitary to within
+`atol_unitary` (measured as `opnorm(B'B - I)`). Blocks with a larger deficit
+belong to multiplets the window genuinely truncates (or that the data
+genuinely breaks): their `d` entries are contractions, not noisy unitaries,
+and they are left untouched so the symmetry-broken-band masking of
+[`symmetry_constraint`](@ref) still detects them.
+
+`eig_ibz` are the IBZ eigenvalues (`n_bands × n_kpoints_ibz`, the `.ieig`
+data, ascending per kpoint). Apply after `rescale!`. Cleaning is
+strictly opt-in: it moves quantities unfolded through the reps (e.g.
+`unfold_overlaps`) by the size of the removed noise, so data cleaned
+here no longer reproduces reference files generated with the raw reps to
+better than that noise.
+"""
+function clean_littlegroup_reps!(
+        reps::AbstractVector{<:LittleGroupRep},
+        eig_ibz::AbstractMatrix{<:Real};
+        atol_degeneracy::Real = 1.0e-4,
+        atol_unitary::Real = 0.01,
+    )
+    isempty(reps) && return reps
+    nbnd = size(reps[1].d, 1)
+    size(eig_ibz, 1) == nbnd ||
+        error("eig_ibz must have n_bands = $nbnd rows, got $(size(eig_ibz, 1))")
+    return reps .= map(reps) do rep
+        E = view(eig_ibz, :, rep.ik_ibz)
+        d0 = Matrix(rep.d)
+        d = zeros(eltype(d0), nbnd, nbnd)
+        lo = 1
+        for n in 1:nbnd
+            if n == nbnd || E[n + 1] - E[n] > atol_degeneracy
+                blk = lo:n
+                B = d0[blk, blk]
+                if opnorm(B' * B - I) <= atol_unitary
+                    B = orthonorm_lowdin(B)
+                end
+                d[blk, blk] = B
+                lo = n + 1
+            end
+        end
+        LittleGroupRep{nbnd}(rep.ik_ibz, rep.isym, d)
+    end
+end
+
 function rotate_kpoint(k::AbstractVector, symop::SymOp)
     Rk = symop.Wk * k
     if symop.time_reversal

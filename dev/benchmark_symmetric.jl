@@ -18,7 +18,9 @@ ks0 = Wannier.KspaceStencil(
     nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
 )
 isym = read_isym(joinpath(RERUN_DIR, "$prefix.isym"))
+Ei = read_eig(joinpath(RERUN_DIR, "$prefix.ieig"))
 Wannier.rescale!(isym.littlegroup_reps)
+Wannier.clean_littlegroup_reps!(isym.littlegroup_reps, Ei)
 centers = [p.center for p in nnkp["projections"]]
 
 tsc = @elapsed sc = Wannier.symmetry_constraint(ks0, isym, centers)
@@ -27,7 +29,6 @@ ks = Wannier.globalize_stencil(ks0)
 mmn_i = read_mmn(joinpath(RERUN_DIR, "$prefix.immn"))
 tunf = @elapsed Mf = Wannier.unfold_overlaps_cached(mmn_i.M, sc)
 Ai = read_amn(joinpath(RERUN_DIR, "$prefix.iamn")).A
-Ei = read_eig(joinpath(RERUN_DIR, "$prefix.ieig"))
 win = read_win(joinpath(RERUN_DIR, "$prefix.win"))
 Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
 frozen = Wannier.get_frozen_bands(Ef, win["dis_froz_max"])

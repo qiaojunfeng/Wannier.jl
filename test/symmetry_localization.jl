@@ -55,6 +55,8 @@ end
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
     Wannier.rescale!(isym.littlegroup_reps)
+    Ei = read_eig(dataset"Si2_hse/Si2.ieig")
+    clean_littlegroup_reps!(isym.littlegroup_reps, Ei)
     centers = [p.center for p in nnkp["projections"]]
     sc = Wannier.symmetry_constraint(kstencil, isym, centers)
 
@@ -62,9 +64,10 @@ end
     PX = Wannier.project_covariant(X, sc)
     PPX = Wannier.project_covariant(PX, sc)
     # Idempotence and single-average fixedness are limited by the numerical
-    # quality of the d matrices in the isym file (~1e-5 for Si2_hse).
-    @test norm(PPX - PX) < 1.0e-4
-    @test norm(Wannier.covariant_average!(copy(PX), sc) - PX) < 1.0e-4
+    # quality of the d matrices (raw Si2_hse carries ~1e-5 noise; cleaning
+    # lowers the floor to ~1e-7, limited by the masked broken multiplets).
+    @test norm(PPX - PX) < 1.0e-5
+    @test norm(Wannier.covariant_average!(copy(PX), sc) - PX) < 1.0e-5
 
     # self-adjointness w.r.t. the real inner product (exact property)
     Y = randn(ComplexF64, size(X))
@@ -163,6 +166,8 @@ end
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
     Wannier.rescale!(isym.littlegroup_reps)
+    Ei = read_eig(dataset"Si2_hse/Si2.ieig")
+    clean_littlegroup_reps!(isym.littlegroup_reps, Ei)
     centers = [p.center for p in nnkp["projections"]]
     sc = Wannier.symmetry_constraint(ks0, isym, centers)
     ks = Wannier.globalize_stencil(ks0)
@@ -170,7 +175,6 @@ end
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
     Mf = Wannier.unfold_overlaps_cached(mmn_i.M, sc)
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
-    Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     win = read_win(dataset"Si2_hse/Si2.win")
     Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
     frozen = Wannier.get_frozen_bands(Ef, get(win, "dis_froz_max", -Inf))
@@ -190,10 +194,11 @@ end
     Ω2 = Wannier.symmetric_fg2!(1.0, G2, xy, mmn_i.M, sc, ws2)
 
     # The transport theorem is exact for a covariant gauge; the agreement is
-    # limited only by the projector's data-precision fixed point (Si2_hse d
-    # matrices carry ~1e-5 noise; on clean data agreement is ~1e-12).
-    @test isapprox(Ω1, Ω2; atol = 1.0e-6)
-    @test norm(G1 - G2) / norm(G1) < 1.0e-4
+    # limited only by the projector's data-precision fixed point. With
+    # `clean_littlegroup_reps!` the d matrices are exact (raw Si2_hse noise
+    # ~1e-5 would floor the agreement at ~1e-7 / ~1e-8).
+    @test isapprox(Ω1, Ω2; atol = 1.0e-10)
+    @test norm(G1 - G2) / norm(G1) < 1.0e-11
 
     # transport identity for the Wannier-gauge overlaps themselves:
     # M̃(kf, bf) = phase · K_f[L† M̃_i R] versus the full-mesh product
@@ -397,6 +402,80 @@ end
     U0 = Wannier.project_covariant(Wannier.orthonorm_lowdin(Ai), sc)
     fb = Wannier.symmetry_breaking_force(U0, mmn_i.M, sc, ws2)
     @test 0 <= fb <= 1
+end
+
+@testitem "clean_littlegroup_reps!" begin
+    using WannierIO, LinearAlgebra
+    using Wannier.Datasets
+
+    nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
+    kstencil = Wannier.KspaceStencil(
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
+    )
+    isym = read_isym(dataset"Si2_hse/Si2.isym")
+    Wannier.rescale!(isym.littlegroup_reps)
+    raw = [copy(Matrix(r.d)) for r in isym.littlegroup_reps]
+    Ei = read_eig(dataset"Si2_hse/Si2.ieig")
+    atol_deg, atol_unit = 1.0e-4, 0.01
+    clean_littlegroup_reps!(
+        isym.littlegroup_reps, Ei;
+        atol_degeneracy = atol_deg, atol_unitary = atol_unit,
+    )
+
+    # per rep: exactly block-diagonal over energy multiplets; each block is
+    # either exactly unitarized (was near-unitary up to data noise) or a
+    # genuinely truncated multiplet kept bit-identical to the raw data
+    n_unitarized, n_kept = let n_unitarized = 0, n_kept = 0
+        for (ir, rep) in enumerate(isym.littlegroup_reps)
+            E = Ei[:, rep.ik_ibz]
+            nb = size(rep.d, 1)
+            cluster = zeros(Int, nb)
+            lo = 1
+            for n in 1:nb
+                cluster[n] = lo
+                (n == nb || E[n + 1] - E[n] > atol_deg) && (lo = n + 1)
+            end
+            @test all(
+                rep.d[m, n] == 0 for m in 1:nb, n in 1:nb if cluster[m] != cluster[n]
+            )
+            for blk in (findall(==(c), cluster) for c in unique(cluster))
+                B = Matrix(rep.d[blk, blk])
+                if opnorm(B' * B - I) <= 1.0e-12
+                    n_unitarized += 1
+                else
+                    @test B == raw[ir][blk, blk]         # left untouched
+                    @test opnorm(B' * B - I) > atol_unit # a true contraction
+                    n_kept += 1
+                end
+            end
+        end
+        (n_unitarized, n_kept)
+    end
+    @test n_unitarized > 0
+    @test n_kept > 0   # Si2_hse's window truncates some multiplets
+
+    # the symmetry-broken-band masking is unaffected by the cleaning, and
+    # still detects Si2_hse's truncated multiplets
+    centers = [p.center for p in nnkp["projections"]]
+    isym_raw = read_isym(dataset"Si2_hse/Si2.isym")
+    Wannier.rescale!(isym_raw.littlegroup_reps)
+    sc_raw = Wannier.symmetry_constraint(kstencil, isym_raw, centers)
+    sc = Wannier.symmetry_constraint(kstencil, isym, centers)
+    @test sc.band_ok == sc_raw.band_ok
+    @test any(iki -> !all(sc.band_ok[iki]), 1:sc.nk_ibz)
+
+    # cleaning lowers the data-noise floors by ~100x (Si2_hse raw d noise is
+    # ~1e-5): projector idempotence and the covariance residual of the
+    # projected .iamn drop well below the raw floors
+    X = randn(ComplexF64, sc.nbands, sc.nwann, sc.nk_ibz)
+    PX_raw = Wannier.project_covariant(X, sc_raw)
+    PX = Wannier.project_covariant(X, sc)
+    @test norm(Wannier.project_covariant(PX_raw, sc_raw) - PX_raw) > 1.0e-6
+    @test norm(Wannier.project_covariant(PX, sc) - PX) < 1.0e-6
+
+    Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
+    @test Wannier.covariance_residual(Wannier.project_covariant(Ai, sc_raw), sc_raw) > 1.0e-6
+    @test Wannier.covariance_residual(Wannier.project_covariant(Ai, sc), sc) < 1.0e-7
 end
 
 @testitem "localize on SymmetrizedModel" begin
