@@ -261,6 +261,16 @@ U_fbz, U_ibz = localize(Variance(), sm, SchurLayout())     # Schur block paramet
 U_fbz, U_ibz = solve!(Problem(Variance(), sm), OptimLBFGS(; max_iter = 300))
 ```
 
+`SymmetrizedModel` is parametric on the wrapped model (`SymmetrizedModel{M}`,
+today `M = Model`): symmetrization is a decorator orthogonal to the spin
+axis. A future `SymmetrizedModel{SpinModel}` composes through the existing
+rails — a [`ProductLayout`](@ref Wannier.ProductLayout) of the symmetry layouts with one
+[`SymmetryConstraint`](@ref Wannier.SymmetryConstraint) per spin channel, plus one new transport
+identity for the ``\uparrow\downarrow`` coupling overlap. The per-channel
+constraints are valid only when no (antiunitary) symmetry operation couples
+the spin channels; magnetic systems may instead need a spin-space-group
+constraint on the composite gauge.
+
 ### Parallel transport is a separate path
 
 [`ParallelTransport`](@ref Wannier.ParallelTransport) is a *gauge-construction recipe*, not a scalar

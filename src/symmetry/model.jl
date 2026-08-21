@@ -23,13 +23,25 @@ n_bvectors × n_kpoints_ibz`, global b ordering). The Schur-adapted bases of
 [`schur_basis`](@ref) are built lazily on first use (only the
 [`SchurLayout`](@ref) needs them).
 
+The wrapper is parametric on the wrapped model type (`SymmetrizedModel{M}`,
+today `M = Model`); see the comment on the struct for the composition plan
+and its physics caveat.
+
 Works with [`localize`](@ref) / [`Problem`](@ref) + [`solve!`](@ref) like any
 other model; the optimization variables are the gauges at the IBZ kpoints
 only, and the returned gauge is the `(U_fbz, U_ibz)` pair of the optimized
 covariant gauge expanded to the full mesh plus its IBZ representative.
 """
-struct SymmetrizedModel{T <: Real}
-    model::Model{T}
+# The wrapped-model type `M` is a free parameter: symmetrization is a decorator
+# orthogonal to the spin axis, so a future `SymmetrizedModel{SpinModel}` can
+# carry one `SymmetryConstraint` per spin channel and compose the per-channel
+# symmetry layouts via `ProductLayout`.
+#
+# Physics caveat: per-channel constraints are valid only when no (antiunitary)
+# symmetry operation couples the spin channels; magnetic systems may need a
+# spin-space-group constraint acting on the composite (↑, ↓) gauge instead.
+struct SymmetrizedModel{M, T <: Real}
+    model::M
     constraint::SymmetryConstraint{T}
     overlaps_ibz::Array{Complex{T}, 4}
     # lazily built Schur-adapted bases; `Ref` so the bundle stays immutable
@@ -37,7 +49,7 @@ struct SymmetrizedModel{T <: Real}
 end
 
 function SymmetrizedModel(
-        model::Model{T},
+        model,
         constraint::SymmetryConstraint{T},
         overlaps_ibz::AbstractArray{<:Complex, 4},
     ) where {T}
@@ -48,13 +60,14 @@ function SymmetrizedModel(
     nb = constraint.nbands
     size(overlaps_ibz) == (nb, nb, constraint.nbvecs, constraint.nk_ibz) ||
         error("overlaps_ibz must be n_bands × n_bands × n_bvectors × n_kpoints_ibz")
-    return SymmetrizedModel{T}(
+    return SymmetrizedModel{typeof(model), T}(
         model, constraint, Array{Complex{T}, 4}(overlaps_ibz),
         Base.RefValue{Union{Nothing, SchurBasis{T}}}(nothing),
     )
 end
 
-# accessors forward to the inner full-mesh model
+# accessors forward to the inner full-mesh model; generic in the wrapped
+# type — any `M` supporting these accessors works
 n_bands(sm::SymmetrizedModel) = n_bands(sm.model)
 n_wannier(sm::SymmetrizedModel) = n_wannier(sm.model)
 n_kpoints(sm::SymmetrizedModel) = n_kpoints(sm.model)
@@ -195,7 +208,7 @@ end
 encode_gradient!(g::AbstractVector, ::SchurLayout, sm::SymmetrizedModel, ws::SchurWorkspace) =
     schur_encode_gradient!(g, ws.inner.G_ibz, ws.x, schur_basis(sm))
 
-function decode(::SchurLayout, x, sm::SymmetrizedModel{T}) where {T}
+function decode(::SchurLayout, x, sm::SymmetrizedModel{<:Any, T}) where {T}
     sc = sm.constraint
     U_ibz = zeros(Complex{T}, sc.nbands, sc.nwann, sc.nk_ibz)
     schur_decode!(U_ibz, x, schur_basis(sm))
@@ -224,7 +237,7 @@ function allocate_workspace(
 end
 
 function allocate_workspace(
-        ::Union{Variance, CenteredVariance}, sm::SymmetrizedModel{T},
+        ::Union{Variance, CenteredVariance}, sm::SymmetrizedModel{<:Any, T},
         ::SchurLayout; backend = CPU(),
     ) where {T}
     inner = SymmetricWorkspace2(sm.model.eigenvalues, sm.model.frozen_bands, sm.constraint)

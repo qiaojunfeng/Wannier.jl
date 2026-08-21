@@ -569,6 +569,11 @@ struct SymmetricWorkspace{T}
     frozen_ibz::BitMatrix
 end
 
+# NOTE: the Level-1 path (this workspace + `_fg1_core!`) is the only place in
+# this file that takes a `Model`, and it reads nothing beyond the size
+# accessors, `model.kstencil`, `model.overlaps`, and `model.frozen_bands`
+# (via `Workspace(model)` and `compute_MU_UtMU!`/`omega_grad!`). Everything
+# else in this file acts on gauge arrays + `SymmetryConstraint` only.
 function SymmetricWorkspace(model::Model, sc::SymmetryConstraint{T}) where {T}
     nb, nw = n_bands(model), n_wannier(model)
     nb == sc.nbands && nw == sc.nwann ||
