@@ -310,20 +310,21 @@ end
     # blocks carry no parameters, block shapes match across a pair, and
     # quaternionic blocks have even multiplicities
     for (iki, blks) in enumerate(sb.blocks), (ic, b) in enumerate(blks)
-        if b.akind == 1
+        if b.akind == Wannier.ANTIUNITARY_PAIRING_SOURCE
             p = blks[b.partner]
-            @test p.akind == 2 && p.partner == ic
+            @test p.akind == Wannier.ANTIUNITARY_PAIRING_DERIVED && p.partner == ic
             @test (p.dim, p.mb, p.mo, p.mf) == (b.dim, b.mb, b.mo, b.mf)
-        elseif b.akind != 2
+        elseif b.akind != Wannier.ANTIUNITARY_PAIRING_DERIVED
             @test b.partner == 0
         end
-        if b.akind == 4
+        if b.akind == Wannier.ANTIUNITARY_WIGNER_QUATERNIONIC
             @test iseven(b.mf) && iseven(b.mo) && iseven(b.mb)
         end
     end
     @test sb.nx == sum(
-        b.akind == 2 ? 0 :
-            (b.akind == 3 || b.akind == 4 ? 1 : 2) *
+        b.akind == Wannier.ANTIUNITARY_PAIRING_DERIVED ? 0 :
+            (b.akind == Wannier.ANTIUNITARY_WIGNER_REAL ||
+                b.akind == Wannier.ANTIUNITARY_WIGNER_QUATERNIONIC ? 1 : 2) *
             (b.mo^2 + (b.mb - b.mf) * (b.mo - b.mf))
         for blks in sb.blocks for b in blks
     )

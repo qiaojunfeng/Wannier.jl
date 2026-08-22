@@ -55,8 +55,39 @@ projected overlap matrix"). Renames of public names require prior approval.
 - `kpb` — k+b neighbor bookkeeping (w90 convention)
 - `Mt`, `Dt` — M̃ (Wannier-gauge overlaps), D̃ (phase-dressed orbital rep)
 - `Lmat`, `Rmat` — the 𝓛/𝓡 orbital transports of the SM
+- `trev` — time-reversal (antiunitary) flag; `trev_x` is the conjugation
+  flag of table `x`, i.e. `𝒦_x[A] = conj(A)` when it is set
+- `wf` — Wannier function (`n_wann`, `mrwf`, `write_realspace_wf`)
+- `fg` — fused value+gradient in the Optim.jl `fg!(F, G, …)` convention:
+  one sweep produces both, `nothing` in either slot skips it
+- `MU`, `UtMU` — the M·U and U†·M·U products every spread kernel shares
+- `bvec` — one finite-difference **b**-vector of the k-space stencil
+  (`bvec_cart`, `bweights`, `n_bvectors`)
+- `cart` / `frac` — Cartesian (Å, Å⁻¹) / fractional (lattice-relative)
+  coordinates; every position-like name says which it is
+- `up` / `dn` / `updn` — spin-up channel, spin-down channel, and the
+  cross-channel ↑↓ quantity (`overlaps_updn`, `omega_updn`)
+- `symop` — one Seitz symmetry operation `{W|v}` (`WannierIO.SymOp`)
+- `A`, `Aib` — the expansion matrix A(g, k) of `unfold_gauge`, i.e. the
+  n_wann × n_wann matrix with `U(gk) = 𝒦[U(k) · A(g, k)]`; `Aib` is the
+  table of it for the pass-0 neighbors `k + b`
+- `dmat`, `d` — the little-group band-space representation
+  `d(ĥ, k) = ⟨ψ_m|ĥ ψ_n⟩` (`littlegroup_reps`)
+- `a2b` — a mapping from index space `a` to index space `b`, indexed by
+  `a` (`fbz2ibz`, `ibz2fbz`, `b2b`, `ikisym2ih`); read it as "a to b"
+- `TB` / `MDRS` — tight-binding operator on an R-space (`TBHamiltonian`,
+  `read_w90_tb`) and w90's minimal-distance replica selection R-space
+  (`MDRSRspace`), the two Fourier interpolation schemes
 - w90 file stems (`mmn`, `amn`, `eig`, `nnkp`, `chk`, `spn`, `uHu`) and
   their IBZ variants (`immn`, `iamn`, `ieig`, `isym`)
+
+The w90 file-format vocabulary above is an exception to the tier-1 rule
+that exported names spell everything out: `read_mmn`, `write_amn`,
+`read_w90_tb` and friends are named after the files the user already has
+on disk. It is the users' own vocabulary, so spelling it out ("overlap
+matrix file") would make the API harder to guess, not easier. The
+exception covers file-format names only — it does not license new
+abbreviations elsewhere in the exported surface.
 
 ## Code Style
 - Use 4 spaces for indentation.

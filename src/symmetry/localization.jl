@@ -995,6 +995,31 @@ end
 
 using Random: MersenneTwister, randn!
 
+"""
+How a Schur block carries the anti-unitary part of the little group
+(assigned by `_classify_aop`):
+
+- `ANTIUNITARY_NONE`: not classified; the decode falls back to the soft
+  2-term coset average `_aavg`.
+- `ANTIUNITARY_PAIRING_SOURCE`: pairing source — the block keeps its free
+  parameters and its partner class is derived from them.
+- `ANTIUNITARY_PAIRING_DERIVED`: pairing derived — no parameters of its own
+  (S_b/S_o are absorbed into `Bb`/`Bo`), the block value is `conj(C)` of the
+  source block named by `partner`.
+- `ANTIUNITARY_WIGNER_REAL`: self-paired, Wigner real type (ω = +1); the
+  Takagi factor W is absorbed into the bases, leaving a REAL block.
+- `ANTIUNITARY_WIGNER_QUATERNIONIC`: self-paired, Wigner quaternionic type
+  (ω = −1); the Youla factor W is absorbed, leaving a quaternion-structured
+  block.
+"""
+@enum AntiunitaryKind begin
+    ANTIUNITARY_NONE
+    ANTIUNITARY_PAIRING_SOURCE
+    ANTIUNITARY_PAIRING_DERIVED
+    ANTIUNITARY_WIGNER_REAL
+    ANTIUNITARY_WIGNER_QUATERNIONIC
+end
+
 """One irrep class at one IBZ kpoint: partner-stacked band/orbital bases."""
 struct SchurBlock{T}
     dim::Int   # irrep dimension dλ
@@ -1003,18 +1028,12 @@ struct SchurBlock{T}
     mf::Int    # frozen band multiplicity
     Bb::Vector{Matrix{Complex{T}}}   # dλ matrices, n_bands × mb
     Bo::Vector{Matrix{Complex{T}}}   # dλ matrices, n_wann  × mo
-    # anti-unitary handling (see `_classify_aop`): 0 = none / soft coset
-    # average fallback; 1 = pairing source (free block, partner derived);
-    # 2 = pairing derived (no parameters; S_b/S_o absorbed into Bb/Bo, the
-    # block value is conj(C) of the source block `partner`); 3 = Wigner real
-    # type (Takagi W absorbed, real block); 4 = Wigner quaternionic type
-    # (Youla W absorbed, quaternion-structured block)
-    akind::Int8
-    partner::Int   # class index of the pairing partner (akind 1/2), else 0
+    akind::AntiunitaryKind           # see `AntiunitaryKind`, `_classify_aop`
+    partner::Int   # class index of the pairing partner (pairing kinds), else 0
 end
 
 SchurBlock{T}(dim, mb, mo, mf, Bb, Bo) where {T} =
-    SchurBlock{T}(dim, mb, mo, mf, Bb, Bo, Int8(0), 0)
+    SchurBlock{T}(dim, mb, mo, mf, Bb, Bo, ANTIUNITARY_NONE, 0)
 
 """
 Schur-adapted bases for all IBZ kpoints, plus the anti-unitary coset
@@ -1024,6 +1043,13 @@ parameters (see `_block_nparams`).
 """
 struct SchurBasis{T}
     blocks::Vector{Vector{SchurBlock{T}}}
+    # `aop` = â₀, the anti-unitary coset representative of the magnetic little
+    # group G_ki = H_ki ⊔ â₀ H_ki (H_ki the unitary halving subgroup), stored
+    # per IBZ kpoint as the pair (band rep d_a, orbital matrix A_a) whose
+    # action is ρ(â₀)[U] = d_a · conj(U A_a) — the notation of the
+    # corepresentation block above and of `unfold/ibz_variational_sawf.tex`.
+    # `nothing` where the little group is non-magnetic or every class was
+    # classified exactly (no soft coset average needed).
     aop::Vector{Union{Nothing, Tuple{Matrix{Complex{T}}, Matrix{Complex{T}}}}}
     nx::Int
 end
@@ -1200,20 +1226,20 @@ end
 # U = ρ(â₀)[U] then reads block-wise C_{c′} = S_b · conj(C_c) · S_o†.
 #
 # Pairing type (c′ ≠ c): the lower-index class of the pair keeps its free
-# parameters (akind = 1); the partner block becomes derived (akind = 2) with
-# S_b/S_o absorbed into its bases, so its decode is simply
-# Σ_j Bb′[j] · conj(C_c) · Bo′[j]†.
+# parameters (`ANTIUNITARY_PAIRING_SOURCE`); the partner block becomes
+# derived (`ANTIUNITARY_PAIRING_DERIVED`) with S_b/S_o absorbed into its
+# bases, so its decode is simply Σ_j Bb′[j] · conj(C_c) · Bo′[j]†.
 #
 # Self-paired classes (c′ = c): Wigner classification by the sign ω of
 # S conj(S) = ω·1. Real type (ω = +1): Takagi factors W (per frozen block on
 # the band side) are absorbed into the bases, making the block constraint
-# conj(C̃) = C̃ (akind = 3). Quaternionic type (ω = −1): Youla factors W with
-# the interleaved symplectic J are absorbed, making the constraint
-# conj(C̃) = J_b C̃ J_o† (akind = 4).
+# conj(C̃) = C̃ (`ANTIUNITARY_WIGNER_REAL`). Quaternionic type (ω = −1):
+# Youla factors W with the interleaved symplectic J are absorbed, making the
+# constraint conj(C̃) = J_b C̃ J_o† (`ANTIUNITARY_WIGNER_QUATERNIONIC`).
 #
 # Every derived identity is verified numerically (tolerance `rtol`, loose
 # enough for noisy isym data); on any failure the classes fall back to
-# akind = 0 (soft coset average).
+# `ANTIUNITARY_NONE` (soft coset average).
 function _classify_aop(
         blks::Vector{SchurBlock{T}}, da::Matrix{Complex{T}},
         Aa::Matrix{Complex{T}}, rng; rtol = 1.0e-3,
@@ -1287,7 +1313,7 @@ function _classify_aop(
                 Wo = _takagi_unitary(So)
                 (norm(Wb * transpose(Wb) - Sb) < tolb &&
                     norm(Wo * transpose(Wo) - So) < tolo) || continue
-                kind = Int8(3)
+                kind = ANTIUNITARY_WIGNER_REAL
                 Ct = Matrix{CT}(randn(rng, T, b.mb, b.mo))
             else        # quaternionic type: S = W J Wᵀ
                 (iseven(mf) && iseven(b.mb) && iseven(b.mo)) || continue
@@ -1297,7 +1323,7 @@ function _classify_aop(
                 (norm(Wb * _jmat(CT, b.mb) * transpose(Wb) - Sb) < tolb &&
                     norm(Wo * _jmat(CT, b.mo) * transpose(Wo) - So) < tolo) ||
                     continue
-                kind = Int8(4)
+                kind = ANTIUNITARY_WIGNER_QUATERNIONIC
                 Ct = _quat_assemble(
                     randn(rng, CT, b.mb ÷ 2, b.mo ÷ 2),
                     randn(rng, CT, b.mb ÷ 2, b.mo ÷ 2),
@@ -1335,8 +1361,12 @@ function _classify_aop(
         Dc = sum(b.Bb[j] * Ct * b.Bo[j]' for j in 1:b.dim)
         Dc2 = sum(Bb2[j] * conj.(Ct) * Bo2[j]' for j in 1:b.dim)
         norm(da * conj.(Dc * Aa) - Dc2) < rtol * norm(Dc) || continue
-        out[c] = SchurBlock{T}(b.dim, b.mb, b.mo, b.mf, b.Bb, b.Bo, Int8(1), c2)
-        out[c2] = SchurBlock{T}(b2.dim, b2.mb, b2.mo, b2.mf, Bb2, Bo2, Int8(2), c)
+        out[c] = SchurBlock{T}(
+            b.dim, b.mb, b.mo, b.mf, b.Bb, b.Bo, ANTIUNITARY_PAIRING_SOURCE, c2
+        )
+        out[c2] = SchurBlock{T}(
+            b2.dim, b2.mb, b2.mo, b2.mf, Bb2, Bo2, ANTIUNITARY_PAIRING_DERIVED, c
+        )
     end
     return out
 end
@@ -1435,7 +1465,7 @@ function schur_basis(
         if aop[iki] !== nothing
             blks = _classify_aop(blks, aop[iki][1], aop[iki][2], arng)
             # drop the soft coset average where every class is exact
-            all(b.akind != Int8(0) for b in blks) && (aop[iki] = nothing)
+            all(b.akind != ANTIUNITARY_NONE for b in blks) && (aop[iki] = nothing)
         end
         blocks[iki] = blks
     end
@@ -1449,10 +1479,12 @@ end
 # blocks, 4 reals per quaternion (= one real per complex entry) for
 # quaternionic blocks; derived pairing partners carry none
 function _block_nparams(blk::SchurBlock)
-    blk.akind == Int8(2) && return (0, 0)
+    blk.akind == ANTIUNITARY_PAIRING_DERIVED && return (0, 0)
     nX = blk.mo^2
     nY = (blk.mb - blk.mf) * (blk.mo - blk.mf)
-    fac = blk.akind == Int8(3) || blk.akind == Int8(4) ? 1 : 2
+    structured = blk.akind == ANTIUNITARY_WIGNER_REAL ||
+        blk.akind == ANTIUNITARY_WIGNER_QUATERNIONIC
+    fac = structured ? 1 : 2
     return (fac * nX, fac * nY)
 end
 
@@ -1462,7 +1494,7 @@ function _schur_ranges(sb::SchurBasis)
     out = Tuple{Int, SchurBlock, UnitRange{Int}, UnitRange{Int}}[]
     off = 0
     for (iki, blks) in enumerate(sb.blocks), blk in blks
-        blk.akind == Int8(2) && continue
+        blk.akind == ANTIUNITARY_PAIRING_DERIVED && continue
         nX, nY = _block_nparams(blk)
         push!(out, (iki, blk, (off + 1):(off + nX), (off + nX + 1):(off + nX + nY)))
         off += nX + nY
@@ -1473,14 +1505,14 @@ end
 _blockC(blk, X, Y) = vcat(X[1:blk.mf, :], Y * X[(blk.mf + 1):end, :])
 
 # materialize / store the (X, Y) block matrices from / into the flat REAL
-# parameter vector, per akind storage layout. `grad = true` applies the
+# parameter vector, per `AntiunitaryKind` storage layout. `grad = true` applies the
 # gradient convention: real-type gradients are Re-projected, quaternionic
 # component gradients carry the factor 2 from the two copies of each
 # component in the structured matrix.
 function _schur_getM(x::AbstractVector{T}, blk, r, m1::Int, m2::Int) where {T}
-    if blk.akind == Int8(3)
+    if blk.akind == ANTIUNITARY_WIGNER_REAL
         return Matrix(reshape(view(x, r), m1, m2))
-    elseif blk.akind == Int8(4)
+    elseif blk.akind == ANTIUNITARY_WIGNER_QUATERNIONIC
         v = reinterpret(Complex{T}, view(x, r))
         h = (m1 ÷ 2) * (m2 ÷ 2)
         return _quat_assemble(
@@ -1492,9 +1524,9 @@ function _schur_getM(x::AbstractVector{T}, blk, r, m1::Int, m2::Int) where {T}
 end
 
 function _schur_setM!(x::AbstractVector{T}, blk, r, M; grad::Bool = false) where {T}
-    if blk.akind == Int8(3)
+    if blk.akind == ANTIUNITARY_WIGNER_REAL
         reshape(view(x, r), size(M)) .= real.(M)
-    elseif blk.akind == Int8(4)
+    elseif blk.akind == ANTIUNITARY_WIGNER_QUATERNIONIC
         A, B = _quat_extract(M)
         grad && (A .*= 2; B .*= 2)
         v = reinterpret(Complex{T}, view(x, r))
@@ -1532,7 +1564,7 @@ function schur_decode!(
         for j in 1:blk.dim
             mul!(view(U_ibz, :, :, iki), blk.Bb[j] * C, blk.Bo[j]', true, true)
         end
-        if blk.akind == Int8(1)
+        if blk.akind == ANTIUNITARY_PAIRING_SOURCE
             pb = sb.blocks[iki][blk.partner]
             Cc = conj.(C)
             for j in 1:pb.dim
@@ -1564,7 +1596,7 @@ function schur_encode_gradient!(
         for j in 1:blk.dim
             mul!(GC, blk.Bb[j]', Ga[iki] * blk.Bo[j], true, true)
         end
-        if blk.akind == Int8(1)
+        if blk.akind == ANTIUNITARY_PAIRING_SOURCE
             pb = sb.blocks[iki][blk.partner]
             GCp = zeros(eltype(G_ibz), blk.mb, blk.mo)
             for j in 1:pb.dim
@@ -1602,7 +1634,7 @@ function schur_initial_x(
         # for constrained blocks C is first projected onto the structure and
         # Y is built structure-preserving (real / Kramers-paired columns)
         mf, mo, mb = blk.mf, blk.mo, blk.mb
-        if blk.akind == Int8(3)
+        if blk.akind == ANTIUNITARY_WIGNER_REAL
             Cs = real.(C)
             Y = zeros(T, mb - mf, mo - mf)
             if mo > mf && mb > mf
@@ -1610,7 +1642,7 @@ function schur_initial_x(
                 E, V = eigen(Symmetric(Cr * transpose(Cr)))
                 Y .= V[:, (end - (mo - mf) + 1):end]
             end
-        elseif blk.akind == Int8(4)
+        elseif blk.akind == ANTIUNITARY_WIGNER_QUATERNIONIC
             Jb = cat(_jmat(CT, mf), _jmat(CT, mb - mf); dims = (1, 2))
             Cs = (C .+ Jb * conj.(C) * transpose(_jmat(CT, mo))) ./ 2
             Y = zeros(CT, mb - mf, mo - mf)

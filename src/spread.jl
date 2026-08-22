@@ -67,6 +67,13 @@ struct Spread{T <: Real, C <: Union{Nothing, T}, V <: Union{Nothing, Vector{T}}}
     ΩD::T
 
     # Ω̃ = ΩOD + ΩD, unit Å²
+    # TODO(naming): `Ω̃` is a combining character (U+03A9 U+0303), so it is
+    # neither typeable nor greppable — `grep Ω̃` misses it unless the query
+    # is byte-identical, and `grep Ω` matches every other spread field. It is
+    # also an exported field name, which the AGENTS.md naming tiers reserve
+    # for full words. A rename (e.g. `Ωtilde`) is deliberately deferred: the
+    # symbol matches the MV paper the whole struct mirrors, and the decision
+    # is not made yet.
     Ω̃::T
 
     # Ω of each WF, unit Å², length = n_wann
