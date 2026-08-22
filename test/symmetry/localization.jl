@@ -235,10 +235,10 @@ end
     # table consistency: minus_b is the −b involution, ikpb_fbz points at ki+bi,
     # and the dagger member star-maps to the pass-0 IBZ point kb
     bvecs = get_bvectors(ks0; fractional = true)
-    @test all(ib -> Wannier.isequiv(bvecs[sc.minus_b[ib]], -bvecs[ib]), 1:sc.nbvecs)
+    @test all(ib -> Wannier.isequivalent(bvecs[sc.minus_b[ib]], -bvecs[ib]), 1:sc.nbvecs)
     @test sc.minus_b[sc.minus_b] == 1:sc.nbvecs
     for iki in 1:sc.nk_ibz, ibi in 1:sc.nbvecs
-        @test Wannier.isequiv(
+        @test Wannier.isequivalent(
             ks0.kpoints[sc.ikpb_fbz[ibi, iki]], isym.kpoints_ibz[iki] + bvecs[ibi]
         )
         @test sc.fbz2ibz[sc.ikpb_fbz[ibi, iki]][1] == sc.ikb[ibi, iki]
@@ -256,7 +256,7 @@ end
     # on clean Ge4Ru4 data); those pairs are computed directly.
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
-    U_i = Wannier.project_covariant(Wannier.orthonorm_lowdin(Ai), sc)
+    U_i = Wannier.project_covariant(Wannier.lowdin_orthonormalize(Ai), sc)
     nw, nbv, nki = sc.nwann, sc.nbvecs, sc.nk_ibz
     Mt = zeros(ComplexF64, nw, nw, nbv, nki)
     for iki in 1:nki, ibi in 1:nbv
@@ -399,7 +399,7 @@ end
     frozen = Wannier.get_frozen_bands(Ef, get(win, "dis_froz_max", -Inf))
     ws2 = Wannier.SymmetricTransportWorkspace(Ef, frozen, sc)
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
-    U0 = Wannier.project_covariant(Wannier.orthonorm_lowdin(Ai), sc)
+    U0 = Wannier.project_covariant(Wannier.lowdin_orthonormalize(Ai), sc)
     fb = Wannier.symmetry_breaking_force(U0, mmn_i.M, sc, ws2)
     @test 0 <= fb <= 1
 end

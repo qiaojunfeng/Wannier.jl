@@ -11,7 +11,7 @@ where the latter one just parse the `amn` file and return whatever is in it.
 """
 function read_amn_ortho(filename::AbstractString)
     U = WannierIO.read_amn(filename).A
-    U .= orthonorm_lowdin(U)
+    U .= lowdin_orthonormalize(U)
     # @info "Lowdin orthonormalization applied to U matrices"
     return U
 end

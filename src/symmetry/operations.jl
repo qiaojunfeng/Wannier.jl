@@ -49,7 +49,7 @@ at each rep's IBZ kpoint are clustered by energy gaps larger than
 `atol_degeneracy` (the same rule as the energy-multiplet masking of
 [`SymmetryConstraint`](@ref)), all cross-cluster entries are zeroed, and
 each within-cluster block is replaced by its closest unitary (polar factor,
-`orthonorm_lowdin`).
+`lowdin_orthonormalize`).
 
 A block is unitarized only when it is already unitary to within
 `atol_unitary` (measured as `opnorm(B'B - I)`). Blocks with a larger deficit
@@ -85,7 +85,7 @@ function clean_littlegroup_reps!(
                 blk = lo:n
                 B = d0[blk, blk]
                 if opnorm(B' * B - I) <= atol_unitary
-                    B = orthonorm_lowdin(B)
+                    B = lowdin_orthonormalize(B)
                 end
                 d[blk, blk] = B
                 lo = n + 1
@@ -137,7 +137,7 @@ function map_fbz_to_ibz(
         for (iki, ki) in enumerate(kpoints_ibz)
             for (is, S) in enumerate(symops)
                 Sk = rotate_kpoint(ki, S)
-                if isequiv(Sk, kf)
+                if isequivalent(Sk, kf)
                     j = fbz2ibz[ikf][1]
                     if j == 0
                         fbz2ibz[ikf] = [iki, is]
@@ -642,11 +642,11 @@ function unfold_overlaps(
 
             # We need symmetries at ki + bi:
             # 1. find the index of ki + bi in the FBZ
-            ikbi_fbz = findfirst(isequiv(ki + bi), kpoints_fbz)
+            ikbi_fbz = findfirst(isequivalent(ki + bi), kpoints_fbz)
             # 2. find the index of ki+bi in the IBZ, and symmetry to get ki+bi in IBZ
             ikbi_ibz, isym_kbi = fbz2ibz[ikbi_fbz]
             # 3. find the index of kf + bf in the FBZ
-            ikbf_fbz = findfirst(isequiv(kf + bf), kpoints_fbz)
+            ikbf_fbz = findfirst(isequivalent(kf + bf), kpoints_fbz)
             # 4. find the index of kf+bf in the IBZ, and symmetry to get kf+bf in IBZ
             isym_kbf = fbz2ibz[ikbf_fbz][2]
 

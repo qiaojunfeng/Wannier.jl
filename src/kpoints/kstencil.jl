@@ -294,7 +294,7 @@ function bvectors_to_kpb(bvectors_frac::AbstractVector, k::Vec3, kpoints::Abstra
     # recip_lattice), thus I choose a (somewhat arbitrary) constant `1e-6`.
     for ib in 1:nbvecs
         kpb = k + bvectors_frac[ib]
-        ik = findfirst(isequiv(kpb; atol = 1.0e-6), kpoints)
+        ik = findfirst(isequivalent(kpb; atol = 1.0e-6), kpoints)
         isnothing(ik) && error("No equivalent kpoint found for k=$k ib=$ib")
         kpb_k[ib] = ik
         kpb_G[ib] = round.(Int, kpb - kpoints[ik])

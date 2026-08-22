@@ -1,4 +1,4 @@
-export Variance, CenteredVariance, CoOptVariance, CenteredCoOptVariance
+export Variance, CenteredVariance, SpinCoupledVariance, CenteredSpinCoupledVariance
 export Problem, default_layout
 
 """
@@ -33,8 +33,8 @@ objective works with every layout, and a new layout works with every objective.
 Finite-difference gradient checks for each subtype live in the test suite:
 `test/localization/disentangle.jl` (Variance),
 `test/localization/constrain_center/disentangle.jl` (CenteredVariance),
-`test/localization/coopt.jl` (CoOptVariance), and
-`test/localization/constrain_center/coopt.jl` (CenteredCoOptVariance).
+`test/localization/coopt.jl` (SpinCoupledVariance), and
+`test/localization/constrain_center/coopt.jl` (CenteredSpinCoupledVariance).
 """
 abstract type Objective end
 
@@ -143,7 +143,7 @@ function fg!(
 end
 
 # -------------------------------------------------------------------------
-# CoOptVariance / CenteredCoOptVariance (commit P): SpinModel objectives
+# SpinCoupledVariance / CenteredSpinCoupledVariance (commit P): SpinModel objectives
 # -------------------------------------------------------------------------
 
 """
@@ -161,37 +161,37 @@ struct SpinWorkspace{T}
 end
 
 """
-    CoOptVariance(λ_spin)
+    SpinCoupledVariance(λ_spin)
 
 Co-optimization of two spin channels: `Ω = Ωup + Ωdn + λ_spin · Ωupdn` where
 `Ωupdn = n_wann − tr(|⟨u↑|u↓⟩|²)` is the ↑↓ overlap penalty (see
 `omega_updn`). Operates on a `SpinModel`.
 """
-struct CoOptVariance{T <: Real} <: Objective
+struct SpinCoupledVariance{T <: Real} <: Objective
     λ_spin::T
 end
 
-default_layout(::CoOptVariance, ::SpinModel) = ProductLayout(XYLayout(), XYLayout())
+default_layout(::SpinCoupledVariance, ::SpinModel) = ProductLayout(XYLayout(), XYLayout())
 
-function allocate_workspace(::CoOptVariance, model::SpinModel, ::Layout; backend = CPU())
+function allocate_workspace(::SpinCoupledVariance, model::SpinModel, ::Layout; backend = CPU())
     return SpinWorkspace(Workspace(model.up), Workspace(model.dn), Array{eltype(model.overlaps_updn), 3}(model.overlaps_updn))
 end
 
 """
-    CenteredCoOptVariance(r0, λ, λ_spin)
+    CenteredSpinCoupledVariance(r0, λ, λ_spin)
 
-`CoOptVariance` plus a shared-center penalty applied on both spin
+`SpinCoupledVariance` plus a shared-center penalty applied on both spin
 channels (see `CenteredVariance`).
 """
-struct CenteredCoOptVariance{T <: Real} <: Objective
+struct CenteredSpinCoupledVariance{T <: Real} <: Objective
     r0::Vector{Vec3{T}}
     λ::T
     λ_spin::T
 end
 
-default_layout(::CenteredCoOptVariance, ::SpinModel) = ProductLayout(XYLayout(), XYLayout())
+default_layout(::CenteredSpinCoupledVariance, ::SpinModel) = ProductLayout(XYLayout(), XYLayout())
 
-function allocate_workspace(::CenteredCoOptVariance, model::SpinModel, ::Layout; backend = CPU())
+function allocate_workspace(::CenteredSpinCoupledVariance, model::SpinModel, ::Layout; backend = CPU())
     return SpinWorkspace(Workspace(model.up), Workspace(model.dn), Array{eltype(model.overlaps_updn), 3}(model.overlaps_updn))
 end
 
@@ -252,7 +252,7 @@ end
 # sum once is equivalent to converting each term separately because the
 # layout's gradient encoding is linear — and it is one conversion cheaper.
 
-function fg!(F, GU, obj::CoOptVariance, U::Tuple, model::SpinModel, ws::SpinWorkspace)
+function fg!(F, GU, obj::SpinCoupledVariance, U::Tuple, model::SpinModel, ws::SpinWorkspace)
     Uup, Udn = U
     λ = obj.λ_spin
     compute_MU_UtMU!(ws.up, model.up.kstencil, model.up.overlaps, Uup)
@@ -276,7 +276,7 @@ function fg!(F, GU, obj::CoOptVariance, U::Tuple, model::SpinModel, ws::SpinWork
     return Ωup + Ωdn + λ * Ωupdn
 end
 
-function fg!(F, GU, obj::CenteredCoOptVariance, U::Tuple, model::SpinModel, ws::SpinWorkspace)
+function fg!(F, GU, obj::CenteredSpinCoupledVariance, U::Tuple, model::SpinModel, ws::SpinWorkspace)
     Uup, Udn = U
     λ = obj.λ_spin
     pen = center_penalty(obj.r0, obj.λ)

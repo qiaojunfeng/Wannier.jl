@@ -1,4 +1,4 @@
-export orthonorm_lowdin,
+export lowdin_orthonormalize,
     identity_gauge,
     zeros_gauge,
     rand_gauge,
@@ -6,7 +6,7 @@ export orthonorm_lowdin,
     zeros_overlap,
     zeros_eigenvalues,
     isunitary,
-    isequiv
+    isequivalent
 
 """
     $(SIGNATURES)
@@ -21,9 +21,9 @@ imaglog(z::Complex) = atan(imag(z), real(z))
 Lowdin orthonormalize a matrix `U` to be (semi-)unitary.
 
 If `U` is a matrix with orthogonal columns and `V` a non-singular matrix,
-then Lowdin-orthogonalizing `U*V` is equivalent to computing `U*orthonorm_lowdin(V)`.
+then Lowdin-orthogonalizing `U*V` is equivalent to computing `U*lowdin_orthonormalize(V)`.
 """
-function orthonorm_lowdin(U::AbstractMatrix)
+function lowdin_orthonormalize(U::AbstractMatrix)
     A, S, B = svd(U)
     # @assert U ≈ A * Diagonal(S) * B'
     return A * B'
@@ -34,17 +34,17 @@ end
 
 Lowdin orthonormalize a series of matrices `U`.
 """
-orthonorm_lowdin(U::AbstractVector) = orthonorm_lowdin.(U)
+lowdin_orthonormalize(U::AbstractVector) = lowdin_orthonormalize.(U)
 
-function orthonorm_lowdin(U::AbstractArray{T, 3}) where {T}
+function lowdin_orthonormalize(U::AbstractArray{T, 3}) where {T}
     U2 = similar(U)
     for ik in axes(U, 3)
-        U2[:, :, ik] .= orthonorm_lowdin(view(U, :, :, ik))
+        U2[:, :, ik] .= lowdin_orthonormalize(view(U, :, :, ik))
     end
     return U2
 end
 
-function orthonorm_cholesky(U)
+function orthonormalize_cholesky(U)
     return U / chol(U'U)
 end
 
@@ -99,7 +99,7 @@ function powm(U::AbstractMatrix{T}, p::F) where {T <: Union{Complex, Real}, F <:
     # Workaround, eigen incompatible with lazy adjoint.
     d, V = eigen(Matrix(U))
 
-    V = orthonorm_lowdin(V)
+    V = lowdin_orthonormalize(V)
     # accuracy = norm(V * Diagonal(d) * V' - U)
     # @assert accuracy < 1e-10
 
@@ -129,7 +129,7 @@ eigenvalues near `-1` on the same side of the cut.
 """
 function eig_log(O::AbstractMatrix; tol::Real = 0.01)
     d, V = eigen(Matrix(O))
-    V = orthonorm_lowdin(V)
+    V = lowdin_orthonormalize(V)
     θ = angle.(d)
     # principal branch, keeping near-(-π) eigenphases on the +π side
     θ = @. θ + 2π * (θ < -π + tol)
@@ -233,7 +233,7 @@ the indices of kpoints, bands, and WFs, respectively, and each `U[ik]` is
 function rand_gauge end
 
 @inline function rand_gauge(T::Type, nbands::Integer, nwann::Integer)
-    return orthonorm_lowdin(randn(T, nbands, nwann))
+    return lowdin_orthonormalize(randn(T, nbands, nwann))
 end
 
 @inline rand_gauge(T::Type, nwann::Integer) = rand_gauge(T, nwann, nwann)
@@ -440,7 +440,7 @@ Check if two vectors are equivalent within a tolerance, optionally considering p
 - `atol`: absolute tolerance for comparison (default: `1e-6`)
 - `periodic`: whether to consider periodic boundary conditions (default: `true`)
 """
-function isequiv(v1::AbstractVector, v2::AbstractVector; atol::AbstractFloat = 1.0e-6, periodic::Bool = true)
+function isequivalent(v1::AbstractVector, v2::AbstractVector; atol::AbstractFloat = 1.0e-6, periodic::Bool = true)
     d = v1 - v2
     if periodic
         d -= round.(d)
@@ -451,9 +451,9 @@ end
 """
     $(SIGNATURES)
 
-Create a function that compares its argument to `x` using [`isequiv`](@ref), i.e.
-a function equivalent to `y -> isequiv(y, x)`.
+Create a function that compares its argument to `x` using [`isequivalent`](@ref), i.e.
+a function equivalent to `y -> isequivalent(y, x)`.
 """
-isequiv(y; kwargs...) = x -> isequiv(x, y; kwargs...)
+isequivalent(y; kwargs...) = x -> isequivalent(x, y; kwargs...)
 # Cannot use the following as I want to also fix the keyword arguments.
-# isequiv(x) = Base.Fix2(isequiv, x)
+# isequivalent(x) = Base.Fix2(isequivalent, x)

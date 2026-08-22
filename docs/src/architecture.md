@@ -110,8 +110,8 @@ so every one can hand-order its fused value+gradient sweep:
 |---|---|---|
 | [`Variance`](@ref Wannier.Variance) | Marzari–Vanderbilt spread ``\Omega`` | `Model`, `SymmetricModel` |
 | [`CenteredVariance`](@ref Wannier.CenteredVariance) | ``\Omega`` + WF-center penalty | `Model`, `SymmetricModel` |
-| [`CoOptVariance`](@ref Wannier.CoOptVariance) | ``\Omega_\uparrow + \Omega_\downarrow + \lambda_s \Omega_{\uparrow\downarrow}`` | `SpinModel` |
-| [`CenteredCoOptVariance`](@ref Wannier.CenteredCoOptVariance) | co-optimization + center penalty | `SpinModel` |
+| [`SpinCoupledVariance`](@ref Wannier.SpinCoupledVariance) | ``\Omega_\uparrow + \Omega_\downarrow + \lambda_s \Omega_{\uparrow\downarrow}`` | `SpinModel` |
+| [`CenteredSpinCoupledVariance`](@ref Wannier.CenteredSpinCoupledVariance) | co-optimization + center penalty | `SpinModel` |
 
 Each subtype supplies one kernel and two traits:
 
@@ -230,7 +230,7 @@ Everyday use goes through one polymorphic entry point:
 
 ```julia
 localize(model)                                  # Variance, layout auto-picked
-localize(sm; λ_spin = 1.0)                           # CoOptVariance on a SpinModel
+localize(sm; λ_spin = 1.0)                           # SpinCoupledVariance on a SpinModel
 localize(CenteredVariance(r0, λ), model)         # explicit objective
 localize(Variance(), model, WLayout())           # explicit layout
 localize(ParallelTransport(), model)             # closed-form, no solver

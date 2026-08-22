@@ -10,7 +10,7 @@
     λ_spin = 1.0
     r0 = [Wannier.Vec3(zeros(3)) for i in 1:n_wannier(model.up)]
     λc = 10.0
-    obj = Wannier.CenteredCoOptVariance(r0, λc, λ_spin)
+    obj = Wannier.CenteredSpinCoupledVariance(r0, λc, λ_spin)
     fg! = Wannier._make_fg!(Wannier.Problem(obj, model))
     f(XY) = fg!(1.0, nothing, XY)
     function g!(G, XY)

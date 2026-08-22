@@ -42,7 +42,7 @@ function propagate!(
         b = round.(Int, kpoints[ik] - dk - kpoints[ik0])
         ib = index_bvector(kpb_k, kpb_G, ik, ik0, b)
         Mᵏᵇ = view(M, :, :, ib, ik)
-        view(U, :, :, ik) .= orthonorm_lowdin(Mᵏᵇ * view(U, :, :, ik0))
+        view(U, :, :, ik) .= lowdin_orthonormalize(Mᵏᵇ * view(U, :, :, ik0))
     end
 
     return nothing
@@ -223,7 +223,7 @@ function matrix_parallel_transport(
 
         # Normalize the remaining columns
         if length(not_columns) > 0
-            U[:, not_columns, ik, it] = orthonorm_lowdin(U[:, not_columns, ik, it])
+            U[:, not_columns, ik, it] = lowdin_orthonormalize(U[:, not_columns, ik, it])
         end
     end
 
@@ -358,13 +358,13 @@ function matrix_transport(matrix_path::AbstractArray{Complex{T}, 3}, t::Abstract
     end
 
     # Bring the contraction point from Obs to I
-    O = orthonorm_lowdin(U[:, :, 1, 1])
+    O = lowdin_orthonormalize(U[:, :, 1, 1])
     @debug "obstruction matrix" O
 
     for i in 1:n_k
         for j in 1:n_t
             U[:, :, i, j] = powm(O', 1 - t[j]) * U[:, :, i, j]
-            # U[:, :, i, j] = orthonorm_lowdin(U[:, :, i, j])
+            # U[:, :, i, j] = lowdin_orthonormalize(U[:, :, i, j])
         end
     end
 

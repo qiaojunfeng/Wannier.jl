@@ -12,7 +12,7 @@ Run localization against `model` (or `SpinModel` `sm`). Two independent
 dispatch paths live here:
 
 - `Objective` methods ([`Variance`](@ref), [`CenteredVariance`](@ref),
-  [`CoOptVariance`](@ref), [`CenteredCoOptVariance`](@ref)) minimize a
+  [`SpinCoupledVariance`](@ref), [`CenteredSpinCoupledVariance`](@ref)) minimize a
   scalar spread functional; the call routes through [`Problem`](@ref) +
   [`solve!`](@ref) with [`OptimLBFGS`](@ref). `kwargs` forward to the
   solver. The four-argument form picks the packing [`Layout`](@ref)
@@ -23,13 +23,13 @@ dispatch paths live here:
   [`parallel_transport`](@ref) directly.
 
 The no-method forms default to [`Variance`](@ref) on a `Model` and
-[`CoOptVariance`](@ref) on a `SpinModel`. A [`SymmetricModel`](@ref) routes
+[`SpinCoupledVariance`](@ref) on a `SpinModel`. A [`SymmetricModel`](@ref) routes
 to `Variance` with the symmetry-constrained [`SymmetricXYLayout`](@ref) and returns
 the `(U_fbz, U_ibz)` gauge pair.
 """
 localize(model::Model; kwargs...) = localize(Variance(), model; kwargs...)
 localize(sm::SpinModel; λ_spin::Real = 1.0, kwargs...) =
-    localize(CoOptVariance(float(λ_spin)), sm; kwargs...)
+    localize(SpinCoupledVariance(float(λ_spin)), sm; kwargs...)
 
 localize(obj::Objective, model; kwargs...) =
     solve!(Problem(obj, model), OptimLBFGS(; kwargs...))

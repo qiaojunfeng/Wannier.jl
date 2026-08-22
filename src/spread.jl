@@ -120,7 +120,7 @@ struct Workspace{T}
     # the origin — like wannier90's `guiding_centres`, they are constants of
     # the run, NOT updated from the current iterate (a self-updating guide
     # would make the objective history-dependent).
-    guide::Vector{Vec3{T}}
+    guiding_centers::Vector{Vec3{T}}
     UtMU::Array{Complex{T}, 4}
     MU::Array{Complex{T}, 4}
 end
@@ -271,7 +271,7 @@ function omega!(
 end
 
 function omega!(cache::Workspace, bvectors::KspaceStencil{FT}, M) where {FT <: Real}
-    return omega!(cache.r, cache.UtMU, cache.MU, bvectors, M; guide = cache.guide)
+    return omega!(cache.r, cache.UtMU, cache.MU, bvectors, M; guide = cache.guiding_centers)
 end
 
 """
@@ -339,10 +339,10 @@ omega_grad!(cache::Workspace, bvectors, M) = omega_grad!((r, _) -> r, cache, bve
 
 """Gradient with an externally-provided buffer `G`; leaves `cache.GU` untouched."""
 omega_grad!(G::AbstractArray{<:Complex, 3}, cache::Workspace, bvectors, M) =
-    omega_grad!((r, _) -> r, G, cache.r, cache.UtMU, cache.MU, bvectors, M; rg = cache.guide)
+    omega_grad!((r, _) -> r, G, cache.r, cache.UtMU, cache.MU, bvectors, M; rg = cache.guiding_centers)
 
 omega_grad!(penalty::Function, G::AbstractArray{<:Complex, 3}, cache::Workspace, bvectors, M) =
-    omega_grad!(penalty, G, cache.r, cache.UtMU, cache.MU, bvectors, M; rg = cache.guide)
+    omega_grad!(penalty, G, cache.r, cache.UtMU, cache.MU, bvectors, M; rg = cache.guiding_centers)
 
 function omega_grad!(
         penalty::Function,
@@ -398,7 +398,7 @@ function omega_grad!(
 end
 
 function omega_grad!(penalty::Function, cache::Workspace{T}, bvectors, M) where {T}
-    return omega_grad!(penalty, cache.GU, cache.r, cache.UtMU, cache.MU, bvectors, M; rg = cache.guide)
+    return omega_grad!(penalty, cache.GU, cache.r, cache.UtMU, cache.MU, bvectors, M; rg = cache.guiding_centers)
 end
 
 """
@@ -520,7 +520,7 @@ function center(model::Model, U::AbstractArray{<:Complex, 3})
 end
 
 """
-    position_op(bvectors, M, U)
+    position_operator(bvectors, M, U)
 
 Compute WF postion operator matrix in reciprocal space.
 
@@ -529,7 +529,7 @@ Compute WF postion operator matrix in reciprocal space.
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
 - `U`: `n_wann * n_wann * n_kpts` array
 """
-@views function position_op(
+@views function position_operator(
         bvectors::KspaceStencil{FT},
         M::AbstractArray{Complex{FT}, 4},
         U::AbstractArray{Complex{FT}, 3},
@@ -577,14 +577,14 @@ Compute WF postion operator matrix in reciprocal space.
 end
 
 """
-    position_op(model)
+    position_operator(model)
 
 Compute WF postion operator matrix in reciprocal space for `Model`.
 """
-position_op(model::Model) = position_op(model.kstencil, model.overlaps, model.gauges)
+position_operator(model::Model) = position_operator(model.kstencil, model.overlaps, model.gauges)
 
 """
-    position_op(model, U)
+    position_operator(model, U)
 
 Compute WF postion operator matrix in reciprocal space for `Model` with given `U` gauge.
 
@@ -592,8 +592,8 @@ Compute WF postion operator matrix in reciprocal space for `Model` with given `U
 - `model`: the `Model`
 - `U`: `n_bands × n_wann × n_kpts` array
 """
-function position_op(model::Model, U::AbstractArray{<:Complex, 3})
-    return position_op(model.kstencil, model.overlaps, U)
+function position_operator(model::Model, U::AbstractArray{<:Complex, 3})
+    return position_operator(model.kstencil, model.overlaps, U)
 end
 
 """

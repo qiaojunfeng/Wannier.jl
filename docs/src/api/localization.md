@@ -2,7 +2,7 @@
 
 `localize(...)` has two independent dispatch paths that share no supertype:
 
-- **Gradient-based** — pass a concrete [`Objective`](@ref) (`Variance`, `CenteredVariance`, `CoOptVariance`, `CenteredCoOptVariance`). `Objective` is a scalar functional (mathematical); the call bundles `(objective, model, layout, workspace)` into a [`Problem`](@ref) and hands it to [`solve!`](@ref) with an [`AbstractLocalizationSolver`](@ref Wannier.AbstractLocalizationSolver) backend (`OptimLBFGS` by default; additional backends like `Manopt.jl` plug in here). `Layout` (`ULayout`, `XYLayout`, `ProductLayout`, `WLayout`) picks the parameter packing on the Stiefel manifold.
+- **Gradient-based** — pass a concrete [`Objective`](@ref) (`Variance`, `CenteredVariance`, `SpinCoupledVariance`, `CenteredSpinCoupledVariance`). `Objective` is a scalar functional (mathematical); the call bundles `(objective, model, layout, workspace)` into a [`Problem`](@ref) and hands it to [`solve!`](@ref) with an [`AbstractLocalizationSolver`](@ref Wannier.AbstractLocalizationSolver) backend (`OptimLBFGS` by default; additional backends like `Manopt.jl` plug in here). `Layout` (`ULayout`, `XYLayout`, `ProductLayout`, `WLayout`) picks the parameter packing on the Stiefel manifold.
 - **Closed-form** — pass a [`ParallelTransport`](@ref). This routes through [`parallel_transport`](@ref) directly; there is no functional, no `Problem`, no solver.
 
 `Objective` and `ParallelTransport` live at different abstraction levels (a scalar functional versus a whole gauge-construction recipe), so there is no common ancestor. `localize` just dispatches on whichever the caller hands in.
@@ -61,7 +61,7 @@ max_localize(model; …)                     localize(model; …)
 disentangle(model; …)                      localize(model; …)
 disentangle(model, r0, λ; …)               localize(CenteredVariance(r0, λ), model; …)
 coopt(sm; λ_spin=1.0, …)                       localize(sm; λ_spin=1.0, …)
-constrain_center_coopt(sm, r0, λ; λ_spin, …)   localize(CenteredCoOptVariance(r0, λ, λ_spin), sm; …)
+constrain_center_coopt(sm, r0, λ; λ_spin, …)   localize(CenteredSpinCoupledVariance(r0, λ, λ_spin), sm; …)
 opt_rotate(model; …)                       localize(Variance(), model, WLayout(); …)
 
 get_fg!_disentangle(model)                 fg! = Wannier._make_fg!(Problem(Variance(), model))

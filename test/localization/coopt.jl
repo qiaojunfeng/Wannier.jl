@@ -11,7 +11,7 @@
     # if λ=0, equivalent to two independent Wannierizations of up and down
     # λ = 0
     λ = 1.0
-    fg! = Wannier._make_fg!(Wannier.Problem(Wannier.CoOptVariance(λ), model))
+    fg! = Wannier._make_fg!(Wannier.Problem(Wannier.SpinCoupledVariance(λ), model))
     f(XY) = fg!(1.0, nothing, XY)
     function g!(G, XY)
         fg!(nothing, G, XY)

@@ -275,7 +275,7 @@ function U_to_X_Y(U::AbstractArray{T, 3}, frozen::AbstractMatrix{Bool}) where {T
         idx_nf = .!idx_f
         n_froz = count(idx_f)
 
-        Af = orthonorm_freeze(view(U, :, :, ik), idx_f)
+        Af = orthonormalize_frozen(view(U, :, :, ik), idx_f)
         Uf = Af[idx_f, :]
         Ur = Af[idx_nf, :]
 
@@ -290,7 +290,7 @@ function U_to_X_Y(U::AbstractArray{T, 3}, frozen::AbstractMatrix{Bool}) where {T
         end
 
         # determine X
-        X[:, :, ik] .= orthonorm_lowdin(view(Y, :, :, ik)' * Af)
+        X[:, :, ik] .= lowdin_orthonormalize(view(Y, :, :, ik)' * Af)
     end
 
     return X, Y

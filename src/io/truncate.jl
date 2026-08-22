@@ -150,7 +150,7 @@ function truncate(
         U = U[:, keep_wfs, :]
     end
     if orthonorm_U
-        U = orthonorm_lowdin(U)
+        U = lowdin_orthonormalize(U)
     end
     frozen_bands = model.frozen_bands[keep_bands, :]
     entanged_bands = model.entangled_bands[keep_bands, :]

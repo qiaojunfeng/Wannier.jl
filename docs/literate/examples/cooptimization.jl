@@ -29,7 +29,7 @@ as the starting guess (computed by QE).
 3. construct a [`SpinModel`](@ref) that merges the two spin channels
 4. localize with overlap constraint — `localize(sm; λ_spin)`
 5. localize with both WF center and overlap constraints —
-    `localize(CenteredCoOptVariance(r0, λc, λ_spin), sm)`
+    `localize(CenteredSpinCoupledVariance(r0, λc, λ_spin), sm)`
 
 !!! warning "Interpolation snippets pending update"
     The interpolation/chk/plot cells below still reference the pre-rewrite
@@ -300,7 +300,7 @@ spin overlap constraint. We use `10.0` for both; try other values.
 =#
 λc = 10.0
 λ_spin = 10.0
-U_up, U_dn = localize(CenteredCoOptVariance(r0, λc, λ_spin), sm);
+U_up, U_dn = localize(CenteredSpinCoupledVariance(r0, λc, λ_spin), sm);
 
 # Inspect the base (overlap-only) spread of the co-optimized gauge
 spread(sm, U_up, U_dn, λ_spin)

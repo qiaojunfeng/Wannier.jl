@@ -1,4 +1,4 @@
-export center, spread, position_op
+export center, spread, position_operator
 
 """
     moment(rgrid::RGrid, W::AbstractArray, n)
@@ -76,7 +76,7 @@ function spread(W::WannierFunction)
 end
 
 """
-    position_op(rgrid::RGrid, W::AbstractArray{T,4})
+    position_operator(rgrid::RGrid, W::AbstractArray{T,4})
 
 Compute position operator matrices in real space.
 
@@ -84,7 +84,7 @@ Returned value in Cartesian coordinates.
 
 See also [`center`](@ref center).
 """
-function position_op(rgrid::RGrid, W::AbstractArray{T, 4}) where {T <: Complex}
+function position_operator(rgrid::RGrid, W::AbstractArray{T, 4}) where {T <: Complex}
     Xᶜ, Yᶜ, Zᶜ = cartesianize_xyz(rgrid)
     n_wann = size(W, 4)
     # last index is x,y,z

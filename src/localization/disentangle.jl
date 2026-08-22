@@ -181,7 +181,7 @@ function set_frozen_proj!(
 end
 
 """
-    orthonorm_freeze(U, frozen)
+    orthonormalize_frozen(U, frozen)
 
 Normalize and freeze a block of a matrix.
 
@@ -202,7 +202,7 @@ Strategy:
 - `U`: the matrix to be orthonormalized and frozen
 - `frozen`: the `BitVector` specifying which bands are frozen
 """
-function orthonorm_freeze(U::AbstractMatrix{T}, frozen::AbstractVector{Bool}) where {T <: Complex}
+function orthonormalize_frozen(U::AbstractMatrix{T}, frozen::AbstractVector{Bool}) where {T <: Complex}
     nbands, nwann = size(U)
     non_frozen = .!frozen
 
@@ -211,7 +211,7 @@ function orthonorm_freeze(U::AbstractMatrix{T}, frozen::AbstractVector{Bool}) wh
     # We do a Lowdin orthonormalization on Uf so that Uf * Uf' = I,
     # i.e. <ψ|g'><g'|ψ> = I -> |g'>s span the frozen |ψ>s.
     Uf = U[frozen, :]
-    Uf = orthonorm_lowdin(Uf)
+    Uf = lowdin_orthonormalize(Uf)
 
     # Remove Uf out of Ur, i.e. do not destroy frozen space
     # The projector of the frozen states represented on the |g> basis is

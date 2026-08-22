@@ -135,7 +135,7 @@ function globalize_bvector_ordering(kstencil::KspaceStencil)
     kpb_G = Matrix{Vec3{Int}}(undef, nb, nk)
     for ik in 1:nk, ib in 1:nb
         kpb = kpts[ik] + bvecs[ib]
-        ikpb = findfirst(isequiv(kpb), kpts)
+        ikpb = findfirst(isequivalent(kpb), kpts)
         isnothing(ikpb) && error("k+b not on the mesh: ik=$ik ib=$ib")
         G = kpb - kpts[ikpb]
         isapprox(G, round.(G); atol = 1.0e-7) || error("non-integer G at ik=$ik ib=$ib")
@@ -225,7 +225,7 @@ function SymmetryConstraint(
     end
     ibz2fbz = zeros(Int, nk_ibz)
     for (iki, ki) in enumerate(kpts_ibz)
-        ikf = findfirst(isequiv(ki), kpts_fbz)
+        ikf = findfirst(isequivalent(ki), kpts_fbz)
         isnothing(ikf) && error("IBZ kpoint $iki not found in the FBZ mesh")
         ibz2fbz[iki] = ikf
     end
@@ -319,7 +319,7 @@ function SymmetryConstraint(
     trev_kb = falses(nbvecs, nk_ibz)
     ikpb_fbz = zeros(Int, nbvecs, nk_ibz)
     minus_b = map(bvecs_frac) do b
-        ib2 = findfirst(isequiv(-b), bvecs_frac)
+        ib2 = findfirst(isequivalent(-b), bvecs_frac)
         isnothing(ib2) && error("b shell is not inversion-closed: -b missing for b = $b")
         ib2
     end
@@ -337,10 +337,10 @@ function SymmetryConstraint(
             ibi = b2b[ibf, isym_kf]
             bi = bvecs_frac[ibi]
 
-            ikbi_fbz = findfirst(isequiv(ki + bi), kpts_fbz)
+            ikbi_fbz = findfirst(isequivalent(ki + bi), kpts_fbz)
             ikbi_ibz, isym_kbi = fbz2ibz[ikbi_fbz]
             kb = kpts_ibz[ikbi_ibz]
-            ikbf_fbz = findfirst(isequiv(kf + bf), kpts_fbz)
+            ikbf_fbz = findfirst(isequivalent(kf + bf), kpts_fbz)
             isym_kbf = fbz2ibz[ikbf_fbz][2]
 
             # ĥ = g₀⁻¹(ki+bi) ∘ g₀⁻¹(kf) ∘ g₀(kf+bf) ∈ G_kb  (up to t_T)
@@ -690,7 +690,7 @@ struct SymmetricTransportWorkspace{T}
     tdiag::Array{Complex{T}, 3}
     r::Vector{Vec3{T}}
     # fixed guiding centers for Im-log branches (zeros = principal branch)
-    guide::Vector{Vec3{T}}
+    guiding_centers::Vector{Vec3{T}}
     # nw×nw scratch
     tmp1::Matrix{Complex{T}}
     tmp2::Matrix{Complex{T}}
@@ -837,8 +837,8 @@ function _fg_transport_core!(
     end
 
     # Sweep 1 (light, full mesh): transported diagonals and centers.
-    # `ws.guide` fixes the Im-log branches (cf. spread.jl; zeros by default).
-    rg = ws.guide
+    # `ws.guiding_centers` fixes the Im-log branches (cf. spread.jl; zeros by default).
+    rg = ws.guiding_centers
     fill!(ws.r, zero(Vec3{T}))
     for ikf in 1:nkf
         iki = sc.fbz2ibz[ikf][1]
@@ -1075,7 +1075,7 @@ function _align_to(ρQ::Vector{Matrix{CT}}, ρref::Vector{Matrix{CT}}, Z) where 
     end
     S ./= length(ρQ)
     norm(S) < 1.0e-2 * norm(Z) && return nothing
-    return orthonorm_lowdin(S)
+    return lowdin_orthonormalize(S)
 end
 
 # Kronecker factors of an irrep-class intertwiner T ≈ kron(R, S), with R
@@ -1248,10 +1248,10 @@ function _classify_aop(
         r = (mf + 1):b.mb
         (norm(Sb[1:mf, r]) + norm(Sb[r, 1:mf])) < tolb || return nothing
         Sb2 = zeros(CT, b.mb, b.mb)
-        Sb2[1:mf, 1:mf] .= orthonorm_lowdin(Sb[1:mf, 1:mf])
-        Sb2[r, r] .= orthonorm_lowdin(Sb[r, r])
+        Sb2[1:mf, 1:mf] .= lowdin_orthonormalize(Sb[1:mf, 1:mf])
+        Sb2[r, r] .= lowdin_orthonormalize(Sb[r, r])
         Sb2 .*= φ / abs(φ)
-        return Sb2, Matrix{CT}(orthonorm_lowdin(So))
+        return Sb2, Matrix{CT}(lowdin_orthonormalize(So))
     end
 
     out = copy(blks)
@@ -1627,7 +1627,7 @@ function schur_initial_x(
             end
         end
         JtC = vcat(Cs[1:mf, :], Y' * Cs[(mf + 1):end, :])
-        X = orthonorm_lowdin(JtC)
+        X = lowdin_orthonormalize(JtC)
         _schur_setM!(x, blk, rX, X)
         _schur_setM!(x, blk, rY, Y)
     end
@@ -1642,9 +1642,9 @@ SchurManifold(sb::SchurBasis) = SchurManifold(_schur_ranges(sb))
 
 function Optim.retract!(M::SchurManifold, x)
     for (_, blk, rX, rY) in M.ranges
-        _schur_setM!(x, blk, rX, orthonorm_lowdin(_schur_getX(x, blk, rX)))
+        _schur_setM!(x, blk, rX, lowdin_orthonormalize(_schur_getX(x, blk, rX)))
         if !isempty(rY)
-            _schur_setM!(x, blk, rY, orthonorm_lowdin(_schur_getY(x, blk, rY)))
+            _schur_setM!(x, blk, rY, lowdin_orthonormalize(_schur_getY(x, blk, rY)))
         end
     end
     return x

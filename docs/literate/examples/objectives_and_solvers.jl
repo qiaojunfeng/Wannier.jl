@@ -81,9 +81,9 @@ Other objectives add terms to it:
 - [`CenteredVariance`](@ref Wannier.CenteredVariance)`(r0, λ)` — spread plus a penalty pulling WF
   centers towards targets `r0`; see the
   [Constraining Wannier function centers](@ref) tutorial.
-- [`CoOptVariance`](@ref Wannier.CoOptVariance)`(λ_spin)` — spread of both spin channels plus an
+- [`SpinCoupledVariance`](@ref Wannier.SpinCoupledVariance)`(λ_spin)` — spread of both spin channels plus an
   ``\uparrow\downarrow`` overlap coupling, on a [`SpinModel`](@ref Wannier.SpinModel).
-- [`CenteredCoOptVariance`](@ref Wannier.CenteredCoOptVariance)`(r0, λ, λ_spin)` — both of the above.
+- [`CenteredSpinCoupledVariance`](@ref Wannier.CenteredSpinCoupledVariance)`(r0, λ, λ_spin)` — both of the above.
 
 Each is a distinct concrete type rather than a runtime sum of terms, so each
 can hand-order its own fused value-and-gradient sweep.

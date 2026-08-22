@@ -14,7 +14,7 @@ function overlap_obstruction(U, M, bvectors, k1::Integer, k2::Integer, dk)
     b = round.(Int, bvectors.kpoints[k1] + dk - bvectors.kpoints[k2])
     ib = index_bvector(bvectors, k1, k2, b)
     Nᵏᵇ = view(U, :, :, k1)' * view(M, :, :, ib, k1) * view(U, :, :, k2)
-    return orthonorm_lowdin(Nᵏᵇ)
+    return lowdin_orthonormalize(Nᵏᵇ)
 end
 
 """
