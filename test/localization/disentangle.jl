@@ -63,8 +63,8 @@ end
     Ω = Wannier.spread(model.kstencil, model.overlaps, Umin)
 
     # display(Ω)
-    @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
-    @test Ω.Ω̃ ≈ Ω.ΩOD + Ω.ΩD
+    @test Ω.Ω ≈ Ω.ΩI + Ω.Ωtilde
+    @test Ω.Ωtilde ≈ Ω.ΩOD + Ω.ΩD
     @test isapprox(Ω.Ω, 12.362335109447647; atol = 1.0e-7)
     @test isapprox(Ω.ΩI, 7.212573765139664; atol = 1.0e-7)
     @test isapprox(Ω.ΩOD, 4.929849448152594; atol = 1.0e-7)

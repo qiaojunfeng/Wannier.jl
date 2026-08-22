@@ -9,7 +9,7 @@
     @test Ω.ΩI ≈ wout["ΩI"]
     @test Ω.ΩOD ≈ wout["ΩOD"]
     @test Ω.ΩD ≈ wout["ΩD"]
-    @test Ω.Ω̃ ≈ wout["ΩD"] + wout["ΩOD"]
+    @test Ω.Ωtilde ≈ wout["ΩD"] + wout["ΩOD"]
 
     @test isapprox(Ω.ω, wout["spreads"]; atol = 1.0e-8)
     @test all(isapprox.(Ω.r, wout["centers"]; atol = 1.0e-6))

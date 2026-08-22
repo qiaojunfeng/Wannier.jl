@@ -60,8 +60,8 @@ end
         λ = obj.λ,
     )
 
-    @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
-    @test Ω.Ω̃ ≈ Ω.ΩOD + Ω.ΩD
+    @test Ω.Ω ≈ Ω.ΩI + Ω.Ωtilde
+    @test Ω.Ωtilde ≈ Ω.ΩOD + Ω.ΩD
     @test isapprox(Ω.Ω, 12.547748075975804; atol = 1.0e-7)
     @test isapprox(Ω.ΩI, 7.26151163267514; atol = 1.0e-7)
     @test isapprox(Ω.ΩOD, 5.053835771792866; atol = 1.0e-7)

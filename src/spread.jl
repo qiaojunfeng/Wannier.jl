@@ -49,12 +49,12 @@ From MV:
 - `ΩI`: gauge-invarient part, unit Å²
 - `ΩOD`: off-diagonal part, unit Å²
 - `ΩD`: diagonal part, unit Å²
-- `Ω̃`: Ω̃ = ΩOD + ΩD, unit Å²
+- `Ωtilde`: Ωtilde = ΩOD + ΩD, unit Å²
 - `ω`: Ω of each WF, unit Å², `length(ω) = n_wann`
 - `r`: WF center, Cartesian coordinates, unit Å, `3 * n_wann`
 """
 struct Spread{T <: Real, C <: Union{Nothing, T}, V <: Union{Nothing, Vector{T}}} <: AbstractSpread
-    # Total spread, unit Å², Ω = ΩI + Ω̃
+    # Total spread, unit Å², Ω = ΩI + Ωtilde
     Ω::T
 
     # gauge-invarient part, unit Å²
@@ -66,15 +66,10 @@ struct Spread{T <: Real, C <: Union{Nothing, T}, V <: Union{Nothing, Vector{T}}}
     # diagonal part, unit Å²
     ΩD::T
 
-    # Ω̃ = ΩOD + ΩD, unit Å²
-    # TODO(naming): `Ω̃` is a combining character (U+03A9 U+0303), so it is
-    # neither typeable nor greppable — `grep Ω̃` misses it unless the query
-    # is byte-identical, and `grep Ω` matches every other spread field. It is
-    # also an exported field name, which the AGENTS.md naming tiers reserve
-    # for full words. A rename (e.g. `Ωtilde`) is deliberately deferred: the
-    # symbol matches the MV paper the whole struct mirrors, and the decision
-    # is not made yet.
-    Ω̃::T
+    # Ωtilde = ΩOD + ΩD, unit Å². Spelled `tilde` rather than the combining
+    # character U+0303 (Ω̃), which is neither typeable nor greppable; the
+    # remaining Greek names are the MV paper's own notation (anchor rule).
+    Ωtilde::T
 
     # Ω of each WF, unit Å², length = n_wann
     ω::Vector{T}
@@ -99,9 +94,9 @@ struct Spread{T <: Real, C <: Union{Nothing, T}, V <: Union{Nothing, Vector{T}}}
 end
 
 function Spread(
-        Ω::T, ΩI::T, ΩOD::T, ΩD::T, Ω̃::T, ω::Vector{T}, r::Vector{Vec3{T}}
+        Ω::T, ΩI::T, ΩOD::T, ΩD::T, Ωtilde::T, ω::Vector{T}, r::Vector{Vec3{T}}
     ) where {T <: Real}
-    return Spread{T, Nothing, Nothing}(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, nothing, nothing, nothing, nothing)
+    return Spread{T, Nothing, Nothing}(Ω, ΩI, ΩOD, ΩD, Ωtilde, ω, r, nothing, nothing, nothing, nothing)
 end
 
 has_center_penalty(Ω::Spread) = Ω.Ωc !== nothing
@@ -186,7 +181,7 @@ function omega_center(Ω::Spread; r0::Vector{Vec3{T}}, λ::T) where {T <: Real}
     ωt = Ω.ω + ωc
     Ωc = sum(ωc)
     Ωt = Ω.Ω + Ωc
-    return Spread(Ω.Ω, Ω.ΩI, Ω.ΩOD, Ω.ΩD, Ω.Ω̃, Ω.ω, Ω.r, Ωc, Ωt, ωc, ωt)
+    return Spread(Ω.Ω, Ω.ΩI, Ω.ΩOD, Ω.ΩD, Ω.Ωtilde, Ω.ω, Ω.r, Ωc, Ωt, ωc, ωt)
 end
 
 function omega!(
@@ -270,11 +265,11 @@ function omega!(
     end
 
     ΩD /= nk
-    Ω̃ = ΩOD + ΩD
+    Ωtilde = ΩOD + ΩD
     ω = r² - map(x -> sum(abs.(x .^ 2)), r)
-    Ω = ΩI + Ω̃
+    Ω = ΩI + Ωtilde
 
-    return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r)
+    return Spread(Ω, ΩI, ΩOD, ΩD, Ωtilde, ω, r)
 end
 
 function omega!(cache::Workspace, bvectors::KspaceStencil{FT}, M) where {FT <: Real}
@@ -320,22 +315,22 @@ function Base.show(io::IO, ::MIME"text/plain", Ω::Spread)
                 i, Ω.r[i]..., Ω.ω[i], Ω.ωc[i], Ω.ωt[i],
             )
         end
-        @printf(io, "Sum spread: Ωt = Ω + Ωc, Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n")
+        @printf(io, "Sum spread: Ωt = Ω + Ωc, Ω = ΩI + Ωtilde, Ωtilde = ΩOD + ΩD\n")
         @printf(io, "   Ωt  = %11.5f\n", Ω.Ωt)
         @printf(io, "   Ωc  = %11.5f\n", Ω.Ωc)
         @printf(io, "   Ω   = %11.5f\n", Ω.Ω)
         @printf(io, "   ΩI  = %11.5f\n", Ω.ΩI)
         @printf(io, "   ΩOD = %11.5f\n", Ω.ΩOD)
         @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
-        return @printf(io, "   Ω̃   = %11.5f", Ω.Ω̃)
+        return @printf(io, "   Ωtilde   = %11.5f", Ω.Ωtilde)
     else
         println(io, "  WF     center [rx, ry, rz]/Å              spread/Å²")
         for i in 1:n_wann
             @printf(io, "%4d %11.5f %11.5f %11.5f %11.5f\n", i, Ω.r[i]..., Ω.ω[i])
         end
-        @printf(io, "Sum spread: Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n")
+        @printf(io, "Sum spread: Ω = ΩI + Ωtilde, Ωtilde = ΩOD + ΩD\n")
         @printf(io, "   ΩI  = %11.5f\n", Ω.ΩI)
-        @printf(io, "   Ω̃   = %11.5f\n", Ω.Ω̃)
+        @printf(io, "   Ωtilde   = %11.5f\n", Ω.Ωtilde)
         @printf(io, "   ΩOD = %11.5f\n", Ω.ΩOD)
         @printf(io, "   ΩD  = %11.5f\n", Ω.ΩD)
         return @printf(io, "   Ω   = %11.5f\n", Ω.Ω)

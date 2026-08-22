@@ -46,8 +46,8 @@ end
 
     # NOTE: these fixtures intentionally track historical main-branch values
     # at a fixed low iteration count.
-    @test Ω.Ω ≈ Ω.ΩI + Ω.Ω̃
-    @test Ω.Ω̃ ≈ Ω.ΩOD + Ω.ΩD
+    @test Ω.Ω ≈ Ω.ΩI + Ω.Ωtilde
+    @test Ω.Ωtilde ≈ Ω.ΩOD + Ω.ΩD
     @test isapprox(Ω.Ω, 30.11589846146567; atol = 1.0e-7)
     @test isapprox(Ω.ΩI, 3.706376531801815; atol = 1.0e-7)
     @test isapprox(Ω.ΩOD, 6.166406390333415; atol = 1.0e-7)

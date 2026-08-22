@@ -44,5 +44,5 @@ end
     @test isapprox(Ω.Ω, 4.086818459; atol = 1.0e-7)
     @test isapprox(Ω.ΩI, 3.706376532; atol = 1.0e-7)
     @test isapprox(Ω.ΩOD, 0.380441928; atol = 1.0e-7)
-    @test isapprox(Ω.Ω̃, 0.3804419269999997; atol = 1.0e-7)
+    @test isapprox(Ω.Ωtilde, 0.3804419269999997; atol = 1.0e-7)
 end

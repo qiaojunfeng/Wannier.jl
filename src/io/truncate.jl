@@ -118,7 +118,7 @@ end
 
 """
     truncate(model::Model, keep_bands::Vector{Int}, keep_wfs::Vector{Int}=nothing;
-        orthonorm_U::Bool=true)
+        orthonormalize_gauge::Bool=true)
 
 Truncate `U`, `M`, `E` matrices in `model`.
 
@@ -128,11 +128,11 @@ Truncate `U`, `M`, `E` matrices in `model`.
 - `keep_wfs`: WF indexes to be kept, start from 1. If `nothing`, keep all.
 
 # Keyword arguments
-- `orthonorm_U`: If true, Lowdin orthonormalize `U` after truncation.
+- `orthonormalize_gauge`: If true, Lowdin orthonormalize `U` after truncation.
     The `U` needs to be (semi-)unitary, so it should always be true.
 """
 function truncate(
-        model::Model, keep_bands::T, keep_wfs::Union{T, Nothing} = nothing; orthonorm_U::Bool = true
+        model::Model, keep_bands::T, keep_wfs::Union{T, Nothing} = nothing; orthonormalize_gauge::Bool = true
     ) where {T <: AbstractVector{Int}}
     nbands = n_bands(model)
     nwann = n_wannier(model)
@@ -149,7 +149,7 @@ function truncate(
     if !isnothing(keep_wfs)
         U = U[:, keep_wfs, :]
     end
-    if orthonorm_U
+    if orthonormalize_gauge
         U = lowdin_orthonormalize(U)
     end
     frozen_bands = model.frozen_bands[keep_bands, :]
