@@ -1,5 +1,5 @@
 # Benchmark of symmetry-constrained (SAWF) localization: full-mesh baseline
-# versus the Level-1 (expand + pull back) and Level-2 (IBZ transport) paths.
+# versus the :fullmesh (expand + pull back) and :transport (IBZ transport) paths.
 #
 # Uses the Ge4Ru4 dataset (IBZ .iamn/.immn/.ieig + .isym); point RERUN_DIR at
 # a directory with these files. The full-mesh overlaps are unfolded from the
@@ -19,15 +19,15 @@ ks0 = Wannier.KspaceStencil(
 )
 isym = read_isym(joinpath(RERUN_DIR, "$prefix.isym"))
 Ei = read_eig(joinpath(RERUN_DIR, "$prefix.ieig"))
-Wannier.rescale!(isym.littlegroup_reps)
+Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
 Wannier.clean_littlegroup_reps!(isym.littlegroup_reps, Ei)
 centers = [p.center for p in nnkp["projections"]]
 
-tsc = @elapsed sc = Wannier.symmetry_constraint(ks0, isym, centers)
-ks = Wannier.globalize_stencil(ks0)
+tsc = @elapsed sc = Wannier.SymmetryConstraint(ks0, isym, centers)
+ks = Wannier.globalize_bvector_ordering(ks0)
 
 mmn_i = read_mmn(joinpath(RERUN_DIR, "$prefix.immn"))
-tunf = @elapsed Mf = Wannier.unfold_overlaps_cached(mmn_i.M, sc)
+tunf = @elapsed Mf = Wannier.unfold_overlaps(mmn_i.M, sc)
 Ai = read_amn(joinpath(RERUN_DIR, "$prefix.iamn")).A
 win = read_win(joinpath(RERUN_DIR, "$prefix.win"))
 Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
@@ -49,15 +49,15 @@ model = Wannier.Model(
 # Everything routes through the framework: `Problem` resolves the layout and
 # workspace, `_make_fg!` builds the fused decode → fg! → encode closure the
 # solver iterates. Timings therefore include the full per-iteration chain.
-sm = Wannier.SymmetrizedModel(model, sc, mmn_i.M)
+sm = Wannier.SymmetricModel(model, sc, mmn_i.M)
 
 prob_full = Wannier.Problem(Wannier.Variance(), model)
 fgfull = Wannier._make_fg!(prob_full)
 x0full = Wannier.initial_x(prob_full.layout, model)
 Gfull = zero(x0full)
 
-prob_l1 = Wannier.Problem(Wannier.Variance(), sm, Wannier.SymXYLayout(1))
-prob_l2 = Wannier.Problem(Wannier.Variance(), sm)   # default: SymXYLayout(2)
+prob_l1 = Wannier.Problem(Wannier.Variance(), sm, Wannier.SymmetricXYLayout(:fullmesh))
+prob_l2 = Wannier.Problem(Wannier.Variance(), sm)   # default: SymmetricXYLayout(:transport)
 fg1 = Wannier._make_fg!(prob_l1)
 fg2 = Wannier._make_fg!(prob_l2)
 xy = Wannier.initial_x(prob_l2.layout, sm)   # both levels share the XY packing
@@ -82,10 +82,10 @@ t_sch_f = mintime(() -> fg_schur!(1.0, nothing, xs))
 
 println("per-evaluation wall time (min of 20):")
 @printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "full-mesh (unconstrained)", 1e3 * t_full_fg, 1e3 * t_full_f)
-@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "Level 1 (constrained)", 1e3 * t_l1_fg, 1e3 * t_l1_f)
-@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "Level 2 (constrained)", 1e3 * t_l2_fg, 1e3 * t_l2_f)
-@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "Level 2 + Schur blocks", 1e3 * t_sch_fg, 1e3 * t_sch_f)
-@printf("  Level-2 speedup: %.2fx vs full mesh, %.2fx vs Level 1\n", t_full_fg / t_l2_fg, t_l1_fg / t_l2_fg)
+@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", ":fullmesh (constrained)", 1e3 * t_l1_fg, 1e3 * t_l1_f)
+@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", ":transport (constrained)", 1e3 * t_l2_fg, 1e3 * t_l2_f)
+@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", ":transport + Schur blocks", 1e3 * t_sch_fg, 1e3 * t_sch_f)
+@printf("  :transport speedup: %.2fx vs full mesh, %.2fx vs :fullmesh\n", t_full_fg / t_l2_fg, t_l1_fg / t_l2_fg)
 @printf("  Schur speedup:   %.2fx vs full mesh\n", t_full_fg / t_sch_fg)
 @printf(
     "  parameters: XY %d real (%d complex), Schur %d real (%.1fx fewer; basis setup %.1fs)\n",
@@ -105,16 +105,16 @@ nfall = sum(
     count(b -> b.akind == 2, allblk), count(b -> b.akind == 3, allblk),
     count(b -> b.akind == 4, allblk), nfall,
 )
-# Hermiticity-pair halving coverage of the Level-2 pass 0 (only the 2-cycle
-# pairs of the partner map are derived; see `_fg2_core!`)
+# Hermiticity-pair halving coverage of the transport-path pass 0 (only the 2-cycle
+# pairs of the partner map are derived; see `_fg_transport_core!`)
 pkey(iki, ibi) = (iki - 1) * sc.nbvecs + ibi
-pof(iki, ibi) = (sc.ikb[ibi, iki], sc.ibi_of[sc.opp_b[ibi], sc.ikpb_fbz[ibi, iki]])
+pof(iki, ibi) = (sc.ikb[ibi, iki], sc.ibi_of[sc.minus_b[ibi], sc.ikpb_fbz[ibi, iki]])
 nderived = count(
     p -> pkey(pof(p...)...) < pkey(p...) && pof(pof(p...)...) == p,
     ((iki, ibi) for iki in 1:sc.nk_ibz, ibi in 1:sc.nbvecs),
 )
 @printf(
-    "  Level-2 pass 0: %d of %d IBZ pairs derived via Hermiticity pairs\n\n",
+    "  transport-path pass 0: %d of %d IBZ pairs derived via Hermiticity pairs\n\n",
     nderived, sc.nbvecs * sc.nk_ibz,
 )
 
@@ -127,7 +127,7 @@ nderived = count(
 NITER = parse(Int, get(ENV, "NITER", "100"))
 ts = @elapsed (Us, Usi) = Wannier.localize(Wannier.Variance(), sm, Wannier.SchurLayout(); max_iter = NITER)
 t2 = @elapsed (U2, U2i) = Wannier.localize(sm; max_iter = NITER)
-t1 = @elapsed (U1, _) = Wannier.localize(Wannier.Variance(), sm, Wannier.SymXYLayout(1); max_iter = NITER)
+t1 = @elapsed (U1, _) = Wannier.localize(Wannier.Variance(), sm, Wannier.SymmetricXYLayout(:fullmesh); max_iter = NITER)
 t0 = @elapsed U0 = Wannier.localize(model; max_iter = NITER)
 
 s2 = Wannier.spread(model.kstencil, model.overlaps, U2)
@@ -136,10 +136,10 @@ s0 = Wannier.spread(model.kstencil, model.overlaps, U0)
 
 println("optimization ($NITER LBFGS iterations):")
 @printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "full-mesh MLWF", s0.Ω, t0)
-@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF Level 1", s1.Ω, t1)
-@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF Level 2", s2.Ω, t2)
+@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF :fullmesh", s1.Ω, t1)
+@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF :transport", s2.Ω, t2)
 ss = Wannier.spread(model.kstencil, model.overlaps, Us)
-@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF Level 2 + Schur", ss.Ω, ts)
+@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF :transport + Schur", ss.Ω, ts)
 @printf("  covariance residual: L2 %.2e, Schur %.2e\n\n",
     Wannier.covariance_residual(U2i, sc), Wannier.covariance_residual(Usi, sc))
 

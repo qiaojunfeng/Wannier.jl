@@ -9,7 +9,7 @@
     @test isapprox(r.d, ref)
 end
 
-@testitem "get_kpoint_mappings" begin
+@testitem "map_fbz_to_ibz" begin
     using WannierIO
     using Wannier.Datasets
     using DelimitedFiles
@@ -17,7 +17,7 @@ end
     win = read_win(dataset"Si2_hse/Si2.win")
     isym = read_isym(dataset"Si2_hse/Si2.isym")
     kpoints_fbz = win["kpoints"]
-    f2i = get_kpoint_mappings(kpoints_fbz, isym.kpoints_ibz, isym.symops)
+    f2i = map_fbz_to_ibz(kpoints_fbz, isym.kpoints_ibz, isym.symops)
 
     ref = readdlm(dataset"Si2_hse/outputs/test/kpt_map.txt", '\t', Int; comments = true)
 
@@ -31,7 +31,7 @@ end
     win = read_win(dataset"Si2_hse/Si2.win")
     isym = read_isym(dataset"Si2_hse/Si2.isym")
     kpoints_fbz = win["kpoints"]
-    f2i = get_kpoint_mappings(kpoints_fbz, isym.kpoints_ibz, isym.symops)
+    f2i = map_fbz_to_ibz(kpoints_fbz, isym.kpoints_ibz, isym.symops)
 
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     Ef = Wannier.unfold_eigvals(Ei, f2i)
@@ -81,7 +81,7 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
 
     centers = [p.center for p in nnkp["projections"]]
     Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.orbital_reps)
@@ -104,8 +104,8 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
-    f2i = get_kpoint_mappings(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    f2i = map_fbz_to_ibz(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
 
     centers = [p.center for p in nnkp["projections"]]
     Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.orbital_reps)
@@ -136,13 +136,13 @@ end
     @test equiv == ref
 end
 
-@testitem "merge_symops" begin
+@testitem "compose_symops" begin
     using WannierIO, Wannier.Datasets
 
     isym = read_isym(dataset"Si2_hse/Si2.isym")
     isym_kbi, isym_kf, isym_kbf = 6, 11, 2
 
-    isym_h, factor, T = Wannier.merge_symops(
+    isym_h, factor, T = Wannier.compose_symops(
         isym.spinors, isym.symops, [isym_kbi, isym_kf, isym_kbf], [true, true, false]
     )
 
@@ -160,8 +160,8 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
-    f2i = get_kpoint_mappings(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    f2i = map_fbz_to_ibz(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
 
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
     Mi = mmn_i.M

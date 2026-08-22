@@ -1,7 +1,7 @@
 # Shared setup for the SymmetryConstraint tests: Si2_hse has a 16-band window
 # that cuts degenerate multiplets at several IBZ kpoints (nonsymmorphic group
 # with time-reversal), which exercises the band-masking path of the projector.
-@testitem "symmetry_constraint tables" begin
+@testitem "SymmetryConstraint tables" begin
     using WannierIO, LinearAlgebra
     using Wannier.Datasets
 
@@ -10,9 +10,9 @@
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
-    sc = Wannier.symmetry_constraint(kstencil, isym, centers)
+    sc = Wannier.SymmetryConstraint(kstencil, isym, centers)
 
     # stars partition the FBZ mesh
     @test sort(vcat(sc.stars...)) == 1:sc.nk_fbz
@@ -20,7 +20,7 @@
 
     # gauge expansion reproduces unfold_gauges
     Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.orbital_reps)
-    f2i = get_kpoint_mappings(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
+    f2i = map_fbz_to_ibz(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
     Ai = read_amn(dataset"Si2_hse/outputs/test/symmetrized.iamn").A
     Af_ref = Wannier.unfold_gauges(
         Ai, isym.kpoints_ibz, f2i, isym.symops, isym.orbital_reps, Rs
@@ -34,7 +34,7 @@
         mmn_i.M, mmn_i.kpb_k, mmn_i.kpb_G, isym.kpoints_ibz, bvecs,
         kstencil.kpoints, f2i, isym.spinors, isym.symops, isym.littlegroup_reps,
     )
-    @test Wannier.unfold_overlaps_cached(mmn_i.M, sc) ≈ Mf_ref
+    @test Wannier.unfold_overlaps(mmn_i.M, sc) ≈ Mf_ref
 
     # pullback is the adjoint of the expansion: Re⟨G, expand(U)⟩ = Re⟨pullback(G), U⟩
     U = randn(ComplexF64, sc.nbands, sc.nwann, sc.nk_ibz)
@@ -54,11 +54,11 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     clean_littlegroup_reps!(isym.littlegroup_reps, Ei)
     centers = [p.center for p in nnkp["projections"]]
-    sc = Wannier.symmetry_constraint(kstencil, isym, centers)
+    sc = Wannier.SymmetryConstraint(kstencil, isym, centers)
 
     X = randn(ComplexF64, sc.nbands, sc.nwann, sc.nk_ibz)
     PX = Wannier.project_covariant(X, sc)
@@ -67,7 +67,7 @@ end
     # quality of the d matrices (raw Si2_hse carries ~1e-5 noise; cleaning
     # lowers the floor to ~1e-7, limited by the masked broken multiplets).
     @test norm(PPX - PX) < 1.0e-5
-    @test norm(Wannier.covariant_average!(copy(PX), sc) - PX) < 1.0e-5
+    @test norm(Wannier.group_average!(copy(PX), sc) - PX) < 1.0e-5
 
     # self-adjointness w.r.t. the real inner product (exact property)
     Y = randn(ComplexF64, size(X))
@@ -76,13 +76,13 @@ end
     @test abs(ip(Y, PX) - ip(PY, X)) < 1.0e-10
 
     # covariant gauges carry no weight on symmetry-broken bands
-    @test any(iki -> !all(sc.band_ok[iki]), 1:sc.nk_ibz)  # Si2_hse has some
+    @test any(iki -> !all(sc.covariant_bands[iki]), 1:sc.nk_ibz)  # Si2_hse has some
     for iki in 1:sc.nk_ibz
-        @test norm(PX[.!sc.band_ok[iki], :, iki]) < 1.0e-8
+        @test norm(PX[.!sc.covariant_bands[iki], :, iki]) < 1.0e-8
     end
 end
 
-@testitem "globalize_stencil" begin
+@testitem "globalize_bvector_ordering" begin
     using WannierIO, LinearAlgebra
     using Wannier.Datasets
 
@@ -90,7 +90,7 @@ end
     kstencil = Wannier.KspaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
-    gs = Wannier.globalize_stencil(kstencil)
+    gs = Wannier.globalize_bvector_ordering(kstencil)
     bglob = get_bvectors(gs; fractional = true)
     @test bglob ≈ get_bvectors(kstencil; fractional = true)
     # every kpoint now uses the global b ordering
@@ -101,7 +101,7 @@ end
     @test gs.bweights ≈ kstencil.bweights
 end
 
-@testitem "level-1 symmetric fg" begin
+@testitem "fullmesh symmetric fg" begin
     using WannierIO, LinearAlgebra
     using Wannier.Datasets
 
@@ -110,12 +110,12 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
-    sc = Wannier.symmetry_constraint(ks0, isym, centers)
-    ks = Wannier.globalize_stencil(ks0)
+    sc = Wannier.SymmetryConstraint(ks0, isym, centers)
+    ks = Wannier.globalize_bvector_ordering(ks0)
 
-    Mf = Wannier.unfold_overlaps_cached(read_mmn(dataset"Si2_hse/Si2.immn").M, sc)
+    Mf = Wannier.unfold_overlaps(read_mmn(dataset"Si2_hse/Si2.immn").M, sc)
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     win = read_win(dataset"Si2_hse/Si2.win")
@@ -128,11 +128,11 @@ end
         ks, Mf, Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
     )
 
-    ws = Wannier.SymmetricWorkspace(model, sc)
+    ws = Wannier.SymmetricFullMeshWorkspace(model, sc)
     X, Y = Wannier.U_to_X_Y(Ai, ws.frozen_ibz)
     xy = Wannier.X_Y_to_XY(X, Y)
     G = zero(xy)
-    Ω = Wannier.symmetric_fg1!(1.0, G, xy, model, sc, ws)
+    Ω = Wannier.symmetric_fg_fullmesh!(1.0, G, xy, model, sc, ws)
 
     # value consistency with the plain full-mesh spread of the expanded gauge
     Ufull = Wannier.expand_gauges(
@@ -144,7 +144,7 @@ end
     # since the XY layout fixes them and zeroes their gradient). The rtol is
     # limited by FD truncation of the Si2_hse point (near-branch-point
     # Im-log diagonals); the same check on clean data (Ge4Ru4) passes at 1e-9.
-    f = x -> Wannier.symmetric_fg1!(1.0, nothing, x, model, sc, ws)
+    f = x -> Wannier.symmetric_fg_fullmesh!(1.0, nothing, x, model, sc, ws)
     for _ in 1:2
         dx = randn(ComplexF64, size(xy))
         Wannier.zero_froz_grad!(dx, ws.frozen_ibz)
@@ -156,7 +156,7 @@ end
     end
 end
 
-@testitem "level-2 equals level-1" begin
+@testitem "transport equals fullmesh" begin
     using WannierIO, LinearAlgebra
     using Wannier.Datasets
 
@@ -165,15 +165,15 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     clean_littlegroup_reps!(isym.littlegroup_reps, Ei)
     centers = [p.center for p in nnkp["projections"]]
-    sc = Wannier.symmetry_constraint(ks0, isym, centers)
-    ks = Wannier.globalize_stencil(ks0)
+    sc = Wannier.SymmetryConstraint(ks0, isym, centers)
+    ks = Wannier.globalize_bvector_ordering(ks0)
 
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
-    Mf = Wannier.unfold_overlaps_cached(mmn_i.M, sc)
+    Mf = Wannier.unfold_overlaps(mmn_i.M, sc)
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     win = read_win(dataset"Si2_hse/Si2.win")
     Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
@@ -185,13 +185,13 @@ end
         ks, Mf, Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
     )
 
-    ws1 = Wannier.SymmetricWorkspace(model, sc)
-    ws2 = Wannier.SymmetricWorkspace2(Ef, frozen, sc)
+    ws1 = Wannier.SymmetricFullMeshWorkspace(model, sc)
+    ws2 = Wannier.SymmetricTransportWorkspace(Ef, frozen, sc)
     X, Y = Wannier.U_to_X_Y(Ai, ws1.frozen_ibz)
     xy = Wannier.X_Y_to_XY(X, Y)
     G1, G2 = zero(xy), zero(xy)
-    Ω1 = Wannier.symmetric_fg1!(1.0, G1, xy, model, sc, ws1)
-    Ω2 = Wannier.symmetric_fg2!(1.0, G2, xy, mmn_i.M, sc, ws2)
+    Ω1 = Wannier.symmetric_fg_fullmesh!(1.0, G1, xy, model, sc, ws1)
+    Ω2 = Wannier.symmetric_fg_transport!(1.0, G2, xy, mmn_i.M, sc, ws2)
 
     # The transport theorem is exact for a covariant gauge; the agreement is
     # limited only by the projector's data-precision fixed point. With
@@ -211,7 +211,7 @@ end
         Mt_direct = U_fbz[:, :, ikf]' * Mf[:, :, ibf, ikf] * U_fbz[:, :, ikpb]
         ibi = sc.ibi_of[ibf, ikf]
         ikb = sc.ikb[ibi, iki]
-        Ukb = Wannier._kconj(U_ibz[:, :, ikb] * sc.Aib[ibi, iki], sc.trev_ib[ibi, iki])
+        Ukb = Wannier._kconj(U_ibz[:, :, ikb] * sc.Aib[ibi, iki], sc.trev_kb[ibi, iki])
         Mt_i = U_ibz[:, :, iki]' * mmn_i.M[:, :, ibi, iki] * Ukb
         Mt_trans = sc.phase[ibf, ikf] .*
             Wannier._kconj(Matrix(sc.Lmat[ikf])' * Mt_i * Matrix(sc.Rmat[ibf, ikf]), sc.trev_f[ikf])
@@ -228,15 +228,15 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
-    sc = Wannier.symmetry_constraint(ks0, isym, centers)
+    sc = Wannier.SymmetryConstraint(ks0, isym, centers)
 
-    # table consistency: opp_b is the −b involution, ikpb_fbz points at ki+bi,
+    # table consistency: minus_b is the −b involution, ikpb_fbz points at ki+bi,
     # and the dagger member star-maps to the pass-0 IBZ point kb
     bvecs = get_bvectors(ks0; fractional = true)
-    @test all(ib -> Wannier.isequiv(bvecs[sc.opp_b[ib]], -bvecs[ib]), 1:sc.nbvecs)
-    @test sc.opp_b[sc.opp_b] == 1:sc.nbvecs
+    @test all(ib -> Wannier.isequiv(bvecs[sc.minus_b[ib]], -bvecs[ib]), 1:sc.nbvecs)
+    @test sc.minus_b[sc.minus_b] == 1:sc.nbvecs
     for iki in 1:sc.nk_ibz, ibi in 1:sc.nbvecs
         @test Wannier.isequiv(
             ks0.kpoints[sc.ikpb_fbz[ibi, iki]], isym.kpoints_ibz[iki] + bvecs[ibi]
@@ -247,7 +247,7 @@ end
     # partner-transport identity at a covariant gauge: with p = P(q) the
     # Hermiticity pair of q = (iki, ibi),
     #   M̃_q = conj(phase2) · 𝒦_2[ R2† · M̃_p† · L2 ]
-    # (the relation `_fg2_core!` uses in its loop C). For the 2-cycle pairs
+    # (the relation `_fg_transport_core!` uses in its loop C). For the 2-cycle pairs
     # of P — the only ones the halving derives — the stored overlaps are
     # Hermiticity-consistent and the identity is machine-exact even on this
     # noisy dataset (max ~5e-12; tested at 1e-4 for margin). Along P-chains
@@ -261,17 +261,17 @@ end
     Mt = zeros(ComplexF64, nw, nw, nbv, nki)
     for iki in 1:nki, ibi in 1:nbv
         kb = sc.ikb[ibi, iki]
-        Ukb = Wannier._kconj(U_i[:, :, kb] * sc.Aib[ibi, iki], sc.trev_ib[ibi, iki])
+        Ukb = Wannier._kconj(U_i[:, :, kb] * sc.Aib[ibi, iki], sc.trev_kb[ibi, iki])
         Mt[:, :, ibi, iki] = U_i[:, :, iki]' * mmn_i.M[:, :, ibi, iki] * Ukb
     end
-    partner(iki, ibi) = (sc.ikb[ibi, iki], sc.ibi_of[sc.opp_b[ibi], sc.ikpb_fbz[ibi, iki]])
+    partner(iki, ibi) = (sc.ikb[ibi, iki], sc.ibi_of[sc.minus_b[ibi], sc.ikpb_fbz[ibi, iki]])
     n2cycle = 0
     for iki in 1:nki, ibi in 1:nbv
         kb, ibi2 = partner(iki, ibi)
         partner(kb, ibi2) == (iki, ibi) || continue  # 2-cycle pairs only
         global n2cycle += 1
         ikpb = sc.ikpb_fbz[ibi, iki]
-        ib2 = sc.opp_b[ibi]
+        ib2 = sc.minus_b[ibi]
         pred = conj(sc.phase[ib2, ikpb]) .* Wannier._kconj(
             Matrix(sc.Rmat[ib2, ikpb])' * Mt[:, :, ibi2, kb]' * Matrix(sc.Lmat[ikpb]),
             sc.trev_f[ikpb],
@@ -291,9 +291,9 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
-    sc = Wannier.symmetry_constraint(ks0, isym, centers)
+    sc = Wannier.SymmetryConstraint(ks0, isym, centers)
 
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     win = read_win(dataset"Si2_hse/Si2.win")
@@ -329,7 +329,7 @@ end
     )
 
     # decode of the initial parameters: covariant (to the isym data noise),
-    # semi-unitary, and consistent with the Level-2 value at the same gauge
+    # semi-unitary, and consistent with the transport-path value at the same gauge
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     U0 = Wannier.project_covariant(Ai, sc)
     x0 = Wannier.schur_initial_x(U0, sb)
@@ -342,10 +342,10 @@ end
     @test maximum(opnorm(Ud[:, :, k]'Ud[:, :, k] - I) for k in 1:sc.nk_ibz) < 1.0e-5
 
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
-    ws2 = Wannier.SymmetricWorkspace2(Ef, frozen, sc)
+    ws2 = Wannier.SymmetricTransportWorkspace(Ef, frozen, sc)
     fg! = function (F, G, x)
         Wannier.schur_decode!(ws2.U_ibz, x, sb)
-        Ω = Wannier._fg2_core!(F, G === nothing ? nothing : ws2.G_ibz, mmn_i.M, sc, ws2)
+        Ω = Wannier._fg_transport_core!(F, G === nothing ? nothing : ws2.G_ibz, mmn_i.M, sc, ws2)
         G === nothing || Wannier.schur_encode_gradient!(G, ws2.G_ibz, x, sb)
         return Ω
     end
@@ -374,20 +374,20 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
 
-    sc0 = Wannier.symmetry_constraint(ks0, isym, centers)
-    sc = Wannier.symmetry_constraint(ks0, isym, centers; eig_ibz = Ei)
+    sc0 = Wannier.SymmetryConstraint(ks0, isym, centers)
+    sc = Wannier.SymmetryConstraint(ks0, isym, centers; eig_ibz = Ei)
     # energy-based masking can only extend the d-norm-based mask, and it
     # masks whole degenerate clusters
     for iki in 1:sc.nk_ibz
-        @test all(sc.band_ok[iki] .<= sc0.band_ok[iki])
+        @test all(sc.covariant_bands[iki] .<= sc0.covariant_bands[iki])
         E = Ei[:, iki]
         for n in 1:(sc.nbands - 1)
             if E[n + 1] - E[n] <= 1.0e-4
-                @test sc.band_ok[iki][n] == sc.band_ok[iki][n + 1]
+                @test sc.covariant_bands[iki][n] == sc.covariant_bands[iki][n + 1]
             end
         end
     end
@@ -397,7 +397,7 @@ end
     win = read_win(dataset"Si2_hse/Si2.win")
     Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
     frozen = Wannier.get_frozen_bands(Ef, get(win, "dis_froz_max", -Inf))
-    ws2 = Wannier.SymmetricWorkspace2(Ef, frozen, sc)
+    ws2 = Wannier.SymmetricTransportWorkspace(Ef, frozen, sc)
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     U0 = Wannier.project_covariant(Wannier.orthonorm_lowdin(Ai), sc)
     fb = Wannier.symmetry_breaking_force(U0, mmn_i.M, sc, ws2)
@@ -413,7 +413,7 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     raw = [copy(Matrix(r.d)) for r in isym.littlegroup_reps]
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     atol_deg, atol_unit = 1.0e-4, 0.01
@@ -458,11 +458,11 @@ end
     # still detects Si2_hse's truncated multiplets
     centers = [p.center for p in nnkp["projections"]]
     isym_raw = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym_raw.littlegroup_reps)
-    sc_raw = Wannier.symmetry_constraint(kstencil, isym_raw, centers)
-    sc = Wannier.symmetry_constraint(kstencil, isym, centers)
-    @test sc.band_ok == sc_raw.band_ok
-    @test any(iki -> !all(sc.band_ok[iki]), 1:sc.nk_ibz)
+    Wannier.rescale_littlegroup_reps!(isym_raw.littlegroup_reps)
+    sc_raw = Wannier.SymmetryConstraint(kstencil, isym_raw, centers)
+    sc = Wannier.SymmetryConstraint(kstencil, isym, centers)
+    @test sc.covariant_bands == sc_raw.covariant_bands
+    @test any(iki -> !all(sc.covariant_bands[iki]), 1:sc.nk_ibz)
 
     # cleaning lowers the data-noise floors by ~100x (Si2_hse raw d noise is
     # ~1e-5): projector idempotence and the covariance residual of the
@@ -478,7 +478,7 @@ end
     @test Wannier.covariance_residual(Wannier.project_covariant(Ai, sc), sc) < 1.0e-7
 end
 
-@testitem "localize on SymmetrizedModel" begin
+@testitem "localize on SymmetricModel" begin
     using WannierIO, LinearAlgebra
     using Wannier.Datasets
 
@@ -487,13 +487,13 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
-    sc = Wannier.symmetry_constraint(ks0, isym, centers)
-    ks = Wannier.globalize_stencil(ks0)
+    sc = Wannier.SymmetryConstraint(ks0, isym, centers)
+    ks = Wannier.globalize_bvector_ordering(ks0)
 
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
-    Mf = Wannier.unfold_overlaps_cached(mmn_i.M, sc)
+    Mf = Wannier.unfold_overlaps(mmn_i.M, sc)
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     win = read_win(dataset"Si2_hse/Si2.win")
@@ -506,13 +506,13 @@ end
         ks, Mf, Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
     )
 
-    sm = SymmetrizedModel(model, sc, mmn_i.M)
+    sm = SymmetricModel(model, sc, mmn_i.M)
     @test Wannier.n_bands(sm) == Wannier.n_bands(model)
     @test Wannier.n_wannier(sm) == Wannier.n_wannier(model)
     @test Wannier.n_kpoints(sm) == sc.nk_fbz
     @test Wannier.n_kpoints_ibz(sm) == sc.nk_ibz
-    @test default_layout(Variance(), sm) == SymXYLayout()
-    @test SymXYLayout().level == 2
+    @test default_layout(Variance(), sm) == SymmetricXYLayout()
+    @test SymmetricXYLayout().path == :transport
 
     # framework path (Problem + solve! under the hood), a few LBFGS iterations
     niter = 5
@@ -521,7 +521,7 @@ end
     @test Wannier.covariance_residual(U_ibz, sc) < 1.0e-3
     @test U_fbz ≈ Wannier.expand_gauges(U_ibz, sc)
 
-    # hard-coded 5-iteration regression anchor (SymXYLayout, Level 2)
+    # hard-coded 5-iteration regression anchor (SymmetricXYLayout, transport path)
     Ω = Wannier.spread(model.kstencil, model.overlaps, U_fbz).Ω
     @test isapprox(Ω, 22.43757274472156; atol = 1.0e-7)
 
@@ -539,14 +539,14 @@ end
     Ωs = Wannier.spread(model.kstencil, model.overlaps, Us_fbz).Ω
     @test isapprox(Ωs, 22.07929818239718; atol = 1.0e-7)
 
-    # Level 1 through the layout: same variables, same optimum path as Level 2
-    U1_fbz, _ = localize(Variance(), sm, SymXYLayout(1); max_iter = niter)
+    # full-mesh path through the layout: same variables, same optimum as transport
+    U1_fbz, _ = localize(Variance(), sm, SymmetricXYLayout(:fullmesh); max_iter = niter)
     Ω1 = Wannier.spread(model.kstencil, model.overlaps, U1_fbz).Ω
     @test isapprox(Ω1, 22.43757275126563; atol = 1.0e-7)
     @test isapprox(Ω1, Ω; atol = 1.0e-5)
 end
 
-@testitem "CenteredVariance on SymmetrizedModel" begin
+@testitem "CenteredVariance on SymmetricModel" begin
     using WannierIO, LinearAlgebra
     using Wannier.Datasets
 
@@ -555,13 +555,13 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale!(isym.littlegroup_reps)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
-    sc = Wannier.symmetry_constraint(ks0, isym, centers)
-    ks = Wannier.globalize_stencil(ks0)
+    sc = Wannier.SymmetryConstraint(ks0, isym, centers)
+    ks = Wannier.globalize_bvector_ordering(ks0)
 
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
-    Mf = Wannier.unfold_overlaps_cached(mmn_i.M, sc)
+    Mf = Wannier.unfold_overlaps(mmn_i.M, sc)
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     win = read_win(dataset"Si2_hse/Si2.win")
@@ -573,7 +573,7 @@ end
         win["unit_cell_cart"], atom_positions, atom_labels,
         ks, Mf, Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
     )
-    sm = SymmetrizedModel(model, sc, mmn_i.M)
+    sm = SymmetricModel(model, sc, mmn_i.M)
 
     # target centers: those of the starting covariant gauge, shifted so the
     # penalty gradient is nonzero
@@ -582,8 +582,8 @@ end
     λ = 1.0
     obj = CenteredVariance(r0, λ)
 
-    prob2 = Problem(obj, sm)                    # default: SymXYLayout (Level 2)
-    prob1 = Problem(obj, sm, SymXYLayout(1))
+    prob2 = Problem(obj, sm)                    # default: SymmetricXYLayout (transport path)
+    prob1 = Problem(obj, sm, SymmetricXYLayout(:fullmesh))
     fg2 = Wannier._make_fg!(prob2)
     fg1 = Wannier._make_fg!(prob1)
     x = Wannier.initial_x(prob2.layout, sm)
@@ -591,8 +591,8 @@ end
     Ω1 = fg1(1.0, g1, x)
     Ω2 = fg2(1.0, g2, x)
 
-    # Level 1 equals the full-mesh penalized spread of the expanded covariant
-    # gauge exactly; Level 2 agrees to the isym data noise (as for Variance)
+    # the full-mesh path equals the full-mesh penalized spread of the expanded covariant
+    # gauge exactly; the transport path agrees to the isym data noise (as for Variance)
     X, Y = Wannier.XY_to_X_Y(x, sc.nbands, sc.nwann)
     Uf = Wannier.expand_gauges(
         Wannier.project_covariant!(Wannier.X_Y_to_U(X, Y), sc), sc
@@ -602,7 +602,7 @@ end
     @test isapprox(Ω2, Ω1; atol = 1.0e-6)
     @test norm(g1 - g2) / norm(g1) < 1.0e-4
 
-    # directional FD of the penalized Level-2 objective (rtol limited by FD
+    # directional FD of the penalized transport-path objective (rtol limited by FD
     # truncation at this dataset's near-branch-point Im-log diagonals, which
     # the center penalty amplifies; cf. the 1e-3 of the Schur FD test)
     frozen_ibz = frozen[:, sc.ibz2fbz]

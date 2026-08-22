@@ -28,11 +28,11 @@ function rescale(rep::LittleGroupRep)
     return LittleGroupRep{nbnd}(rep.ik_ibz, rep.isym, d)
 end
 
-function rescale!(reps::AbstractVector{<:LittleGroupRep})
+function rescale_littlegroup_reps!(reps::AbstractVector{<:LittleGroupRep})
     return reps .= rescale.(reps)
 end
 
-export clean_littlegroup_reps!
+export clean_littlegroup_reps!, map_fbz_to_ibz
 
 """
     $(SIGNATURES)
@@ -47,7 +47,7 @@ commutes with the Hamiltonian) and *exactly* unitary within each block; the
 symmetry tolerance. This function enforces both exact properties: the bands
 at each rep's IBZ kpoint are clustered by energy gaps larger than
 `atol_degeneracy` (the same rule as the energy-multiplet masking of
-[`symmetry_constraint`](@ref)), all cross-cluster entries are zeroed, and
+[`SymmetryConstraint`](@ref)), all cross-cluster entries are zeroed, and
 each within-cluster block is replaced by its closest unitary (polar factor,
 `orthonorm_lowdin`).
 
@@ -56,10 +56,10 @@ A block is unitarized only when it is already unitary to within
 belong to multiplets the window genuinely truncates (or that the data
 genuinely breaks): their `d` entries are contractions, not noisy unitaries,
 and they are left untouched so the symmetry-broken-band masking of
-[`symmetry_constraint`](@ref) still detects them.
+[`SymmetryConstraint`](@ref) still detects them.
 
 `eig_ibz` are the IBZ eigenvalues (`n_bands × n_kpoints_ibz`, the `.ieig`
-data, ascending per kpoint). Apply after `rescale!`. Cleaning is
+data, ascending per kpoint). Apply after `rescale_littlegroup_reps!`. Cleaning is
 strictly opt-in: it moves quantities unfolded through the reps (e.g.
 `unfold_overlaps`) by the size of the removed noise, so data cleaned
 here no longer reproduces reference files generated with the raw reps to
@@ -122,7 +122,7 @@ Find the index mappings from kpoint in FBZ to kpoint in IBZ.
     `isym`-th symmetry operation to the `ik_ibz`-th kpoint in IBZ brings it to
     the `ik_fbz`-th kpoint in FBZ.
 """
-function get_kpoint_mappings(
+function map_fbz_to_ibz(
         kpoints_fbz::AbstractVector,
         kpoints_ibz::AbstractVector,
         symops::AbstractVector{SymOp};
@@ -204,7 +204,7 @@ Unfold eigenvalues from IBZ to FBZ.
 
 # Arguments
 - `eigvals_ibz`: vector of eigenvalues at each IBZ kpoint.
-- `fbz2ibz`: output of `get_kpoint_mappings`.
+- `fbz2ibz`: output of `map_fbz_to_ibz`.
 
 # Return
 - `eigvals_fbz`: vector of eigenvalues at each FBZ kpoint.
@@ -495,7 +495,7 @@ yields ``\\hat{h} = \\hat{g}_{i_1}^{-1} \\hat{g}_{i_2}^{-1} \\hat{g}_{i_3}``.
 - `T`: integer lattice translation such that the composed operation equals
     ``\\hat{g}_{isym_h} \\circ t_T``, i.e. ``r \\mapsto \\hat{g}_{isym_h}(r + T)``.
 """
-function merge_symops(
+function compose_symops(
         spinors::Bool,
         symops::AbstractVector{SymOp},
         ops::AbstractVector{<:Integer},
@@ -593,7 +593,7 @@ M_{m n}^{k_f, b_f} = \\sum_l M_{m l}^{k_i, b_i} d_{l n}(\\hat{h}, k_i)
 - `bvectors`: b vectors in fractional coordinates.
     The IBZ mmn has the same b vectors ordering for all the kpoints.
 - `kpoints_fbz`: fractional coordinates of FBZ kpoints.
-- `fbz2ibz`: output of `get_kpoint_mappings`.
+- `fbz2ibz`: output of `map_fbz_to_ibz`.
 - `spinors`: whether spinors symmetry operations are used.
 - `symops`: vector of symmetry operations.
 - `littlegroup_reps`: representation matrices acting on the Bloch states.
@@ -660,7 +660,7 @@ function unfold_overlaps(
             kpb_G_fbz[ibf, ikf] = Vec3{Int}(round.(Int, G))
 
             # get equivalent operation of h = g₀⁻¹(ki+bi) ∘ g₀⁻¹(kf) ∘ g₀(kf+bf)
-            isym_h, factor, T = merge_symops(
+            isym_h, factor, T = compose_symops(
                 spinors, symops, [isym_kbi, isym_kf, isym_kbf], [true, true, false]
             )
 

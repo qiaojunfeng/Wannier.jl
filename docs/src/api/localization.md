@@ -142,8 +142,8 @@ Pages   = ["localization/gauge.jl"]
 ## Symmetry-adapted (SAWF) localization
 
 Symmetry-constrained localization on the irreducible Brillouin zone composes
-with the framework through [`SymmetrizedModel`](@ref Wannier.SymmetrizedModel)
-and the [`SymXYLayout`](@ref Wannier.SymXYLayout) /
+with the framework through [`SymmetricModel`](@ref Wannier.SymmetricModel)
+and the [`SymmetricXYLayout`](@ref Wannier.SymmetricXYLayout) /
 [`SchurLayout`](@ref Wannier.SchurLayout) layouts; see
 [Architecture](@ref) for the design.
 

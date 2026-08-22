@@ -2,7 +2,7 @@ using LinearAlgebra
 using SparseArrays: SparseMatrixCSC, sparse, droptol!, rowvals, nonzeros, nzrange
 using WannierIO: SymOp, OrbitalRep, LittleGroupRep
 
-export SymmetryConstraint, symmetry_constraint
+export SymmetryConstraint
 
 # -----------------------------------------------------------------------------
 # Symmetry-constrained (SAWF) localization on the irreducible Brillouin zone.
@@ -11,14 +11,14 @@ export SymmetryConstraint, symmetry_constraint
 # optimized only at IBZ kpoints, subject to the little-group covariance
 # constraint (enforced by the projector 𝒫 = `project_covariant!`), and the
 # spread functional is evaluated either by
-#   Level 1: expanding the gauge to the full mesh and running the standard
+#   :fullmesh — expanding the gauge to the full mesh and running the standard
 #            full-mesh kernels, then pulling the gradient back to the IBZ, or
-#   Level 2: keeping every band-dimension product on the IBZ and reaching the
+#   :transport — keeping every band-dimension product on the IBZ and reaching the
 #            star members through precomputed nw×nw orbital transports
 #            (`Rmat`, `Lmat`) and phases — the "transport theorem".
 #
 # Conventions follow src/symmetry/operations.jl (standard Seitz; `unfold_gauge`,
-# `unfold_overlaps`, `merge_symops`). Time-reversal (antiunitary) operations
+# `unfold_overlaps`, `compose_symops`). Time-reversal (antiunitary) operations
 # are supported through explicit conjugation flags; 𝒦_x[A] below denotes
 # conj(A) if flag x is set.
 #
@@ -37,11 +37,12 @@ export SymmetryConstraint, symmetry_constraint
 """
 Precomputed symmetry tables for IBZ-constrained localization.
 
-Built once by [`symmetry_constraint`](@ref); consumed by the Level-1/Level-2
+Built once by the `SymmetryConstraint(kstencil, isym, centers)` constructor
+below; consumed by the full-mesh/transport
 objective evaluations and by [`project_covariant!`](@ref). All matrices are
 `n_wann × n_wann` orbital-space transports; band-dimension objects (the
 little-group `d` matrices) are stored per (IBZ kpoint, little-group element)
-for the projector, and per (FBZ kpoint, b-vector) for the Level-2 seeds.
+for the projector, and per (FBZ kpoint, b-vector) for the transport-path seeds.
 """
 struct SymmetryConstraint{T <: Real}
     nk_fbz::Int
@@ -61,48 +62,53 @@ struct SymmetryConstraint{T <: Real}
     # with d̂ the little-group matrix masked on symmetry-broken bands. Stored
     # sparse: d̂ is block-diagonal over degenerate multiplets and A is block
     # monomial, so the group average costs O(nnz) instead of dense GEMMs.
-    proj::Vector{Vector{Tuple{SparseMatrixCSC{Complex{T}, Int}, SparseMatrixCSC{Complex{T}, Int}, Bool}}}
+    projector::Vector{Vector{Tuple{SparseMatrixCSC{Complex{T}, Int}, SparseMatrixCSC{Complex{T}, Int}, Bool}}}
     # Bands whose symmetry partners are fully inside the window (per IBZ kpoint).
     # A covariant gauge cannot carry weight on the others (their little-group
     # rows/columns are truncated), so the projector masks them out.
-    band_ok::Vector{BitVector}
-    # Number of group-average iterations the projector applies. Fixed at build
+    covariant_bands::Vector{BitVector}
+    # Number of [`group_average!`](@ref) iterations the projector applies. Fixed at build
     # time (probed to stagnation on a test vector) so that 𝒫 is *exactly*
     # linear — an input-dependent iteration count would make the objective
     # composition Ω∘expand∘𝒫 only approximately differentiable.
-    proj_niter::Int
+    projector_iterations::Int
 
     # Gauge expansion (C2), per FBZ kpoint: U(kf) = 𝒦_f[U(ki) · Lmat[ikf]].
     # Block monomial (permutation of site blocks × small dense blocks), hence
-    # stored sparse; same for the Level-2 transports Rmat below.
+    # stored sparse; same for the transport-path transports Rmat below.
     Lmat::Vector{SparseMatrixCSC{Complex{T}, Int}}
     trev_f::BitVector
 
-    # Pass-0 tables, per (ibi, iki): U(ki+bi) = 𝒦_ib[U(kb) · Aib], kb IBZ point
+    # Pass-0 tables, per (ibi, iki): U(ki+bi) = 𝒦_ib[U(kb) · Aib], kb IBZ point.
+    # `trev_kb[ibi, iki]` is the conjugation flag of *this* table, i.e. of the
+    # operation carrying the IBZ point kb to ki + bi.
     ikb::Matrix{Int}
     Aib::Matrix{Matrix{Complex{T}}}
-    trev_ib::BitMatrix
+    trev_kb::BitMatrix
 
-    # Hermiticity-pair tables for the pass-0 halving of `_fg2_core!`:
+    # Hermiticity-pair tables for the pass-0 halving of `_fg_transport_core!`:
     # `ikpb_fbz[ibi, iki]` is the FBZ index of ki + bi (the base point of the
-    # dagger member (ki+bi, −bi) of the pair (ki, bi)), and `opp_b[ib]` the
+    # dagger member (ki+bi, −bi) of the pair (ki, bi)), and `minus_b[ib]` the
     # index of −b[ib] in the global b shell. The induced partner map
-    # P(iki, ibi) = (ikb[ibi, iki], ibi_of[opp_b[ibi], ikpb_fbz[ibi, iki]])
+    # P(iki, ibi) = (ikb[ibi, iki], ibi_of[minus_b[ibi], ikpb_fbz[ibi, iki]])
     # is generally *not* an involution (P² can land on a little-group-related
-    # b at ki); `_fg2_core!` derives only the 2-cycle pairs of P and needs
+    # b at ki); `_fg_transport_core!` derives only the 2-cycle pairs of P and needs
     # the dagger member to star-map to the stored kb (asserted at build time).
     ikpb_fbz::Matrix{Int}
-    opp_b::Vector{Int}
+    minus_b::Vector{Int}
 
-    # Level-2 star tables, per (ibf, ikf): b index at the IBZ source, the
-    # unfolding phase (± sign of merge_symops folded in), the orbital
+    # Transport-path star tables, per (ibf, ikf): b index at the IBZ source, the
+    # unfolding phase (± sign of compose_symops folded in), the orbital
     # transport R, and the band-space d(ĥ, kb) with its conjugation flag
-    # (needed to reconstruct full M^{(kf,bf)}; Level 2 itself only needs R)
+    # (needed to reconstruct full M^{(kf,bf)}; the transport path itself only needs R)
+    # `trev_dmat[ibf, ikf]` is the conjugation flag of the `dmat` table (a
+    # different table from the pass-0 one above): it flags whether d(ĥ, kb)
+    # passes through an antiunitary operation and must be conjugated.
     ibi_of::Matrix{Int}
     phase::Matrix{Complex{T}}
     Rmat::Matrix{SparseMatrixCSC{Complex{T}, Int}}
     dmat::Matrix{Matrix{Complex{T}}}
-    trev_bi::BitMatrix
+    trev_dmat::BitMatrix
 
     # Global b shell (identical ordering at every kpoint; checked at build)
     bvec_cart::Vector{Vec3{T}}
@@ -117,10 +123,10 @@ n_kpoints_ibz(sc::SymmetryConstraint) = sc.nk_ibz
 Rebuild a k-space stencil whose neighbor lists follow the *global* b-vector
 ordering of the first kpoint, i.e. `kpb_k[ib, ik]` is the kpoint index of
 `k + b[ib]` for the same `b[ib]` at every `ik`. The symmetry tables of
-[`symmetry_constraint`](@ref) and the outputs of [`unfold_overlaps`](@ref)
+[`SymmetryConstraint`](@ref) and the outputs of [`unfold_overlaps`](@ref)
 use this ordering, so full-mesh models built from them need this stencil.
 """
-function globalize_stencil(kstencil::KspaceStencil)
+function globalize_bvector_ordering(kstencil::KspaceStencil)
     kpts = kstencil.kpoints
     bvecs = get_bvectors(kstencil; fractional = true)
     nk = length(kpts)
@@ -168,14 +174,17 @@ _kconj(a::Number, trev::Bool) = trev ? conj(a) : a
 Build the [`SymmetryConstraint`](@ref) tables from the full-mesh k stencil,
 the symmetry data of an `.isym` file, and the WF centers (fractional).
 
+This is the only constructor users call; the inner constructor takes the
+already-built tables positionally.
+
 # Arguments
 - `kstencil`: full-mesh k-space stencil (defines kpoints and the b shell).
 - `isym`: named tuple from `WannierIO.read_isym` (with `littlegroup_reps`
-  rescaled by [`rescale!`](@ref) beforehand).
+  rescaled by [`rescale_littlegroup_reps!`](@ref) beforehand).
 - `centers`: WF centers in fractional coordinates (from the `.nnkp`
   projections), used for the orbital translation vectors.
 """
-function symmetry_constraint(
+function SymmetryConstraint(
         kstencil::KspaceStencil{T},
         isym,
         centers::AbstractVector;
@@ -195,14 +204,14 @@ function symmetry_constraint(
     nbands = size(littlegroup_reps[1].d, 1)
 
     Rs = find_wf_symmetry_translations(centers, symops, orbital_reps)
-    f2i_raw = get_kpoint_mappings(kpts_fbz, kpts_ibz, symops)
+    f2i_raw = map_fbz_to_ibz(kpts_fbz, kpts_ibz, symops)
     fbz2ibz = [Tuple(x) for x in f2i_raw]
 
     # Global b shell, taken from the first kpoint. All symmetry tables (and
     # the IBZ overlaps, cf. `unfold_overlaps`) use this ordering at *every*
     # kpoint; the per-kpoint orderings of a w90 stencil differ, so full-mesh
     # models consumed together with these tables must be built on
-    # [`globalize_stencil`](@ref).
+    # [`globalize_bvector_ordering`](@ref).
     bvecs_frac = get_bvectors(kstencil; fractional = true)
     nbvecs = length(bvecs_frac)
     recip = reciprocal_lattice(kstencil)
@@ -227,8 +236,8 @@ function symmetry_constraint(
     )
     CT = Complex{T}
     SM = SparseMatrixCSC{CT, Int}
-    proj = Vector{Vector{Tuple{SM, SM, Bool}}}(undef, nk_ibz)
-    band_ok = Vector{BitVector}(undef, nk_ibz)
+    projector = Vector{Vector{Tuple{SM, SM, Bool}}}(undef, nk_ibz)
+    covariant_bands = Vector{BitVector}(undef, nk_ibz)
     for iki in 1:nk_ibz
         entries = Tuple{Matrix{CT}, Matrix{CT}, Bool}[]
         for (isym, op) in enumerate(symops)
@@ -263,7 +272,7 @@ function symmetry_constraint(
                 end
             end
         end
-        proj[iki] = map(entries) do (d, A, trev)
+        projector[iki] = map(entries) do (d, A, trev)
             dm = copy(d)
             dm[.!ok, :] .= 0
             dm[:, .!ok] .= 0
@@ -271,24 +280,24 @@ function symmetry_constraint(
             # matrices are dropped; they only add cost, not accuracy
             (droptol!(sparse(dm), 1.0e-8), droptol!(sparse(A), 1.0e-8), trev)
         end
-        band_ok[iki] = ok
+        covariant_bands[iki] = ok
     end
 
     # Probe how many group averages reach the (data-limited) fixed point.
     probe = ComplexF64.(reshape(1:(nbands * nwann * nk_ibz), nbands, nwann, nk_ibz))
     probe ./= norm(probe)
     for iki in 1:nk_ibz
-        view(probe, .!band_ok[iki], :, iki) .= 0
+        view(probe, .!covariant_bands[iki], :, iki) .= 0
     end
-    proj_niter = 1
+    projector_iterations = 1
     resid = Inf
     for _ in 1:30
         prev = copy(probe)
-        _covariant_average_entries!(probe, proj, nk_ibz)
+        _group_average_entries!(probe, projector, nk_ibz)
         r = norm(probe - prev)
         (r <= 1.0e-11 || r > 0.5 * resid) && break
         resid = r
-        proj_niter += 1
+        projector_iterations += 1
     end
 
     # gauge expansion tables (C2)
@@ -307,19 +316,19 @@ function symmetry_constraint(
     b2b = get_equivalence_mappings(bvecs_frac, symops)
     ikb = zeros(Int, nbvecs, nk_ibz)
     Aib = Matrix{Matrix{CT}}(undef, nbvecs, nk_ibz)
-    trev_ib = falses(nbvecs, nk_ibz)
+    trev_kb = falses(nbvecs, nk_ibz)
     ikpb_fbz = zeros(Int, nbvecs, nk_ibz)
-    opp_b = map(bvecs_frac) do b
+    minus_b = map(bvecs_frac) do b
         ib2 = findfirst(isequiv(-b), bvecs_frac)
         isnothing(ib2) && error("b shell is not inversion-closed: -b missing for b = $b")
         ib2
     end
-    opp_b[opp_b] == 1:nbvecs || error("opp_b is not an involution")
+    minus_b[minus_b] == 1:nbvecs || error("minus_b is not an involution")
     ibi_of = zeros(Int, nbvecs, nk_fbz)
     phase = zeros(CT, nbvecs, nk_fbz)
     Rmat = Matrix{SM}(undef, nbvecs, nk_fbz)
     dmat = Matrix{Matrix{CT}}(undef, nbvecs, nk_fbz)
-    trev_bi = falses(nbvecs, nk_fbz)
+    trev_dmat = falses(nbvecs, nk_fbz)
 
     for (ikf, kf) in enumerate(kpts_fbz)
         iki, isym_kf = fbz2ibz[ikf]
@@ -335,7 +344,7 @@ function symmetry_constraint(
             isym_kbf = fbz2ibz[ikbf_fbz][2]
 
             # ĥ = g₀⁻¹(ki+bi) ∘ g₀⁻¹(kf) ∘ g₀(kf+bf) ∈ G_kb  (up to t_T)
-            isym_h, factor, T_lat = merge_symops(
+            isym_h, factor, T_lat = compose_symops(
                 spinors, symops, [isym_kbi, isym_kf, isym_kbf], [true, true, false]
             )
             ih = ikisym2ih[ikbi_ibz][isym_h]
@@ -361,13 +370,13 @@ function symmetry_constraint(
             dmat[ibf, ikf] = _kconj(
                 Matrix{CT}(littlegroup_reps[ih].d), symops[isym_kbi].time_reversal
             ) .* factor
-            trev_bi[ibf, ikf] = symops[isym_kbi].time_reversal
+            trev_dmat[ibf, ikf] = symops[isym_kbi].time_reversal
 
             # pass-0 tables (fill once per (ibi, iki); star members agree)
             if ikb[ibi, iki] == 0
                 ikb[ibi, iki] = ikbi_ibz
                 Aib[ibi, iki] = A_bi
-                trev_ib[ibi, iki] = symops[isym_kbi].time_reversal
+                trev_kb[ibi, iki] = symops[isym_kbi].time_reversal
                 ikpb_fbz[ibi, iki] = ikbi_fbz
             end
         end
@@ -375,7 +384,7 @@ function symmetry_constraint(
     any(iszero, ikb) && error("Some (ibi, iki) pass-0 entries were never filled")
     # Hermiticity-pair consistency: the dagger member (ki+bi, −bi) of the
     # pair (ki, bi) must star-map to the same IBZ point kb as the pass-0
-    # tables (so `_fg2_core!` can read the partner M̃ at (kb, ibi2)).
+    # tables (so `_fg_transport_core!` can read the partner M̃ at (kb, ibi2)).
     for iki in 1:nk_ibz, ibi in 1:nbvecs
         fbz2ibz[ikpb_fbz[ibi, iki]][1] == ikb[ibi, iki] ||
             error("Hermiticity-pair map inconsistent at (ibi = $ibi, iki = $iki)")
@@ -384,11 +393,11 @@ function symmetry_constraint(
     return SymmetryConstraint{T}(
         nk_fbz, nk_ibz, nbvecs, nwann, nbands,
         fbz2ibz, ibz2fbz, stars,
-        proj, band_ok, proj_niter,
+        projector, covariant_bands, projector_iterations,
         Lmat, trev_f,
-        ikb, Aib, trev_ib,
-        ikpb_fbz, opp_b,
-        ibi_of, phase, Rmat, dmat, trev_bi,
+        ikb, Aib, trev_kb,
+        ikpb_fbz, minus_b,
+        ibi_of, phase, Rmat, dmat, trev_dmat,
         bvec_cart, bweights,
     )
 end
@@ -410,7 +419,7 @@ and `𝒜` is a self-adjoint contraction whose *iterates* converge to the
 orthogonal projector onto the covariant gauges — see
 [`project_covariant!`](@ref).
 """
-function _covariant_average_entries!(U_ibz, proj, nk_ibz)
+function _group_average_entries!(U_ibz, projector, nk_ibz)
     nb, nw = size(U_ibz, 1), size(U_ibz, 2)
     Uk = similar(U_ibz, nb, nw)
     UA = similar(U_ibz, nb, nw)
@@ -418,24 +427,24 @@ function _covariant_average_entries!(U_ibz, proj, nk_ibz)
     for iki in 1:nk_ibz
         Uk .= view(U_ibz, :, :, iki)
         fill!(acc, 0)
-        for (d, A, trev) in proj[iki]
+        for (d, A, trev) in projector[iki]
             mul!(UA, Uk, A)
             trev && (UA .= conj.(UA))
             mul!(acc, d, UA, true, true)
         end
-        view(U_ibz, :, :, iki) .= acc ./ length(proj[iki])
+        view(U_ibz, :, :, iki) .= acc ./ length(projector[iki])
     end
     return U_ibz
 end
 
-covariant_average!(U_ibz::AbstractArray{<:Complex, 3}, sc::SymmetryConstraint) =
-    _covariant_average_entries!(U_ibz, sc.proj, sc.nk_ibz)
+group_average!(U_ibz::AbstractArray{<:Complex, 3}, sc::SymmetryConstraint) =
+    _group_average_entries!(U_ibz, sc.projector, sc.nk_ibz)
 
 """
     $(SIGNATURES)
 
 Covariance projector ``𝒫``: mask the symmetry-broken bands, then apply
-[`covariant_average!`](@ref) a *fixed* number of times (`sc.proj_niter`,
+[`group_average!`](@ref) a *fixed* number of times (`sc.projector_iterations`,
 probed at build time). Idempotent (to the numerical quality of the `d`
 matrices) and self-adjoint; its image is the space of covariant gauges. The
 fixed iteration count keeps 𝒫 exactly linear, so objective compositions
@@ -443,13 +452,13 @@ through 𝒫 are exactly differentiable. Overwrites `U_ibz`.
 """
 function project_covariant!(
         U_ibz::AbstractArray{<:Complex, 3}, sc::SymmetryConstraint;
-        niter::Integer = sc.proj_niter,
+        niter::Integer = sc.projector_iterations,
     )
     for iki in 1:sc.nk_ibz
-        view(U_ibz, .!sc.band_ok[iki], :, iki) .= 0
+        view(U_ibz, .!sc.covariant_bands[iki], :, iki) .= 0
     end
     for _ in 1:niter
-        covariant_average!(U_ibz, sc)
+        group_average!(U_ibz, sc)
     end
     return U_ibz
 end
@@ -528,10 +537,13 @@ end
     $(SIGNATURES)
 
 Reconstruct the full-mesh overlaps from the IBZ overlaps using the cached
-tables, `M^{(kf,bf)} = phase · 𝒦_f[M^{(ki,bi)} · d]` — the same result as
-[`unfold_overlaps`](@ref) but table-driven; used for validation.
+[`SymmetryConstraint`](@ref) tables,
+`M^{(kf,bf)} = phase · 𝒦_f[M^{(ki,bi)} · d]` — the same result as the
+symop-driven `unfold_overlaps` methods of src/symmetry/operations.jl, but
+table-driven. Returns only `M_fbz` (the k+b bookkeeping is already fixed by
+the constraint's global b ordering).
 """
-function unfold_overlaps_cached(
+function unfold_overlaps(
         M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint
     )
     nb = size(M_ibz, 1)
@@ -550,17 +562,17 @@ function unfold_overlaps_cached(
 end
 
 # -----------------------------------------------------------------------------
-# Level-1 evaluation: expand the IBZ gauge to the full mesh, run the standard
+# Full-mesh evaluation: expand the IBZ gauge to the full mesh, run the standard
 # full-mesh spread/gradient kernels, and pull the gradient back to the IBZ.
 # -----------------------------------------------------------------------------
 
 """
 Scratch buffers for symmetry-constrained localization. `full` carries the
 standard full-mesh [`Workspace`](@ref) (its `U`/`GU`/`MU`/`UtMU` buffers are
-used by the Level-1 kernels); the `*_ibz` arrays hold the IBZ variables in
+used by the full-mesh kernels); the `*_ibz` arrays hold the IBZ variables in
 the `(X, Y)` disentanglement layout.
 """
-struct SymmetricWorkspace{T}
+struct SymmetricFullMeshWorkspace{T}
     full::Workspace{T}
     U_ibz::Array{Complex{T}, 3}
     G_ibz::Array{Complex{T}, 3}
@@ -569,12 +581,12 @@ struct SymmetricWorkspace{T}
     frozen_ibz::BitMatrix
 end
 
-# NOTE: the Level-1 path (this workspace + `_fg1_core!`) is the only place in
+# NOTE: the full-mesh path (this workspace + `_fg_fullmesh_core!`) is the only place in
 # this file that takes a `Model`, and it reads nothing beyond the size
 # accessors, `model.kstencil`, `model.overlaps`, and `model.frozen_bands`
 # (via `Workspace(model)` and `compute_MU_UtMU!`/`omega_grad!`). Everything
 # else in this file acts on gauge arrays + `SymmetryConstraint` only.
-function SymmetricWorkspace(model::Model, sc::SymmetryConstraint{T}) where {T}
+function SymmetricFullMeshWorkspace(model::Model, sc::SymmetryConstraint{T}) where {T}
     nb, nw = n_bands(model), n_wannier(model)
     nb == sc.nbands && nw == sc.nwann ||
         error("model and symmetry constraint sizes do not match")
@@ -586,31 +598,31 @@ function SymmetricWorkspace(model::Model, sc::SymmetryConstraint{T}) where {T}
     X_ibz = zeros(Complex{T}, nw, nw, sc.nk_ibz)
     Y_ibz = zeros(Complex{T}, nb, nw, sc.nk_ibz)
     frozen_ibz = model.frozen_bands[:, sc.ibz2fbz]
-    return SymmetricWorkspace(full, U_ibz, G_ibz, X_ibz, Y_ibz, frozen_ibz)
+    return SymmetricFullMeshWorkspace(full, U_ibz, G_ibz, X_ibz, Y_ibz, frozen_ibz)
 end
 
 """
     $(SIGNATURES)
 
-Level-1 fused value/gradient of the symmetry-constrained spread.
+Full-mesh-path fused value/gradient of the symmetry-constrained spread.
 
 `xy` packs the `(X, Y)` blocks at the IBZ kpoints. The gauge is decoded,
 projected onto the covariant subspace, expanded to the full mesh (C2), and the
 standard full-mesh kernels evaluate Ω and `dΩ/dU*`; the gradient is pulled
 back through the (linear, self-adjoint) expansion and projector, then packed
 into `G`. The `model` must be a full-mesh model in the *global* b ordering
-(see [`globalize_stencil`](@ref)) whose overlaps were unfolded from the IBZ.
+(see [`globalize_bvector_ordering`](@ref)) whose overlaps were unfolded from the IBZ.
 """
-function symmetric_fg1!(
+function symmetric_fg_fullmesh!(
         F, G, xy::AbstractMatrix,
-        model::Model, sc::SymmetryConstraint, ws::SymmetricWorkspace,
+        model::Model, sc::SymmetryConstraint, ws::SymmetricFullMeshWorkspace,
     )
     # decode (X,Y) -> covariant U at IBZ
     XY_to_X_Y!(ws.X_ibz, ws.Y_ibz, xy)
     X_Y_to_U!(ws.U_ibz, ws.X_ibz, ws.Y_ibz)
     project_covariant!(ws.U_ibz, sc)
 
-    Ω = _fg1_core!(F, G === nothing ? nothing : ws.G_ibz, model, sc, ws)
+    Ω = _fg_fullmesh_core!(F, G === nothing ? nothing : ws.G_ibz, model, sc, ws)
 
     if G !== nothing
         project_covariant!(ws.G_ibz, sc)
@@ -620,17 +632,17 @@ function symmetric_fg1!(
 end
 
 """
-Level-1 core: value and (unprojected) canonical gradient `dΩ/dU*(ki)` for the
+Full-mesh-path core: value and (unprojected) canonical gradient `dΩ/dU*(ki)` for the
 covariant gauge already stored in `ws.U_ibz` — expand to the full mesh, run
 the standard full-mesh kernels, pull the gradient back to the IBZ. Writes the
-gradient into `G_ibz` when given. Counterpart of [`_fg2_core!`](@ref).
+gradient into `G_ibz` when given. Counterpart of [`_fg_transport_core!`](@ref).
 """
-_fg1_core!(F, G_ibz, model::Model, sc::SymmetryConstraint, ws::SymmetricWorkspace) =
-    _fg1_core!(F, G_ibz, (r, _) -> r, model, sc, ws)
+_fg_fullmesh_core!(F, G_ibz, model::Model, sc::SymmetryConstraint, ws::SymmetricFullMeshWorkspace) =
+    _fg_fullmesh_core!(F, G_ibz, (r, _) -> r, model, sc, ws)
 
-function _fg1_core!(
+function _fg_fullmesh_core!(
         F, G_ibz, penalty::Function,
-        model::Model, sc::SymmetryConstraint, ws::SymmetricWorkspace,
+        model::Model, sc::SymmetryConstraint, ws::SymmetricFullMeshWorkspace,
     )
     expand_gauges!(ws.full.U, ws.U_ibz, sc)
 
@@ -649,7 +661,7 @@ function _fg1_core!(
 end
 
 # -----------------------------------------------------------------------------
-# Level-2 evaluation: all band-dimension products stay on the IBZ; star
+# Transport evaluation: all band-dimension products stay on the IBZ; star
 # members are reached through the nw×nw orbital transports (transport theorem)
 #   M̃^{(kf,bf)} = phase · 𝒦_f[ L† M̃_i R ],
 # and the gradient seeds are accumulated back onto the IBZ pairs,
@@ -658,11 +670,11 @@ end
 # -----------------------------------------------------------------------------
 
 """
-Scratch buffers for the Level-2 evaluation. All arrays are IBZ-sized except
+Scratch buffers for the Transport evaluation. All arrays are IBZ-sized except
 the transported diagonals `tdiag`, which live on the full mesh but hold only
 `n_wann` numbers per (kpoint, b-vector).
 """
-struct SymmetricWorkspace2{T}
+struct SymmetricTransportWorkspace{T}
     U_ibz::Array{Complex{T}, 3}
     G_ibz::Array{Complex{T}, 3}
     X_ibz::Array{Complex{T}, 3}
@@ -684,13 +696,13 @@ struct SymmetricWorkspace2{T}
     tmp2::Matrix{Complex{T}}
 end
 
-function SymmetricWorkspace2(
+function SymmetricTransportWorkspace(
         eig::AbstractMatrix, frozen_bands::AbstractMatrix{Bool}, sc::SymmetryConstraint{T}
     ) where {T}
     nb, nw, nki, nkf, nbv = sc.nbands, sc.nwann, sc.nk_ibz, sc.nk_fbz, sc.nbvecs
     size(eig, 1) == nb || error("eig has wrong number of bands")
     CT = Complex{T}
-    return SymmetricWorkspace2(
+    return SymmetricTransportWorkspace(
         zeros(CT, nb, nw, nki), zeros(CT, nb, nw, nki),
         zeros(CT, nw, nw, nki), zeros(CT, nb, nw, nki),
         BitMatrix(frozen_bands[:, sc.ibz2fbz]),
@@ -704,22 +716,22 @@ end
 """
     $(SIGNATURES)
 
-Level-2 fused value/gradient of the symmetry-constrained spread, consuming
+Transport-path fused value/gradient of the symmetry-constrained spread, consuming
 only the IBZ overlaps `M_ibz` (global b ordering, as in the `.immn` file).
-Same variables and same value/gradient as [`symmetric_fg1!`](@ref), evaluated
+Same variables and same value/gradient as [`symmetric_fg_fullmesh!`](@ref), evaluated
 without ever forming band-dimension objects on the full mesh.
 """
-function symmetric_fg2!(
+function symmetric_fg_transport!(
         F, G, xy::AbstractMatrix,
         M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint{T},
-        ws::SymmetricWorkspace2{T},
+        ws::SymmetricTransportWorkspace{T},
     ) where {T}
     # decode -> covariant U at IBZ
     XY_to_X_Y!(ws.X_ibz, ws.Y_ibz, xy)
     X_Y_to_U!(ws.U_ibz, ws.X_ibz, ws.Y_ibz)
     project_covariant!(ws.U_ibz, sc)
 
-    Ω = _fg2_core!(F, G === nothing ? nothing : ws.G_ibz, M_ibz, sc, ws)
+    Ω = _fg_transport_core!(F, G === nothing ? nothing : ws.G_ibz, M_ibz, sc, ws)
 
     if G !== nothing
         project_covariant!(ws.G_ibz, sc)
@@ -729,23 +741,23 @@ function symmetric_fg2!(
 end
 
 """
-Level-2 core: value and (unprojected) canonical gradient `dΩ/dU*(ki)` for the
+Transport-path core: value and (unprojected) canonical gradient `dΩ/dU*(ki)` for the
 covariant gauge already stored in `ws.U_ibz`. Writes the gradient into
 `G_ibz` when given. The `penalty` function hooks a WF-center penalty into the
 gradient seeds' `q_n`, exactly as in the penalty-aware `omega_grad!` of
 src/spread.jl (the value of the penalty term is the objective's to add; the
 WF centers are left in `ws.r` for it). The identity default is a no-op.
 """
-_fg2_core!(
+_fg_transport_core!(
     F, G_ibz,
     M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint,
-    ws::SymmetricWorkspace2,
-) = _fg2_core!(F, G_ibz, (r, _) -> r, M_ibz, sc, ws)
+    ws::SymmetricTransportWorkspace,
+) = _fg_transport_core!(F, G_ibz, (r, _) -> r, M_ibz, sc, ws)
 
-function _fg2_core!(
+function _fg_transport_core!(
         F, G_ibz, penalty::Function,
         M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint{T},
-        ws::SymmetricWorkspace2{T},
+        ws::SymmetricTransportWorkspace{T},
     ) where {T}
     nw, nki, nkf, nbv = sc.nwann, sc.nk_ibz, sc.nk_fbz, sc.nbvecs
     wb = sc.bweights
@@ -754,7 +766,7 @@ function _fg2_core!(
     # halving of the band-dimension GEMMs. The pair (ki, bi) has its dagger
     # member at the FBZ point ikpb = sc.ikpb_fbz[ibi, iki] with b-vector −bi:
     # in the fixed gauge M̃^{(ikpb, −bi)} = (M̃_i^{(iki,ibi)})† exactly. The
-    # star tables at (ib2, ikpb), ib2 = sc.opp_b[ibi], map that same object
+    # star tables at (ib2, ikpb), ib2 = sc.minus_b[ibi], map that same object
     # to the IBZ pair p = (kb, ibi2) = (sc.ikb[ibi,iki], sc.ibi_of[ib2,ikpb]):
     #   (M̃_q)† = phase2 · 𝒦_2[ L2† · M̃_p · R2 ],   q = (iki, ibi),
     # with phase2 = sc.phase[ib2,ikpb], L2 = sc.Lmat[ikpb],
@@ -771,11 +783,11 @@ function _fg2_core!(
     # on Si2_hse). Only 2-cycle pairs are therefore *derived* (the member
     # with the larger linear key (iki−1)·nbv + ibi); everything else —
     # including self-paired pairs — is *canonical* and computed directly,
-    # which keeps the Level-2 value/gradient identical to Level 1 instead of
+    # which keeps the transport-path value/gradient identical to the full-mesh path instead of
     # only data-noise-close.
     pair_key(jki, jbi) = (jki - 1) * nbv + jbi
     partner_of(jki, jbi) =
-        (sc.ikb[jbi, jki], sc.ibi_of[sc.opp_b[jbi], sc.ikpb_fbz[jbi, jki]])
+        (sc.ikb[jbi, jki], sc.ibi_of[sc.minus_b[jbi], sc.ikpb_fbz[jbi, jki]])
     function pair_derived(jki, jbi)
         kb, jbi2 = partner_of(jki, jbi)
         return pair_key(kb, jbi2) < pair_key(jki, jbi) &&
@@ -792,7 +804,7 @@ function _fg2_core!(
         ikb = sc.ikb[ibi, iki]
         Uk = view(ws.Ukb, :, :, ibi, iki)
         mul!(Uk, view(ws.U_ibz, :, :, ikb), sc.Aib[ibi, iki])
-        sc.trev_ib[ibi, iki] && (Uk .= conj.(Uk))
+        sc.trev_kb[ibi, iki] && (Uk .= conj.(Uk))
         if G_ibz !== nothing
             mul!(view(ws.MU, :, :, ibi, iki), view(M_ibz, :, :, ibi, iki), Uk)
         end
@@ -815,7 +827,7 @@ function _fg2_core!(
         pair_derived(iki, ibi) || continue
         kb, ibi2 = partner_of(iki, ibi)
         ikpb = sc.ikpb_fbz[ibi, iki]
-        ib2 = sc.opp_b[ibi]
+        ib2 = sc.minus_b[ibi]
         Mq = view(ws.Mt, :, :, ibi, iki)
         ws.tmp1 .= view(ws.Mt, :, :, ibi2, kb)'
         mul!(ws.tmp2, sc.Rmat[ib2, ikpb]', ws.tmp1)
@@ -934,10 +946,10 @@ function symmetry_breaking_force(
         U_ibz::AbstractArray{<:Complex, 3},
         M_ibz::AbstractArray{<:Complex, 4},
         sc::SymmetryConstraint,
-        ws::SymmetricWorkspace2,
+        ws::SymmetricTransportWorkspace,
     )
     ws.U_ibz .= U_ibz
-    _fg2_core!(nothing, ws.G_ibz, M_ibz, sc, ws)
+    _fg_transport_core!(nothing, ws.G_ibz, M_ibz, sc, ws)
     G = copy(ws.G_ibz)
     P = project_covariant(G, sc)
     return norm(G - P) / norm(G)
@@ -1348,7 +1360,7 @@ function schur_basis(
     aop = Vector{Union{Nothing, Tuple{Matrix{CT}, Matrix{CT}}}}(undef, sc.nk_ibz)
 
     for iki in 1:sc.nk_ibz
-        entries = sc.proj[iki]
+        entries = sc.projector[iki]
         uidx = findall(e -> !e[3], entries)
         aidx = findall(e -> e[3], entries)
         aop[iki] = isempty(aidx) ? nothing :
@@ -1358,7 +1370,7 @@ function schur_basis(
         Wo = [Matrix(entries[i][2])' for i in uidx]
         db = [Matrix(entries[i][1]) for i in uidx]
 
-        ok = sc.band_ok[iki]
+        ok = sc.covariant_bands[iki]
         f = frozen_ibz[:, iki] .& ok
         r = ok .& .!f
         # the frozen subspace must be invariant (energy blocks)

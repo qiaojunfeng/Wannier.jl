@@ -41,14 +41,14 @@ function unfold(
 
     isym = read_isym("$prefix.isym")
     # TODO really needed?
-    Wannier.rescale!(isym.littlegroup_reps)
+    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
 
     kpoints_ibz = isym.kpoints_ibz
     symops = isym.symops
     littlegroup_reps = isym.littlegroup_reps
     orbital_reps = isym.orbital_reps
 
-    f2i = get_kpoint_mappings(kstencil.kpoints, kpoints_ibz, symops)
+    f2i = map_fbz_to_ibz(kstencil.kpoints, kpoints_ibz, symops)
 
     # eig
     Ei = read_eig("$prefix.ieig")

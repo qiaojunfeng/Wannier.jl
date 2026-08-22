@@ -25,7 +25,7 @@ structure of the mathematics stays visible. Three tiers:
 
 1. **Exported API** (functions, types, keyword arguments): full words, no
    abbreviations, no Unicode — users must be able to guess, type, and grep
-   them. Examples: `symmetry_constraint`, `SymmetrizedModel`,
+   them. Examples: `map_fbz_to_ibz`, `SymmetricModel`,
    `clean_littlegroup_reps!`, `atol_degeneracy`. Functions are verbs (with
    `!` for mutation), types are nouns.
 2. **Internal structure** (unexported helpers, struct fields, cross-file

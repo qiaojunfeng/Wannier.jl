@@ -108,8 +108,8 @@ so every one can hand-order its fused value+gradient sweep:
 
 | Type | Minimizes | Runs on |
 |---|---|---|
-| [`Variance`](@ref Wannier.Variance) | Marzari–Vanderbilt spread ``\Omega`` | `Model`, `SymmetrizedModel` |
-| [`CenteredVariance`](@ref Wannier.CenteredVariance) | ``\Omega`` + WF-center penalty | `Model`, `SymmetrizedModel` |
+| [`Variance`](@ref Wannier.Variance) | Marzari–Vanderbilt spread ``\Omega`` | `Model`, `SymmetricModel` |
+| [`CenteredVariance`](@ref Wannier.CenteredVariance) | ``\Omega`` + WF-center penalty | `Model`, `SymmetricModel` |
 | [`CoOptVariance`](@ref Wannier.CoOptVariance) | ``\Omega_\uparrow + \Omega_\downarrow + \lambda_s \Omega_{\uparrow\downarrow}`` | `SpinModel` |
 | [`CenteredCoOptVariance`](@ref Wannier.CenteredCoOptVariance) | co-optimization + center penalty | `SpinModel` |
 
@@ -143,8 +143,8 @@ manifold.
 | [`XYLayout`](@ref Wannier.XYLayout) | packed `XY`, `(n_wannier² + n_bands·n_wannier) × n_kpoints` | entangled manifold |
 | [`ProductLayout`](@ref Wannier.ProductLayout) | two layouts side by side | `SpinModel` |
 | [`WLayout`](@ref Wannier.WLayout) | a single rotation matrix `W` | rotation-only refinement |
-| [`SymXYLayout`](@ref Wannier.SymXYLayout) | packed `XY` at the IBZ kpoints only | `SymmetrizedModel` |
-| [`SchurLayout`](@ref Wannier.SchurLayout) | flat real per-irrep Schur block parameters | `SymmetrizedModel` |
+| [`SymmetricXYLayout`](@ref Wannier.SymmetricXYLayout) | packed `XY` at the IBZ kpoints only | `SymmetricModel` |
+| [`SchurLayout`](@ref Wannier.SchurLayout) | flat real per-irrep Schur block parameters | `SymmetricModel` |
 
 ```julia
 initial_x(layout, model)               # model.gauges → starting x
@@ -243,12 +243,12 @@ keyword arguments forward to the solver.
 
 Symmetry-constrained (SAWF) localization is not a separate driver — it is the
 same `Objective` × `Layout` × solver composition on a different model bundle.
-A [`SymmetrizedModel`](@ref Wannier.SymmetrizedModel) wraps a full-mesh `Model` (global-b stencil,
+A [`SymmetricModel`](@ref Wannier.SymmetricModel) wraps a full-mesh `Model` (global-b stencil,
 overlaps unfolded from the IBZ) together with the
 [`SymmetryConstraint`](@ref Wannier.SymmetryConstraint) tables and the IBZ overlaps; the
 optimization variables live at the IBZ kpoints only. `Variance` dispatches to
-the IBZ transport kernels (`_fg2_core!`, Level 2) by default, and the layout
-owns the constraint handling: [`SymXYLayout`](@ref Wannier.SymXYLayout) decodes through the
+the IBZ transport kernels (`_fg_transport_core!`, `path = :transport`) by default, and the layout
+owns the constraint handling: [`SymmetricXYLayout`](@ref Wannier.SymmetricXYLayout) decodes through the
 covariance projector (and pulls the gradient back through its adjoint), while
 [`SchurLayout`](@ref Wannier.SchurLayout) parameterizes the covariant gauges exactly by their
 per-irrep Schur blocks — fewer real parameters, no projector calls. Because
@@ -256,14 +256,14 @@ the composition is the standard one, every solver backend and future
 objective works with both layouts unchanged:
 
 ```julia
-U_fbz, U_ibz = localize(sm)                                # Variance + SymXYLayout (Level 2)
+U_fbz, U_ibz = localize(sm)                                # Variance + SymmetricXYLayout (transport path)
 U_fbz, U_ibz = localize(Variance(), sm, SchurLayout())     # Schur block parameters
 U_fbz, U_ibz = solve!(Problem(Variance(), sm), OptimLBFGS(; max_iter = 300))
 ```
 
-`SymmetrizedModel` is parametric on the wrapped model (`SymmetrizedModel{M}`,
+`SymmetricModel` is parametric on the wrapped model (`SymmetricModel{M}`,
 today `M = Model`): symmetrization is a decorator orthogonal to the spin
-axis. A future `SymmetrizedModel{SpinModel}` composes through the existing
+axis. A future `SymmetricModel{SpinModel}` composes through the existing
 rails — a [`ProductLayout`](@ref Wannier.ProductLayout) of the symmetry layouts with one
 [`SymmetryConstraint`](@ref Wannier.SymmetryConstraint) per spin channel, plus one new transport
 identity for the ``\uparrow\downarrow`` coupling overlap. The per-channel

@@ -3,7 +3,7 @@ export localize
 """
     localize(model; kwargs...)
     localize(sm::SpinModel; λ_spin=1.0, kwargs...)
-    localize(sm::SymmetrizedModel; kwargs...)
+    localize(sm::SymmetricModel; kwargs...)
     localize(obj::Objective, model; kwargs...)
     localize(obj::Objective, model, layout::Layout; kwargs...)
     localize(pt::ParallelTransport, model)
@@ -23,8 +23,8 @@ dispatch paths live here:
   [`parallel_transport`](@ref) directly.
 
 The no-method forms default to [`Variance`](@ref) on a `Model` and
-[`CoOptVariance`](@ref) on a `SpinModel`. A [`SymmetrizedModel`](@ref) routes
-to `Variance` with the symmetry-constrained [`SymXYLayout`](@ref) and returns
+[`CoOptVariance`](@ref) on a `SpinModel`. A [`SymmetricModel`](@ref) routes
+to `Variance` with the symmetry-constrained [`SymmetricXYLayout`](@ref) and returns
 the `(U_fbz, U_ibz)` gauge pair.
 """
 localize(model::Model; kwargs...) = localize(Variance(), model; kwargs...)
