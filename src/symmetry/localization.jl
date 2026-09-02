@@ -168,6 +168,19 @@ end
 _kconj(A::AbstractArray, trev::Bool) = trev ? conj.(A) : A
 _kconj(a::Number, trev::Bool) = trev ? conj(a) : a
 
+function _opposite_bvector_indices(bvecs_frac)
+    minus_b = map(bvecs_frac) do b
+        # b vectors are displacements, not k points: do not compare them
+        # modulo reciprocal lattice vectors. This matters when one mesh
+        # dimension is 1, for which +G and -G reach the same k point.
+        ib2 = findfirst(x -> isapprox(x, -b; atol = 1.0e-8), bvecs_frac)
+        isnothing(ib2) && error("b shell is not inversion-closed: -b missing for b = $b")
+        ib2
+    end
+    minus_b[minus_b] == 1:length(bvecs_frac) || error("minus_b is not an involution")
+    return minus_b
+end
+
 """
     $(SIGNATURES)
 
@@ -318,12 +331,7 @@ function SymmetryConstraint(
     Aib = Matrix{Matrix{CT}}(undef, nbvecs, nk_ibz)
     trev_kb = falses(nbvecs, nk_ibz)
     ikpb_fbz = zeros(Int, nbvecs, nk_ibz)
-    minus_b = map(bvecs_frac) do b
-        ib2 = findfirst(isequivalent(-b), bvecs_frac)
-        isnothing(ib2) && error("b shell is not inversion-closed: -b missing for b = $b")
-        ib2
-    end
-    minus_b[minus_b] == 1:nbvecs || error("minus_b is not an involution")
+    minus_b = _opposite_bvector_indices(bvecs_frac)
     ibi_of = zeros(Int, nbvecs, nk_fbz)
     phase = zeros(CT, nbvecs, nk_fbz)
     Rmat = Matrix{SM}(undef, nbvecs, nk_fbz)

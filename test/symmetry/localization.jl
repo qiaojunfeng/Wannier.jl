@@ -101,6 +101,20 @@ end
     @test gs.bweights ≈ kstencil.bweights
 end
 
+@testitem "opposite b vectors on a singleton mesh axis" begin
+    # Along a singleton mesh axis, +G and -G are equivalent k-point shifts but
+    # remain distinct displacement vectors in the finite-difference shell.
+    bvecs = [
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, -1.0],
+        [1 / 7, 0.0, 0.0],
+        [-1 / 7, 0.0, 0.0],
+    ]
+    minus_b = Wannier._opposite_bvector_indices(bvecs)
+    @test minus_b == [2, 1, 4, 3]
+    @test minus_b[minus_b] == eachindex(bvecs)
+end
+
 @testitem "fullmesh symmetric fg" begin
     using WannierIO, LinearAlgebra
     using Wannier.Datasets
