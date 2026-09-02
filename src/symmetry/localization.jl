@@ -181,6 +181,14 @@ function _opposite_bvector_indices(bvecs_frac)
     return minus_b
 end
 
+function _overlap_transport_seed(factor, θ1, θ2, d, trev)
+    # The double-group composition sign is part of the scalar unfolding phase.
+    # Keep the little-group matrix free of that factor so it enters exactly once.
+    phase = factor * exp(-im * 2π * (θ1 + θ2))
+    dmat = _kconj(d, trev)
+    return phase, dmat
+end
+
 """
     $(SIGNATURES)
 
@@ -373,11 +381,14 @@ function SymmetryConstraint(
             R = _kconj(A_bi' * inner, symops[isym_kbi].time_reversal)
 
             ibi_of[ibf, ikf] = ibi
-            phase[ibf, ikf] = factor * exp(-im * 2π * (θ1 + θ2))
             Rmat[ibf, ikf] = droptol!(sparse(R), 1.0e-12)
-            dmat[ibf, ikf] = _kconj(
-                Matrix{CT}(littlegroup_reps[ih].d), symops[isym_kbi].time_reversal
-            ) .* factor
+            phase[ibf, ikf], dmat[ibf, ikf] = _overlap_transport_seed(
+                factor,
+                θ1,
+                θ2,
+                Matrix{CT}(littlegroup_reps[ih].d),
+                symops[isym_kbi].time_reversal,
+            )
             trev_dmat[ibf, ikf] = symops[isym_kbi].time_reversal
 
             # pass-0 tables (fill once per (ibi, iki); star members agree)

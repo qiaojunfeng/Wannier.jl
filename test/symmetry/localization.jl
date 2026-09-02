@@ -115,6 +115,23 @@ end
     @test minus_b[minus_b] == eachindex(bvecs)
 end
 
+@testitem "spinor transport sign is carried once" begin
+    d = ComplexF64[1 + 2im 3 + 4im; 5 + 6im 7 + 8im]
+    factor = -1
+    θ1, θ2 = 1 / 8, -1 / 4
+    phase_ref = factor * exp(-im * 2π * (θ1 + θ2))
+
+    phase, dmat = Wannier._overlap_transport_seed(factor, θ1, θ2, d, false)
+    @test phase ≈ phase_ref
+    @test dmat == d
+    @test phase .* dmat ≈ phase_ref .* d
+
+    phase_trev, dmat_trev = Wannier._overlap_transport_seed(factor, θ1, θ2, d, true)
+    @test phase_trev ≈ phase_ref
+    @test dmat_trev == conj.(d)
+    @test phase_trev .* dmat_trev ≈ phase_ref .* conj.(d)
+end
+
 @testitem "fullmesh symmetric fg" begin
     using WannierIO, LinearAlgebra
     using Wannier.Datasets
