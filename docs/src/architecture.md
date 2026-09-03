@@ -140,10 +140,10 @@ manifold.
 | Layout | Parameter `x` | Used for |
 |---|---|---|
 | [`ULayout`](@ref Wannier.ULayout) | `U` itself, `(n_bands, n_wannier, n_kpoints)` | isolated manifold |
-| [`XYLayout`](@ref Wannier.XYLayout) | packed `XY`, `(n_wannier² + n_bands·n_wannier) × n_kpoints` | entangled manifold |
+| [`XYLayout`](@ref Wannier.XYLayout) | flat vector of full `X` and active `(n_bands-n_frozen) × (n_wannier-n_frozen)` `Y` blocks | entangled manifold |
 | [`ProductLayout`](@ref Wannier.ProductLayout) | two layouts side by side | `SpinModel` |
 | [`WLayout`](@ref Wannier.WLayout) | a single rotation matrix `W` | rotation-only refinement |
-| [`SymmetricXYLayout`](@ref Wannier.SymmetricXYLayout) | packed `XY` at the IBZ kpoints only | `SymmetricModel` |
+| [`SymmetricXYLayout`](@ref Wannier.SymmetricXYLayout) | the same compact `XY` vector at IBZ kpoints only | `SymmetricModel` |
 | [`SchurLayout`](@ref Wannier.SchurLayout) | flat real per-irrep Schur block parameters | `SymmetricModel` |
 
 ```julia

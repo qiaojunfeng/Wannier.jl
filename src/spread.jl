@@ -111,7 +111,9 @@ buffer and pass it explicitly.
 """
 struct Workspace{T}
     X::Array{Complex{T}, 3}
+    # Dense decode scratch only; `XYLayout` stores just Y's active blocks in x.
     Y::Array{Complex{T}, 3}
+    xy::_XYStructure
     U::Array{Complex{T}, 3}
     # gradient in canonical coordinates, dΩ/dU*: n_bands x n_wann x n_kpts
     GU::Array{Complex{T}, 3}
@@ -127,7 +129,11 @@ struct Workspace{T}
     MU::Array{Complex{T}, 4}
 end
 
-function Workspace(bvectors::KspaceStencil{FT}, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3}) where {FT}
+function Workspace(
+        bvectors::KspaceStencil{FT}, M::AbstractArray{<:Complex, 4},
+        U::AbstractArray{<:Complex, 3},
+        frozen::AbstractMatrix{Bool} = falses(size(U, 1), size(U, 3)),
+    ) where {FT}
     n_kpts = size(M, 4)
     n_bands = size(M, 1)
     n_wann = size(U, 2)
@@ -135,6 +141,8 @@ function Workspace(bvectors::KspaceStencil{FT}, M::AbstractArray{<:Complex, 4}, 
 
     X = zeros(Complex{FT}, n_wann, n_wann, n_kpts)
     Y = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
+    xy = _xy_structure(frozen, n_wann)
+    _initialize_compact_y!(Y, xy)
     Ucopy = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
     GU = zeros(Complex{FT}, n_bands, n_wann, n_kpts)
     r = zeros(Vec3{FT}, n_wann)
@@ -142,10 +150,11 @@ function Workspace(bvectors::KspaceStencil{FT}, M::AbstractArray{<:Complex, 4}, 
     MU = zeros(Complex{FT}, n_bands, n_wann, n_bvecs, n_kpts)
     UtMU = zeros(Complex{FT}, n_wann, n_wann, n_bvecs, n_kpts)
 
-    return Workspace(X, Y, Ucopy, GU, r, zeros(Vec3{FT}, n_wann), UtMU, MU)
+    return Workspace(X, Y, xy, Ucopy, GU, r, zeros(Vec3{FT}, n_wann), UtMU, MU)
 end
 
-Workspace(model::Model) = Workspace(model.kstencil, model.overlaps, model.gauges)
+Workspace(model::Model) =
+    Workspace(model.kstencil, model.overlaps, model.gauges, model.frozen_bands)
 
 n_bands(w::Workspace) = size(w.GU, 1)
 n_wannier(w::Workspace) = size(w.GU, 2)

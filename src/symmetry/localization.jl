@@ -518,8 +518,8 @@ end
 
 expand_gauges(U_ibz::AbstractArray{<:Complex, 3}, sc::SymmetryConstraint) =
     expand_gauges!(
-        similar(U_ibz, size(U_ibz, 1), size(U_ibz, 2), sc.nk_fbz), U_ibz, sc
-    )
+    similar(U_ibz, size(U_ibz, 1), size(U_ibz, 2), sc.nk_fbz), U_ibz, sc
+)
 
 """
     $(SIGNATURES)
@@ -598,6 +598,7 @@ struct SymmetricFullMeshWorkspace{T}
     X_ibz::Array{Complex{T}, 3}
     Y_ibz::Array{Complex{T}, 3}
     frozen_ibz::BitMatrix
+    xy::_XYStructure
 end
 
 # NOTE: the full-mesh path (this workspace + `_fg_fullmesh_core!`) is the only place in
@@ -617,7 +618,9 @@ function SymmetricFullMeshWorkspace(model::Model, sc::SymmetryConstraint{T}) whe
     X_ibz = zeros(Complex{T}, nw, nw, sc.nk_ibz)
     Y_ibz = zeros(Complex{T}, nb, nw, sc.nk_ibz)
     frozen_ibz = model.frozen_bands[:, sc.ibz2fbz]
-    return SymmetricFullMeshWorkspace(full, U_ibz, G_ibz, X_ibz, Y_ibz, frozen_ibz)
+    xy = _xy_structure(frozen_ibz, nw)
+    _initialize_compact_y!(Y_ibz, xy)
+    return SymmetricFullMeshWorkspace(full, U_ibz, G_ibz, X_ibz, Y_ibz, frozen_ibz, xy)
 end
 
 """
@@ -633,19 +636,18 @@ into `G`. The `model` must be a full-mesh model in the *global* b ordering
 (see [`globalize_bvector_ordering`](@ref)) whose overlaps were unfolded from the IBZ.
 """
 function symmetric_fg_fullmesh!(
-        F, G, xy::AbstractMatrix,
+        F, G, xy::AbstractVector,
         model::Model, sc::SymmetryConstraint, ws::SymmetricFullMeshWorkspace,
     )
     # decode (X,Y) -> covariant U at IBZ
-    XY_to_X_Y!(ws.X_ibz, ws.Y_ibz, xy)
-    X_Y_to_U!(ws.U_ibz, ws.X_ibz, ws.Y_ibz)
+    _decode_compact_xy!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, xy, ws.xy)
     project_covariant!(ws.U_ibz, sc)
 
     Ω = _fg_fullmesh_core!(F, G === nothing ? nothing : ws.G_ibz, model, sc, ws)
 
     if G !== nothing
         project_covariant!(ws.G_ibz, sc)
-        encode_gradient_xy!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.frozen_ibz)
+        _encode_compact_xy_gradient!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.xy)
     end
     return Ω
 end
@@ -699,6 +701,7 @@ struct SymmetricTransportWorkspace{T}
     X_ibz::Array{Complex{T}, 3}
     Y_ibz::Array{Complex{T}, 3}
     frozen_ibz::BitMatrix
+    xy::_XYStructure
     # U(ki+bi), MU_i = M^{(ki,bi)} U(ki+bi), M̃_i = U(ki)† MU_i, per (ibi, iki)
     Ukb::Array{Complex{T}, 4}
     MU::Array{Complex{T}, 4}
@@ -721,10 +724,13 @@ function SymmetricTransportWorkspace(
     nb, nw, nki, nkf, nbv = sc.nbands, sc.nwann, sc.nk_ibz, sc.nk_fbz, sc.nbvecs
     size(eig, 1) == nb || error("eig has wrong number of bands")
     CT = Complex{T}
+    frozen_ibz = BitMatrix(frozen_bands[:, sc.ibz2fbz])
+    xy = _xy_structure(frozen_ibz, nw)
+    Y_ibz = zeros(CT, nb, nw, nki)
+    _initialize_compact_y!(Y_ibz, xy)
     return SymmetricTransportWorkspace(
         zeros(CT, nb, nw, nki), zeros(CT, nb, nw, nki),
-        zeros(CT, nw, nw, nki), zeros(CT, nb, nw, nki),
-        BitMatrix(frozen_bands[:, sc.ibz2fbz]),
+        zeros(CT, nw, nw, nki), Y_ibz, frozen_ibz, xy,
         zeros(CT, nb, nw, nbv, nki), zeros(CT, nb, nw, nbv, nki),
         zeros(CT, nw, nw, nbv, nki), zeros(CT, nw, nw, nbv, nki),
         zeros(CT, nw, nbv, nkf), zeros(Vec3{T}, nw), zeros(Vec3{T}, nw),
@@ -741,20 +747,19 @@ Same variables and same value/gradient as [`symmetric_fg_fullmesh!`](@ref), eval
 without ever forming band-dimension objects on the full mesh.
 """
 function symmetric_fg_transport!(
-        F, G, xy::AbstractMatrix,
+        F, G, xy::AbstractVector,
         M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint{T},
         ws::SymmetricTransportWorkspace{T},
     ) where {T}
     # decode -> covariant U at IBZ
-    XY_to_X_Y!(ws.X_ibz, ws.Y_ibz, xy)
-    X_Y_to_U!(ws.U_ibz, ws.X_ibz, ws.Y_ibz)
+    _decode_compact_xy!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, xy, ws.xy)
     project_covariant!(ws.U_ibz, sc)
 
     Ω = _fg_transport_core!(F, G === nothing ? nothing : ws.G_ibz, M_ibz, sc, ws)
 
     if G !== nothing
         project_covariant!(ws.G_ibz, sc)
-        encode_gradient_xy!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.frozen_ibz)
+        _encode_compact_xy_gradient!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.xy)
     end
     return Ω
 end
@@ -1321,17 +1326,21 @@ function _classify_aop(
             tolb, tolo = rtol * sqrt(b.mb), rtol * sqrt(b.mo)
             ωb = real(tr(Sb * conj.(Sb))) / b.mb
             ωo = real(tr(So * conj.(So))) / b.mo
-            (abs(abs(ωb) - 1) < rtol && abs(ωb - ωo) < rtol &&
-                norm(Sb * conj.(Sb) - ωb * I) < tolb &&
-                norm(So * conj.(So) - ωo * I) < tolo) || continue
+            (
+                abs(abs(ωb) - 1) < rtol && abs(ωb - ωo) < rtol &&
+                    norm(Sb * conj.(Sb) - ωb * I) < tolb &&
+                    norm(So * conj.(So) - ωo * I) < tolo
+            ) || continue
             Wb = zeros(CT, b.mb, b.mb)
             local Wo, kind, Ct
             if ωb > 0   # real type: S = W Wᵀ
                 Wb[1:mf, 1:mf] .= _takagi_unitary(Sb[1:mf, 1:mf])
                 Wb[r, r] .= _takagi_unitary(Sb[r, r])
                 Wo = _takagi_unitary(So)
-                (norm(Wb * transpose(Wb) - Sb) < tolb &&
-                    norm(Wo * transpose(Wo) - So) < tolo) || continue
+                (
+                    norm(Wb * transpose(Wb) - Sb) < tolb &&
+                        norm(Wo * transpose(Wo) - So) < tolo
+                ) || continue
                 kind = ANTIUNITARY_WIGNER_REAL
                 Ct = Matrix{CT}(randn(rng, T, b.mb, b.mo))
             else        # quaternionic type: S = W J Wᵀ
@@ -1339,8 +1348,10 @@ function _classify_aop(
                 Wb[1:mf, 1:mf] .= _youla_unitary(Sb[1:mf, 1:mf])
                 Wb[r, r] .= _youla_unitary(Sb[r, r])
                 Wo = _youla_unitary(So)
-                (norm(Wb * _jmat(CT, b.mb) * transpose(Wb) - Sb) < tolb &&
-                    norm(Wo * _jmat(CT, b.mo) * transpose(Wo) - So) < tolo) ||
+                (
+                    norm(Wb * _jmat(CT, b.mb) * transpose(Wb) - Sb) < tolb &&
+                        norm(Wo * _jmat(CT, b.mo) * transpose(Wo) - So) < tolo
+                ) ||
                     continue
                 kind = ANTIUNITARY_WIGNER_QUATERNIONIC
                 Ct = _quat_assemble(
@@ -1368,9 +1379,11 @@ function _classify_aop(
         Pb = bw[1] * conj.(fw[1])
         Po = bw[2] * conj.(fw[2])
         μ = tr(Pb) / blks[c].mb
-        (norm(Pb - μ * I) < rtol * sqrt(blks[c].mb) &&
-            norm(Po - μ * I) < rtol * sqrt(blks[c].mo) &&
-            abs(abs(μ) - 1) < rtol) || continue
+        (
+            norm(Pb - μ * I) < rtol * sqrt(blks[c].mb) &&
+                norm(Po - μ * I) < rtol * sqrt(blks[c].mo) &&
+                abs(abs(μ) - 1) < rtol
+        ) || continue
         b, b2 = blks[c], blks[c2]
         Bb2 = [B * fw[1] for B in b2.Bb]
         Bo2 = [B * fw[2] for B in b2.Bo]

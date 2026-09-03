@@ -121,10 +121,11 @@ end
     SymmetricXYLayout(path = :transport)
 
 [`Layout`](@ref) for [`SymmetricModel`](@ref): `x` packs the `(X, Y)`
-disentanglement blocks at the IBZ kpoints, as a contiguous
-`(n_wannier² + n_bands·n_wannier) × n_kpoints_ibz` matrix. Decoding applies
-the covariance projector [`project_covariant!`](@ref); gradient encoding
-applies the (self-adjoint) projector followed by the standard `XY` pullback.
+disentanglement blocks at the IBZ kpoints as one contiguous vector. Every
+`X` is stored in full; each `Y` stores only its active
+`(n_bands-n_frozen) × (n_wannier-n_frozen)` block. Decoding applies the
+covariance projector [`project_covariant!`](@ref); gradient encoding applies
+the (self-adjoint) projector followed by the compact `XY` pullback.
 
 `path` selects the objective evaluation the workspace is sized for:
 `:transport` (default) keeps every band-dimension product on the IBZ (the
@@ -143,35 +144,36 @@ end
 
 function initial_x(::SymmetricXYLayout, sm::SymmetricModel)
     X0, Y0 = U_to_X_Y(_initial_U_ibz(sm), frozen_bands_ibz(sm))
-    return X_Y_to_XY(X0, Y0)
+    return _pack_xy(X0, Y0, _xy_structure(frozen_bands_ibz(sm), n_wannier(sm)))
 end
 
 # Both symmetric workspaces expose the same `U_ibz`/`G_ibz`/`X_ibz`/`Y_ibz`/
 # `frozen_ibz` fields, so one decode/encode pair serves the full-mesh and transport paths.
-function decode!(::SymmetricXYLayout, x::AbstractMatrix, sm::SymmetricModel, ws)
-    XY_to_X_Y!(ws.X_ibz, ws.Y_ibz, x)
-    X_Y_to_U!(ws.U_ibz, ws.X_ibz, ws.Y_ibz)
+function decode!(::SymmetricXYLayout, x::AbstractVector, sm::SymmetricModel, ws)
+    _decode_compact_xy!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, x, ws.xy)
     return project_covariant!(ws.U_ibz, sm.constraint)
 end
 
-function encode_gradient!(g::AbstractMatrix, ::SymmetricXYLayout, sm::SymmetricModel, ws)
+function encode_gradient!(g::AbstractVector, ::SymmetricXYLayout, sm::SymmetricModel, ws)
     project_covariant!(ws.G_ibz, sm.constraint)
-    return encode_gradient_xy!(g, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.frozen_ibz)
+    return _encode_compact_xy_gradient!(g, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.xy)
 end
 
 function decode(::SymmetricXYLayout, x, sm::SymmetricModel)
     sc = sm.constraint
-    X, Y = XY_to_X_Y(x, sc.nbands, sc.nwann)
-    U_ibz = project_covariant!(X_Y_to_U(X, Y), sc)
+    xy = _xy_structure(frozen_bands_ibz(sm), sc.nwann)
+    T = eltype(x)
+    X = zeros(T, sc.nwann, sc.nwann, sc.nk_ibz)
+    Y = zeros(T, sc.nbands, sc.nwann, sc.nk_ibz)
+    U_ibz = similar(Y)
+    _initialize_compact_y!(Y, xy)
+    _decode_compact_xy!(U_ibz, X, Y, x, xy)
+    project_covariant!(U_ibz, sc)
     return expand_gauges(U_ibz, sc), U_ibz
 end
 
 function manifold(::SymmetricXYLayout, sm::SymmetricModel)
-    nw, nb = n_wannier(sm), n_bands(sm)
-    per_k = Optim.ProductManifold(
-        Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw)
-    )
-    return Optim.PowerManifold(per_k, (nw^2 + nb * nw,), (n_kpoints_ibz(sm),))
+    return XYManifold(_xy_structure(frozen_bands_ibz(sm), n_wannier(sm)))
 end
 
 # -----------------------------------------------------------------------------

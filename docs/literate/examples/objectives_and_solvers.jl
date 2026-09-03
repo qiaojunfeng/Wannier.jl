@@ -99,7 +99,8 @@ default_layout(objective, model)
 #=
 For an isolated manifold the parameters are the gauge itself
 (`ULayout`). For an entangled manifold the disentanglement introduces a second
-block, and the parameters become the packed `XY` matrix (`XYLayout`):
+block, and the parameters become a compact vector of full `X` and active `Y`
+blocks (`XYLayout`):
 =#
 model_entangled = load_dataset("Si2")
 (isentangled = isentangled(model_entangled), layout = default_layout(objective, model_entangled))

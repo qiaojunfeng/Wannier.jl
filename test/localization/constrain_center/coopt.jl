@@ -77,23 +77,14 @@ end
 @testitem "coopt center spread gradient" setup = [CooptCenterEnv] begin
     using NLSolversBase
 
-    nb, nw = size(model.up.gauges, 1), size(model.up.gauges, 2)
-    n_inner = nb * nw + nw^2
-
-    Xup0, Yup0 = Wannier.U_to_X_Y(model.up.gauges, model.up.frozen_bands)
-    Xdn0, Ydn0 = Wannier.U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
-    XY0 = vcat(Wannier.X_Y_to_XY(Xup0, Yup0), Wannier.X_Y_to_XY(Xdn0, Ydn0))
+    layout = Wannier.ProductLayout(Wannier.XYLayout(), Wannier.XYLayout())
+    XY0 = Wannier.initial_x(layout, model)
 
     G = similar(XY0)
     g!(G, XY0)
 
     d = OnceDifferentiable(f, XY0, zero(real(eltype(XY0))))
     G_ref = NLSolversBase.gradient!(d, XY0)
-    Gu = @view G_ref[1:n_inner, :]
-    Gd = @view G_ref[(n_inner + 1):end, :]
-    Wannier.zero_froz_grad!(Gu, model.up.frozen_bands)
-    Wannier.zero_froz_grad!(Gd, model.dn.frozen_bands)
-
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
@@ -101,17 +92,19 @@ end
 
     Xup0, Yup0 = Wannier.U_to_X_Y(Uup, model.up.frozen_bands)
     Xdn0, Ydn0 = Wannier.U_to_X_Y(Udn, model.dn.frozen_bands)
-    XY0 = vcat(Wannier.X_Y_to_XY(Xup0, Yup0), Wannier.X_Y_to_XY(Xdn0, Ydn0))
+    XY0 = vcat(
+        Wannier._pack_xy(
+            Xup0, Yup0,
+            Wannier._xy_structure(model.up.frozen_bands, n_wannier(model.up)),
+        ),
+        Wannier._pack_xy(
+            Xdn0, Ydn0,
+            Wannier._xy_structure(model.dn.frozen_bands, n_wannier(model.dn)),
+        ),
+    )
 
     g!(G, XY0)
     d = OnceDifferentiable(f, XY0, zero(real(eltype(XY0))))
     G_ref = NLSolversBase.gradient!(d, XY0)
-    # I need to use @view so that zero_froz_grad! can change it inplace
-    Gu = @view G_ref[1:n_inner, :]
-    Gd = @view G_ref[(n_inner + 1):end, :]
-    # The gradient for frozen bands need to be set as 0 explicitly
-    Wannier.zero_froz_grad!(Gu, model.up.frozen_bands)
-    Wannier.zero_froz_grad!(Gd, model.dn.frozen_bands)
-
     @test isapprox(G, G_ref; atol = 1.0e-6)
 end

@@ -71,15 +71,8 @@ end
 @testitem "coopt spread gradient" setup = [CooptEnv] begin
     using NLSolversBase
 
-    nb, nw = size(model.up.gauges, 1), size(model.up.gauges, 2)
-    n_inner = nb * nw + nw^2  # size of XY at each k-point
-
-    Xup0, Yup0 = Wannier.U_to_X_Y(model.up.gauges, model.up.frozen_bands)
-    Xdn0, Ydn0 = Wannier.U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
-    # compact storage
-    XYup0 = Wannier.X_Y_to_XY(Xup0, Yup0)
-    XYdn0 = Wannier.X_Y_to_XY(Xdn0, Ydn0)
-    XY0 = vcat(XYup0, XYdn0)
+    layout = Wannier.ProductLayout(Wannier.XYLayout(), Wannier.XYLayout())
+    XY0 = Wannier.initial_x(layout, model)
 
     # analytical gradient
     G = similar(XY0)
@@ -88,13 +81,6 @@ end
     # finite diff gradient
     d = OnceDifferentiable(f, XY0, zero(real(eltype(XY0))))
     G_ref = NLSolversBase.gradient!(d, XY0)
-    # I need to use @view so that zero_froz_grad! can change it inplace
-    Gu = @view G_ref[1:n_inner, :]
-    Gd = @view G_ref[(n_inner + 1):end, :]
-    # The gradient for frozen bands need to be set as 0 explicitly
-    Wannier.zero_froz_grad!(Gu, model.up.frozen_bands)
-    Wannier.zero_froz_grad!(Gd, model.dn.frozen_bands)
-
     # I am using a looser tolerance here
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
@@ -103,21 +89,19 @@ end
 
     Xup0, Yup0 = Wannier.U_to_X_Y(Uup, model.up.frozen_bands)
     Xdn0, Ydn0 = Wannier.U_to_X_Y(Udn, model.dn.frozen_bands)
-    # compact storage
-    XYup0 = Wannier.X_Y_to_XY(Xup0, Yup0)
-    XYdn0 = Wannier.X_Y_to_XY(Xdn0, Ydn0)
+    XYup0 = Wannier._pack_xy(
+        Xup0, Yup0,
+        Wannier._xy_structure(model.up.frozen_bands, n_wannier(model.up)),
+    )
+    XYdn0 = Wannier._pack_xy(
+        Xdn0, Ydn0,
+        Wannier._xy_structure(model.dn.frozen_bands, n_wannier(model.dn)),
+    )
     XY0 = vcat(XYup0, XYdn0)
 
     g!(G, XY0)
     d = OnceDifferentiable(f, XY0, zero(real(eltype(XY0))))
     G_ref = NLSolversBase.gradient!(d, XY0)
-    # I need to use @view so that zero_froz_grad! can change it inplace
-    Gu = @view G_ref[1:n_inner, :]
-    Gd = @view G_ref[(n_inner + 1):end, :]
-    # The gradient for frozen bands need to be set as 0 explicitly
-    Wannier.zero_froz_grad!(Gu, model.up.frozen_bands)
-    Wannier.zero_froz_grad!(Gd, model.dn.frozen_bands)
-
     # I am using a looser tolerance here
     @test isapprox(G, G_ref; atol = 1.0e-6)
 end

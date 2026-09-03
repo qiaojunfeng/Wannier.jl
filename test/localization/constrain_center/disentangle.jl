@@ -25,8 +25,7 @@ end
     U0 = deepcopy(model.gauges)
 
     # analytical gradient
-    X, Y = Wannier.U_to_X_Y(U0, model.frozen_bands)
-    XY = Wannier.X_Y_to_XY(X, Y)
+    XY = Wannier.initial_x(Wannier.XYLayout(), model)
     G = similar(XY)
     fg!(nothing, G, XY)
 
@@ -34,19 +33,18 @@ end
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), XY, zero(eltype(real(XY))))
     G_ref = NLSolversBase.gradient!(d, XY)
 
-    # The gradient for frozen bands need to be set as 0 explicitly
-    Wannier.zero_froz_grad!(G_ref, model.frozen_bands)
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
     U1 = Wannier.localize(obj, model; max_iter = 1)
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
-    XY = Wannier.X_Y_to_XY(X, Y)
+    XY = Wannier._pack_xy(
+        X, Y, Wannier._xy_structure(model.frozen_bands, n_wannier(model))
+    )
 
     fg!(nothing, G, XY)
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), XY, zero(eltype(real(XY))))
     G_ref = NLSolversBase.gradient!(d, XY)
-    Wannier.zero_froz_grad!(G_ref, model.frozen_bands)
     @test isapprox(G, G_ref; atol = 1.0e-6)
 end
 

@@ -19,12 +19,77 @@ end
     @test isapprox(U1, U2; atol = 1.0e-6)
 end
 
-@testitem "XY_to_X_Y X_Y_to_XY" setup = [DisentangleEnv] begin
+@testitem "compact XY layout" setup = [DisentangleEnv] begin
+    layout = Wannier.XYLayout()
+    x = Wannier.initial_x(layout, model)
+    U = Wannier.decode(layout, x, model)
     X, Y = Wannier.U_to_X_Y(model.gauges, model.frozen_bands)
-    XY = Wannier.X_Y_to_XY(X, Y)
-    X1, Y1 = Wannier.XY_to_X_Y(XY, n_bands(model), n_wannier(model))
-    @test isapprox(X, X1; atol = 1.0e-6)
-    @test isapprox(Y, Y1; atol = 1.0e-6)
+    @test U ≈ Wannier.X_Y_to_U(X, Y)
+
+    expected = sum(1:n_kpoints(model)) do ik
+        nf = count(view(model.frozen_bands, :, ik))
+        n_wannier(model)^2 + (n_bands(model) - nf) * (n_wannier(model) - nf)
+    end
+    @test length(x) == expected
+end
+
+@testitem "compact XY with arbitrary frozen rows" begin
+    using LinearAlgebra
+    using Random
+
+    rng = MersenneTwister(1234)
+    nbands, nwann, nkpts = 6, 3, 4
+    frozen = falses(nbands, nkpts)
+    frozen[2, 2] = true
+    frozen[[1, 3, 5], 3] .= true
+    frozen[1:3, 4] .= true
+    xy = Wannier._xy_structure(frozen, nwann)
+
+    X = zeros(ComplexF64, nwann, nwann, nkpts)
+    Y = zeros(ComplexF64, nbands, nwann, nkpts)
+    Wannier._initialize_compact_y!(Y, xy)
+    for (ik, block) in enumerate(xy.blocks)
+        X[:, :, ik] .= Matrix(qr(randn(rng, ComplexF64, nwann, nwann)).Q)
+        nfrozen = length(block.frozen)
+        nactive = nwann - nfrozen
+        if nactive > 0
+            active = Matrix(
+                qr(randn(rng, ComplexF64, length(block.nonfrozen), nactive)).Q
+            )[:, 1:nactive]
+            Y[block.nonfrozen, (nfrozen + 1):nwann, ik] .= active
+        end
+    end
+
+    x = Wannier._pack_xy(X, Y, xy)
+    X1 = similar(X)
+    Y1 = similar(Y)
+    Wannier._initialize_compact_y!(Y1, xy)
+    Wannier._unpack_xy!(X1, Y1, x, xy)
+    @test_throws DimensionMismatch Wannier._unpack_xy!(X1, Y1, x[1:(end - 1)], xy)
+    @test X1 ≈ X
+    @test Y1 ≈ Y
+
+    U = similar(Y)
+    Wannier._form_u_compact!(U, X1, Y1, xy)
+    @test U ≈ Wannier.X_Y_to_U(X, Y)
+
+    GU = randn(rng, ComplexF64, size(U))
+    g = similar(x)
+    Wannier._encode_compact_xy_gradient!(g, GU, X, Y, xy)
+    GX, GY = Wannier.GU_to_GX_GY(GU, X, Y, frozen)
+    @test g ≈ Wannier._pack_xy(GX, GY, xy)
+
+    manifold = Wannier.XYManifold(xy)
+    xtrial = x + 0.1 * randn(rng, ComplexF64, length(x))
+    Wannier.Optim.retract!(manifold, xtrial)
+    for block in manifold.blocks
+        Xk = reshape(view(xtrial, block.x_range), block.nwann, block.nwann)
+        @test Xk' * Xk ≈ I
+        if !isempty(block.y_range)
+            Yk = reshape(view(xtrial, block.y_range), block.ynrows, block.yncols)
+            @test Yk' * Yk ≈ I
+        end
+    end
 end
 
 @testitem "disentangle spread gradient" setup = [DisentangleEnv] begin
@@ -33,8 +98,8 @@ end
     U0 = deepcopy(model.gauges)
 
     # analytical gradient
-    X, Y = Wannier.U_to_X_Y(U0, model.frozen_bands)
-    XY = Wannier.X_Y_to_XY(X, Y)
+    layout = Wannier.XYLayout()
+    XY = Wannier.initial_x(layout, model)
     G = similar(XY)
     fg!(nothing, G, XY)
 
@@ -42,19 +107,18 @@ end
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), XY, zero(eltype(real(XY))))
     G_ref = NLSolversBase.gradient!(d, XY)
 
-    # The gradient for frozen bands need to be set as 0 explicitly
-    Wannier.zero_froz_grad!(G_ref, model.frozen_bands)
     @test isapprox(G, G_ref; atol = 1.0e-6)
 
     # Test 2nd iteration
     U1 = Wannier.localize(model; max_iter = 1)
     X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
-    XY = Wannier.X_Y_to_XY(X, Y)
+    XY = Wannier._pack_xy(
+        X, Y, Wannier._xy_structure(model.frozen_bands, n_wannier(model))
+    )
 
     fg!(nothing, G, XY)
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), XY, zero(eltype(real(XY))))
     G_ref = NLSolversBase.gradient!(d, XY)
-    Wannier.zero_froz_grad!(G_ref, model.frozen_bands)
     @test isapprox(G, G_ref; atol = 1.0e-6)
 end
 

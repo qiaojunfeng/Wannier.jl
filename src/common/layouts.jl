@@ -9,25 +9,21 @@ packed out of / into the canonical gauge array `U` of a [`Model`](@ref).
 Four concrete types are used by the rewrite:
 
 - [`ULayout`](@ref) — `x ≡ U` directly, `(n_bands, n_wannier, n_kpoints)`.
-- [`XYLayout`](@ref) — disentangled form as a contiguous
-  `(n_wannier² + n_bands·n_wannier) × n_kpoints` matrix.
+- [`XYLayout`](@ref) — disentangled form as one contiguous vector containing
+  each full `X` and only the active, nonfrozen part of each `Y`.
 - [`ProductLayout`](@ref) — bundle two layouts for [`SpinModel`](@ref).
 - [`WLayout`](@ref) — single rotation matrix `W` in `opt_rotate`.
 
-Every concrete `Layout` should implement the small core interface:
-
-    encode!(x, layout, U, frozen_bands)          -> x
-    decode!(U, layout, x)                        -> U
-    encode_gradient!(g, layout, GU, frozen_bands)  -> g
-
-and — once the manifold machinery lands — `manifold(layout, model, solver)`.
+Every concrete `Layout` implements the small core interface
+[`initial_x`](@ref), [`decode!`](@ref), [`encode_gradient!`](@ref), and
+[`manifold`](@ref).
 """
 abstract type Layout end
 
 """Identity layout: `x` is the gauge array `U` itself."""
 struct ULayout <: Layout end
 
-"""Disentangled layout: `x` is the packed `XY` matrix."""
+"""Disentangled layout: `x` compactly packs the active `X`/`Y` blocks."""
 struct XYLayout <: Layout end
 
 """Product of two layouts; used to encode `SpinModel` gauges."""
@@ -61,8 +57,8 @@ function decode! end
     encode_gradient!(g, layout, model, ws) -> g
 
 Translate the canonical gradient `dΩ/dU*`, which the objective left in `ws.GU`,
-into the layout-native gradient buffer `g`. Frozen-band masking belongs here —
-no other part of the code applies it.
+into the layout-native gradient buffer `g`. A compact layout omits coordinates
+fixed by the frozen subspace, so only active derivatives are encoded.
 """
 function encode_gradient! end
 
@@ -77,64 +73,246 @@ encode_gradient!(g::AbstractArray{<:Complex, 3}, ::ULayout, model, ws) = copyto!
 
 # ---- XYLayout -------------------------------------------------------------
 
+struct _XYBlock
+    frozen::Vector{Int}
+    nonfrozen::Vector{Int}
+    x_range::UnitRange{Int}
+    y_range::UnitRange{Int}
+    frozen_first::Bool
+end
+
+"""Static ranges and row maps for compact `(X,Y)` storage at every kpoint."""
+struct _XYStructure
+    nbands::Int
+    nwann::Int
+    blocks::Vector{_XYBlock}
+    nparameters::Int
+end
+
+function _xy_structure(frozen::AbstractMatrix{Bool}, nwann::Int)
+    nbands, nkpts = size(frozen)
+    blocks = _XYBlock[]
+    offset = 0
+    for ik in 1:nkpts
+        frozen_rows = findall(view(frozen, :, ik))
+        nonfrozen_rows = findall(!, view(frozen, :, ik))
+        nfrozen = length(frozen_rows)
+        nfrozen <= nwann || error(
+            "kpoint $ik has $nfrozen frozen bands but only $nwann Wannier functions"
+        )
+        x_range = (offset + 1):(offset + nwann^2)
+        offset += nwann^2
+        ny = length(nonfrozen_rows) * (nwann - nfrozen)
+        y_range = (offset + 1):(offset + ny)
+        offset += ny
+        frozen_first = frozen_rows == 1:nfrozen
+        push!(blocks, _XYBlock(frozen_rows, nonfrozen_rows, x_range, y_range, frozen_first))
+    end
+    return _XYStructure(nbands, nwann, blocks, offset)
+end
+
+function _initialize_compact_y!(Y::AbstractArray, xy::_XYStructure)
+    fill!(Y, zero(eltype(Y)))
+    for (ik, block) in enumerate(xy.blocks)
+        for (column, row) in enumerate(block.frozen)
+            Y[row, column, ik] = one(eltype(Y))
+        end
+    end
+    return Y
+end
+
+function _pack_xy!(x::AbstractVector, X::AbstractArray, Y::AbstractArray, xy::_XYStructure)
+    length(x) == xy.nparameters || throw(
+        DimensionMismatch(
+            "compact XY vector has length $(length(x)); expected $(xy.nparameters)"
+        )
+    )
+    nwann = xy.nwann
+    for (ik, block) in enumerate(xy.blocks)
+        copyto!(reshape(view(x, block.x_range), nwann, nwann), view(X, :, :, ik))
+        nfrozen = length(block.frozen)
+        Yactive = reshape(
+            view(x, block.y_range), length(block.nonfrozen), nwann - nfrozen
+        )
+        if block.frozen_first
+            copyto!(
+                Yactive,
+                view(Y, (nfrozen + 1):xy.nbands, (nfrozen + 1):nwann, ik),
+            )
+        else
+            for column in axes(Yactive, 2), (row_index, row) in enumerate(block.nonfrozen)
+                Yactive[row_index, column] = Y[row, nfrozen + column, ik]
+            end
+        end
+    end
+    return x
+end
+
+function _pack_xy(X::AbstractArray, Y::AbstractArray, xy::_XYStructure)
+    x = zeros(promote_type(eltype(X), eltype(Y)), xy.nparameters)
+    return _pack_xy!(x, X, Y, xy)
+end
+
+function _unpack_xy!(X::AbstractArray, Y::AbstractArray, x::AbstractVector, xy::_XYStructure)
+    length(x) == xy.nparameters || throw(
+        DimensionMismatch(
+            "compact XY vector has length $(length(x)); expected $(xy.nparameters)"
+        )
+    )
+    nwann = xy.nwann
+    for (ik, block) in enumerate(xy.blocks)
+        copyto!(view(X, :, :, ik), reshape(view(x, block.x_range), nwann, nwann))
+        nfrozen = length(block.frozen)
+        Yactive = reshape(
+            view(x, block.y_range), length(block.nonfrozen), nwann - nfrozen
+        )
+        if block.frozen_first
+            copyto!(
+                view(Y, (nfrozen + 1):xy.nbands, (nfrozen + 1):nwann, ik),
+                Yactive,
+            )
+        else
+            for column in axes(Yactive, 2), (row_index, row) in enumerate(block.nonfrozen)
+                Y[row, nfrozen + column, ik] = Yactive[row_index, column]
+            end
+        end
+    end
+    return X, Y
+end
+
+function _form_u_compact!(U::AbstractArray, X::AbstractArray, Y::AbstractArray, xy::_XYStructure)
+    nwann = xy.nwann
+    for (ik, block) in enumerate(xy.blocks)
+        nfrozen = length(block.frozen)
+        nactive = nwann - nfrozen
+        if block.frozen_first
+            nfrozen > 0 && copyto!(
+                view(U, 1:nfrozen, :, ik), view(X, 1:nfrozen, :, ik)
+            )
+            if nactive > 0
+                mul!(
+                    view(U, (nfrozen + 1):xy.nbands, :, ik),
+                    view(Y, (nfrozen + 1):xy.nbands, (nfrozen + 1):nwann, ik),
+                    view(X, (nfrozen + 1):nwann, :, ik),
+                )
+            elseif xy.nbands > nfrozen
+                fill!(view(U, (nfrozen + 1):xy.nbands, :, ik), zero(eltype(U)))
+            end
+            continue
+        end
+
+        for (column, row) in enumerate(block.frozen), n in 1:nwann
+            U[row, n, ik] = X[column, n, ik]
+        end
+        for row in block.nonfrozen, n in 1:nwann
+            value = zero(eltype(U))
+            for column in 1:nactive
+                value += Y[row, nfrozen + column, ik] * X[nfrozen + column, n, ik]
+            end
+            U[row, n, ik] = value
+        end
+    end
+    return U
+end
+
+function _decode_compact_xy!(U, X, Y, x::AbstractVector, xy::_XYStructure)
+    _unpack_xy!(X, Y, x, xy)
+    return _form_u_compact!(U, X, Y, xy)
+end
+
+function _encode_compact_xy_gradient!(
+        g::AbstractVector, GU::AbstractArray, X::AbstractArray, Y::AbstractArray,
+        xy::_XYStructure,
+    )
+    length(g) == xy.nparameters || throw(
+        DimensionMismatch(
+            "compact XY gradient has length $(length(g)); expected $(xy.nparameters)"
+        )
+    )
+    nwann = xy.nwann
+    for (ik, block) in enumerate(xy.blocks)
+        nfrozen = length(block.frozen)
+        nactive = nwann - nfrozen
+        GX = reshape(view(g, block.x_range), nwann, nwann)
+        GY = reshape(view(g, block.y_range), length(block.nonfrozen), nactive)
+
+        if block.frozen_first
+            nfrozen > 0 && copyto!(view(GX, 1:nfrozen, :), view(GU, 1:nfrozen, :, ik))
+            if nactive > 0
+                mul!(
+                    view(GX, (nfrozen + 1):nwann, :),
+                    view(Y, (nfrozen + 1):xy.nbands, (nfrozen + 1):nwann, ik)',
+                    view(GU, (nfrozen + 1):xy.nbands, :, ik),
+                )
+                mul!(
+                    GY,
+                    view(GU, (nfrozen + 1):xy.nbands, :, ik),
+                    view(X, (nfrozen + 1):nwann, :, ik)',
+                )
+            end
+            continue
+        end
+
+        for row in 1:nfrozen, n in 1:nwann
+            GX[row, n] = GU[block.frozen[row], n, ik]
+        end
+        for row in 1:nactive, n in 1:nwann
+            value = zero(eltype(g))
+            for band in block.nonfrozen
+                value += conj(Y[band, nfrozen + row, ik]) * GU[band, n, ik]
+            end
+            GX[nfrozen + row, n] = value
+        end
+        for column in 1:nactive, (row_index, band) in enumerate(block.nonfrozen)
+            value = zero(eltype(g))
+            for n in 1:nwann
+                value += GU[band, n, ik] * conj(X[nfrozen + column, n, ik])
+            end
+            GY[row_index, column] = value
+        end
+    end
+    return g
+end
+
 function initial_x(::XYLayout, model)
     X, Y = U_to_X_Y(model.gauges, model.frozen_bands)
-    return X_Y_to_XY(X, Y)
+    return _pack_xy(X, Y, _xy_structure(model.frozen_bands, n_wannier(model)))
 end
 
-function decode!(::XYLayout, x::AbstractMatrix, model, ws)
-    X, Y = XY_to_X_Y!(ws.X, ws.Y, x)
-    return X_Y_to_U!(ws.U, X, Y)
+function decode!(::XYLayout, x::AbstractVector, model, ws)
+    return _decode_compact_xy!(ws.U, ws.X, ws.Y, x, ws.xy)
 end
 
-encode_gradient!(g::AbstractMatrix, ::XYLayout, model, ws) =
-    encode_gradient_xy!(g, ws.GU, ws.X, ws.Y, model.frozen_bands)
-
-"""
-    encode_gradient_xy!(g, GU, X, Y, frozen)
-
-Transform `dΩ/dU*` into the packed `XY` gradient, using the already-decoded
-`X`, `Y` blocks. Frozen-band masking is applied inside.
-"""
-function encode_gradient_xy!(
-        g::AbstractMatrix,
-        GU::AbstractArray{<:Complex, 3},
-        X::AbstractArray{<:Complex, 3},
-        Y::AbstractArray{<:Complex, 3},
-        frozen::AbstractMatrix{Bool},
-    )
-    GX, GY = GU_to_GX_GY(GU, X, Y, frozen)
-    return X_Y_to_XY!(g, GX, GY)
-end
+encode_gradient!(g::AbstractVector, ::XYLayout, model, ws) =
+    _encode_compact_xy_gradient!(g, ws.GU, ws.X, ws.Y, ws.xy)
 
 # ---- ProductLayout -------------------------------------------------------
 
-# `x` stacks the two channels' packed XY blocks into one `(2 n_inner, n_kpoints)`
-# matrix, up first. `_inner_size` is the per-channel row count.
-_inner_size(model) = n_wannier(model)^2 + n_bands(model) * n_wannier(model)
-
-function initial_x(::ProductLayout, model)
+function initial_x(::ProductLayout{XYLayout, XYLayout}, model)
     Xup, Yup = U_to_X_Y(model.up.gauges, model.up.frozen_bands)
     Xdn, Ydn = U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
-    return vcat(X_Y_to_XY(Xup, Yup), X_Y_to_XY(Xdn, Ydn))
+    up = _xy_structure(model.up.frozen_bands, n_wannier(model.up))
+    dn = _xy_structure(model.dn.frozen_bands, n_wannier(model.dn))
+    return vcat(_pack_xy(Xup, Yup, up), _pack_xy(Xdn, Ydn, dn))
 end
 
-function decode!(::ProductLayout, x, model, ws)
-    ni = _inner_size(model.up)
-    xr = reshape(x, (2 * ni, n_kpoints(model)))
-    Xup, Yup = XY_to_X_Y!(ws.up.X, ws.up.Y, @view xr[1:ni, :])
-    Xdn, Ydn = XY_to_X_Y!(ws.dn.X, ws.dn.Y, @view xr[(ni + 1):end, :])
-    return (X_Y_to_U!(ws.up.U, Xup, Yup), X_Y_to_U!(ws.dn.U, Xdn, Ydn))
-end
-
-function encode_gradient!(g, ::ProductLayout, model, ws)
-    ni = _inner_size(model.up)
-    gr = reshape(g, (2 * ni, n_kpoints(model)))
-    encode_gradient_xy!(
-        view(gr, 1:ni, :), ws.up.GU, ws.up.X, ws.up.Y, model.up.frozen_bands
+function decode!(::ProductLayout{XYLayout, XYLayout}, x::AbstractVector, model, ws)
+    nup = ws.up.xy.nparameters
+    return (
+        _decode_compact_xy!(ws.up.U, ws.up.X, ws.up.Y, view(x, 1:nup), ws.up.xy),
+        _decode_compact_xy!(
+            ws.dn.U, ws.dn.X, ws.dn.Y, view(x, (nup + 1):length(x)), ws.dn.xy
+        ),
     )
-    encode_gradient_xy!(
-        view(gr, (ni + 1):(2 * ni), :), ws.dn.GU, ws.dn.X, ws.dn.Y, model.dn.frozen_bands
+end
+
+function encode_gradient!(g::AbstractVector, ::ProductLayout{XYLayout, XYLayout}, model, ws)
+    nup = ws.up.xy.nparameters
+    _encode_compact_xy_gradient!(
+        view(g, 1:nup), ws.up.GU, ws.up.X, ws.up.Y, ws.up.xy
+    )
+    _encode_compact_xy_gradient!(
+        view(g, (nup + 1):length(g)), ws.dn.GU, ws.dn.X, ws.dn.Y, ws.dn.xy
     )
     return g
 end
@@ -174,16 +352,20 @@ decode(::ULayout, x, model) = x
 decode(::WLayout, x, model) = x
 
 function decode(::XYLayout, x, model)
-    X, Y = XY_to_X_Y(x, n_bands(model), n_wannier(model))
-    return X_Y_to_U(X, Y)
+    xy = _xy_structure(model.frozen_bands, n_wannier(model))
+    T = eltype(x)
+    X = zeros(T, xy.nwann, xy.nwann, length(xy.blocks))
+    Y = zeros(T, xy.nbands, xy.nwann, length(xy.blocks))
+    U = similar(Y)
+    _initialize_compact_y!(Y, xy)
+    return _decode_compact_xy!(U, X, Y, x, xy)
 end
 
-function decode(::ProductLayout, x, model)
-    ni = _inner_size(model.up)
-    nb, nw = n_bands(model.up), n_wannier(model.up)
-    Xup, Yup = XY_to_X_Y(x[1:ni, :], nb, nw)
-    Xdn, Ydn = XY_to_X_Y(x[(ni + 1):end, :], nb, nw)
-    return X_Y_to_U(Xup, Yup), X_Y_to_U(Xdn, Ydn)
+function decode(::ProductLayout{XYLayout, XYLayout}, x, model)
+    up = _xy_structure(model.up.frozen_bands, n_wannier(model.up))
+    nup = up.nparameters
+    return decode(XYLayout(), view(x, 1:nup), model.up),
+        decode(XYLayout(), view(x, (nup + 1):length(x)), model.dn)
 end
 
 # ---- Manifold construction ----------------------------------------------
@@ -202,39 +384,91 @@ function manifold(::ULayout, model)
     return Optim.PowerManifold(Optim.Stiefel_SVD(), (nw, nw), (n_kpoints(model),))
 end
 
+struct _XYManifoldBlock
+    x_range::UnitRange{Int}
+    y_range::UnitRange{Int}
+    nwann::Int
+    ynrows::Int
+    yncols::Int
+end
+
+"""Product of the variably sized Stiefel factors in a compact `XYLayout`."""
+struct XYManifold <: Optim.Manifold
+    blocks::Vector{_XYManifoldBlock}
+end
+
+_shift_range(range::UnitRange, offset::Int) =
+    (first(range) + offset):(last(range) + offset)
+
+function XYManifold(structures::_XYStructure...)
+    blocks = _XYManifoldBlock[]
+    offset = 0
+    for xy in structures
+        for block in xy.blocks
+            nfrozen = length(block.frozen)
+            push!(
+                blocks,
+                _XYManifoldBlock(
+                    _shift_range(block.x_range, offset),
+                    _shift_range(block.y_range, offset),
+                    xy.nwann,
+                    length(block.nonfrozen),
+                    xy.nwann - nfrozen,
+                ),
+            )
+        end
+        offset += xy.nparameters
+    end
+    return XYManifold(blocks)
+end
+
+function Optim.retract!(M::XYManifold, x)
+    for block in M.blocks
+        X = reshape(view(x, block.x_range), block.nwann, block.nwann)
+        X .= lowdin_orthonormalize(X)
+        if !isempty(block.y_range)
+            Y = reshape(view(x, block.y_range), block.ynrows, block.yncols)
+            Y .= lowdin_orthonormalize(Y)
+        end
+    end
+    return x
+end
+
+function Optim.project_tangent!(M::XYManifold, g, x)
+    for block in M.blocks
+        X = reshape(view(x, block.x_range), block.nwann, block.nwann)
+        GX = reshape(view(g, block.x_range), block.nwann, block.nwann)
+        GX .-= X * ((X' * GX .+ GX' * X) ./ 2)
+        if !isempty(block.y_range)
+            Y = reshape(view(x, block.y_range), block.ynrows, block.yncols)
+            GY = reshape(view(g, block.y_range), block.ynrows, block.yncols)
+            GY .-= Y * ((Y' * GY .+ GY' * Y) ./ 2)
+        end
+    end
+    return g
+end
+
 function manifold(::XYLayout, model)
-    nw = n_wannier(model)
-    nb = n_bands(model)
-    nk = n_kpoints(model)
-    per_k = Optim.ProductManifold(Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw))
-    return Optim.PowerManifold(per_k, (nw^2 + nb * nw,), (nk,))
+    return XYManifold(_xy_structure(model.frozen_bands, n_wannier(model)))
 end
 
 manifold(::WLayout, _model) = Optim.Stiefel_SVD()
 
 function manifold(::ProductLayout{XYLayout, XYLayout}, model)
-    nw = n_wannier(model.up)
-    nb = n_bands(model.up)
-    nk = n_kpoints(model.up)
-    per_k_up = Optim.ProductManifold(Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw))
-    per_k_dn = Optim.ProductManifold(Optim.Stiefel_SVD(), Optim.Stiefel_SVD(), (nw, nw), (nb, nw))
-    n_inner = nw^2 + nb * nw
-    k_combined = Optim.ProductManifold(per_k_up, per_k_dn, (n_inner,), (n_inner,))
-    return Optim.PowerManifold(k_combined, (2 * n_inner,), (nk,))
+    up = _xy_structure(model.up.frozen_bands, n_wannier(model.up))
+    dn = _xy_structure(model.dn.frozen_bands, n_wannier(model.dn))
+    return XYManifold(up, dn)
 end
 
-# ---- Legacy conversion helpers ------------------------------------------
+# ---- Factorization helpers -----------------------------------------------
 
 """
     X_Y_to_U(X, Y)
 
 Convert the `(X, Y)` layout to the `U` layout.
 
-There are three formats: `U`, `(X, Y)`, and `XY` stored contiguously in memory.
-For each kpoint,
-- `U`: `size(U) = (n_bands, n_wann, n_kpts)`, the format used in the rest of the code
-- `(X, Y)`: `size(X) = (n_wann, n_wann, n_kpts)`, `size(Y) = (n_bands, n_wann, n_kpts)`, intermediate format
-- `XY`: this is the format used in the optimizer
+For each kpoint, `U = YX`, where `X` is `n_wann × n_wann` and `Y` is
+`n_bands × n_wann`.
 """
 function X_Y_to_U(X::AbstractArray{T, 3}, Y::AbstractArray{T, 3}) where {T <: Complex}
     n_bands = size(Y, 1)
@@ -294,71 +528,6 @@ function U_to_X_Y(U::AbstractArray{T, 3}, frozen::AbstractMatrix{Bool}) where {T
     end
 
     return X, Y
-end
-
-"""
-    XY_to_X_Y(XY, n_bands, n_wann)
-
-Convert the `XY` layout to the `(X, Y)` layout.
-
-See also [`X_Y_to_U`](@ref).
-
-# Arguments
-- `XY`: `n_bands * n_wann * n_kpts` contiguous array
-- `n_bands`: number of bands, to be used to reshape `XY`
-- `n_wann`: number of wannier functions, to be used to reshape `XY`
-"""
-function XY_to_X_Y(XY::AbstractMatrix{T}, nbands::Int, nwann::Int) where {T <: Complex}
-    nkpts = size(XY, 2)
-
-    X = zeros(T, nwann, nwann, nkpts)
-    Y = zeros(T, nbands, nwann, nkpts)
-    return XY_to_X_Y!(X, Y, XY)
-end
-
-function XY_to_X_Y!(X::AbstractArray{T, 3}, Y::AbstractArray{T, 3}, XY::AbstractMatrix) where {T}
-    n_wann2 = size(X, 1)^2
-    @inbounds for ik in axes(X, 3)
-        xk = view(X, :, :, ik)
-        yk = view(Y, :, :, ik)
-        for i in eachindex(xk)
-            xk[i] = XY[i, ik]
-        end
-        for i in eachindex(yk)
-            yk[i] = XY[n_wann2 + i, ik]
-        end
-    end
-    return X, Y
-end
-
-"""
-    X_Y_to_XY(X, Y)
-
-Convert the `(X, Y)` layout to the `XY` layout.
-
-See also [`X_Y_to_U`](@ref).
-"""
-function X_Y_to_XY(X::AbstractArray{T, 3}, Y::AbstractArray{T, 3}) where {T <: Complex}
-    nkpts = size(Y, 3)
-    nbands, nwann = size(Y, 1), size(Y, 2)
-    n = nwann^2
-    XY = zeros(T, n + nbands * nwann, nkpts)
-    return X_Y_to_XY!(XY, X, Y)
-end
-
-function X_Y_to_XY!(XY::AbstractMatrix, X::AbstractArray{T, 3}, Y::AbstractArray{T, 3}) where {T}
-    @inbounds for ik in axes(X, 3)
-        xk = view(X, :, :, ik)
-        yk = view(Y, :, :, ik)
-        n = length(xk)
-        for i in eachindex(xk)
-            XY[i, ik] = xk[i]
-        end
-        for i in eachindex(yk)
-            XY[n + i, ik] = yk[i]
-        end
-    end
-    return XY
 end
 
 @doc raw"""

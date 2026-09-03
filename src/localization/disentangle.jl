@@ -260,31 +260,3 @@ function orthonormalize_frozen(U::AbstractMatrix{T}, frozen::AbstractVector{Bool
 
     return V
 end
-
-"""
-    zero_froz_grad!(G, frozen)
-
-Set gradient of frozen bands to 0.
-
-This is used in test.
-
-# Arguments
-- `G`: gradient of the spread, in `XY` layout
-- `frozen`: `BitMatrix` for frozen bands, `n_bands × n_kpts`
-"""
-function zero_froz_grad!(G::AbstractMatrix, frozen::AbstractMatrix{Bool})
-    nbands, nkpts = size(frozen)
-    size(G, 2) == nkpts || error("length(G) != n_kpts")
-    nwann = round(Int, (-nbands + sqrt(nbands^2 + 4 * size(G, 1))) / 2)
-
-    GX, GY = Wannier.XY_to_X_Y(G, nbands, nwann)
-    @inbounds for ik in 1:nkpts
-        idx_f = view(frozen, :, ik)
-        n_froz = count(idx_f)
-        view(GY, idx_f, :, ik) .= 0
-        view(GY, :, 1:n_froz, ik) .= 0
-    end
-    G .= Wannier.X_Y_to_XY(GX, GY)
-    return nothing
-end
-

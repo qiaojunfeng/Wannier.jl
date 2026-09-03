@@ -161,7 +161,7 @@ end
 
     ws = Wannier.SymmetricFullMeshWorkspace(model, sc)
     X, Y = Wannier.U_to_X_Y(Ai, ws.frozen_ibz)
-    xy = Wannier.X_Y_to_XY(X, Y)
+    xy = Wannier._pack_xy(X, Y, ws.xy)
     G = zero(xy)
     Ω = Wannier.symmetric_fg_fullmesh!(1.0, G, xy, model, sc, ws)
 
@@ -171,14 +171,13 @@ end
     )
     @test Ω ≈ Wannier.spread(model.kstencil, model.overlaps, Ufull).Ω
 
-    # Directional finite-difference gradient check (frozen entries masked,
-    # since the XY layout fixes them and zeroes their gradient). The rtol is
-    # limited by FD truncation of the Si2_hse point (near-branch-point
+    # Directional finite-difference gradient check. The compact XY layout does
+    # not store the entries fixed by the frozen subspace. The rtol is limited
+    # by FD truncation of the Si2_hse point (near-branch-point
     # Im-log diagonals); the same check on clean data (Ge4Ru4) passes at 1e-9.
     f = x -> Wannier.symmetric_fg_fullmesh!(1.0, nothing, x, model, sc, ws)
     for _ in 1:2
         dx = randn(ComplexF64, size(xy))
-        Wannier.zero_froz_grad!(dx, ws.frozen_ibz)
         dx ./= norm(dx)
         ε = 1.0e-4
         fd = (f(xy .+ ε .* dx) - f(xy .- ε .* dx)) / (2ε)
@@ -219,7 +218,7 @@ end
     ws1 = Wannier.SymmetricFullMeshWorkspace(model, sc)
     ws2 = Wannier.SymmetricTransportWorkspace(Ef, frozen, sc)
     X, Y = Wannier.U_to_X_Y(Ai, ws1.frozen_ibz)
-    xy = Wannier.X_Y_to_XY(X, Y)
+    xy = Wannier._pack_xy(X, Y, ws1.xy)
     G1, G2 = zero(xy), zero(xy)
     Ω1 = Wannier.symmetric_fg_fullmesh!(1.0, G1, xy, model, sc, ws1)
     Ω2 = Wannier.symmetric_fg_transport!(1.0, G2, xy, mmn_i.M, sc, ws2)
@@ -354,10 +353,12 @@ end
     end
     @test sb.nx == sum(
         b.akind == Wannier.ANTIUNITARY_PAIRING_DERIVED ? 0 :
-            (b.akind == Wannier.ANTIUNITARY_WIGNER_REAL ||
-                b.akind == Wannier.ANTIUNITARY_WIGNER_QUATERNIONIC ? 1 : 2) *
+            (
+                b.akind == Wannier.ANTIUNITARY_WIGNER_REAL ||
+                b.akind == Wannier.ANTIUNITARY_WIGNER_QUATERNIONIC ? 1 : 2
+            ) *
             (b.mo^2 + (b.mb - b.mf) * (b.mo - b.mf))
-        for blks in sb.blocks for b in blks
+            for blks in sb.blocks for b in blks
     )
 
     # decode of the initial parameters: covariant (to the isym data noise),
@@ -625,10 +626,7 @@ end
 
     # the full-mesh path equals the full-mesh penalized spread of the expanded covariant
     # gauge exactly; the transport path agrees to the isym data noise (as for Variance)
-    X, Y = Wannier.XY_to_X_Y(x, sc.nbands, sc.nwann)
-    Uf = Wannier.expand_gauges(
-        Wannier.project_covariant!(Wannier.X_Y_to_U(X, Y), sc), sc
-    )
+    Uf, _ = Wannier.decode(prob2.layout, x, sm)
     Ωt_ref = Wannier.omega_center(model.kstencil, model.overlaps, Uf; r0, λ).Ωt
     @test isapprox(Ω1, Ωt_ref; atol = 1.0e-10)
     @test isapprox(Ω2, Ω1; atol = 1.0e-6)
@@ -637,10 +635,8 @@ end
     # directional FD of the penalized transport-path objective (rtol limited by FD
     # truncation at this dataset's near-branch-point Im-log diagonals, which
     # the center penalty amplifies; cf. the 1e-3 of the Schur FD test)
-    frozen_ibz = frozen[:, sc.ibz2fbz]
     for _ in 1:2
         dx = randn(ComplexF64, size(x))
-        Wannier.zero_froz_grad!(dx, frozen_ibz)
         dx ./= norm(dx)
         ε = 1.0e-4
         fd = (fg2(1.0, nothing, x .+ ε .* dx) - fg2(1.0, nothing, x .- ε .* dx)) / (2ε)
