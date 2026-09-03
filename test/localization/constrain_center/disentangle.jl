@@ -22,8 +22,6 @@ end
 @testitem "constraint center disentangle spread gradient" setup = [DisCenterEnv] begin
     using NLSolversBase
 
-    U0 = deepcopy(model.gauges)
-
     # analytical gradient
     XY = Wannier.initial_parameters(Wannier.XYLayout(), model)
     G = similar(XY)
@@ -37,10 +35,9 @@ end
 
     # Test 2nd iteration
     U1 = Wannier.localize(obj, model; max_iter = 1)
-    X, Y = Wannier.U_to_X_Y(U1, model.frozen_bands)
-    XY = Wannier._pack_xy(
-        X, Y, Wannier._xy_structure(model.frozen_bands, n_wannier(model))
-    )
+    model1 = deepcopy(model)
+    model1.gauges .= U1
+    XY = Wannier.initial_parameters(Wannier.XYLayout(), model1)
 
     fg!(nothing, G, XY)
     d = OnceDifferentiable(x -> fg!(1.0, nothing, x), XY, zero(eltype(real(XY))))

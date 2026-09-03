@@ -295,10 +295,6 @@ In case of the first `bvectors = model.bvectors` and `M = model.overlaps_updn`.
 """
 spread(model::Model) = spread(model, model.gauges)
 spread(model::Model, gauges) = spread(model.kstencil, model.overlaps, gauges)
-function spread(bvectors::KspaceStencil, M, X, Y)
-    U = X_Y_to_U(X, Y)
-    return spread(bvectors, M, U)
-end
 
 function spread(bvectors::KspaceStencil, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3})
     n_kpts = size(M, 4)
@@ -439,15 +435,6 @@ function omega_grad(penalty::Function, bvectors::KspaceStencil, M::AbstractArray
     return omega_grad!(penalty, G, r, UtMU, MU, bvectors, M)
 end
 omega_grad(bvectors::KspaceStencil, M, U) = omega_grad((r, _) -> r, bvectors, M, U)
-
-function omega_grad(penalty::Function, bvectors::KspaceStencil, M, X, Y, frozen)
-    U = X_Y_to_U(X, Y)
-    G = omega_grad(penalty, bvectors, M, U)
-    return GU_to_GX_GY(G, X, Y, frozen)
-end
-function omega_grad(bvectors::KspaceStencil, M, X, Y, frozen)
-    return omega_grad((r, _) -> r, bvectors, M, X, Y, frozen)
-end
 
 """
     center(bvectors, M, U)

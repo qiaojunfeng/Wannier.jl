@@ -20,8 +20,10 @@ struct SpinModel{T <: Real}
 
     function SpinModel{T}(up::Model{T}, dn::Model{T}, M::AbstractArray{<:Complex, 3}) where {T <: Real}
         isapprox(up.lattice, dn.lattice) || error("SpinModel: up/dn lattice mismatch")
-        (length(up.atom_positions) == length(dn.atom_positions) &&
-            all(isapprox(a, b) for (a, b) in zip(up.atom_positions, dn.atom_positions))) ||
+        (
+            length(up.atom_positions) == length(dn.atom_positions) &&
+                all(isapprox(a, b) for (a, b) in zip(up.atom_positions, dn.atom_positions))
+        ) ||
             error("SpinModel: up/dn atom_positions mismatch")
         up.atom_labels == dn.atom_labels || error("SpinModel: up/dn atom_labels mismatch")
         isapprox(up.kstencil, dn.kstencil) || error("SpinModel: up/dn kstencil mismatch")
@@ -228,45 +230,6 @@ function overlap_updn_grad(model::SpinModel, Uup, Udn)
     return overlap_updn_grad(model.overlaps_updn, Uup, Udn)
 end
 
-@doc raw"""
-    overlap_updn_grad(model::SpinModel, Xup, Yup, Xdn, Ydn)
-
-Compute gradient of [`overlap_updn`](@ref overlap_updn).
-
-``\frac{d \Omega}{d X^{\uparrow}}``, ``\frac{d \Omega}{d Y^{\uparrow}}``,
-``\frac{d \Omega}{d X^{\downarrow}}``, ``\frac{d \Omega}{d Y^{\downarrow}}``.
-"""
-function overlap_updn_grad(model::SpinModel, Xup, Yup, Xdn, Ydn)
-    Uup = X_Y_to_U(Xup, Yup)
-    Udn = X_Y_to_U(Xdn, Ydn)
-    GUup, GUdn = overlap_updn_grad(model, Uup, Udn)
-
-    GXup, GYup = GU_to_GX_GY(GUup, Xup, Yup, model.up.frozen_bands)
-    GXdn, GYdn = GU_to_GX_GY(GUdn, Xdn, Ydn, model.dn.frozen_bands)
-
-    return GXup, GYup, GXdn, GYdn
-end
-
-# Overloads accepting M directly (for solver workspace use)
-function overlap_updn_grad(
-        M::AbstractArray{<:Complex, 3},
-        Xup::AbstractArray{<:Complex, 3},
-        Yup::AbstractArray{<:Complex, 3},
-        Xdn::AbstractArray{<:Complex, 3},
-        Ydn::AbstractArray{<:Complex, 3},
-        frozen_up::AbstractMatrix{Bool},
-        frozen_dn::AbstractMatrix{Bool},
-    )
-    Uup = X_Y_to_U(Xup, Yup)
-    Udn = X_Y_to_U(Xdn, Ydn)
-    GUup, GUdn = overlap_updn_grad(M, Uup, Udn)
-
-    GXup, GYup = GU_to_GX_GY(GUup, Xup, Yup, frozen_up)
-    GXdn, GYdn = GU_to_GX_GY(GUdn, Xdn, Ydn, frozen_dn)
-
-    return GXup, GYup, GXdn, GYdn
-end
-
 function omega_updn_grad(model::SpinModel, Uup, Udn)
     # Internal gradient convention is df = 2 Re⟨∇f, dx⟩ (see module docstring
     # on gradient conventions). The minus sign is baked in because
@@ -274,26 +237,6 @@ function omega_updn_grad(model::SpinModel, Uup, Udn)
     GUup, GUdn = overlap_updn_grad(model, Uup, Udn)
     return -2 .* GUup, -2 .* GUdn
 end
-
-function omega_updn_grad(model::SpinModel, Xup, Yup, Xdn, Ydn)
-    GXup, GYup, GXdn, GYdn = overlap_updn_grad(model, Xup, Yup, Xdn, Ydn)
-    return -2 * GXup, -2 * GYup, -2 * GXdn, -2 * GYdn
-end
-
-# Overload accepting M directly (for solver workspace use)
-function omega_updn_grad(
-        M::AbstractArray{<:Complex, 3},
-        Xup::AbstractArray{<:Complex, 3},
-        Yup::AbstractArray{<:Complex, 3},
-        Xdn::AbstractArray{<:Complex, 3},
-        Ydn::AbstractArray{<:Complex, 3},
-        frozen_up::AbstractMatrix{Bool},
-        frozen_dn::AbstractMatrix{Bool},
-    )
-    GXup, GYup, GXdn, GYdn = overlap_updn_grad(M, Xup, Yup, Xdn, Ydn, frozen_up, frozen_dn)
-    return -2 * GXup, -2 * GYup, -2 * GXdn, -2 * GYdn
-end
-
 
 # Canonical-coordinate coupling gradient, taking the ↑↓ overlap directly.
 function omega_updn_grad(

@@ -146,7 +146,8 @@ end
     sc = Wannier.SymmetryConstraint(ks0, isym, centers)
     ks = Wannier.globalize_bvector_ordering(ks0)
 
-    Mf = Wannier.reconstruct_overlaps(read_mmn(dataset"Si2_hse/Si2.immn").M, sc)
+    mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
+    Mf = Wannier.reconstruct_overlaps(mmn_i.M, sc)
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     win = read_win(dataset"Si2_hse/Si2.win")
@@ -159,28 +160,29 @@ end
         ks, Mf, Wannier.reconstruct_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
     )
 
-    ws = Wannier.SymmetricFullMeshWorkspace(model, sc)
-    X, Y = Wannier.U_to_X_Y(Ai, ws.frozen_ibz)
-    xy = Wannier._pack_xy(X, Y, ws.xy)
-    G = zero(xy)
-    Ω = Wannier.symmetric_fg_fullmesh!(1.0, G, xy, model, sc, ws)
+    sm = Wannier.SymmetricModel(model, sc, mmn_i.M)
+    prob = Wannier.Problem(
+        Wannier.Variance(), sm, Wannier.SymmetricXYLayout(:fullmesh)
+    )
+    fg! = Wannier._optimizer_callback(prob)
+    x = Wannier.initial_parameters(prob.layout, sm)
+    G = zero(x)
+    Ω = fg!(1.0, G, x)
 
     # value consistency with the plain full-mesh spread of the reconstructed gauge
-    Ufull = Wannier.reconstruct_gauges(
-        Wannier.project_covariant(Wannier.X_Y_to_U(X, Y), sc), sc
-    )
+    Ufull, _ = Wannier.finalize_result(prob.layout, x, sm)
     @test Ω ≈ Wannier.spread(model.kstencil, model.overlaps, Ufull).Ω
 
     # Directional finite-difference gradient check. The compact XY layout does
     # not store the entries fixed by the frozen subspace. The rtol is limited
     # by FD truncation of the Si2_hse point (near-branch-point
     # Im-log diagonals); the same check on clean data (Ge4Ru4) passes at 1e-9.
-    f = x -> Wannier.symmetric_fg_fullmesh!(1.0, nothing, x, model, sc, ws)
+    f = x -> fg!(1.0, nothing, x)
     for _ in 1:2
-        dx = randn(ComplexF64, size(xy))
+        dx = randn(ComplexF64, size(x))
         dx ./= norm(dx)
         ε = 1.0e-4
-        fd = (f(xy .+ ε .* dx) - f(xy .- ε .* dx)) / (2ε)
+        fd = (f(x .+ ε .* dx) - f(x .- ε .* dx)) / (2ε)
         an = real(sum(conj.(G) .* dx))
         @test isapprox(fd, an; rtol = 1.0e-4)
     end
@@ -215,13 +217,19 @@ end
         ks, Mf, Wannier.reconstruct_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
     )
 
-    ws1 = Wannier.SymmetricFullMeshWorkspace(model, sc)
-    ws2 = Wannier.SymmetricTransportWorkspace(Ef, frozen, sc)
-    X, Y = Wannier.U_to_X_Y(Ai, ws1.frozen_ibz)
-    xy = Wannier._pack_xy(X, Y, ws1.xy)
-    G1, G2 = zero(xy), zero(xy)
-    Ω1 = Wannier.symmetric_fg_fullmesh!(1.0, G1, xy, model, sc, ws1)
-    Ω2 = Wannier.symmetric_fg_transport!(1.0, G2, xy, mmn_i.M, sc, ws2)
+    sm = Wannier.SymmetricModel(model, sc, mmn_i.M)
+    prob1 = Wannier.Problem(
+        Wannier.Variance(), sm, Wannier.SymmetricXYLayout(:fullmesh)
+    )
+    prob2 = Wannier.Problem(
+        Wannier.Variance(), sm, Wannier.SymmetricXYLayout(:transport)
+    )
+    fg1! = Wannier._optimizer_callback(prob1)
+    fg2! = Wannier._optimizer_callback(prob2)
+    x = Wannier.initial_parameters(prob2.layout, sm)
+    G1, G2 = zero(x), zero(x)
+    Ω1 = fg1!(1.0, G1, x)
+    Ω2 = fg2!(1.0, G2, x)
 
     # The transport theorem is exact for a covariant gauge; the agreement is
     # limited only by the projector's data-precision fixed point. With
@@ -232,8 +240,7 @@ end
 
     # transport identity for the Wannier-gauge overlaps themselves:
     # M̃(kf, bf) = phase · K_f[L† M̃_i R] versus the full-mesh product
-    U_ibz = Wannier.project_covariant(Wannier.X_Y_to_U(X, Y), sc)
-    U_fbz = Wannier.reconstruct_gauges(U_ibz, sc)
+    U_fbz, U_ibz = Wannier.finalize_result(prob2.layout, x, sm)
     ikf = sc.stars[2][end]   # a star member away from its IBZ representative
     iki = sc.fbz2ibz[ikf][1]
     for ibf in 1:sc.nbvecs

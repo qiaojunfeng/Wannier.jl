@@ -624,35 +624,6 @@ function SymmetricFullMeshWorkspace(model::Model, sc::SymmetryConstraint{T}) whe
 end
 
 """
-    $(SIGNATURES)
-
-Full-mesh-path fused value/gradient of the symmetry-constrained spread.
-
-`xy` packs the `(X, Y)` blocks at the IBZ kpoints. The gauge is assembled,
-projected onto the covariant subspace, expanded to the full mesh (C2), and the
-standard full-mesh kernels evaluate Ω and `dΩ/dU*`; the gradient is pulled
-back through the (linear, self-adjoint) expansion and projector, then packed
-into `G`. The `model` must be a full-mesh model in the *global* b ordering
-(see [`globalize_bvector_ordering`](@ref)) whose overlaps were reconstructed from the IBZ.
-"""
-function symmetric_fg_fullmesh!(
-        F, G, xy::AbstractVector,
-        model::Model, sc::SymmetryConstraint, ws::SymmetricFullMeshWorkspace,
-    )
-    # assemble (X,Y) -> covariant U at IBZ
-    assemble_gauge!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, xy, ws.xy)
-    project_covariant!(ws.U_ibz, sc)
-
-    Ω = _fg_fullmesh_core!(F, G === nothing ? nothing : ws.G_ibz, model, sc, ws)
-
-    if G !== nothing
-        project_covariant!(ws.G_ibz, sc)
-        pullback_gradient!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.xy)
-    end
-    return Ω
-end
-
-"""
 Full-mesh-path core: value and (unprojected) canonical gradient `dΩ/dU*(ki)` for the
 covariant gauge already stored in `ws.U_ibz` — reconstruct it on the full mesh, run
 the standard full-mesh kernels, pull the gradient back to the IBZ. Writes the
@@ -736,32 +707,6 @@ function SymmetricTransportWorkspace(
         zeros(CT, nw, nbv, nkf), zeros(Vec3{T}, nw), zeros(Vec3{T}, nw),
         zeros(CT, nw, nw), zeros(CT, nw, nw),
     )
-end
-
-"""
-    $(SIGNATURES)
-
-Transport-path fused value/gradient of the symmetry-constrained spread, consuming
-only the IBZ overlaps `M_ibz` (global b ordering, as in the `.immn` file).
-Same variables and same value/gradient as [`symmetric_fg_fullmesh!`](@ref), evaluated
-without ever forming band-dimension objects on the full mesh.
-"""
-function symmetric_fg_transport!(
-        F, G, xy::AbstractVector,
-        M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint{T},
-        ws::SymmetricTransportWorkspace{T},
-    ) where {T}
-    # assemble -> covariant U at IBZ
-    assemble_gauge!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, xy, ws.xy)
-    project_covariant!(ws.U_ibz, sc)
-
-    Ω = _fg_transport_core!(F, G === nothing ? nothing : ws.G_ibz, M_ibz, sc, ws)
-
-    if G !== nothing
-        project_covariant!(ws.G_ibz, sc)
-        pullback_gradient!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.xy)
-    end
-    return Ω
 end
 
 """

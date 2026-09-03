@@ -89,19 +89,10 @@ end
 
     # Test 2nd iteration
     Uup, Udn = Wannier.localize(obj, model; max_iter = 1)
-
-    Xup0, Yup0 = Wannier.U_to_X_Y(Uup, model.up.frozen_bands)
-    Xdn0, Ydn0 = Wannier.U_to_X_Y(Udn, model.dn.frozen_bands)
-    XY0 = vcat(
-        Wannier._pack_xy(
-            Xup0, Yup0,
-            Wannier._xy_structure(model.up.frozen_bands, n_wannier(model.up)),
-        ),
-        Wannier._pack_xy(
-            Xdn0, Ydn0,
-            Wannier._xy_structure(model.dn.frozen_bands, n_wannier(model.dn)),
-        ),
-    )
+    model1 = deepcopy(model)
+    model1.up.gauges .= Uup
+    model1.dn.gauges .= Udn
+    XY0 = Wannier.initial_parameters(layout, model1)
 
     g!(G, XY0)
     d = OnceDifferentiable(f, XY0, zero(real(eltype(XY0))))

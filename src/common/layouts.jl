@@ -124,36 +124,46 @@ function _initialize_compact_y!(Y::AbstractArray, xy::_XYStructure)
     return Y
 end
 
-function _pack_xy!(x::AbstractVector, X::AbstractArray, Y::AbstractArray, xy::_XYStructure)
-    length(x) == xy.nparameters || throw(
+# Factor a canonical gauge directly into the compact optimizer coordinates.
+# Frozen rows supply the fixed columns of Y; only the complementary Stiefel
+# block is stored, so no full Y array is materialized during initialization.
+function _initial_xy_parameters(
+        U::AbstractArray{T, 3}, frozen::AbstractMatrix{Bool}, xy::_XYStructure
+    ) where {T <: Complex}
+    nkpts = length(xy.blocks)
+    size(U) == (xy.nbands, xy.nwann, nkpts) || throw(
         DimensionMismatch(
-            "compact XY vector has length $(length(x)); expected $(xy.nparameters)"
+            "gauge has size $(size(U)); expected $((xy.nbands, xy.nwann, nkpts))"
         )
     )
-    nwann = xy.nwann
-    for (ik, block) in enumerate(xy.blocks)
-        copyto!(reshape(view(x, block.x_range), nwann, nwann), view(X, :, :, ik))
-        nfrozen = length(block.frozen)
-        Yactive = reshape(
-            view(x, block.y_range), length(block.nonfrozen), nwann - nfrozen
+    size(frozen) == (xy.nbands, nkpts) || throw(
+        DimensionMismatch(
+            "frozen mask has size $(size(frozen)); expected $((xy.nbands, nkpts))"
         )
-        if block.frozen_first
-            copyto!(
-                Yactive,
-                view(Y, (nfrozen + 1):xy.nbands, (nfrozen + 1):nwann, ik),
+    )
+
+    x = zeros(T, xy.nparameters)
+    nwann = xy.nwann
+    @inbounds for (ik, block) in enumerate(xy.blocks)
+        nfrozen = length(block.frozen)
+        nactive = nwann - nfrozen
+        Af = orthonormalize_frozen(view(U, :, :, ik), view(frozen, :, ik))
+        X = reshape(view(x, block.x_range), nwann, nwann)
+
+        nfrozen > 0 && copyto!(view(X, 1:nfrozen, :), view(Af, block.frozen, :))
+        if nactive > 0
+            Ar = view(Af, block.nonfrozen, :)
+            P = Ar * Ar'
+            vectors = eigen(Hermitian((P + P') / 2)).vectors
+            Yactive = reshape(
+                view(x, block.y_range), length(block.nonfrozen), nactive
             )
-        else
-            for column in axes(Yactive, 2), (row_index, row) in enumerate(block.nonfrozen)
-                Yactive[row_index, column] = Y[row, nfrozen + column, ik]
-            end
+            copyto!(Yactive, view(vectors, :, (size(vectors, 2) - nactive + 1):size(vectors, 2)))
+            mul!(view(X, (nfrozen + 1):nwann, :), Yactive', Ar)
         end
+        X .= lowdin_orthonormalize(X)
     end
     return x
-end
-
-function _pack_xy(X::AbstractArray, Y::AbstractArray, xy::_XYStructure)
-    x = zeros(promote_type(eltype(X), eltype(Y)), xy.nparameters)
-    return _pack_xy!(x, X, Y, xy)
 end
 
 function _unpack_xy!(X::AbstractArray, Y::AbstractArray, x::AbstractVector, xy::_XYStructure)
@@ -278,8 +288,8 @@ function pullback_gradient!(
 end
 
 function initial_parameters(::XYLayout, model)
-    X, Y = U_to_X_Y(model.gauges, model.frozen_bands)
-    return _pack_xy(X, Y, _xy_structure(model.frozen_bands, n_wannier(model)))
+    xy = _xy_structure(model.frozen_bands, n_wannier(model))
+    return _initial_xy_parameters(model.gauges, model.frozen_bands, xy)
 end
 
 function assemble_gauge!(::XYLayout, x::AbstractVector, model, ws)
@@ -292,11 +302,12 @@ pullback_gradient!(g::AbstractVector, ::XYLayout, model, ws) =
 # ---- ProductLayout -------------------------------------------------------
 
 function initial_parameters(::ProductLayout{XYLayout, XYLayout}, model)
-    Xup, Yup = U_to_X_Y(model.up.gauges, model.up.frozen_bands)
-    Xdn, Ydn = U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
     up = _xy_structure(model.up.frozen_bands, n_wannier(model.up))
     dn = _xy_structure(model.dn.frozen_bands, n_wannier(model.dn))
-    return vcat(_pack_xy(Xup, Yup, up), _pack_xy(Xdn, Ydn, dn))
+    return vcat(
+        _initial_xy_parameters(model.up.gauges, model.up.frozen_bands, up),
+        _initial_xy_parameters(model.dn.gauges, model.dn.frozen_bands, dn),
+    )
 end
 
 function assemble_gauge!(::ProductLayout{XYLayout, XYLayout}, x::AbstractVector, model, ws)
@@ -464,111 +475,4 @@ function manifold(::ProductLayout{XYLayout, XYLayout}, model)
     up = _xy_structure(model.up.frozen_bands, n_wannier(model.up))
     dn = _xy_structure(model.dn.frozen_bands, n_wannier(model.dn))
     return XYManifold(up, dn)
-end
-
-# ---- Factorization helpers -----------------------------------------------
-
-"""
-    X_Y_to_U(X, Y)
-
-Convert the `(X, Y)` layout to the `U` layout.
-
-For each kpoint, `U = YX`, where `X` is `n_wann × n_wann` and `Y` is
-`n_bands × n_wann`.
-"""
-function X_Y_to_U(X::AbstractArray{T, 3}, Y::AbstractArray{T, 3}) where {T <: Complex}
-    n_bands = size(Y, 1)
-    n_wann = size(Y, 2)
-    n_kpts = size(Y, 3)
-
-    U = zeros(T, n_bands, n_wann, n_kpts)
-    return X_Y_to_U!(U, X, Y)
-end
-
-function X_Y_to_U!(U::AbstractArray{T, 3}, X::AbstractArray{T, 3}, Y::AbstractArray{T, 3}) where {T}
-    @inbounds for ik in axes(U, 3)
-        mul!(view(U, :, :, ik), view(Y, :, :, ik), view(X, :, :, ik))
-    end
-    return U
-end
-
-"""
-    U_to_X_Y(U, frozen)
-
-Convert the `U` layout to the `(X, Y)` layout.
-
-See also [`X_Y_to_U`](@ref).
-
-# Arguments
-- `U`: `n_bands × n_wann × n_kpts`
-- `frozen`: `n_bands × n_kpts` BitMatrix
-"""
-function U_to_X_Y(U::AbstractArray{T, 3}, frozen::AbstractMatrix{Bool}) where {T <: Complex}
-    nkpts = size(U, 3)
-    nbands, nwann = size(U, 1), size(U, 2)
-
-    X = zeros(T, nwann, nwann, nkpts)
-    Y = zeros(T, nbands, nwann, nkpts)
-
-    @inbounds for ik in 1:nkpts
-        idx_f = view(frozen, :, ik)
-        idx_nf = .!idx_f
-        n_froz = count(idx_f)
-
-        Af = orthonormalize_frozen(view(U, :, :, ik), idx_f)
-        Uf = Af[idx_f, :]
-        Ur = Af[idx_nf, :]
-
-        # determine Y
-        Y[idx_f, 1:n_froz, ik] .= Matrix{T}(I, n_froz, n_froz)
-
-        if n_froz != nwann
-            Pr = Ur * Ur'
-            Pr = Hermitian((Pr + Pr') / 2)
-            D, V = eigen(Pr) # sorted by increasing eigenvalue
-            Y[idx_nf, (n_froz + 1):end, ik] .= V[:, (end - nwann + n_froz + 1):end]
-        end
-
-        # determine X
-        X[:, :, ik] .= lowdin_orthonormalize(view(Y, :, :, ik)' * Af)
-    end
-
-    return X, Y
-end
-
-@doc raw"""
-    GU_to_GX_GY(G, X, Y, frozen)
-
-Compute dΩ/dX and dΩ/dY from dΩ/dU.
-
-Acutally they are the conjugate gradients, e.g., ``\frac{d \Omega}{d U^*}``.
-
-# Arguments
-- `G`: `n_bands × n_wann × n_kpts` array for gradient dΩ/dU
-- `X`: `n_wann × n_wann × n_kpts` array for X
-- `Y`: `n_bands × n_wann × n_kpts` array for Y
-- `frozen`: `n_bands × n_kpts` BitMatrix for frozen bands
-"""
-function GU_to_GX_GY(
-        G::AbstractArray{T, 3},
-        X::AbstractArray{T, 3},
-        Y::AbstractArray{T, 3},
-        frozen::AbstractMatrix{Bool},
-    ) where {T}
-    n_kpts = size(X, 3)
-    GX = zeros(T, size(X)...)
-    GY = zeros(T, size(Y)...)
-
-    @inbounds for ik in 1:n_kpts
-        idx_f = view(frozen, :, ik)
-        n_froz = count(idx_f)
-
-        mul!(view(GX, :, :, ik), view(Y, :, :, ik)', view(G, :, :, ik))
-        mul!(view(GY, :, :, ik), view(G, :, :, ik), view(X, :, :, ik)')
-
-        view(GY, idx_f, :, ik) .= 0
-        view(GY, :, 1:n_froz, ik) .= 0
-    end
-
-    return GX, GY
 end

@@ -7,18 +7,19 @@ module BenchDisentangle
     SUITE = BenchmarkGroup()
 
     model = load_dataset("Si2")
-    U = model.gauges
-    frozen_bands = model.frozen_bands
-    SUITE["U_to_X_Y"] = @benchmarkable Wannier.U_to_X_Y($U, $frozen_bands)
-
-    X, Y = Wannier.U_to_X_Y(U, frozen_bands)
-    SUITE["X_Y_to_U"] = @benchmarkable Wannier.X_Y_to_U($X, $Y)
-
     layout = Wannier.XYLayout()
+    SUITE["initial XY parameters"] =
+        @benchmarkable Wannier.initial_parameters($layout, $model)
+
     XY = Wannier.initial_parameters(layout, model)
     workspace = Wannier.Workspace(model)
     SUITE["assemble compact XY gauge"] =
         @benchmarkable Wannier.assemble_gauge!($layout, $XY, $model, $workspace)
+    Wannier.assemble_gauge!(layout, XY, model, workspace)
+    workspace.GU .= workspace.U
+    G = similar(XY)
+    SUITE["pull back compact XY gradient"] =
+        @benchmarkable Wannier.pullback_gradient!($G, $layout, $model, $workspace)
 
     # end-to-end XYLayout path — 10 iterations
     SUITE["localize"] = @benchmarkable localize($model, max_iter = 10)
@@ -29,8 +30,7 @@ module BenchDisentangle
     prob = Wannier.Problem(Wannier.Variance(), model)
     fg! = Wannier._optimizer_callback(prob)
     XYbuf = copy(XY)
-    Gbuf = similar(XYbuf)
-    SUITE["fg!"] = @benchmarkable $fg!(1.0, $Gbuf, $XYbuf)
+    SUITE["fg!"] = @benchmarkable $fg!(1.0, $G, $XYbuf)
 
 end  # module
 

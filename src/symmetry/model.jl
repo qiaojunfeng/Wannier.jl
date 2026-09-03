@@ -123,15 +123,14 @@ end
 [`Layout`](@ref) for [`SymmetricModel`](@ref): `x` packs the `(X, Y)`
 disentanglement blocks at the IBZ kpoints as one contiguous vector. Every
 `X` is stored in full; each `Y` stores only its active
-`(n_bands-n_frozen) × (n_wannier-n_frozen)` block. Decoding applies the
-covariance projector [`project_covariant!`](@ref); gradient encoding applies
-the (self-adjoint) projector followed by the compact `XY` pullback.
+`(n_bands-n_frozen) × (n_wannier-n_frozen)` block. Gauge assembly applies
+the covariance projector [`project_covariant!`](@ref); gradient pullback
+applies the (self-adjoint) projector before the compact `XY` chain rule.
 
 `path` selects the objective evaluation the workspace is sized for:
-`:transport` (default) keeps every band-dimension product on the IBZ (the
-transport kernels of [`symmetric_fg_transport!`](@ref)); `:fullmesh` expands
-the gauge to the full mesh each iteration
-([`symmetric_fg_fullmesh!`](@ref)). Identical results, different cost.
+`:transport` (default) keeps every band-dimension product on the IBZ;
+`:fullmesh` reconstructs the gauge on the full mesh each iteration. The two
+paths implement the same objective with different computational costs.
 """
 struct SymmetricXYLayout <: Layout
     path::Symbol
@@ -143,8 +142,9 @@ struct SymmetricXYLayout <: Layout
 end
 
 function initial_parameters(::SymmetricXYLayout, sm::SymmetricModel)
-    X0, Y0 = U_to_X_Y(_initial_U_ibz(sm), frozen_bands_ibz(sm))
-    return _pack_xy(X0, Y0, _xy_structure(frozen_bands_ibz(sm), n_wannier(sm)))
+    frozen = frozen_bands_ibz(sm)
+    xy = _xy_structure(frozen, n_wannier(sm))
+    return _initial_xy_parameters(_initial_U_ibz(sm), frozen, xy)
 end
 
 # Both symmetric workspaces expose the same `U_ibz`/`G_ibz`/`X_ibz`/`Y_ibz`/
