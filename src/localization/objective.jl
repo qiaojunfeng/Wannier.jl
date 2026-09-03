@@ -25,8 +25,8 @@ plus two traits consumed when a [`Problem`](@ref) is built:
     default_layout(obj, model)             :: Layout
     allocate_workspace(obj, model, layout) :: Workspace
 
-`fg!` works in **canonical coordinates** — it never sees the layout. Packing
-the gradient into layout-native parameters is [`encode_gradient!`](@ref)'s job,
+`fg!` works in **canonical coordinates** — it never sees the layout. Pulling
+the gradient back to layout-native parameters is [`pullback_gradient!`](@ref)'s job,
 which is what keeps the objective axis and the layout axis independent: a new
 objective works with every layout, and a new layout works with every objective.
 
@@ -239,8 +239,10 @@ end
 function Base.show(io::IO, ::MIME"text/plain", prob::Problem)
     println(io, "Problem:")
     println(io, "  objective  =  ", nameof(typeof(prob.objective)))
-    println(io, "  model      =  ", nameof(typeof(prob.model)), " (", n_bands(prob.model),
-        " bands, ", n_wannier(prob.model), " WFs, ", n_kpoints(prob.model), " kpoints)")
+    println(
+        io, "  model      =  ", nameof(typeof(prob.model)), " (", n_bands(prob.model),
+        " bands, ", n_wannier(prob.model), " WFs, ", n_kpoints(prob.model), " kpoints)"
+    )
     println(io, "  layout     =  ", prob.layout)
     return print(io, "  workspace  =  ", nameof(typeof(prob.workspace)))
 end

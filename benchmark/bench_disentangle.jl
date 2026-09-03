@@ -15,10 +15,10 @@ module BenchDisentangle
     SUITE["X_Y_to_U"] = @benchmarkable Wannier.X_Y_to_U($X, $Y)
 
     layout = Wannier.XYLayout()
-    XY = Wannier.initial_x(layout, model)
+    XY = Wannier.initial_parameters(layout, model)
     workspace = Wannier.Workspace(model)
-    SUITE["decode compact XY"] =
-        @benchmarkable Wannier.decode!($layout, $XY, $model, $workspace)
+    SUITE["assemble compact XY gauge"] =
+        @benchmarkable Wannier.assemble_gauge!($layout, $XY, $model, $workspace)
 
     # end-to-end XYLayout path — 10 iterations
     SUITE["localize"] = @benchmarkable localize($model, max_iter = 10)

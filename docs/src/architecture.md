@@ -21,9 +21,10 @@ Wannier.jl separates *physics data* from *optimization machinery*.
 │  overlaps              │                         │
 │  gauges                │        ┌────────────────▼─────────────────┐
 │  eigenvalues           │        │ solve!(problem, solver)          │
-│  frozen_bands          │        │   encode → fg! → optimize → decode│
-│  entangled_bands       │        │   solver :: AbstractLocalization…│
-└────────────────────────┘        └──────────────────────────────────┘
+│  frozen_bands          │        │   initial parameters → optimize  │
+│  entangled_bands       │        │   assemble → fg! → pullback      │
+└────────────────────────┘        │   solver :: AbstractLocalization…│
+                                  └──────────────────────────────────┘
 ```
 
 A [`Model`](@ref Wannier.Model) is *data only*. It is constructed once (typically by
@@ -131,11 +132,11 @@ Fusing matters because the value and the gradient share the expensive ``MU``
 and ``U^\dagger M U`` products held in `ws`; computing them in one sweep avoids
 repeating that work.
 
-### Layout — how parameters are packed
+### Layout — how gauges are parameterized
 
-A [`Layout`](@ref Wannier.Layout) owns the mapping between the canonical gauge array `U` and
-the flat parameter container `x` that the optimizer manipulates on a Stiefel
-manifold.
+A [`Layout`](@ref Wannier.Layout) owns the map from the optimizer's parameter
+container `x` to the canonical gauge array `U`, the corresponding gradient
+pullback, and the manifold on which `x` lives.
 
 | Layout | Parameter `x` | Used for |
 |---|---|---|
@@ -147,11 +148,11 @@ manifold.
 | [`SchurLayout`](@ref Wannier.SchurLayout) | flat real per-irrep Schur block parameters | `SymmetricModel` |
 
 ```julia
-initial_x(layout, model)               # model.gauges → starting x
-decode!(layout, x, model, ws)          # x → canonical U  (stashes X/Y in ws)
-encode_gradient!(g, layout, model, ws) # ws.GU → layout-native gradient
-decode(layout, x, model)               # final x → freshly allocated gauges
-manifold(layout, model)                # → the manifold to optimize on
+initial_parameters(layout, model)          # model.gauges → starting x
+assemble_gauge!(layout, x, model, ws)      # x → canonical U; cache intermediates
+pullback_gradient!(g, layout, model, ws)   # ws.GU → layout-native gradient
+finalize_result(layout, x, model)           # final x → caller-facing result
+manifold(layout, model)                     # → the manifold to optimize on
 ```
 
 Two consequences worth knowing:
@@ -160,6 +161,8 @@ Two consequences worth knowing:
   frozen mask; call sites elsewhere never need to think about it.
 - **Manifold construction lives here.** Solvers do not hand-assemble
   `Stiefel` / `ProductManifold` / `PowerManifold` piles; they ask the layout.
+- **The final result lives here.** Gauge layouts return canonical gauges that do
+  not alias workspace buffers; `WLayout` returns the optimized shared rotation `W`.
 
 The layout is normally picked for you: `default_layout(obj, model)` returns
 `ULayout()` for an isolated manifold and `XYLayout()` for an entangled one.
@@ -169,7 +172,7 @@ Pass a layout explicitly only when you want something else, e.g. `WLayout()`.
 
 A `Workspace` holds the buffers reused across optimizer iterations: `MU`,
 `UtMU`, the canonical gradient `GU` (that is `dΩ/dU*`, as distinct from the
-layout-native `g`), the decoded `X` / `Y` / `U`, and the WF centers `r`. Buffers are sized once at construction and never reassigned, so
+layout-native `g`), the assembled `X` / `Y` / `U`, and the WF centers `r`. Buffers are sized once at construction and never reassigned, so
 the large per-``k``-point arrays are not rebuilt on every iteration.
 `SpinWorkspace` pairs two of them plus the ``\uparrow\downarrow`` overlap used
 by the co-optimization objectives.
@@ -194,9 +197,9 @@ combination:
 function _make_fg!(prob::Problem)
     obj, model, layout, ws = prob.objective, prob.model, prob.layout, prob.workspace
     return function (F, G, x)
-        U = decode!(layout, x, model, ws)                       # layout
+        U = assemble_gauge!(layout, x, model, ws)               # layout
         Ω = fg!(F, G === nothing ? nothing : ws.GU, obj, U, model, ws)   # objective
-        G === nothing || encode_gradient!(G, layout, model, ws) # layout
+        G === nothing || pullback_gradient!(G, layout, model, ws) # layout
         return Ω
     end
 end
@@ -248,7 +251,7 @@ overlaps unfolded from the IBZ) together with the
 [`SymmetryConstraint`](@ref Wannier.SymmetryConstraint) tables and the IBZ overlaps; the
 optimization variables live at the IBZ kpoints only. `Variance` dispatches to
 the IBZ transport kernels (`_fg_transport_core!`, `path = :transport`) by default, and the layout
-owns the constraint handling: [`SymmetricXYLayout`](@ref Wannier.SymmetricXYLayout) decodes through the
+owns the constraint handling: [`SymmetricXYLayout`](@ref Wannier.SymmetricXYLayout) assembles through the
 covariance projector (and pulls the gradient back through its adjoint), while
 [`SchurLayout`](@ref Wannier.SchurLayout) parameterizes the covariant gauges exactly by their
 per-irrep Schur blocks — fewer real parameters, no projector calls. Because
@@ -300,7 +303,7 @@ elementwise against finite differences of the same value function.
 | You want to… | Do this |
 |---|---|
 | add a new functional (symmetry, custom penalty, …) | define a new `Objective` subtype with one `fg!` method plus `default_layout` and `allocate_workspace`. It then works with every layout and every solver backend |
-| add a new parameterization | define a new `Layout` with `initial_x` / `decode!` / `encode_gradient!` / `decode` / `manifold`. It then works with every objective |
+| add a new parameterization | define a new `Layout` with `initial_parameters` / `assemble_gauge!` / `pullback_gradient!` / `finalize_result` / `manifold`. It then works with every objective |
 | add a new optimizer backend | define `S <: AbstractLocalizationSolver` and `solve!(::Problem, ::S)` |
 | run on a device (GPU) | dispatch `allocate_workspace(obj, model, layout; backend)` to return device arrays |
 

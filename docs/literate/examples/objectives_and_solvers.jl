@@ -120,7 +120,7 @@ prob = Problem(objective, model)
 #=
 Unlike the `Model`, a `Problem` is ephemeral — build it, solve it, drop it.
 Its `workspace` holds the preallocated buffers (`MU`, `UtMU`, the gradient
-accumulator, decoded gauges) that are reused across optimizer iterations
+accumulator, assembled gauges) that are reused across optimizer iterations
 instead of being rebuilt each time:
 =#
 (layout = prob.layout, workspace = nameof(typeof(prob.workspace)))

@@ -21,8 +21,8 @@ end
 
 @testitem "compact XY layout" setup = [DisentangleEnv] begin
     layout = Wannier.XYLayout()
-    x = Wannier.initial_x(layout, model)
-    U = Wannier.decode(layout, x, model)
+    x = Wannier.initial_parameters(layout, model)
+    U = Wannier.finalize_result(layout, x, model)
     X, Y = Wannier.U_to_X_Y(model.gauges, model.frozen_bands)
     @test U ≈ Wannier.X_Y_to_U(X, Y)
 
@@ -99,7 +99,7 @@ end
 
     # analytical gradient
     layout = Wannier.XYLayout()
-    XY = Wannier.initial_x(layout, model)
+    XY = Wannier.initial_parameters(layout, model)
     G = similar(XY)
     fg!(nothing, G, XY)
 

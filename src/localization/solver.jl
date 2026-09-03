@@ -107,9 +107,9 @@ function _make_fg!(prob::Problem)
     obj, model, layout, ws = prob.objective, prob.model, prob.layout, prob.workspace
     GU = _canonical_gradient(ws)
     return function (F, G, x)
-        U = decode!(layout, x, model, ws)
+        U = assemble_gauge!(layout, x, model, ws)
         Ω = fg!(F, G === nothing ? nothing : GU, obj, U, model, ws)
-        G === nothing || encode_gradient!(G, layout, model, ws)
+        G === nothing || pullback_gradient!(G, layout, model, ws)
         return Ω
     end
 end
@@ -135,8 +135,10 @@ end
 
 function solve!(prob::Problem, solver::OptimLBFGS)
     model, layout = prob.model, prob.layout
-    opt = _run_optim_fg!(_make_fg!(prob), initial_x(layout, model), manifold(layout, model), solver)
-    return decode(layout, Optim.minimizer(opt), model)
+    opt = _run_optim_fg!(
+        _make_fg!(prob), initial_parameters(layout, model), manifold(layout, model), solver
+    )
+    return finalize_result(layout, Optim.minimizer(opt), model)
 end
 
 solve!(prob::Problem; kwargs...) = solve!(prob, OptimLBFGS(; kwargs...))

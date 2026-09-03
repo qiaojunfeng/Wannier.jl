@@ -47,20 +47,20 @@ model = Wannier.Model(
 
 # ---- per-evaluation cost ----------------------------------------------------
 # Everything routes through the framework: `Problem` resolves the layout and
-# workspace, `_make_fg!` builds the fused decode → fg! → encode closure the
+# workspace, `_make_fg!` builds the fused assemble → fg! → pullback closure the
 # solver iterates. Timings therefore include the full per-iteration chain.
 sm = Wannier.SymmetricModel(model, sc, mmn_i.M)
 
 prob_full = Wannier.Problem(Wannier.Variance(), model)
 fgfull = Wannier._make_fg!(prob_full)
-x0full = Wannier.initial_x(prob_full.layout, model)
+x0full = Wannier.initial_parameters(prob_full.layout, model)
 Gfull = zero(x0full)
 
 prob_l1 = Wannier.Problem(Wannier.Variance(), sm, Wannier.SymmetricXYLayout(:fullmesh))
 prob_l2 = Wannier.Problem(Wannier.Variance(), sm)   # default: SymmetricXYLayout(:transport)
 fg1 = Wannier._make_fg!(prob_l1)
 fg2 = Wannier._make_fg!(prob_l2)
-xy = Wannier.initial_x(prob_l2.layout, sm)   # both levels share the XY packing
+xy = Wannier.initial_parameters(prob_l2.layout, sm)   # both levels share the XY packing
 G1, G2 = zero(xy), zero(xy)
 
 mintime(f, n = 20) = minimum((f(); @elapsed f()) for _ in 1:n)
@@ -75,16 +75,16 @@ t_l2_f = mintime(() -> fg2(1.0, nothing, xy))
 tsb = @elapsed sb = Wannier.schur_basis(sm)   # lazily built, cached in `sm`
 prob_s = Wannier.Problem(Wannier.Variance(), sm, Wannier.SchurLayout())
 fg_schur! = Wannier._make_fg!(prob_s)
-xs = Wannier.initial_x(prob_s.layout, sm)
+xs = Wannier.initial_parameters(prob_s.layout, sm)
 gs = zero(xs)
 t_sch_fg = mintime(() -> fg_schur!(1.0, gs, xs))
 t_sch_f = mintime(() -> fg_schur!(1.0, nothing, xs))
 
 println("per-evaluation wall time (min of 20):")
-@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "full-mesh (unconstrained)", 1e3 * t_full_fg, 1e3 * t_full_f)
-@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", ":fullmesh (constrained)", 1e3 * t_l1_fg, 1e3 * t_l1_f)
-@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", ":transport (constrained)", 1e3 * t_l2_fg, 1e3 * t_l2_f)
-@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", ":transport + Schur blocks", 1e3 * t_sch_fg, 1e3 * t_sch_f)
+@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "full-mesh (unconstrained)", 1.0e3 * t_full_fg, 1.0e3 * t_full_f)
+@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", ":fullmesh (constrained)", 1.0e3 * t_l1_fg, 1.0e3 * t_l1_f)
+@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", ":transport (constrained)", 1.0e3 * t_l2_fg, 1.0e3 * t_l2_f)
+@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", ":transport + Schur blocks", 1.0e3 * t_sch_fg, 1.0e3 * t_sch_f)
 @printf("  :transport speedup: %.2fx vs full mesh, %.2fx vs :fullmesh\n", t_full_fg / t_l2_fg, t_l1_fg / t_l2_fg)
 @printf("  Schur speedup:   %.2fx vs full mesh\n", t_full_fg / t_sch_fg)
 @printf(
@@ -140,14 +140,16 @@ println("optimization ($NITER LBFGS iterations):")
 @printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF :transport", s2.Ω, t2)
 ss = Wannier.spread(model.kstencil, model.overlaps, Us)
 @printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF :transport + Schur", ss.Ω, ts)
-@printf("  covariance residual: L2 %.2e, Schur %.2e\n\n",
-    Wannier.covariance_residual(U2i, sc), Wannier.covariance_residual(Usi, sc))
+@printf(
+    "  covariance residual: L2 %.2e, Schur %.2e\n\n",
+    Wannier.covariance_residual(U2i, sc), Wannier.covariance_residual(Usi, sc)
+)
 
 # ---- spread symmetry ---------------------------------------------------------
 # WF orbits from the joint nonzero pattern of the orbital representations
 orbit_of = collect(1:sc.nwann)
 for rep in isym.orbital_reps, n in 1:sc.nwann, m in 1:sc.nwann
-    if abs(rep.D[m, n]) > 1e-6
+    if abs(rep.D[m, n]) > 1.0e-6
         r = min(orbit_of[m], orbit_of[n])
         orbit_of[orbit_of .== orbit_of[m]] .= r
         orbit_of[orbit_of .== orbit_of[n]] .= r

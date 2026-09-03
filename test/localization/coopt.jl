@@ -72,7 +72,7 @@ end
     using NLSolversBase
 
     layout = Wannier.ProductLayout(Wannier.XYLayout(), Wannier.XYLayout())
-    XY0 = Wannier.initial_x(layout, model)
+    XY0 = Wannier.initial_parameters(layout, model)
 
     # analytical gradient
     G = similar(XY0)

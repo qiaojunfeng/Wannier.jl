@@ -142,24 +142,26 @@ struct SymmetricXYLayout <: Layout
     end
 end
 
-function initial_x(::SymmetricXYLayout, sm::SymmetricModel)
+function initial_parameters(::SymmetricXYLayout, sm::SymmetricModel)
     X0, Y0 = U_to_X_Y(_initial_U_ibz(sm), frozen_bands_ibz(sm))
     return _pack_xy(X0, Y0, _xy_structure(frozen_bands_ibz(sm), n_wannier(sm)))
 end
 
 # Both symmetric workspaces expose the same `U_ibz`/`G_ibz`/`X_ibz`/`Y_ibz`/
-# `frozen_ibz` fields, so one decode/encode pair serves the full-mesh and transport paths.
-function decode!(::SymmetricXYLayout, x::AbstractVector, sm::SymmetricModel, ws)
+# `frozen_ibz` fields, so one assembly/pullback pair serves both evaluation paths.
+function assemble_gauge!(::SymmetricXYLayout, x::AbstractVector, sm::SymmetricModel, ws)
     _decode_compact_xy!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, x, ws.xy)
     return project_covariant!(ws.U_ibz, sm.constraint)
 end
 
-function encode_gradient!(g::AbstractVector, ::SymmetricXYLayout, sm::SymmetricModel, ws)
+function pullback_gradient!(
+        g::AbstractVector, ::SymmetricXYLayout, sm::SymmetricModel, ws
+    )
     project_covariant!(ws.G_ibz, sm.constraint)
     return _encode_compact_xy_gradient!(g, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.xy)
 end
 
-function decode(::SymmetricXYLayout, x, sm::SymmetricModel)
+function finalize_result(::SymmetricXYLayout, x, sm::SymmetricModel)
     sc = sm.constraint
     xy = _xy_structure(frozen_bands_ibz(sm), sc.nwann)
     T = eltype(x)
@@ -193,29 +195,32 @@ struct SchurLayout <: Layout end
 
 """
 Workspace for the [`SchurLayout`](@ref): the transport-path scratch plus a copy of
-the current parameter vector, stashed by `decode!` because the Schur gradient
-chain ([`schur_encode_gradient!`](@ref)) needs the parameters again.
+the current parameter vector, stashed by `assemble_gauge!` because the Schur gradient
+pullback needs the parameters again.
 """
 struct SchurWorkspace{T}
     inner::SymmetricTransportWorkspace{T}
     x::Vector{T}
 end
 
-initial_x(::SchurLayout, sm::SymmetricModel) =
-    schur_initial_x(_initial_U_ibz(sm), schur_basis(sm))
+initial_parameters(::SchurLayout, sm::SymmetricModel) =
+    initial_parameters(_initial_U_ibz(sm), schur_basis(sm))
 
-function decode!(::SchurLayout, x::AbstractVector, sm::SymmetricModel, ws::SchurWorkspace)
+function assemble_gauge!(
+        ::SchurLayout, x::AbstractVector, sm::SymmetricModel, ws::SchurWorkspace
+    )
     copyto!(ws.x, x)
-    return schur_decode!(ws.inner.U_ibz, x, schur_basis(sm))
+    return assemble_gauge!(ws.inner.U_ibz, x, schur_basis(sm))
 end
 
-encode_gradient!(g::AbstractVector, ::SchurLayout, sm::SymmetricModel, ws::SchurWorkspace) =
-    schur_encode_gradient!(g, ws.inner.G_ibz, ws.x, schur_basis(sm))
+pullback_gradient!(
+    g::AbstractVector, ::SchurLayout, sm::SymmetricModel, ws::SchurWorkspace
+) = pullback_gradient!(g, ws.inner.G_ibz, ws.x, schur_basis(sm))
 
-function decode(::SchurLayout, x, sm::SymmetricModel{<:Any, T}) where {T}
+function finalize_result(::SchurLayout, x, sm::SymmetricModel{<:Any, T}) where {T}
     sc = sm.constraint
     U_ibz = zeros(Complex{T}, sc.nbands, sc.nwann, sc.nk_ibz)
-    schur_decode!(U_ibz, x, schur_basis(sm))
+    assemble_gauge!(U_ibz, x, schur_basis(sm))
     return expand_gauges(U_ibz, sc), U_ibz
 end
 
@@ -249,7 +254,7 @@ function allocate_workspace(
     return SchurWorkspace(inner, zeros(T, schur_basis(sm).nx))
 end
 
-# `U_ibz` is the covariant IBZ gauge the layout decoded (normally aliasing the
+# `U_ibz` is the covariant IBZ gauge assembled by the layout (normally aliasing the
 # workspace buffer the kernels read); `G_ibz` receives the *unprojected*
 # canonical gradient dΩ/dU*(ki) — projecting is the layout's job.
 function fg!(

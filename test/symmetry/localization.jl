@@ -361,25 +361,25 @@ end
             for blks in sb.blocks for b in blks
     )
 
-    # decode of the initial parameters: covariant (to the isym data noise),
+    # assembly of the initial parameters: covariant (to the isym data noise),
     # semi-unitary, and consistent with the transport-path value at the same gauge
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     U0 = Wannier.project_covariant(Ai, sc)
-    x0 = Wannier.schur_initial_x(U0, sb)
+    x0 = Wannier.initial_parameters(U0, sb)
     @test eltype(x0) <: Real   # re/im pairs; real/quaternion components
     Ud = zeros(ComplexF64, sc.nbands, sc.nwann, sc.nk_ibz)
-    Wannier.schur_decode!(Ud, x0, sb)
+    Wannier.assemble_gauge!(Ud, x0, sb)
     @test Wannier.covariance_residual(Ud, sc) < 1.0e-3
-    # semi-unitarity of the decode is limited by the isym data noise through
+    # semi-unitarity of the assembly is limited by the isym data noise through
     # the anti-unitary coset average (1.9e-12 on the clean Ge4Ru4 data)
     @test maximum(opnorm(Ud[:, :, k]'Ud[:, :, k] - I) for k in 1:sc.nk_ibz) < 1.0e-5
 
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
     ws2 = Wannier.SymmetricTransportWorkspace(Ef, frozen, sc)
     fg! = function (F, G, x)
-        Wannier.schur_decode!(ws2.U_ibz, x, sb)
+        Wannier.assemble_gauge!(ws2.U_ibz, x, sb)
         Ω = Wannier._fg_transport_core!(F, G === nothing ? nothing : ws2.G_ibz, mmn_i.M, sc, ws2)
-        G === nothing || Wannier.schur_encode_gradient!(G, ws2.G_ibz, x, sb)
+        G === nothing || Wannier.pullback_gradient!(G, ws2.G_ibz, x, sb)
         return Ω
     end
     g = zero(x0)
@@ -619,14 +619,14 @@ end
     prob1 = Problem(obj, sm, SymmetricXYLayout(:fullmesh))
     fg2 = Wannier._make_fg!(prob2)
     fg1 = Wannier._make_fg!(prob1)
-    x = Wannier.initial_x(prob2.layout, sm)
+    x = Wannier.initial_parameters(prob2.layout, sm)
     g1, g2 = zero(x), zero(x)
     Ω1 = fg1(1.0, g1, x)
     Ω2 = fg2(1.0, g2, x)
 
     # the full-mesh path equals the full-mesh penalized spread of the expanded covariant
     # gauge exactly; the transport path agrees to the isym data noise (as for Variance)
-    Uf, _ = Wannier.decode(prob2.layout, x, sm)
+    Uf, _ = Wannier.finalize_result(prob2.layout, x, sm)
     Ωt_ref = Wannier.omega_center(model.kstencil, model.overlaps, Uf; r0, λ).Ωt
     @test isapprox(Ω1, Ωt_ref; atol = 1.0e-10)
     @test isapprox(Ω2, Ω1; atol = 1.0e-6)

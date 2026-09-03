@@ -111,7 +111,7 @@ buffer and pass it explicitly.
 """
 struct Workspace{T}
     X::Array{Complex{T}, 3}
-    # Dense decode scratch only; `XYLayout` stores just Y's active blocks in x.
+    # Dense gauge-assembly scratch only; `XYLayout` stores just Y's active blocks in x.
     Y::Array{Complex{T}, 3}
     xy::_XYStructure
     U::Array{Complex{T}, 3}

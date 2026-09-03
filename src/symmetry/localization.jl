@@ -628,7 +628,7 @@ end
 
 Full-mesh-path fused value/gradient of the symmetry-constrained spread.
 
-`xy` packs the `(X, Y)` blocks at the IBZ kpoints. The gauge is decoded,
+`xy` packs the `(X, Y)` blocks at the IBZ kpoints. The gauge is assembled,
 projected onto the covariant subspace, expanded to the full mesh (C2), and the
 standard full-mesh kernels evaluate Ω and `dΩ/dU*`; the gradient is pulled
 back through the (linear, self-adjoint) expansion and projector, then packed
@@ -639,7 +639,7 @@ function symmetric_fg_fullmesh!(
         F, G, xy::AbstractVector,
         model::Model, sc::SymmetryConstraint, ws::SymmetricFullMeshWorkspace,
     )
-    # decode (X,Y) -> covariant U at IBZ
+    # assemble (X,Y) -> covariant U at IBZ
     _decode_compact_xy!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, xy, ws.xy)
     project_covariant!(ws.U_ibz, sc)
 
@@ -751,7 +751,7 @@ function symmetric_fg_transport!(
         M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint{T},
         ws::SymmetricTransportWorkspace{T},
     ) where {T}
-    # decode -> covariant U at IBZ
+    # assemble -> covariant U at IBZ
     _decode_compact_xy!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, xy, ws.xy)
     project_covariant!(ws.U_ibz, sc)
 
@@ -999,7 +999,7 @@ end
 # (S_b, S_o) on the copy spaces — Kronecker factors of the stacked-basis
 # intertwiners, by Schur's lemma — such that
 #   C_{λ′} = S_b · conj(C_λ) · S_o†.
-# Pairing type (λ′ ≠ λ): C_{λ′} is derived from C_λ in the decode (S_b/S_o
+# Pairing type (λ′ ≠ λ): C_{λ′} is derived from C_λ during gauge assembly (S_b/S_o
 # absorbed into the λ′ bases), halving those parameters. Self-paired classes
 # (λ′ = λ) satisfy an antilinear block involution K[C] = S_b conj(C) S_o†
 # with K² = ω = ±1 (Wigner type, S conj(S) = ω·1 with consistent signs):
@@ -1014,7 +1014,7 @@ end
 # blocks store the (a, b) components of q = [a b; -conj(b) conj(a)].
 # Anti-unitary covariance is exact by construction wherever the numerical
 # classification succeeds; on any failure a class falls back to the soft
-# 2-term coset average `_aavg` in the decode.
+# 2-term coset average `_aavg` during gauge assembly.
 # -----------------------------------------------------------------------------
 
 using Random: MersenneTwister, randn!
@@ -1023,7 +1023,7 @@ using Random: MersenneTwister, randn!
 How a Schur block carries the anti-unitary part of the little group
 (assigned by `_classify_aop`):
 
-- `ANTIUNITARY_NONE`: not classified; the decode falls back to the soft
+- `ANTIUNITARY_NONE`: not classified; gauge assembly falls back to the soft
   2-term coset average `_aavg`.
 - `ANTIUNITARY_PAIRING_SOURCE`: pairing source — the block keeps its free
   parameters and its partner class is derived from them.
@@ -1252,7 +1252,7 @@ end
 # Pairing type (c′ ≠ c): the lower-index class of the pair keeps its free
 # parameters (`ANTIUNITARY_PAIRING_SOURCE`); the partner block becomes
 # derived (`ANTIUNITARY_PAIRING_DERIVED`) with S_b/S_o absorbed into its
-# bases, so its decode is simply Σ_j Bb′[j] · conj(C_c) · Bo′[j]†.
+# bases, so its assembly is simply Σ_j Bb′[j] · conj(C_c) · Bo′[j]†.
 #
 # Self-paired classes (c′ = c): Wigner classification by the sign ω of
 # S conj(S) = ω·1. Real type (ω = +1): Takagi factors W (per frozen block on
@@ -1583,9 +1583,9 @@ _aavg_adj(G, da_Aa) = (G .+ transpose(da_Aa[1]) * conj.(G) * da_Aa[2]') ./ 2
 """
     $(SIGNATURES)
 
-Decode the (real) Schur parameters `x` into the covariant IBZ gauge `U_ibz`.
+Assemble the covariant IBZ gauge `U_ibz` from the real Schur parameters `x`.
 """
-function schur_decode!(
+function assemble_gauge!(
         U_ibz::AbstractArray{<:Complex, 3}, x::AbstractVector{<:Real}, sb::SchurBasis
     )
     fill!(U_ibz, 0)
@@ -1613,10 +1613,10 @@ end
 """
     $(SIGNATURES)
 
-Chain the canonical IBZ gradient `G_ibz = dΩ/dU*` into the Schur parameter
-gradient `g` (layout of `x`).
+Pull the canonical IBZ gradient `G_ibz = dΩ/dU*` back to the Schur parameter
+gradient `g` (the layout of `x`).
 """
-function schur_encode_gradient!(
+function pullback_gradient!(
         g::AbstractVector{<:Real}, G_ibz::AbstractArray{<:Complex, 3},
         x::AbstractVector{<:Real}, sb::SchurBasis,
     )
@@ -1649,9 +1649,9 @@ end
 """
     $(SIGNATURES)
 
-Initial Schur parameters from an IBZ gauge (its covariant block content).
+Construct initial Schur parameters from an IBZ gauge (its covariant block content).
 """
-function schur_initial_x(
+function initial_parameters(
         U_ibz::AbstractArray{CT, 3}, sb::SchurBasis{T}
     ) where {CT <: Complex, T}
     x = zeros(T, sb.nx)

@@ -25,7 +25,7 @@ end
     U0 = deepcopy(model.gauges)
 
     # analytical gradient
-    XY = Wannier.initial_x(Wannier.XYLayout(), model)
+    XY = Wannier.initial_parameters(Wannier.XYLayout(), model)
     G = similar(XY)
     fg!(nothing, G, XY)
 

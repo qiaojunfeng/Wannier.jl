@@ -3,8 +3,8 @@ using Optim: Optim
 export ULayout, XYLayout, WLayout, ProductLayout
 
 """
-Layout is an abstract interface for how the optimization parameters `x` are
-packed out of / into the canonical gauge array `U` of a [`Model`](@ref).
+Layout is an abstract interface for parameterizing the canonical gauge array
+`U` of a [`Model`](@ref) by the optimizer variables `x`.
 
 Four concrete types are used by the rewrite:
 
@@ -15,7 +15,8 @@ Four concrete types are used by the rewrite:
 - [`WLayout`](@ref) — single rotation matrix `W` in `opt_rotate`.
 
 Every concrete `Layout` implements the small core interface
-[`initial_x`](@ref), [`decode!`](@ref), [`encode_gradient!`](@ref), and
+[`initial_parameters`](@ref), [`assemble_gauge!`](@ref),
+[`pullback_gradient!`](@ref), [`finalize_result`](@ref), and
 [`manifold`](@ref).
 """
 abstract type Layout end
@@ -26,7 +27,7 @@ struct ULayout <: Layout end
 """Disentangled layout: `x` compactly packs the active `X`/`Y` blocks."""
 struct XYLayout <: Layout end
 
-"""Product of two layouts; used to encode `SpinModel` gauges."""
+"""Product of two layouts; used to parameterize `SpinModel` gauges."""
 struct ProductLayout{L1 <: Layout, L2 <: Layout} <: Layout
     first::L1
     second::L2
@@ -36,40 +37,42 @@ end
 struct WLayout <: Layout end
 
 """
-    initial_x(layout, model) -> x
+    initial_parameters(layout, model) -> x
 
 Build the starting parameter container for `layout` out of `model.gauges`.
 """
-function initial_x end
+function initial_parameters end
 
 """
-    decode!(layout, x, model, ws) -> U
+    assemble_gauge!(layout, x, model, ws) -> U
 
 Convert the layout-native parameters `x` into the canonical gauge that
 objectives consume: an `(n_bands, n_wannier, n_kpoints)` array, or the
 `(up, dn)` pair for a [`ProductLayout`](@ref). Intermediates that the gradient
-encoding needs again — the `X`/`Y` blocks, the decoded `U` — are stashed in
-`ws`, so `encode_gradient!` does not recompute them.
+pullback needs again---the `X`/`Y` blocks and assembled `U`---are stashed in
+`ws`, so `pullback_gradient!` does not recompute them.
 """
-function decode! end
+function assemble_gauge! end
 
 """
-    encode_gradient!(g, layout, model, ws) -> g
+    pullback_gradient!(g, layout, model, ws) -> g
 
-Translate the canonical gradient `dΩ/dU*`, which the objective left in `ws.GU`,
-into the layout-native gradient buffer `g`. A compact layout omits coordinates
-fixed by the frozen subspace, so only active derivatives are encoded.
+Apply the adjoint derivative of gauge assembly to the canonical gradient
+`dΩ/dU*`, which the objective left in `ws.GU`, and write the result into the
+layout-native gradient buffer `g`. A compact layout omits coordinates fixed by
+the frozen subspace, so only active derivatives are stored.
 """
-function encode_gradient! end
+function pullback_gradient! end
 
 # ---- ULayout --------------------------------------------------------------
 
-initial_x(::ULayout, model) = copy(model.gauges)
+initial_parameters(::ULayout, model) = copy(model.gauges)
 
-# x ≡ U, so decoding is the identity — no copy, the objective reads `x` directly.
-decode!(::ULayout, x::AbstractArray{<:Complex, 3}, model, ws) = x
+# x ≡ U, so assembly is the identity — no copy, the objective reads `x` directly.
+assemble_gauge!(::ULayout, x::AbstractArray{<:Complex, 3}, model, ws) = x
 
-encode_gradient!(g::AbstractArray{<:Complex, 3}, ::ULayout, model, ws) = copyto!(g, ws.GU)
+pullback_gradient!(g::AbstractArray{<:Complex, 3}, ::ULayout, model, ws) =
+    copyto!(g, ws.GU)
 
 # ---- XYLayout -------------------------------------------------------------
 
@@ -274,21 +277,21 @@ function _encode_compact_xy_gradient!(
     return g
 end
 
-function initial_x(::XYLayout, model)
+function initial_parameters(::XYLayout, model)
     X, Y = U_to_X_Y(model.gauges, model.frozen_bands)
     return _pack_xy(X, Y, _xy_structure(model.frozen_bands, n_wannier(model)))
 end
 
-function decode!(::XYLayout, x::AbstractVector, model, ws)
+function assemble_gauge!(::XYLayout, x::AbstractVector, model, ws)
     return _decode_compact_xy!(ws.U, ws.X, ws.Y, x, ws.xy)
 end
 
-encode_gradient!(g::AbstractVector, ::XYLayout, model, ws) =
+pullback_gradient!(g::AbstractVector, ::XYLayout, model, ws) =
     _encode_compact_xy_gradient!(g, ws.GU, ws.X, ws.Y, ws.xy)
 
 # ---- ProductLayout -------------------------------------------------------
 
-function initial_x(::ProductLayout{XYLayout, XYLayout}, model)
+function initial_parameters(::ProductLayout{XYLayout, XYLayout}, model)
     Xup, Yup = U_to_X_Y(model.up.gauges, model.up.frozen_bands)
     Xdn, Ydn = U_to_X_Y(model.dn.gauges, model.dn.frozen_bands)
     up = _xy_structure(model.up.frozen_bands, n_wannier(model.up))
@@ -296,7 +299,7 @@ function initial_x(::ProductLayout{XYLayout, XYLayout}, model)
     return vcat(_pack_xy(Xup, Yup, up), _pack_xy(Xdn, Ydn, dn))
 end
 
-function decode!(::ProductLayout{XYLayout, XYLayout}, x::AbstractVector, model, ws)
+function assemble_gauge!(::ProductLayout{XYLayout, XYLayout}, x::AbstractVector, model, ws)
     nup = ws.up.xy.nparameters
     return (
         _decode_compact_xy!(ws.up.U, ws.up.X, ws.up.Y, view(x, 1:nup), ws.up.xy),
@@ -306,7 +309,9 @@ function decode!(::ProductLayout{XYLayout, XYLayout}, x::AbstractVector, model, 
     )
 end
 
-function encode_gradient!(g::AbstractVector, ::ProductLayout{XYLayout, XYLayout}, model, ws)
+function pullback_gradient!(
+        g::AbstractVector, ::ProductLayout{XYLayout, XYLayout}, model, ws
+    )
     nup = ws.up.xy.nparameters
     _encode_compact_xy_gradient!(
         view(g, 1:nup), ws.up.GU, ws.up.X, ws.up.Y, ws.up.xy
@@ -320,11 +325,11 @@ end
 # ---- WLayout -------------------------------------------------------------
 
 # A single rotation shared by all kpoints; the starting point is the identity.
-initial_x(::WLayout, model) =
+initial_parameters(::WLayout, model) =
     Matrix{eltype(model.gauges)}(I, n_wannier(model), n_wannier(model))
 
 # The canonical gauge is the same rotation applied at every kpoint: UW_k = U_k W.
-function decode!(::WLayout, W::AbstractMatrix, model, ws)
+function assemble_gauge!(::WLayout, W::AbstractMatrix, model, ws)
     @inbounds for ik in axes(ws.U, 3)
         mul!(view(ws.U, :, :, ik), view(model.gauges, :, :, ik), W)
     end
@@ -332,7 +337,7 @@ function decode!(::WLayout, W::AbstractMatrix, model, ws)
 end
 
 # Chain rule for UW_k = U_k W collapses the k index: dΩ/dW* = Σ_k U_k† dΩ/dUW_k*.
-function encode_gradient!(g::AbstractMatrix, ::WLayout, model, ws)
+function pullback_gradient!(g::AbstractMatrix, ::WLayout, model, ws)
     fill!(g, 0)
     @inbounds for ik in axes(ws.GU, 3)
         mul!(g, view(model.gauges, :, :, ik)', view(ws.GU, :, :, ik), true, true)
@@ -341,17 +346,18 @@ function encode_gradient!(g::AbstractMatrix, ::WLayout, model, ws)
 end
 
 """
-    decode(layout, x, model) -> U
+    finalize_result(layout, x, model)
 
-Non-mutating counterpart of [`decode!`](@ref): turn final optimizer output into
-freshly allocated canonical gauges, with no aliasing of workspace buffers.
+Convert the final optimizer parameters `x` into the caller-facing result. Gauge
+layouts return canonical gauges with no aliasing of workspace buffers;
+[`WLayout`](@ref) returns its optimized rotation matrix directly.
 """
-function decode end
+function finalize_result end
 
-decode(::ULayout, x, model) = x
-decode(::WLayout, x, model) = x
+finalize_result(::ULayout, x, model) = x
+finalize_result(::WLayout, x, model) = x
 
-function decode(::XYLayout, x, model)
+function finalize_result(::XYLayout, x, model)
     xy = _xy_structure(model.frozen_bands, n_wannier(model))
     T = eltype(x)
     X = zeros(T, xy.nwann, xy.nwann, length(xy.blocks))
@@ -361,11 +367,11 @@ function decode(::XYLayout, x, model)
     return _decode_compact_xy!(U, X, Y, x, xy)
 end
 
-function decode(::ProductLayout{XYLayout, XYLayout}, x, model)
+function finalize_result(::ProductLayout{XYLayout, XYLayout}, x, model)
     up = _xy_structure(model.up.frozen_bands, n_wannier(model.up))
     nup = up.nparameters
-    return decode(XYLayout(), view(x, 1:nup), model.up),
-        decode(XYLayout(), view(x, (nup + 1):length(x)), model.dn)
+    return finalize_result(XYLayout(), view(x, 1:nup), model.up),
+        finalize_result(XYLayout(), view(x, (nup + 1):length(x)), model.dn)
 end
 
 # ---- Manifold construction ----------------------------------------------
