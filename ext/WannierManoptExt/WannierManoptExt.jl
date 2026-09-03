@@ -2,7 +2,7 @@ module WannierManoptExt
 
 using Wannier
 using Wannier: Problem, Variance, ULayout, ManoptLBFGS, Model
-using Wannier: n_bands, n_wannier, n_kpoints, _make_fg!
+using Wannier: n_bands, n_wannier, n_kpoints, _optimizer_callback
 using Manopt
 using Manifolds
 using LinearAlgebra: norm
@@ -11,7 +11,7 @@ using LinearAlgebra: norm
 # Variance + ULayout (isolated max_localize)
 #
 # Build a PowerManifold over Stiefel(n_bands, n_wannier; field = ℂ), wrap
-# the fused (F, G, U) closure from _make_fg! as a Manopt cost and
+# the fused (F, G, U) closure from `_optimizer_callback` as a Manopt cost and
 # Riemannian gradient. Manopt does its own workspace for the quasi-Newton
 # state; the Euclidean gradient buffer is preallocated here and shared
 # between cost/grad calls to minimize allocations.
@@ -30,7 +30,7 @@ function Wannier.solve!(
     M = PowerManifold(St, NestedPowerRepresentation(), nk)
 
     # Fused (F, G, U) closure shared with the OptimLBFGS path.
-    fg! = _make_fg!(prob)
+    fg! = _optimizer_callback(prob)
 
     # Reusable Euclidean buffers, copied in/out of the nested power repr.
     U3 = zeros(T, nb, nw, nk)

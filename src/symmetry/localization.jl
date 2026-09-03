@@ -18,7 +18,7 @@ export SymmetryConstraint
 #            (`Rmat`, `Lmat`) and phases — the "transport theorem".
 #
 # Conventions follow src/symmetry/operations.jl (standard Seitz; `unfold_gauge`,
-# `unfold_overlaps`, `compose_symops`). Time-reversal (antiunitary) operations
+# `reconstruct_overlaps`, `compose_symops`). Time-reversal (antiunitary) operations
 # are supported through explicit conjugation flags; 𝒦_x[A] below denotes
 # conj(A) if flag x is set.
 #
@@ -123,7 +123,7 @@ n_kpoints_ibz(sc::SymmetryConstraint) = sc.nk_ibz
 Rebuild a k-space stencil whose neighbor lists follow the *global* b-vector
 ordering of the first kpoint, i.e. `kpb_k[ib, ik]` is the kpoint index of
 `k + b[ib]` for the same `b[ib]` at every `ik`. The symmetry tables of
-[`SymmetryConstraint`](@ref) and the outputs of [`unfold_overlaps`](@ref)
+[`SymmetryConstraint`](@ref) and the outputs of [`reconstruct_overlaps`](@ref)
 use this ordering, so full-mesh models built from them need this stencil.
 """
 function globalize_bvector_ordering(kstencil::KspaceStencil)
@@ -229,7 +229,7 @@ function SymmetryConstraint(
     fbz2ibz = [Tuple(x) for x in f2i_raw]
 
     # Global b shell, taken from the first kpoint. All symmetry tables (and
-    # the IBZ overlaps, cf. `unfold_overlaps`) use this ordering at *every*
+    # the IBZ overlaps, cf. `reconstruct_overlaps`) use this ordering at *every*
     # kpoint; the per-kpoint orderings of a w90 stencil differ, so full-mesh
     # models consumed together with these tables must be built on
     # [`globalize_bvector_ordering`](@ref).
@@ -366,7 +366,7 @@ function SymmetryConstraint(
             ih = ikisym2ih[ikbi_ibz][isym_h]
             isnothing(ih) && error("ĥ is not in the little group of kb")
 
-            # phases exactly as in `unfold_overlaps`
+            # phases exactly as in `reconstruct_overlaps`
             θ1 = dot(bf, symops[isym_kf].v)
             θ2 = dot(kb, T_lat)
             if symops[isym_kbf].time_reversal
@@ -499,10 +499,10 @@ end
 """
     $(SIGNATURES)
 
-Expand IBZ gauges to the full mesh, `U(kf) = 𝒦_f[U(ki) Lmat(kf)]` (C2).
+Reconstruct IBZ gauges on the full mesh, `U(kf) = 𝒦_f[U(ki) Lmat(kf)]` (C2).
 Writes into `U_fbz` and returns it.
 """
-function expand_gauges!(
+function reconstruct_gauges!(
         U_fbz::AbstractArray{<:Complex, 3},
         U_ibz::AbstractArray{<:Complex, 3},
         sc::SymmetryConstraint,
@@ -516,8 +516,8 @@ function expand_gauges!(
     return U_fbz
 end
 
-expand_gauges(U_ibz::AbstractArray{<:Complex, 3}, sc::SymmetryConstraint) =
-    expand_gauges!(
+reconstruct_gauges(U_ibz::AbstractArray{<:Complex, 3}, sc::SymmetryConstraint) =
+    reconstruct_gauges!(
     similar(U_ibz, size(U_ibz, 1), size(U_ibz, 2), sc.nk_fbz), U_ibz, sc
 )
 
@@ -558,11 +558,11 @@ end
 Reconstruct the full-mesh overlaps from the IBZ overlaps using the cached
 [`SymmetryConstraint`](@ref) tables,
 `M^{(kf,bf)} = phase · 𝒦_f[M^{(ki,bi)} · d]` — the same result as the
-symop-driven `unfold_overlaps` methods of src/symmetry/operations.jl, but
+symop-driven `reconstruct_overlaps` methods of src/symmetry/operations.jl, but
 table-driven. Returns only `M_fbz` (the k+b bookkeeping is already fixed by
 the constraint's global b ordering).
 """
-function unfold_overlaps(
+function reconstruct_overlaps(
         M_ibz::AbstractArray{<:Complex, 4}, sc::SymmetryConstraint
     )
     nb = size(M_ibz, 1)
@@ -581,7 +581,7 @@ function unfold_overlaps(
 end
 
 # -----------------------------------------------------------------------------
-# Full-mesh evaluation: expand the IBZ gauge to the full mesh, run the standard
+# Full-mesh evaluation: reconstruct the IBZ gauge on the full mesh, run the standard
 # full-mesh spread/gradient kernels, and pull the gradient back to the IBZ.
 # -----------------------------------------------------------------------------
 
@@ -633,28 +633,28 @@ projected onto the covariant subspace, expanded to the full mesh (C2), and the
 standard full-mesh kernels evaluate Ω and `dΩ/dU*`; the gradient is pulled
 back through the (linear, self-adjoint) expansion and projector, then packed
 into `G`. The `model` must be a full-mesh model in the *global* b ordering
-(see [`globalize_bvector_ordering`](@ref)) whose overlaps were unfolded from the IBZ.
+(see [`globalize_bvector_ordering`](@ref)) whose overlaps were reconstructed from the IBZ.
 """
 function symmetric_fg_fullmesh!(
         F, G, xy::AbstractVector,
         model::Model, sc::SymmetryConstraint, ws::SymmetricFullMeshWorkspace,
     )
     # assemble (X,Y) -> covariant U at IBZ
-    _decode_compact_xy!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, xy, ws.xy)
+    assemble_gauge!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, xy, ws.xy)
     project_covariant!(ws.U_ibz, sc)
 
     Ω = _fg_fullmesh_core!(F, G === nothing ? nothing : ws.G_ibz, model, sc, ws)
 
     if G !== nothing
         project_covariant!(ws.G_ibz, sc)
-        _encode_compact_xy_gradient!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.xy)
+        pullback_gradient!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.xy)
     end
     return Ω
 end
 
 """
 Full-mesh-path core: value and (unprojected) canonical gradient `dΩ/dU*(ki)` for the
-covariant gauge already stored in `ws.U_ibz` — expand to the full mesh, run
+covariant gauge already stored in `ws.U_ibz` — reconstruct it on the full mesh, run
 the standard full-mesh kernels, pull the gradient back to the IBZ. Writes the
 gradient into `G_ibz` when given. Counterpart of [`_fg_transport_core!`](@ref).
 """
@@ -665,7 +665,7 @@ function _fg_fullmesh_core!(
         F, G_ibz, penalty::Function,
         model::Model, sc::SymmetryConstraint, ws::SymmetricFullMeshWorkspace,
     )
-    expand_gauges!(ws.full.U, ws.U_ibz, sc)
+    reconstruct_gauges!(ws.full.U, ws.U_ibz, sc)
 
     kstencil, overlaps = model.kstencil, model.overlaps
     compute_MU_UtMU!(ws.full, kstencil, overlaps, ws.full.U)
@@ -752,14 +752,14 @@ function symmetric_fg_transport!(
         ws::SymmetricTransportWorkspace{T},
     ) where {T}
     # assemble -> covariant U at IBZ
-    _decode_compact_xy!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, xy, ws.xy)
+    assemble_gauge!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, xy, ws.xy)
     project_covariant!(ws.U_ibz, sc)
 
     Ω = _fg_transport_core!(F, G === nothing ? nothing : ws.G_ibz, M_ibz, sc, ws)
 
     if G !== nothing
         project_covariant!(ws.G_ibz, sc)
-        _encode_compact_xy_gradient!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.xy)
+        pullback_gradient!(G, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.xy)
     end
     return Ω
 end

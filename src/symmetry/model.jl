@@ -16,7 +16,7 @@ export SymmetricModel, SymmetricXYLayout, SchurLayout
 Model-side bundle for symmetry-constrained (SAWF) localization.
 
 Wraps a full-mesh [`Model`](@ref) whose stencil uses the *global* b-vector
-ordering (see [`globalize_bvector_ordering`](@ref)) and whose overlaps were unfolded
+ordering (see [`globalize_bvector_ordering`](@ref)) and whose overlaps were reconstructed
 from the IBZ, together with the [`SymmetryConstraint`](@ref) tables and the
 IBZ overlaps `overlaps_ibz` (the `.immn` data, `n_bands × n_bands ×
 n_bvectors × n_kpoints_ibz`, global b ordering). The Schur-adapted bases of
@@ -30,7 +30,7 @@ and its physics caveat.
 Works with [`localize`](@ref) / [`Problem`](@ref) + [`solve!`](@ref) like any
 other model; the optimization variables are the gauges at the IBZ kpoints
 only, and the returned gauge is the `(U_fbz, U_ibz)` pair of the optimized
-covariant gauge expanded to the full mesh plus its IBZ representative.
+covariant gauge reconstructed on the full mesh plus its IBZ representative.
 """
 # The wrapped-model type `M` is a free parameter: symmetrization is a decorator
 # orthogonal to the spin axis, so a future `SymmetricModel{SpinModel}` can
@@ -150,7 +150,7 @@ end
 # Both symmetric workspaces expose the same `U_ibz`/`G_ibz`/`X_ibz`/`Y_ibz`/
 # `frozen_ibz` fields, so one assembly/pullback pair serves both evaluation paths.
 function assemble_gauge!(::SymmetricXYLayout, x::AbstractVector, sm::SymmetricModel, ws)
-    _decode_compact_xy!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, x, ws.xy)
+    assemble_gauge!(ws.U_ibz, ws.X_ibz, ws.Y_ibz, x, ws.xy)
     return project_covariant!(ws.U_ibz, sm.constraint)
 end
 
@@ -158,7 +158,7 @@ function pullback_gradient!(
         g::AbstractVector, ::SymmetricXYLayout, sm::SymmetricModel, ws
     )
     project_covariant!(ws.G_ibz, sm.constraint)
-    return _encode_compact_xy_gradient!(g, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.xy)
+    return pullback_gradient!(g, ws.G_ibz, ws.X_ibz, ws.Y_ibz, ws.xy)
 end
 
 function finalize_result(::SymmetricXYLayout, x, sm::SymmetricModel)
@@ -169,9 +169,9 @@ function finalize_result(::SymmetricXYLayout, x, sm::SymmetricModel)
     Y = zeros(T, sc.nbands, sc.nwann, sc.nk_ibz)
     U_ibz = similar(Y)
     _initialize_compact_y!(Y, xy)
-    _decode_compact_xy!(U_ibz, X, Y, x, xy)
+    assemble_gauge!(U_ibz, X, Y, x, xy)
     project_covariant!(U_ibz, sc)
-    return expand_gauges(U_ibz, sc), U_ibz
+    return reconstruct_gauges(U_ibz, sc), U_ibz
 end
 
 function manifold(::SymmetricXYLayout, sm::SymmetricModel)
@@ -221,7 +221,7 @@ function finalize_result(::SchurLayout, x, sm::SymmetricModel{<:Any, T}) where {
     sc = sm.constraint
     U_ibz = zeros(Complex{T}, sc.nbands, sc.nwann, sc.nk_ibz)
     assemble_gauge!(U_ibz, x, schur_basis(sm))
-    return expand_gauges(U_ibz, sc), U_ibz
+    return reconstruct_gauges(U_ibz, sc), U_ibz
 end
 
 manifold(::SchurLayout, sm::SymmetricModel) = SchurManifold(schur_basis(sm))

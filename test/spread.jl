@@ -19,7 +19,7 @@ end
     using NLSolversBase
     using Wannier.Datasets
     model = read_w90_with_chk(dataset"Si2_coarse/Si2", dataset"Si2_coarse/outputs/Si2.chk")
-    fg! = Wannier._make_fg!(Wannier.Problem(Wannier.Variance(), model, Wannier.ULayout()))
+    fg! = Wannier._optimizer_callback(Wannier.Problem(Wannier.Variance(), model, Wannier.ULayout()))
 
     U = copy(model.gauges)
     G = zero(U)
@@ -47,16 +47,16 @@ end
 @testitem "imaglog_guided" begin
     using LinearAlgebra
     # principal branch at zero guide
-    for z in (1.0 + 0.5im, -1.0 + 1e-3im, cis(3.0))
+    for z in (1.0 + 0.5im, -1.0 + 1.0e-3im, cis(3.0))
         @test Wannier.imaglog_guided(z, 0.0) == Wannier.imaglog(z)
     end
     # picks the branch closest to -θ: continuous across the cut
     z = cis(3.14)   # imaglog ≈ +3.14
-    @test Wannier.imaglog_guided(z, 3.15) ≈ 3.14 - 2π atol = 1e-12
-    @test Wannier.imaglog_guided(z, -3.15) ≈ 3.14 atol = 1e-12
+    @test Wannier.imaglog_guided(z, 3.15) ≈ 3.14 - 2π atol = 1.0e-12
+    @test Wannier.imaglog_guided(z, -3.15) ≈ 3.14 atol = 1.0e-12
     # guided value differs from principal by an exact multiple of 2π
     for θ in (-7.0, 2.0, 9.9)
         d = Wannier.imaglog_guided(z, θ) - Wannier.imaglog(z)
-        @test isapprox(rem(d, 2π, RoundNearest), 0; atol = 1e-12)
+        @test isapprox(rem(d, 2π, RoundNearest), 0; atol = 1.0e-12)
     end
 end

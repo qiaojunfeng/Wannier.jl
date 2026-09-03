@@ -25,16 +25,16 @@
     Af_ref = Wannier.unfold_gauges(
         Ai, isym.kpoints_ibz, f2i, isym.symops, isym.orbital_reps, Rs
     )
-    @test Wannier.expand_gauges(Ai, sc) ≈ Af_ref
+    @test Wannier.reconstruct_gauges(Ai, sc) ≈ Af_ref
 
-    # cached overlap unfolding reproduces unfold_overlaps
+    # cached overlap reconstruction reproduces reconstruct_overlaps
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
     bvecs = get_bvectors(kstencil; fractional = true)
-    Mf_ref, _, _ = Wannier.unfold_overlaps(
+    Mf_ref, _, _ = Wannier.reconstruct_overlaps(
         mmn_i.M, mmn_i.kpb_k, mmn_i.kpb_G, isym.kpoints_ibz, bvecs,
         kstencil.kpoints, f2i, isym.spinors, isym.symops, isym.littlegroup_reps,
     )
-    @test Wannier.unfold_overlaps(mmn_i.M, sc) ≈ Mf_ref
+    @test Wannier.reconstruct_overlaps(mmn_i.M, sc) ≈ Mf_ref
 
     # pullback is the adjoint of the expansion: Re⟨G, expand(U)⟩ = Re⟨pullback(G), U⟩
     U = randn(ComplexF64, sc.nbands, sc.nwann, sc.nk_ibz)
@@ -42,7 +42,7 @@
     Gi = similar(U)
     Wannier.pullback_gauges!(Gi, G, sc)
     ip(a, b) = real(sum(conj.(a) .* b))
-    @test isapprox(ip(G, Wannier.expand_gauges(U, sc)), ip(Gi, U); rtol = 1.0e-12)
+    @test isapprox(ip(G, Wannier.reconstruct_gauges(U, sc)), ip(Gi, U); rtol = 1.0e-12)
 end
 
 @testitem "covariance projector" begin
@@ -146,7 +146,7 @@ end
     sc = Wannier.SymmetryConstraint(ks0, isym, centers)
     ks = Wannier.globalize_bvector_ordering(ks0)
 
-    Mf = Wannier.unfold_overlaps(read_mmn(dataset"Si2_hse/Si2.immn").M, sc)
+    Mf = Wannier.reconstruct_overlaps(read_mmn(dataset"Si2_hse/Si2.immn").M, sc)
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     win = read_win(dataset"Si2_hse/Si2.win")
@@ -156,7 +156,7 @@ end
     atom_labels = map(x -> string(x.first), win["atoms_frac"])
     model = Wannier.Model(
         win["unit_cell_cart"], atom_positions, atom_labels,
-        ks, Mf, Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
+        ks, Mf, Wannier.reconstruct_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
     )
 
     ws = Wannier.SymmetricFullMeshWorkspace(model, sc)
@@ -165,8 +165,8 @@ end
     G = zero(xy)
     Ω = Wannier.symmetric_fg_fullmesh!(1.0, G, xy, model, sc, ws)
 
-    # value consistency with the plain full-mesh spread of the expanded gauge
-    Ufull = Wannier.expand_gauges(
+    # value consistency with the plain full-mesh spread of the reconstructed gauge
+    Ufull = Wannier.reconstruct_gauges(
         Wannier.project_covariant(Wannier.X_Y_to_U(X, Y), sc), sc
     )
     @test Ω ≈ Wannier.spread(model.kstencil, model.overlaps, Ufull).Ω
@@ -203,7 +203,7 @@ end
     ks = Wannier.globalize_bvector_ordering(ks0)
 
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
-    Mf = Wannier.unfold_overlaps(mmn_i.M, sc)
+    Mf = Wannier.reconstruct_overlaps(mmn_i.M, sc)
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     win = read_win(dataset"Si2_hse/Si2.win")
     Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
@@ -212,7 +212,7 @@ end
     atom_labels = map(x -> string(x.first), win["atoms_frac"])
     model = Wannier.Model(
         win["unit_cell_cart"], atom_positions, atom_labels,
-        ks, Mf, Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
+        ks, Mf, Wannier.reconstruct_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
     )
 
     ws1 = Wannier.SymmetricFullMeshWorkspace(model, sc)
@@ -233,7 +233,7 @@ end
     # transport identity for the Wannier-gauge overlaps themselves:
     # M̃(kf, bf) = phase · K_f[L† M̃_i R] versus the full-mesh product
     U_ibz = Wannier.project_covariant(Wannier.X_Y_to_U(X, Y), sc)
-    U_fbz = Wannier.expand_gauges(U_ibz, sc)
+    U_fbz = Wannier.reconstruct_gauges(U_ibz, sc)
     ikf = sc.stars[2][end]   # a star member away from its IBZ representative
     iki = sc.fbz2ibz[ikf][1]
     for ibf in 1:sc.nbvecs
@@ -526,7 +526,7 @@ end
     ks = Wannier.globalize_bvector_ordering(ks0)
 
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
-    Mf = Wannier.unfold_overlaps(mmn_i.M, sc)
+    Mf = Wannier.reconstruct_overlaps(mmn_i.M, sc)
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     win = read_win(dataset"Si2_hse/Si2.win")
@@ -536,7 +536,7 @@ end
     atom_labels = map(x -> string(x.first), win["atoms_frac"])
     model = Wannier.Model(
         win["unit_cell_cart"], atom_positions, atom_labels,
-        ks, Mf, Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
+        ks, Mf, Wannier.reconstruct_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
     )
 
     sm = SymmetricModel(model, sc, mmn_i.M)
@@ -550,9 +550,9 @@ end
     # framework path (Problem + solve! under the hood), a few LBFGS iterations
     niter = 5
     U_fbz, U_ibz = localize(sm; max_iter = niter)
-    # the optimized gauge is covariant to the data floor and consistently expanded
+    # the optimized gauge is covariant to the data floor and consistently reconstructed
     @test Wannier.covariance_residual(U_ibz, sc) < 1.0e-3
-    @test U_fbz ≈ Wannier.expand_gauges(U_ibz, sc)
+    @test U_fbz ≈ Wannier.reconstruct_gauges(U_ibz, sc)
 
     # hard-coded 5-iteration regression anchor (SymmetricXYLayout, transport path)
     Ω = Wannier.spread(model.kstencil, model.overlaps, U_fbz).Ω
@@ -594,7 +594,7 @@ end
     ks = Wannier.globalize_bvector_ordering(ks0)
 
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
-    Mf = Wannier.unfold_overlaps(mmn_i.M, sc)
+    Mf = Wannier.reconstruct_overlaps(mmn_i.M, sc)
     Ai = read_amn(dataset"Si2_hse/Si2.iamn").A
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     win = read_win(dataset"Si2_hse/Si2.win")
@@ -604,7 +604,7 @@ end
     atom_labels = map(x -> string(x.first), win["atoms_frac"])
     model = Wannier.Model(
         win["unit_cell_cart"], atom_positions, atom_labels,
-        ks, Mf, Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
+        ks, Mf, Wannier.reconstruct_gauges(Wannier.project_covariant(Ai, sc), sc), Ef, frozen,
     )
     sm = SymmetricModel(model, sc, mmn_i.M)
 
@@ -617,8 +617,8 @@ end
 
     prob2 = Problem(obj, sm)                    # default: SymmetricXYLayout (transport path)
     prob1 = Problem(obj, sm, SymmetricXYLayout(:fullmesh))
-    fg2 = Wannier._make_fg!(prob2)
-    fg1 = Wannier._make_fg!(prob1)
+    fg2 = Wannier._optimizer_callback(prob2)
+    fg1 = Wannier._optimizer_callback(prob1)
     x = Wannier.initial_parameters(prob2.layout, sm)
     g1, g2 = zero(x), zero(x)
     Ω1 = fg1(1.0, g1, x)

@@ -5,7 +5,7 @@
     export model, fg!
 
     model = read_w90(dataset"Si2_coarse/Si2")
-    fg! = Wannier._make_fg!(Wannier.Problem(Wannier.Variance(), model, Wannier.XYLayout()))
+    fg! = Wannier._optimizer_callback(Wannier.Problem(Wannier.Variance(), model, Wannier.XYLayout()))
 end
 
 @testitem "U_to_X_Y X_Y_to_U" setup = [DisentangleEnv] begin
@@ -75,7 +75,7 @@ end
 
     GU = randn(rng, ComplexF64, size(U))
     g = similar(x)
-    Wannier._encode_compact_xy_gradient!(g, GU, X, Y, xy)
+    Wannier.pullback_gradient!(g, GU, X, Y, xy)
     GX, GY = Wannier.GU_to_GX_GY(GU, X, Y, frozen)
     @test g ≈ Wannier._pack_xy(GX, GY, xy)
 

@@ -194,7 +194,7 @@ Because the two axes compose rather than multiply, one bridge serves every
 combination:
 
 ```julia
-function _make_fg!(prob::Problem)
+function _optimizer_callback(prob::Problem)
     obj, model, layout, ws = prob.objective, prob.model, prob.layout, prob.workspace
     return function (F, G, x)
         U = assemble_gauge!(layout, x, model, ws)               # layout
@@ -247,7 +247,7 @@ keyword arguments forward to the solver.
 Symmetry-constrained (SAWF) localization is not a separate driver — it is the
 same `Objective` × `Layout` × solver composition on a different model bundle.
 A [`SymmetricModel`](@ref Wannier.SymmetricModel) wraps a full-mesh `Model` (global-b stencil,
-overlaps unfolded from the IBZ) together with the
+overlaps reconstructed from the IBZ) together with the
 [`SymmetryConstraint`](@ref Wannier.SymmetryConstraint) tables and the IBZ overlaps; the
 optimization variables live at the IBZ kpoints only. `Variance` dispatches to
 the IBZ transport kernels (`_fg_transport_core!`, `path = :transport`) by default, and the layout

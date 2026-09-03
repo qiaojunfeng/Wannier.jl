@@ -218,12 +218,12 @@ function _form_u_compact!(U::AbstractArray, X::AbstractArray, Y::AbstractArray, 
     return U
 end
 
-function _decode_compact_xy!(U, X, Y, x::AbstractVector, xy::_XYStructure)
+function assemble_gauge!(U, X, Y, x::AbstractVector, xy::_XYStructure)
     _unpack_xy!(X, Y, x, xy)
     return _form_u_compact!(U, X, Y, xy)
 end
 
-function _encode_compact_xy_gradient!(
+function pullback_gradient!(
         g::AbstractVector, GU::AbstractArray, X::AbstractArray, Y::AbstractArray,
         xy::_XYStructure,
     )
@@ -283,11 +283,11 @@ function initial_parameters(::XYLayout, model)
 end
 
 function assemble_gauge!(::XYLayout, x::AbstractVector, model, ws)
-    return _decode_compact_xy!(ws.U, ws.X, ws.Y, x, ws.xy)
+    return assemble_gauge!(ws.U, ws.X, ws.Y, x, ws.xy)
 end
 
 pullback_gradient!(g::AbstractVector, ::XYLayout, model, ws) =
-    _encode_compact_xy_gradient!(g, ws.GU, ws.X, ws.Y, ws.xy)
+    pullback_gradient!(g, ws.GU, ws.X, ws.Y, ws.xy)
 
 # ---- ProductLayout -------------------------------------------------------
 
@@ -302,8 +302,8 @@ end
 function assemble_gauge!(::ProductLayout{XYLayout, XYLayout}, x::AbstractVector, model, ws)
     nup = ws.up.xy.nparameters
     return (
-        _decode_compact_xy!(ws.up.U, ws.up.X, ws.up.Y, view(x, 1:nup), ws.up.xy),
-        _decode_compact_xy!(
+        assemble_gauge!(ws.up.U, ws.up.X, ws.up.Y, view(x, 1:nup), ws.up.xy),
+        assemble_gauge!(
             ws.dn.U, ws.dn.X, ws.dn.Y, view(x, (nup + 1):length(x)), ws.dn.xy
         ),
     )
@@ -313,10 +313,10 @@ function pullback_gradient!(
         g::AbstractVector, ::ProductLayout{XYLayout, XYLayout}, model, ws
     )
     nup = ws.up.xy.nparameters
-    _encode_compact_xy_gradient!(
+    pullback_gradient!(
         view(g, 1:nup), ws.up.GU, ws.up.X, ws.up.Y, ws.up.xy
     )
-    _encode_compact_xy_gradient!(
+    pullback_gradient!(
         view(g, (nup + 1):length(g)), ws.dn.GU, ws.dn.X, ws.dn.Y, ws.dn.xy
     )
     return g
@@ -364,7 +364,7 @@ function finalize_result(::XYLayout, x, model)
     Y = zeros(T, xy.nbands, xy.nwann, length(xy.blocks))
     U = similar(Y)
     _initialize_compact_y!(Y, xy)
-    return _decode_compact_xy!(U, X, Y, x, xy)
+    return assemble_gauge!(U, X, Y, x, xy)
 end
 
 function finalize_result(::ProductLayout{XYLayout, XYLayout}, x, model)

@@ -6,7 +6,7 @@
     # no disentanglement
     model = read_w90_with_chk(dataset"Si2_valence_coarse/Si2", dataset"Si2_valence_coarse/outputs/Si2.chk")
 
-    fg! = Wannier._make_fg!(Wannier.Problem(Wannier.Variance(), model, Wannier.ULayout()))
+    fg! = Wannier._optimizer_callback(Wannier.Problem(Wannier.Variance(), model, Wannier.ULayout()))
 end
 
 @testitem "maxloc spread gradient" setup = [MaxlocEnv] begin

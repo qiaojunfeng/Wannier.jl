@@ -64,8 +64,8 @@ coopt(sm; λ_spin=1.0, …)                       localize(sm; λ_spin=1.0, …)
 constrain_center_coopt(sm, r0, λ; λ_spin, …)   localize(CenteredSpinCoupledVariance(r0, λ, λ_spin), sm; …)
 opt_rotate(model; …)                       localize(Variance(), model, WLayout(); …)
 
-get_fg!_disentangle(model)                 fg! = Wannier._make_fg!(Problem(Variance(), model))
-get_fg!_maxloc(model)                      fg! = Wannier._make_fg!(Problem(Variance(), model))
+get_fg!_disentangle(model)                 fg! = Wannier._optimizer_callback(Problem(Variance(), model))
+get_fg!_maxloc(model)                      fg! = Wannier._optimizer_callback(Problem(Variance(), model))
 ```
 
 The legacy symbol-keyed `LocalizationProblem(:disentangle, …)` / `build_fg!` / `_build_fg_*` / `AbstractLocalizationTerm` / `VarianceTerm` / `CenterConstraintTerm` / `omega(terms, …)` surface no longer exists — every driver now routes through `Problem` + `solve!`.

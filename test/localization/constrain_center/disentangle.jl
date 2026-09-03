@@ -16,7 +16,7 @@
     ]
     λ = 10.0
     obj = Wannier.CenteredVariance(r0, λ)
-    fg! = Wannier._make_fg!(Wannier.Problem(obj, model, Wannier.XYLayout()))
+    fg! = Wannier._optimizer_callback(Wannier.Problem(obj, model, Wannier.XYLayout()))
 end
 
 @testitem "constraint center disentangle spread gradient" setup = [DisCenterEnv] begin

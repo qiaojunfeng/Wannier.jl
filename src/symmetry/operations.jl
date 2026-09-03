@@ -61,7 +61,7 @@ and they are left untouched so the symmetry-broken-band masking of
 `eig_ibz` are the IBZ eigenvalues (`n_bands × n_kpoints_ibz`, the `.ieig`
 data, ascending per kpoint). Apply after `rescale_littlegroup_reps!`. Cleaning is
 strictly opt-in: it moves quantities unfolded through the reps (e.g.
-`unfold_overlaps`) by the size of the removed noise, so data cleaned
+`reconstruct_overlaps`) by the size of the removed noise, so data cleaned
 here no longer reproduces reference files generated with the raw reps to
 better than that noise.
 """
@@ -577,7 +577,7 @@ end
 """
     $(SIGNATURES)
 
-Unfold overlap matrices from IBZ to FBZ.
+Reconstruct overlap matrices from the IBZ on the full Brillouin-zone mesh.
 
 CPC Eq. 6 and 7.
 
@@ -602,7 +602,7 @@ M_{m n}^{k_f, b_f} = \\sum_l M_{m l}^{k_i, b_i} d_{l n}(\\hat{h}, k_i)
 - `M_fbz`: overlap matrices at each FBZ kpoint. The b vectors are ordered
     according to `kstencil`.
 """
-function unfold_overlaps(
+function reconstruct_overlaps(
         M_ibz::AbstractArray{<:Complex, 4},
         kpb_k_ibz::AbstractMatrix{Int},
         kpb_G_ibz::AbstractMatrix,
@@ -700,7 +700,7 @@ function unfold_overlaps(
     return Mf, kpb_k_fbz, kpb_G_fbz
 end
 
-function unfold_overlaps(
+function reconstruct_overlaps(
         M_ibz::AbstractArray{<:Complex, 4},
         kstencil_ibz::KspaceStencil,
         kstencil_fbz::KspaceStencil,
@@ -709,7 +709,7 @@ function unfold_overlaps(
         symops::AbstractVector{SymOp},
         littlegroup_reps::AbstractVector{<:LittleGroupRep},
     )
-    return unfold_overlaps(
+    return reconstruct_overlaps(
         M_ibz,
         kstencil_ibz.kpb_k,
         kstencil_ibz.kpb_G,

@@ -2,7 +2,7 @@
 # versus the :fullmesh (expand + pull back) and :transport (IBZ transport) paths.
 #
 # Uses the Ge4Ru4 dataset (IBZ .iamn/.immn/.ieig + .isym); point RERUN_DIR at
-# a directory with these files. The full-mesh overlaps are unfolded from the
+# a directory with these files. The full-mesh overlaps are reconstructed from the
 # IBZ ones (validated elsewhere against pw2wannier90 + wannier90).
 #
 #   julia --project dev/benchmark_symmetric.jl
@@ -27,12 +27,12 @@ tsc = @elapsed sc = Wannier.SymmetryConstraint(ks0, isym, centers)
 ks = Wannier.globalize_bvector_ordering(ks0)
 
 mmn_i = read_mmn(joinpath(RERUN_DIR, "$prefix.immn"))
-tunf = @elapsed Mf = Wannier.unfold_overlaps(mmn_i.M, sc)
+tunf = @elapsed Mf = Wannier.reconstruct_overlaps(mmn_i.M, sc)
 Ai = read_amn(joinpath(RERUN_DIR, "$prefix.iamn")).A
 win = read_win(joinpath(RERUN_DIR, "$prefix.win"))
 Ef = Wannier.unfold_eigvals(Ei, [collect(t) for t in sc.fbz2ibz])
 frozen = Wannier.get_frozen_bands(Ef, win["dis_froz_max"])
-Af = Wannier.expand_gauges(Wannier.project_covariant(Ai, sc), sc)
+Af = Wannier.reconstruct_gauges(Wannier.project_covariant(Ai, sc), sc)
 atom_positions = [p.second for p in win["atoms_frac"]]
 atom_labels = map(x -> string(x.first), win["atoms_frac"])
 model = Wannier.Model(
@@ -47,19 +47,19 @@ model = Wannier.Model(
 
 # ---- per-evaluation cost ----------------------------------------------------
 # Everything routes through the framework: `Problem` resolves the layout and
-# workspace, `_make_fg!` builds the fused assemble → fg! → pullback closure the
+# workspace, `_optimizer_callback` builds the fused assemble → fg! → pullback closure the
 # solver iterates. Timings therefore include the full per-iteration chain.
 sm = Wannier.SymmetricModel(model, sc, mmn_i.M)
 
 prob_full = Wannier.Problem(Wannier.Variance(), model)
-fgfull = Wannier._make_fg!(prob_full)
+fgfull = Wannier._optimizer_callback(prob_full)
 x0full = Wannier.initial_parameters(prob_full.layout, model)
 Gfull = zero(x0full)
 
 prob_l1 = Wannier.Problem(Wannier.Variance(), sm, Wannier.SymmetricXYLayout(:fullmesh))
 prob_l2 = Wannier.Problem(Wannier.Variance(), sm)   # default: SymmetricXYLayout(:transport)
-fg1 = Wannier._make_fg!(prob_l1)
-fg2 = Wannier._make_fg!(prob_l2)
+fg1 = Wannier._optimizer_callback(prob_l1)
+fg2 = Wannier._optimizer_callback(prob_l2)
 xy = Wannier.initial_parameters(prob_l2.layout, sm)   # both levels share the XY packing
 G1, G2 = zero(xy), zero(xy)
 
@@ -74,7 +74,7 @@ t_l2_f = mintime(() -> fg2(1.0, nothing, xy))
 
 tsb = @elapsed sb = Wannier.schur_basis(sm)   # lazily built, cached in `sm`
 prob_s = Wannier.Problem(Wannier.Variance(), sm, Wannier.SchurLayout())
-fg_schur! = Wannier._make_fg!(prob_s)
+fg_schur! = Wannier._optimizer_callback(prob_s)
 xs = Wannier.initial_parameters(prob_s.layout, sm)
 gs = zero(xs)
 t_sch_fg = mintime(() -> fg_schur!(1.0, gs, xs))

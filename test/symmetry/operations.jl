@@ -151,7 +151,7 @@ end
     @test T == [0, 0, 0]
 end
 
-@testitem "unfold_overlaps" begin
+@testitem "reconstruct_overlaps" begin
     using LinearAlgebra
     using WannierIO, Wannier, Wannier.Datasets
 
@@ -169,7 +169,7 @@ end
     kpb_G_i = mmn_i.kpb_G
 
     bvectors = get_bvectors(kstencil; fractional = true)
-    Mf, kpb_k_f, kpb_G_f = Wannier.unfold_overlaps(
+    Mf, kpb_k_f, kpb_G_f = Wannier.reconstruct_overlaps(
         Mi,
         kpb_k_i,
         kpb_G_i,

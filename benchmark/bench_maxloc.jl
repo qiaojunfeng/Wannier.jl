@@ -12,12 +12,12 @@ module BenchMaxloc
     SUITE["localize"] = @benchmarkable localize($model, max_iter = 10)
 
     # fused fg! closure, one call
-    # Note: _make_fg! is private (for internal use) but exposed here for
+    # Note: `_optimizer_callback` is private (for internal use) but exposed here for
     # low-level micro-benchmarking the kernel. Public API routes through localize().
     prob = Wannier.Problem(Wannier.Variance(), model)
-    fg!  = Wannier._make_fg!(prob)
-    U    = copy(model.gauges)
-    G    = similar(U)
+    fg! = Wannier._optimizer_callback(prob)
+    U = copy(model.gauges)
+    G = similar(U)
     SUITE["fg!"] = @benchmarkable $fg!(1.0, $G, $U)
 
 end  # module

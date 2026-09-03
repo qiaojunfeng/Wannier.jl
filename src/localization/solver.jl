@@ -94,7 +94,7 @@ No rescaling happens here: what the objective produces is already the gradient
 of the value this closure returns, in the convention Optim.jl consumes. See the
 gradient-convention block at the top of `src/spread.jl`.
 """
-function _make_fg! end
+function _optimizer_callback end
 
 # One bridge for every (objective, model, layout): the objective computes in
 # canonical coordinates, the layout converts. `WLayout` keeps a bespoke method
@@ -103,7 +103,7 @@ function _make_fg! end
 _canonical_gradient(ws::Workspace) = ws.GU
 _canonical_gradient(ws::SpinWorkspace) = (ws.up.GU, ws.dn.GU)
 
-function _make_fg!(prob::Problem)
+function _optimizer_callback(prob::Problem)
     obj, model, layout, ws = prob.objective, prob.model, prob.layout, prob.workspace
     GU = _canonical_gradient(ws)
     return function (F, G, x)
@@ -118,7 +118,7 @@ end
 # solve! bindings
 # -------------------------------------------------------------------------
 
-function _run_optim_fg!(fg!, x0, man, solver::OptimLBFGS)
+function _run_optim(fg!, x0, man, solver::OptimLBFGS)
     return Optim.optimize(
         Optim.only_fg!(fg!),
         x0,
@@ -135,8 +135,8 @@ end
 
 function solve!(prob::Problem, solver::OptimLBFGS)
     model, layout = prob.model, prob.layout
-    opt = _run_optim_fg!(
-        _make_fg!(prob), initial_parameters(layout, model), manifold(layout, model), solver
+    opt = _run_optim(
+        _optimizer_callback(prob), initial_parameters(layout, model), manifold(layout, model), solver
     )
     return finalize_result(layout, Optim.minimizer(opt), model)
 end

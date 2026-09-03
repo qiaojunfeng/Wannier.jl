@@ -8,7 +8,7 @@
     r0 = [Vec3(0.0, 0.0, 0.0) for i in 1:n_wannier(model)]
     λ = 10.0
     obj = Wannier.CenteredVariance(r0, λ)
-    fg! = Wannier._make_fg!(Wannier.Problem(obj, model, Wannier.ULayout()))
+    fg! = Wannier._optimizer_callback(Wannier.Problem(obj, model, Wannier.ULayout()))
 end
 
 @testitem "constraint center maxloc spread gradient" setup = [MaxlocCenterEnv] begin

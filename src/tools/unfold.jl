@@ -77,7 +77,7 @@ function unfold(
         get_bvectors(kstencil; fractional = true),
         kstencil.bweights, kpb_k_i, kpb_G_i
     )
-    Mf, kpb_k_f, kpb_G_f = Wannier.unfold_overlaps(
+    Mf, kpb_k_f, kpb_G_f = Wannier.reconstruct_overlaps(
         Mi, kstencil_ibz, kstencil, f2i, isym.spinors, symops, littlegroup_reps
     )
 
