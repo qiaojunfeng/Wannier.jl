@@ -164,6 +164,12 @@ function _close_real_space_operator(
         symmetry::WannierSymmetry,
         lattice::AbstractMatrix,
     )
+    description.law isa _BerryConnectionLaw && throw(
+        ArgumentError(
+            "symmetry closure of Berry connections requires its dedicated " *
+                "inhomogeneous transformation law and is not implemented yet",
+        ),
+    )
     size(coefficients, 1) == n_wannier(symmetry) || throw(
         DimensionMismatch("operator and Wannier symmetry have different basis sizes"),
     )

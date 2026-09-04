@@ -107,9 +107,20 @@ implementation writes into views whose final axis is the current k-point
 batch; only the public result arrays scale with the complete request. Adding an
 observable therefore extends the recipe interface without adding fields to
 `InterpolationModel` or creating another observable-specific interpolator.
-For example, `BandEnergy`, `BandVelocity`, and `SpinExpectation` share the
-Hamiltonian eigensystem; the spin recipe alone adds evaluation of the `:spin`
-primitive on the already-computed Fourier phase block.
+For example, `BandEnergy`, `BandVelocity`, `SpinExpectation`, and
+`BerryCurvature` share the Hamiltonian eigensystem. The spin recipe alone adds
+evaluation of the `:spin` primitive on the already-computed Fourier phase
+block. Berry curvature adds a finite-difference `:berry_connection` primitive
+and requests first derivatives of both that connection and the Hamiltonian;
+these derivatives are generated from real-space-vector factors rather than
+stored as separate persistent operators. Observable-specific scratch is owned
+by the plan workspace and reused for each k-point batch.
+
+Most primitives enter as `BlochOperator`s with homogeneous transformation
+laws. `BerryConnection` instead owns its construction from overlaps because a
+connection transforms inhomogeneously. Keeping this distinction at the
+construction seam prevents the generic Cartesian-tensor machinery from making
+an incorrect symmetry promise.
 
 When symmetry is supplied, [`WannierSymmetry`](@ref Wannier.WannierSymmetry)
 is the shared basis-level object: it owns space-group operations, prescribed

@@ -167,6 +167,52 @@ spin_z = interpolate(
 Both requests reuse the Hamiltonian eigensystem. Spin values inherit the units
 of the primitive operator and are dimensionless for Wannier90 `spn` data.
 
+The finite-difference Wannier-gauge Berry connection is constructed directly
+from the model overlaps and gauges:
+
+```julia
+interpolation_model = InterpolationModel(
+    model;
+    operators = (;
+        berry_connection = BerryConnection(; imlog_diag = false),
+    ),
+    real_space = MinimumDistance(),
+)
+```
+
+`BerryConnection` is a construction recipe rather than a `BlochOperator`: a
+connection has an inhomogeneous gauge-transformation law and cannot be treated
+as a lattice-periodic Cartesian vector. Its coefficients use the physical
+layout `n_wannier × n_wannier × 3 × n_Rvectors`. Symmetry closure for this
+dedicated law is not yet implemented; supplying both a Berry connection and
+`symmetry` therefore raises an error rather than silently applying the wrong
+transformation.
+
+Berry curvature is selected as an observable formulation. The default
+occupied-manifold recipe uses the Lopez--Vanderbilt--Thonhauser--Souza formula
+and returns an antisymmetric Cartesian tensor of shape `3 × 3 × n_kpoints` in
+Å²:
+
+```julia
+occupied = interpolate(
+    interpolation_model,
+    kpoints,
+    BerryCurvature(fermi_energy),
+)
+
+by_band = interpolate(
+    interpolation_model,
+    kpoints,
+    BerryCurvature(; formulation = WYSV06BandResolved()),
+)
+```
+
+The band-resolved result has shape
+`3 × 3 × n_wannier × n_kpoints`. `WYSV06()` selects the alternative
+occupied-manifold formulation. Berry curvature shares the Hamiltonian,
+Fourier phases, eigensystem, and the requested Hamiltonian and connection
+derivatives with other observables in the same call.
+
 ```@meta
 CurrentModule = Wannier
 ```
@@ -182,6 +228,8 @@ Pages = [
     "interpolation/observables/band_energy.jl",
     "interpolation/observables/band_velocity.jl",
     "interpolation/observables/spin_expectation.jl",
+    "interpolation/operators/berry_connection.jl",
+    "interpolation/observables/berry_curvature.jl",
     "interpolation/workflows/band_structure.jl",
 ]
 ```

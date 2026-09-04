@@ -65,7 +65,7 @@ function _assemble_observable!(
     )
     return _band_velocity!(
         destination,
-        intermediates.hamiltonian_gradient,
+        intermediates.primitive_derivatives.hamiltonian,
         intermediates.eigenvectors,
         workspace.operator_product,
     )

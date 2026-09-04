@@ -36,7 +36,7 @@
 
     # summed over bands
     Ω = interp(kpoints, Wannier.WYSV06())
-    @test all(isapprox.(Ω, ref_Ω; atol = 5e-5))
+    @test all(isapprox.(Ω, ref_Ω; atol = 5.0e-5))
 
     # band-resolved Berry curvature
     Ω_band = interp(kpoints, Wannier.WYSV06BandResolved())
@@ -49,4 +49,76 @@
 
     Ω = interp(kpoints, Wannier.LVTS12())
     @test all(isapprox.(Ω, ref_Ω; atol = 5.0e-5))
+
+    interpolation_model = InterpolationModel(
+        model;
+        operators = (;
+            berry_connection = BerryConnection(; imlog_diag = false),
+        ),
+        real_space = MinimumDistance(),
+    )
+    combined = interpolate(
+        interpolation_model,
+        kpoints,
+        (
+            BandEnergy(),
+            BerryCurvature(win["fermi_energy"]; formulation = WYSV06()),
+        ),
+    )
+    @test all(
+        isapprox(
+                view(combined.berry_curvature, :, :, index), ref_Ω[index];
+                atol = 5.0e-5,
+            )
+            for index in eachindex(kpoints)
+    )
+
+    band_resolved = interpolate(
+        interpolation_model,
+        kpoints,
+        BerryCurvature(; formulation = WYSV06BandResolved()),
+    )
+    for index in eachindex(kpoints)
+        occupation = Int.(
+            view(combined.band_energy, :, index) .<= win["fermi_energy"]
+        )
+        occupied_sum = dropdims(
+            sum(
+                view(band_resolved.berry_curvature, :, :, :, index) .*
+                    reshape(occupation, 1, 1, :);
+                dims = 3,
+            );
+            dims = 3,
+        )
+        @test isapprox(
+            occupied_sum, view(combined.berry_curvature, :, :, index); atol = 1.0e-8
+        )
+    end
+
+    separate = interpolate(
+        interpolation_model,
+        kpoints,
+        BerryCurvature(win["fermi_energy"]; formulation = WYSV06()),
+    )
+    @test separate.berry_curvature == combined.berry_curvature
+    lvts = interpolate(
+        interpolation_model,
+        kpoints,
+        BerryCurvature(win["fermi_energy"]; formulation = LVTS12()),
+    )
+    @test all(
+        isapprox(
+                view(lvts.berry_curvature, :, :, index), ref_Ω[index];
+                atol = 5.0e-5,
+            )
+            for index in eachindex(kpoints)
+    )
+    default_formulation = interpolate(
+        interpolation_model, kpoints, BerryCurvature(win["fermi_energy"])
+    )
+    @test default_formulation.berry_curvature == lvts.berry_curvature
+    @test_throws ArgumentError BerryCurvature(
+        win["fermi_energy"]; formulation = WYSV06BandResolved()
+    )
+    @test_throws ArgumentError BerryCurvature(; formulation = WYSV06())
 end

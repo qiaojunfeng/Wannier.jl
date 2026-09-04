@@ -36,6 +36,19 @@ function _validate_bloch_operator(
     return nothing
 end
 
+function _validate_operator_input(
+        name::Symbol,
+        operator::BlochOperator,
+        number_bands::Integer,
+        number_kpoints::Integer,
+    )
+    return _validate_bloch_operator(name, operator, number_bands, number_kpoints)
+end
+
+_operator_description(operator::BlochOperator) = (;
+    law = operator.law, hermitian = operator.hermitian,
+)
+
 function _transform_bloch_operator(operator::BlochOperator, gauges::AbstractArray{<:Complex, 3})
     values = operator.values
     number_bands, number_wannier, number_kpoints = size(gauges)
@@ -78,6 +91,9 @@ function _transform_bloch_operator(operator::BlochOperator, gauges::AbstractArra
         transformed, number_wannier, number_wannier, components..., number_kpoints
     )
 end
+
+_transform_operator_input(operator::BlochOperator, model::Model) =
+    _transform_bloch_operator(operator, model.gauges)
 
 function _quotient_fourier_phase(
         kpoints::AbstractVector,
@@ -176,14 +192,20 @@ function InterpolationModel(
     hamiltonian = BlochOperator(
         model.eigenvalues; law = Scalar(time_reversal = Even()), hermitian = true
     )
-    bloch_operators = merge((; hamiltonian), operators)
+    operator_inputs = merge((; hamiltonian), operators)
     number_bands = n_bands(model)
     number_kpoints = n_kpoints(model)
-    for (name, operator) in pairs(bloch_operators)
-        operator isa BlochOperator ||
-            throw(ArgumentError("operator :$name must be a BlochOperator"))
-        _validate_bloch_operator(name, operator, number_bands, number_kpoints)
+    for (name, operator) in pairs(operator_inputs)
+        applicable(
+            _validate_operator_input, name, operator, number_bands, number_kpoints
+        ) || throw(
+            ArgumentError(
+                "operator :$name must be a BlochOperator or a supported construction recipe",
+            ),
+        )
+        _validate_operator_input(name, operator, number_bands, number_kpoints)
     end
+    operator_descriptions = map(_operator_description, operator_inputs)
 
     fractional_centers = if isnothing(symmetry)
         inverse_lattice = inv(model.lattice)
@@ -200,8 +222,8 @@ function InterpolationModel(
         real_space, model.lattice, kgrid_size(model), fractional_centers
     )
 
-    transformed_operators = map(values(bloch_operators)) do operator
-        _transform_bloch_operator(operator, model.gauges)
+    transformed_operators = map(values(operator_inputs)) do operator
+        _transform_operator_input(operator, model)
     end
     coefficient_type = promote_type(map(eltype, transformed_operators)...)
     phase = _quotient_fourier_phase(
@@ -217,14 +239,17 @@ function InterpolationModel(
         representative_vectors, selected_coefficients = _close_real_space_operators(
             model.lattice,
             representative_vectors,
-            bloch_operators,
+            operator_descriptions,
             selected_coefficients,
             symmetry,
         )
     end
 
     domain, operator_tuple = _pack_real_space_operators(
-        model.lattice, representative_vectors, bloch_operators, selected_coefficients
+        model.lattice,
+        representative_vectors,
+        operator_descriptions,
+        selected_coefficients,
     )
     crystal = _interpolation_crystal(
         model.lattice, model.atom_positions, model.atom_labels

@@ -4,16 +4,21 @@ const _MAXIMUM_INTERPOLATION_BATCH = 4096
 function _interpolation_batch_size(
         model::InterpolationModel,
         number_kpoints::Integer;
-        hamiltonian_derivative_order::Integer = 0,
         operator_names::Tuple = (:hamiltonian,),
+        derivative_operator_names::Tuple = (),
     )
     number_kpoints > 0 || return 0
     T = eltype(model.operators.hamiltonian.coefficients)
     number_wannier = n_wannier(model)
     number_vectors = n_Rvectors(model)
     number_complex_values = number_vectors + 2number_wannier^2
-    if hamiltonian_derivative_order >= 1
-        number_complex_values += number_vectors + 3number_wannier^2
+    if !isempty(derivative_operator_names)
+        number_complex_values += number_vectors
+        for operator_name in derivative_operator_names
+            operator = getproperty(model.operators, operator_name)
+            number_complex_values +=
+                3prod(size(operator.coefficients)[1:(end - 1)])
+        end
     end
     for operator_name in operator_names
         operator_name == :hamiltonian && continue
@@ -86,6 +91,53 @@ function _evaluate_real_space_operator(
     return _evaluate_real_space_operator!(values, operator, phase)
 end
 
+function _evaluate_real_space_operator_gradient!(
+        destination::AbstractArray,
+        operator::RealSpaceOperator,
+        real_space::RealSpaceDomain,
+        phase::AbstractMatrix,
+        derivative_phase::AbstractMatrix,
+        derivative_values::AbstractMatrix,
+    )
+    number_wannier = n_wannier(operator)
+    number_vectors = n_Rvectors(operator)
+    number_kpoints = size(phase, 2)
+    value_shape = size(operator.coefficients)[1:(end - 1)]
+    size(destination) == (value_shape..., 3, number_kpoints) || throw(
+        DimensionMismatch("operator-gradient destination has the wrong shape"),
+    )
+    size(derivative_phase) == size(phase) ||
+        throw(DimensionMismatch("derivative and ordinary phase blocks differ"))
+    number_values = prod(value_shape)
+    size(derivative_values, 1) >= number_values &&
+        size(derivative_values, 2) == number_kpoints ||
+        throw(DimensionMismatch("operator-gradient buffer has the wrong shape"))
+
+    packed_coefficients = reshape(operator.coefficients, number_values, number_vectors)
+    active_derivative_values = view(derivative_values, 1:number_values, :)
+    for cartesian_component in 1:3
+        for kpoint_index in 1:number_kpoints, vector_index in 1:number_vectors
+            derivative_phase[vector_index, kpoint_index] =
+                im * real_space.cartesian_vectors[vector_index][cartesian_component] *
+                phase[vector_index, kpoint_index]
+        end
+        mul!(
+            active_derivative_values,
+            packed_coefficients,
+            derivative_phase,
+        )
+        component_destination = selectdim(
+            destination, ndims(destination) - 1, cartesian_component
+        )
+        copyto!(
+            component_destination, reshape(
+                active_derivative_values, value_shape..., number_kpoints
+            )
+        )
+    end
+    return destination
+end
+
 function _evaluate_hamiltonian_gradient!(
         destination::AbstractArray{<:Complex, 4},
         operator::RealSpaceOperator,
@@ -96,34 +148,12 @@ function _evaluate_hamiltonian_gradient!(
     )
     component_shape(operator) == () ||
         throw(ArgumentError("Hamiltonian derivatives require a scalar operator"))
-    number_wannier = n_wannier(operator)
-    number_vectors = n_Rvectors(operator)
-    number_kpoints = size(phase, 2)
-    size(destination) == (number_wannier, number_wannier, 3, number_kpoints) ||
-        throw(DimensionMismatch("Hamiltonian-gradient destination has the wrong shape"))
-    size(derivative_phase) == size(phase) ||
-        throw(DimensionMismatch("derivative and ordinary phase blocks differ"))
-    size(derivative_values) == (number_wannier^2, number_kpoints) ||
-        throw(DimensionMismatch("Hamiltonian-gradient buffer has the wrong shape"))
-
-    packed_coefficients = reshape(operator.coefficients, number_wannier^2, number_vectors)
-    for cartesian_component in 1:3
-        for kpoint_index in 1:number_kpoints, vector_index in 1:number_vectors
-            derivative_phase[vector_index, kpoint_index] =
-                im * real_space.cartesian_vectors[vector_index][cartesian_component] *
-                phase[vector_index, kpoint_index]
-        end
-        mul!(
-            derivative_values,
-            packed_coefficients,
-            derivative_phase,
-        )
-        component_destination = view(destination, :, :, cartesian_component, :)
-        copyto!(
-            component_destination, reshape(
-                derivative_values, number_wannier, number_wannier, number_kpoints
-            )
-        )
-    end
-    return destination
+    return _evaluate_real_space_operator_gradient!(
+        destination,
+        operator,
+        real_space,
+        phase,
+        derivative_phase,
+        derivative_values,
+    )
 end

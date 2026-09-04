@@ -67,17 +67,22 @@ The symmetry-closed Si2 Hamiltonian also recovers its two cubic triplets at
 Gamma to `1e-14`, closing the Phase 3 exit criterion. The planned graphene
 dataset remains a separate end-to-end interpolation demonstration.
 
-Phase 4 has started with `SpinExpectation`. The planner now evaluates arbitrary
-required primitive operators on its shared phase block, while band energy,
-velocity, and spin expectation reuse one Hamiltonian eigensystem. A direct
-`BlochOperator(::WannierIO.Spn)` adapter supplies the axial, time-reversal-odd
-spin primitive; full Cartesian expectations and normalized-axis projections
-match the existing Fe SOC/postw90 references.
+Phase 4 now includes `SpinExpectation`, `BerryConnection`, and
+`BerryCurvature`. The planner evaluates arbitrary required primitive operators
+and their requested first derivatives on its shared phase block, while band
+energy, velocity, spin, and Berry curvature reuse one Hamiltonian eigensystem.
+A direct `BlochOperator(::WannierIO.Spn)` adapter supplies the axial,
+time-reversal-odd spin primitive. The dedicated Berry-connection construction
+recipe preserves its logical vector axis without pretending that a connection
+has a homogeneous pointwise operator law. WYSV06, band-resolved WYSV06, and
+LVTS12 curvature recipes match the existing Fe SOC/postw90 references. The
+inhomogeneous symmetry closure of the connection and orbital-magnetization
+migration remain to complete Phase 4.
 
 Phase 0 numerical references are covered by the existing interpolation tests
 and benchmark entry point; finer per-stage timing remains to be recorded. The
-next implementation step is the Phase 4 observable migration, beginning with
-spin expectation.
+next implementation step is the remaining Phase 4 orbital-magnetization and
+connection-symmetry work.
 
 ## Goals
 

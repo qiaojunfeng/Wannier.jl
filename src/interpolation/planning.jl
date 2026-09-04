@@ -6,30 +6,33 @@ function result_name end
 function requirements end
 function _allocate_observable_result end
 function _assemble_observable! end
+_allocate_observable_workspace(::Observable, ::InterpolationModel) = nothing
 
 struct _ObservableRequirements{P <: Tuple, I <: Tuple}
     primitive_operators::P
     intermediates::I
 end
 
-struct _InterpolationPlan{M, O <: Tuple, P <: Tuple}
+struct _InterpolationPlan{M, O <: Tuple, P <: Tuple, D <: Tuple}
     model::M
     observables::O
     primitive_operators::P
+    derivative_operators::D
     intermediates::Set{Symbol}
     batch_size::Int
 end
 
-struct _InterpolationWorkspace{P, DP, H, DH, PV, EV, U, B, OP, E}
+struct _InterpolationWorkspace{P, DP, H, PV, PD, EV, U, B, OP, OW, E}
     phase::P
     derivative_phase::DP
     hamiltonian::H
-    hamiltonian_gradient::DH
     primitive_values::PV
+    primitive_derivatives::PD
     eigenvalues::EV
     eigenvectors::U
     derivative_values::B
     operator_product::OP
+    observable_workspaces::OW
     diagonalization::E
 end
 
@@ -41,6 +44,12 @@ function _normalize_observables(observables::Tuple)
     length(unique(names)) == length(names) ||
         throw(ArgumentError("an observable can be requested only once"))
     return observables
+end
+
+function _derivative_operator(intermediate::Symbol)
+    intermediate === :hamiltonian_gradient && return :hamiltonian
+    intermediate === :berry_connection_gradient && return :berry_connection
+    return nothing
 end
 
 function _plan_interpolation(
@@ -65,22 +74,41 @@ function _plan_interpolation(
         end
         union!(required_intermediates, observable_requirements.intermediates)
     end
-    supported = Set((:eigensystem, :hamiltonian_gradient, :operator_rotation))
+    supported = Set(
+        (
+            :eigensystem,
+            :hamiltonian_gradient,
+            :berry_connection_gradient,
+            :operator_rotation,
+        )
+    )
     unsupported = setdiff(required_intermediates, supported)
     isempty(unsupported) ||
         error("unsupported interpolation requirements: $(sort!(collect(unsupported)))")
     primitive_operators = Tuple(
         name for name in keys(model.operators) if name in required_operators
     )
-    derivative_order = :hamiltonian_gradient in required_intermediates ? 1 : 0
+    requested_derivatives = Set{Symbol}()
+    for intermediate in required_intermediates
+        operator_name = _derivative_operator(intermediate)
+        isnothing(operator_name) || push!(requested_derivatives, operator_name)
+    end
+    derivative_operators = Tuple(
+        name for name in keys(model.operators) if name in requested_derivatives
+    )
     batch_size = _interpolation_batch_size(
         model,
         number_kpoints;
-        hamiltonian_derivative_order = derivative_order,
         operator_names = primitive_operators,
+        derivative_operator_names = derivative_operators,
     )
     return _InterpolationPlan(
-        model, recipes, primitive_operators, required_intermediates, batch_size
+        model,
+        recipes,
+        primitive_operators,
+        derivative_operators,
+        required_intermediates,
+        batch_size,
     )
 end
 
@@ -104,38 +132,49 @@ function _allocate_interpolation_workspace(plan::_InterpolationPlan)
         )
     end
     primitive_values = NamedTuple{additional_operator_names}(primitive_arrays)
+    derivative_arrays = map(plan.derivative_operators) do operator_name
+        operator = getproperty(model.operators, operator_name)
+        Array{eltype(operator.coefficients)}(
+            undef, size(operator.coefficients)[1:(end - 1)]..., 3, batch_size
+        )
+    end
+    primitive_derivatives = NamedTuple{plan.derivative_operators}(derivative_arrays)
+    if isempty(plan.derivative_operators)
+        derivative_phase = nothing
+        derivative_values = nothing
+    else
+        derivative_phase = similar(phase)
+        maximum_values = maximum(plan.derivative_operators) do operator_name
+            operator = getproperty(model.operators, operator_name)
+            prod(size(operator.coefficients)[1:(end - 1)])
+        end
+        derivative_values = Matrix{T}(
+            undef, maximum_values, batch_size
+        )
+    end
     eigenvalues = Matrix{RT}(undef, number_wannier, batch_size)
     eigenvectors = similar(hamiltonian)
     diagonalization = _HermitianDiagonalizationWorkspace(T, number_wannier)
-    if :hamiltonian_gradient in plan.intermediates
-        derivative_phase = similar(phase)
-        hamiltonian_gradient = Array{T}(
-            undef, number_wannier, number_wannier, 3, batch_size
-        )
-        derivative_values = Matrix{T}(
-            undef, number_wannier^2, batch_size
-        )
-    else
-        derivative_phase = nothing
-        hamiltonian_gradient = nothing
-        derivative_values = nothing
-    end
-    operator_product = if :hamiltonian_gradient in plan.intermediates ||
+    operator_product = if !isempty(plan.derivative_operators) ||
             :operator_rotation in plan.intermediates
         Matrix{T}(undef, number_wannier, number_wannier)
     else
         nothing
     end
+    observable_workspaces = NamedTuple{map(result_name, plan.observables)}(
+        map(observable -> _allocate_observable_workspace(observable, model), plan.observables)
+    )
     return _InterpolationWorkspace(
         phase,
         derivative_phase,
         hamiltonian,
-        hamiltonian_gradient,
         primitive_values,
+        primitive_derivatives,
         eigenvalues,
         eigenvectors,
         derivative_values,
         operator_product,
+        observable_workspaces,
         diagonalization,
     )
 end
@@ -187,21 +226,22 @@ function _interpolation_intermediates!(
         )
     end
 
-    hamiltonian_gradient = nothing
-    if :hamiltonian_gradient in plan.intermediates
+    primitive_derivatives = map(workspace.primitive_derivatives) do buffer
+        _last_axis_view(buffer, 1:number_kpoints)
+    end
+    if !isempty(plan.derivative_operators)
         derivative_phase = view(workspace.derivative_phase, :, 1:number_kpoints)
         derivative_values = view(workspace.derivative_values, :, 1:number_kpoints)
-        hamiltonian_gradient = view(
-            workspace.hamiltonian_gradient, :, :, :, 1:number_kpoints
-        )
-        _evaluate_hamiltonian_gradient!(
-            hamiltonian_gradient,
-            plan.model.operators.hamiltonian,
-            plan.model.real_space,
-            phase,
-            derivative_phase,
-            derivative_values,
-        )
+        for operator_name in keys(primitive_derivatives)
+            _evaluate_real_space_operator_gradient!(
+                getproperty(primitive_derivatives, operator_name),
+                getproperty(plan.model.operators, operator_name),
+                plan.model.real_space,
+                phase,
+                derivative_phase,
+                derivative_values,
+            )
+        end
     end
 
     eigenvalues = view(workspace.eigenvalues, :, 1:number_kpoints)
@@ -211,8 +251,8 @@ function _interpolation_intermediates!(
     )
     return (;
         hamiltonian,
-        hamiltonian_gradient,
         primitive_values,
+        primitive_derivatives,
         eigenvalues,
         eigenvectors,
     )

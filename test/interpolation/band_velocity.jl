@@ -42,8 +42,8 @@
         interpolation_model, (BandEnergy(),), length(kpoints)
     )
     energy_workspace = Wannier._allocate_interpolation_workspace(energy_plan)
-    @test isnothing(energy_workspace.hamiltonian_gradient)
-    @test !isnothing(workspace.hamiltonian_gradient)
+    @test isempty(keys(energy_workspace.primitive_derivatives))
+    @test keys(workspace.primitive_derivatives) == (:hamiltonian,)
 
     @test_throws ArgumentError interpolate(
         interpolation_model, kpoints, (BandEnergy(), BandEnergy())
