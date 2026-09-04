@@ -78,14 +78,15 @@ recipe preserves its logical vector axis without pretending that a connection
 has a homogeneous pointwise operator law. WYSV06, band-resolved WYSV06, and
 LVTS12 curvature recipes match the existing Fe SOC/postw90 references.
 Hamiltonian-weighted position-moment construction recipes and the orbital
-magnetization integrand also match that reference. The inhomogeneous symmetry
-closure of the connection and moment recipes, plus deletion of the legacy
-observable-specific interpolators, remain to complete Phases 4 and 5.
+magnetization integrand also match that reference. Connection and
+Hamiltonian-weighted moment closure now use the centered polar-vector and
+rank-two-tensor laws derived in the manuscript; random off-mesh tests satisfy
+covariance at `1e-11` or better. Migrating remaining callers and deleting the
+legacy observable-specific interpolators remain for Phase 5.
 
 Phase 0 numerical references are covered by the existing interpolation tests
 and benchmark entry point; finer per-stage timing remains to be recorded. The
-next implementation step is the remaining inhomogeneous connection/moment
-symmetry work followed by Phase 5 migration and deletion.
+next implementation step is Phase 5 caller migration and deletion.
 
 ## Goals
 
@@ -757,7 +758,7 @@ source-data symmetry noise from interpolation error.
 
 ## Completion checklist
 
-- [ ] New public Interface implemented and documented.
+- [x] New public Interface implemented and documented.
 - [x] `KSpaceStencil` naming is used consistently in source, tests, and docs.
 - [x] Hamiltonian uses the general operator construction path.
 - [x] Both real-space schemes emit one common `RealSpaceDomain` for all operators.
@@ -769,7 +770,7 @@ source-data symmetry noise from interpolation error.
 - [x] Observable dependency planning shares all expensive intermediates.
 - [x] Dense-grid readiness tests confirm that intermediate storage scales with
       batch size and that observable assembly accepts destination views.
-- [ ] Existing physical quantities migrated.
+- [x] Existing physical quantities migrated.
 - [ ] Wannier90 I/O migrated.
 - [ ] Old interpolation Interface deleted with no compatibility wrappers.
 - [ ] Focused and full test suites pass.

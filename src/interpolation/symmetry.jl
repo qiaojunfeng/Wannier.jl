@@ -48,9 +48,58 @@ _time_reversal_sign(::Odd) = -1
 _time_reversal_parity(law::OperatorLaw) = law.time_reversal
 
 _supports_homogeneous_symmetry_closure(::OperatorLaw) = true
-_supports_homogeneous_symmetry_closure(::_BerryConnectionLaw) = false
 _supports_homogeneous_symmetry_closure(::_HamiltonianPositionLaw) = false
 _supports_homogeneous_symmetry_closure(::_PositionHamiltonianPositionLaw) = false
+
+function _shift_position_center!(
+        realization::AbstractDict,
+        symmetry::WannierSymmetry,
+        lattice::AbstractMatrix,
+        sign::Integer,
+    )
+    origin = Vec3(0, 0, 0)
+    origin_matrix = get!(realization, origin) do
+        _zero_real_space_matrix(realization)
+    end
+    cartesian_centers = map(center -> lattice * center, symmetry.centers)
+    for band_index in eachindex(cartesian_centers), component_index in 1:3
+        origin_matrix[band_index, band_index, component_index] +=
+            sign * cartesian_centers[band_index][component_index]
+    end
+    return realization
+end
+
+function _close_centered_position(
+        vectors::AbstractVector,
+        coefficients::AbstractArray,
+        symmetry::WannierSymmetry,
+        lattice::AbstractMatrix,
+    )
+    realization = _real_space_dictionary(coefficients, vectors)
+    _shift_position_center!(realization, symmetry, lattice, -1)
+    projected = _close_homogeneous_realization(
+        realization,
+        PolarVector(time_reversal = Even()),
+        true,
+        symmetry,
+        lattice,
+    )
+    _shift_position_center!(projected, symmetry, lattice, 1)
+    return projected
+end
+
+function _close_homogeneous_realization(
+        realization::AbstractDict,
+        law::OperatorLaw,
+        hermitian::Bool,
+        symmetry::WannierSymmetry,
+        lattice::AbstractMatrix,
+    )
+    hermitian && (realization = _hermitian_real_space_projection(realization))
+    projected = _symmetry_project_real_space(realization, law, symmetry, lattice)
+    hermitian && (projected = _hermitian_real_space_projection(projected))
+    return projected
+end
 
 function _cartesian_rotation(operation::SymOp, lattice::AbstractMatrix)
     rotation = lattice * operation.W * inv(lattice)
@@ -169,6 +218,9 @@ function _close_real_space_operator(
         symmetry::WannierSymmetry,
         lattice::AbstractMatrix,
     )
+    description.law isa _BerryConnectionLaw && return _close_centered_position(
+        vectors, coefficients, symmetry, lattice
+    )
     _supports_homogeneous_symmetry_closure(description.law) || throw(
         ArgumentError(
             "symmetry closure of $(nameof(typeof(description.law))) requires " *
@@ -181,11 +233,205 @@ function _close_real_space_operator(
     )
 
     realization = _real_space_dictionary(coefficients, vectors)
-    description.hermitian && (realization = _hermitian_real_space_projection(realization))
-    projected = _symmetry_project_real_space(
-        realization, description.law, symmetry, lattice
+    return _close_homogeneous_realization(
+        realization,
+        description.law,
+        description.hermitian,
+        symmetry,
+        lattice,
     )
-    description.hermitian && (projected = _hermitian_real_space_projection(projected))
+end
+
+function _realization_vector_union(realizations::AbstractDict...; hermitian = false)
+    vectors = Vec3{Int}[]
+    for realization in realizations
+        append!(vectors, keys(realization))
+        hermitian && append!(vectors, (-vector for vector in keys(realization)))
+    end
+    return unique!(vectors)
+end
+
+function _center_hamiltonian_position(
+        hamiltonian::AbstractDict,
+        hamiltonian_position::AbstractDict,
+        symmetry::WannierSymmetry,
+        lattice::AbstractMatrix,
+    )
+    cartesian_centers = map(center -> lattice * center, symmetry.centers)
+    zero_hamiltonian = _zero_real_space_matrix(hamiltonian)
+    zero_position = _zero_real_space_matrix(hamiltonian_position)
+    centered = empty(hamiltonian_position)
+    for vector in _realization_vector_union(hamiltonian, hamiltonian_position)
+        hamiltonian_matrix = get(hamiltonian, vector, zero_hamiltonian)
+        position_matrix = get(hamiltonian_position, vector, zero_position)
+        value = copy(position_matrix)
+        for column in axes(value, 2), row in axes(value, 1), component_index in 1:3
+            value[row, column, component_index] -=
+                hamiltonian_matrix[row, column, 1] *
+                cartesian_centers[column][component_index]
+        end
+        centered[vector] = value
+    end
+    return centered
+end
+
+function _restore_hamiltonian_position(
+        hamiltonian::AbstractDict,
+        centered_position::AbstractDict,
+        symmetry::WannierSymmetry,
+        lattice::AbstractMatrix,
+    )
+    cartesian_centers = map(center -> lattice * center, symmetry.centers)
+    zero_hamiltonian = _zero_real_space_matrix(hamiltonian)
+    zero_position = _zero_real_space_matrix(centered_position)
+    restored = empty(centered_position)
+    for vector in _realization_vector_union(hamiltonian, centered_position)
+        hamiltonian_matrix = get(hamiltonian, vector, zero_hamiltonian)
+        centered_matrix = get(centered_position, vector, zero_position)
+        value = copy(centered_matrix)
+        for column in axes(value, 2), row in axes(value, 1), component_index in 1:3
+            value[row, column, component_index] +=
+                hamiltonian_matrix[row, column, 1] *
+                cartesian_centers[column][component_index]
+        end
+        restored[vector] = value
+    end
+    return restored
+end
+
+_tensor_component(first_component::Integer, second_component::Integer) =
+    first_component + 3(second_component - 1)
+
+function _center_position_hamiltonian_position(
+        hamiltonian::AbstractDict,
+        hamiltonian_position::AbstractDict,
+        position_hamiltonian_position::AbstractDict,
+        symmetry::WannierSymmetry,
+        lattice::AbstractMatrix,
+    )
+    cartesian_centers = map(center -> lattice * center, symmetry.centers)
+    zero_hamiltonian = _zero_real_space_matrix(hamiltonian)
+    zero_position = _zero_real_space_matrix(hamiltonian_position)
+    zero_second_moment = _zero_real_space_matrix(position_hamiltonian_position)
+    centered = empty(position_hamiltonian_position)
+    vectors = _realization_vector_union(
+        hamiltonian,
+        hamiltonian_position,
+        position_hamiltonian_position;
+        hermitian = true,
+    )
+    for vector in vectors
+        hamiltonian_matrix = get(hamiltonian, vector, zero_hamiltonian)
+        position_matrix = get(hamiltonian_position, vector, zero_position)
+        adjoint_position_matrix = get(
+            hamiltonian_position, -vector, zero_position
+        )
+        second_moment_matrix = get(
+            position_hamiltonian_position, vector, zero_second_moment
+        )
+        value = copy(second_moment_matrix)
+        for column in axes(value, 2), row in axes(value, 1)
+            row_center = cartesian_centers[row]
+            column_center = cartesian_centers[column]
+            for second_component in 1:3, first_component in 1:3
+                component_index = _tensor_component(
+                    first_component, second_component
+                )
+                left_position = conj(
+                    adjoint_position_matrix[column, row, first_component]
+                )
+                value[row, column, component_index] -=
+                    left_position * column_center[second_component] +
+                    row_center[first_component] *
+                    position_matrix[row, column, second_component] -
+                    row_center[first_component] *
+                    hamiltonian_matrix[row, column, 1] *
+                    column_center[second_component]
+            end
+        end
+        centered[vector] = value
+    end
+    return centered
+end
+
+function _restore_position_hamiltonian_position(
+        hamiltonian::AbstractDict,
+        centered_hamiltonian_position::AbstractDict,
+        centered_second_moment::AbstractDict,
+        symmetry::WannierSymmetry,
+        lattice::AbstractMatrix,
+    )
+    cartesian_centers = map(center -> lattice * center, symmetry.centers)
+    zero_hamiltonian = _zero_real_space_matrix(hamiltonian)
+    zero_position = _zero_real_space_matrix(centered_hamiltonian_position)
+    zero_second_moment = _zero_real_space_matrix(centered_second_moment)
+    restored = empty(centered_second_moment)
+    vectors = _realization_vector_union(
+        hamiltonian,
+        centered_hamiltonian_position,
+        centered_second_moment;
+        hermitian = true,
+    )
+    for vector in vectors
+        hamiltonian_matrix = get(hamiltonian, vector, zero_hamiltonian)
+        position_matrix = get(
+            centered_hamiltonian_position, vector, zero_position
+        )
+        adjoint_position_matrix = get(
+            centered_hamiltonian_position, -vector, zero_position
+        )
+        second_moment_matrix = get(
+            centered_second_moment, vector, zero_second_moment
+        )
+        value = copy(second_moment_matrix)
+        for column in axes(value, 2), row in axes(value, 1)
+            row_center = cartesian_centers[row]
+            column_center = cartesian_centers[column]
+            for second_component in 1:3, first_component in 1:3
+                component_index = _tensor_component(
+                    first_component, second_component
+                )
+                left_position = conj(
+                    adjoint_position_matrix[column, row, first_component]
+                )
+                value[row, column, component_index] +=
+                    left_position * column_center[second_component] +
+                    row_center[first_component] *
+                    position_matrix[row, column, second_component] +
+                    row_center[first_component] *
+                    hamiltonian_matrix[row, column, 1] *
+                    column_center[second_component]
+            end
+        end
+        restored[vector] = value
+    end
+    return restored
+end
+
+function _second_moment_hermitian_projection(realization::AbstractDict)
+    vectors = _realization_vector_union(realization; hermitian = true)
+    zero_matrix = _zero_real_space_matrix(realization)
+    projected = empty(realization)
+    for vector in vectors
+        forward = get(realization, vector, zero_matrix)
+        backward = get(realization, -vector, zero_matrix)
+        value = similar(forward)
+        for column in axes(value, 2), row in axes(value, 1)
+            for second_component in 1:3, first_component in 1:3
+                component_index = _tensor_component(
+                    first_component, second_component
+                )
+                transposed_component = _tensor_component(
+                    second_component, first_component
+                )
+                value[row, column, component_index] = (
+                    forward[row, column, component_index] +
+                        conj(backward[column, row, transposed_component])
+                ) / 2
+            end
+        end
+        projected[vector] = value
+    end
     return projected
 end
 
@@ -219,9 +465,92 @@ function _close_real_space_operators(
         coefficients,
         symmetry::WannierSymmetry,
     )
-    realizations = map(descriptions, coefficients) do description, values
-        _close_real_space_operator(vectors, description, values, symmetry, lattice)
+    names = keys(descriptions)
+    coefficient_tuple = NamedTuple{names}(coefficients)
+    raw_realizations = NamedTuple{names}(
+        map(values -> _real_space_dictionary(values, vectors), coefficient_tuple)
+    )
+    closed_by_name = Dict{Symbol, Any}()
+    for name in names
+        description = getproperty(descriptions, name)
+        description.law isa _HamiltonianPositionLaw && continue
+        description.law isa _PositionHamiltonianPositionLaw && continue
+        closed_by_name[name] = _close_real_space_operator(
+            vectors,
+            description,
+            getproperty(coefficient_tuple, name),
+            symmetry,
+            lattice,
+        )
     end
+
+    if haskey(descriptions, :hamiltonian_position)
+        haskey(descriptions, :hamiltonian) || throw(
+            ArgumentError("HamiltonianPosition symmetry closure requires :hamiltonian"),
+        )
+        centered_position = _center_hamiltonian_position(
+            raw_realizations.hamiltonian,
+            raw_realizations.hamiltonian_position,
+            symmetry,
+            lattice,
+        )
+        centered_position = _close_homogeneous_realization(
+            centered_position,
+            PolarVector(time_reversal = Even()),
+            false,
+            symmetry,
+            lattice,
+        )
+        closed_by_name[:hamiltonian_position] = _restore_hamiltonian_position(
+            closed_by_name[:hamiltonian],
+            centered_position,
+            symmetry,
+            lattice,
+        )
+    end
+
+    if haskey(descriptions, :position_hamiltonian_position)
+        haskey(descriptions, :hamiltonian_position) || throw(
+            ArgumentError(
+                "PositionHamiltonianPosition symmetry closure requires " *
+                    ":hamiltonian_position",
+            ),
+        )
+        centered_second_moment = _center_position_hamiltonian_position(
+            raw_realizations.hamiltonian,
+            raw_realizations.hamiltonian_position,
+            raw_realizations.position_hamiltonian_position,
+            symmetry,
+            lattice,
+        )
+        centered_second_moment = _second_moment_hermitian_projection(
+            centered_second_moment
+        )
+        centered_second_moment = _symmetry_project_real_space(
+            centered_second_moment,
+            CartesianTensor(2; time_reversal = Even()),
+            symmetry,
+            lattice,
+        )
+        centered_second_moment = _second_moment_hermitian_projection(
+            centered_second_moment
+        )
+        centered_position = _center_hamiltonian_position(
+            closed_by_name[:hamiltonian],
+            closed_by_name[:hamiltonian_position],
+            symmetry,
+            lattice,
+        )
+        closed_by_name[:position_hamiltonian_position] =
+            _restore_position_hamiltonian_position(
+            closed_by_name[:hamiltonian],
+            centered_position,
+            centered_second_moment,
+            symmetry,
+            lattice,
+        )
+    end
+    realizations = map(name -> closed_by_name[name], names)
     closed_vectors = sort!(
         unique!(vcat((collect(keys(realization)) for realization in realizations)...));
         by = Tuple,

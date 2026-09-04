@@ -124,7 +124,11 @@ an incorrect symmetry promise. `HamiltonianPosition` and
 `PositionHamiltonianPosition` follow the same recipe seam for the additional
 moments consumed by `OrbitalMagnetization`; the latter owns the external `uHu`
 neighbor-pair data while `InterpolationModel` stores only its packed
-real-space result.
+real-space result. Symmetry construction centers these affine moments on their
+adjacent Wannier functions, applies the ordinary homogeneous polar-vector or
+rank-two-tensor projector, and restores the uncentered representation. This
+keeps the general `OperatorLaw` interface homogeneous while implementing the
+coupled affine laws in one construction adapter.
 
 When symmetry is supplied, [`WannierSymmetry`](@ref Wannier.WannierSymmetry)
 is the shared basis-level object: it owns space-group operations, prescribed

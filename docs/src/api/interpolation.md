@@ -183,10 +183,11 @@ interpolation_model = InterpolationModel(
 `BerryConnection` is a construction recipe rather than a `BlochOperator`: a
 connection has an inhomogeneous gauge-transformation law and cannot be treated
 as a lattice-periodic Cartesian vector. Its coefficients use the physical
-layout `n_wannier × n_wannier × 3 × n_Rvectors`. Symmetry closure for this
-dedicated law is not yet implemented; supplying both a Berry connection and
-`symmetry` therefore raises an error rather than silently applying the wrong
-transformation.
+layout `n_wannier × n_wannier × 3 × n_Rvectors`. When symmetry is supplied,
+construction subtracts the prescribed Wannier-center term, closes and projects
+the resulting homogeneous polar vector, and restores the affine center term.
+The interpolated connection therefore obeys its proper affine law rather than
+being incorrectly projected as an ordinary vector.
 
 Berry curvature is selected as an observable formulation. The default
 occupied-manifold recipe uses the Lopez--Vanderbilt--Thonhauser--Souza formula
@@ -236,9 +237,11 @@ result = interpolate(
 ```
 
 `result.orbital_magnetization` is the antisymmetric Cartesian integrand with
-shape `3 × 3 × n_kpoints` and units eV Å². The two moment recipes, like the
-Berry connection, have dedicated inhomogeneous transformation laws whose
-symmetry closure remains to be implemented.
+shape `3 × 3 × n_kpoints` and units eV Å². Under symmetry, the two moment
+recipes are centered on the Wannier functions adjacent to their coordinate
+legs. Their centered polar-vector and rank-two-tensor coefficients are closed
+and projected jointly with the Hamiltonian before the conventional uncentered
+moments are restored.
 
 ```@meta
 CurrentModule = Wannier

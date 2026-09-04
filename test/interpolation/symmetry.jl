@@ -133,6 +133,117 @@
     domain = Wannier.RealSpaceDomain(model.lattice, vectors)
     Random.seed!(1234)
 
+    raw_connection_model = InterpolationModel(
+        model;
+        operators = (; berry_connection = BerryConnection()),
+        real_space = WignerSeitz(),
+    )
+    closed_connection_model = InterpolationModel(
+        model;
+        operators = (; berry_connection = BerryConnection()),
+        real_space = WignerSeitz(),
+        symmetry = subgroup,
+    )
+    raw_connection = raw_connection_model.operators.berry_connection
+    raw_centered_realization = Wannier._real_space_dictionary(
+        raw_connection.coefficients, raw_connection_model.real_space.vectors
+    )
+    Wannier._shift_position_center!(
+        raw_centered_realization, subgroup, model.lattice, -1
+    )
+    raw_centered_coefficients = Wannier._pack_real_space_dictionary(
+        raw_centered_realization,
+        raw_connection_model.real_space.vectors,
+        PolarVector(time_reversal = Even()),
+    )
+    raw_centered_connection = Wannier.RealSpaceOperator(
+        raw_centered_coefficients,
+        PolarVector(time_reversal = Even()),
+        raw_connection_model.real_space;
+        hermitian = true,
+    )
+    cartesian_centers = map(center -> model.lattice * center, centers)
+    for kpoint in kpoints
+        reference = Wannier._project_operator_at_kpoint(
+            raw_centered_connection,
+            raw_connection_model.real_space,
+            model.lattice,
+            subgroup,
+            kpoint,
+        )
+        for band_index in eachindex(cartesian_centers), component_index in 1:3
+            reference[band_index, band_index, component_index] +=
+                cartesian_centers[band_index][component_index]
+        end
+        evaluated = dropdims(
+            Wannier._evaluate_real_space_operator(
+                closed_connection_model.operators.berry_connection,
+                closed_connection_model.real_space,
+                [kpoint],
+                Base.OneTo(1),
+            );
+            dims = 4,
+        )
+        @test norm(evaluated - reference) < 5.0e-12
+    end
+
+    closed_centered_realization = Wannier._real_space_dictionary(
+        closed_connection_model.operators.berry_connection.coefficients,
+        closed_connection_model.real_space.vectors,
+    )
+    Wannier._shift_position_center!(
+        closed_centered_realization, subgroup, model.lattice, -1
+    )
+    closed_centered_coefficients = Wannier._pack_real_space_dictionary(
+        closed_centered_realization,
+        closed_connection_model.real_space.vectors,
+        PolarVector(time_reversal = Even()),
+    )
+    closed_centered_connection = Wannier.RealSpaceOperator(
+        closed_centered_coefficients,
+        PolarVector(time_reversal = Even()),
+        closed_connection_model.real_space;
+        hermitian = true,
+    )
+    centered_connection_model = InterpolationModel(
+        closed_connection_model.crystal,
+        closed_connection_model.basis,
+        closed_connection_model.real_space,
+        (; berry_connection = closed_centered_connection),
+        subgroup,
+    )
+    @test Wannier._symmetry_covariance_residual(
+        centered_connection_model, :berry_connection, kpoints
+    ).maximum < 1.0e-11
+
+    zero_uHu = map(1:Wannier.n_kpoints(model)) do _
+        [
+            zeros(ComplexF64, Wannier.n_bands(model), Wannier.n_bands(model))
+                for _ in 1:Wannier.n_bvectors(model),
+                _ in 1:Wannier.n_bvectors(model)
+        ]
+    end
+    closed_moment_model = InterpolationModel(
+        model;
+        operators = (;
+            berry_connection = BerryConnection(),
+            hamiltonian_position = HamiltonianPosition(),
+            position_hamiltonian_position = PositionHamiltonianPosition(zero_uHu),
+        ),
+        real_space = WignerSeitz(),
+        symmetry = subgroup,
+    )
+    @test keys(closed_moment_model.operators) == (
+        :hamiltonian,
+        :berry_connection,
+        :hamiltonian_position,
+        :position_hamiltonian_position,
+    )
+    @test all(
+        Wannier.n_Rvectors(operator) == Wannier.n_Rvectors(closed_moment_model)
+            for operator in values(closed_moment_model.operators)
+    )
+
     vector_values = randn(
         ComplexF64,
         Wannier.n_bands(model),
@@ -206,6 +317,143 @@
         @test Wannier._symmetry_covariance_residual(
             component_model, :test_operator, kpoints
         ).maximum < 1.0e-11
+    end
+
+    moment_hamiltonian = randn(
+        ComplexF64, number_wannier, number_wannier, length(vectors)
+    )
+    moment_hamiltonian = Wannier._pack_real_space_dictionary(
+        Wannier._hermitian_real_space_projection(
+            Wannier._real_space_dictionary(moment_hamiltonian, vectors)
+        ),
+        vectors,
+        Scalar(time_reversal = Even()),
+    )
+    moment_position = randn(
+        ComplexF64, number_wannier, number_wannier, 3, length(vectors)
+    )
+    moment_second = randn(
+        ComplexF64, number_wannier, number_wannier, 3, 3, length(vectors)
+    )
+    raw_hamiltonian = Wannier._real_space_dictionary(
+        moment_hamiltonian, vectors
+    )
+    raw_position = Wannier._real_space_dictionary(moment_position, vectors)
+    raw_second = Wannier._real_space_dictionary(moment_second, vectors)
+    centered_position = Wannier._center_hamiltonian_position(
+        raw_hamiltonian, raw_position, subgroup, model.lattice
+    )
+    restored_position = Wannier._restore_hamiltonian_position(
+        raw_hamiltonian, centered_position, subgroup, model.lattice
+    )
+    @test all(
+        restored_position[vector] ≈ raw_position[vector] for vector in vectors
+    )
+    centered_second = Wannier._center_position_hamiltonian_position(
+        raw_hamiltonian, raw_position, raw_second, subgroup, model.lattice
+    )
+    restored_second = Wannier._restore_position_hamiltonian_position(
+        raw_hamiltonian,
+        centered_position,
+        centered_second,
+        subgroup,
+        model.lattice,
+    )
+    @test all(restored_second[vector] ≈ raw_second[vector] for vector in vectors)
+
+    moment_descriptions = (;
+        hamiltonian = (;
+            law = Scalar(time_reversal = Even()), hermitian = true,
+        ),
+        hamiltonian_position = Wannier._operator_description(
+            HamiltonianPosition()
+        ),
+        position_hamiltonian_position = Wannier._operator_description(
+            PositionHamiltonianPosition(Any[])
+        ),
+    )
+    closed_moment_vectors, closed_moments = Wannier._close_real_space_operators(
+        model.lattice,
+        vectors,
+        moment_descriptions,
+        (moment_hamiltonian, moment_position, moment_second),
+        subgroup,
+    )
+    closed_hamiltonian, closed_position, closed_second = closed_moments
+    closed_domain = Wannier.RealSpaceDomain(model.lattice, closed_moment_vectors)
+    closed_hamiltonian_realization = Wannier._real_space_dictionary(
+        closed_hamiltonian, closed_moment_vectors
+    )
+    closed_position_realization = Wannier._real_space_dictionary(
+        closed_position, closed_moment_vectors
+    )
+    closed_second_realization = Wannier._real_space_dictionary(
+        closed_second, closed_moment_vectors
+    )
+    centered_position_realization = Wannier._center_hamiltonian_position(
+        closed_hamiltonian_realization,
+        closed_position_realization,
+        subgroup,
+        model.lattice,
+    )
+    centered_second_realization = Wannier._center_position_hamiltonian_position(
+        closed_hamiltonian_realization,
+        closed_position_realization,
+        closed_second_realization,
+        subgroup,
+        model.lattice,
+    )
+    centered_position_operator = Wannier.RealSpaceOperator(
+        Wannier._pack_real_space_dictionary(
+            centered_position_realization,
+            closed_moment_vectors,
+            PolarVector(time_reversal = Even()),
+        ),
+        PolarVector(time_reversal = Even()),
+        closed_domain;
+        hermitian = false,
+    )
+    centered_second_operator = Wannier.RealSpaceOperator(
+        Wannier._pack_real_space_dictionary(
+            centered_second_realization,
+            closed_moment_vectors,
+            CartesianTensor(2; time_reversal = Even()),
+        ),
+        CartesianTensor(2; time_reversal = Even()),
+        closed_domain;
+        hermitian = false,
+    )
+    for (name, operator) in (
+            :hamiltonian_position => centered_position_operator,
+            :position_hamiltonian_position => centered_second_operator,
+        )
+        moment_model = InterpolationModel(
+            closed_model.crystal,
+            closed_model.basis,
+            closed_domain,
+            NamedTuple{(name,)}((operator,)),
+            subgroup,
+        )
+        @test Wannier._symmetry_covariance_residual(
+            moment_model, name, kpoints
+        ).maximum < 1.0e-11
+    end
+    closed_vector_index = Dict(
+        vector => index for (index, vector) in enumerate(closed_moment_vectors)
+    )
+    @test all(enumerate(closed_moment_vectors)) do (vector_index, vector)
+        partner_index = closed_vector_index[-vector]
+        all(
+            view(closed_second, :, :, first_component, second_component, vector_index) ≈
+                view(
+                closed_second,
+                :,
+                :,
+                second_component,
+                first_component,
+                partner_index,
+            )' for first_component in 1:3, second_component in 1:3
+        )
     end
 
     # Exercise tied minimum-distance replicas before symmetry closure. All
