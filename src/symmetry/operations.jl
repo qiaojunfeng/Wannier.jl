@@ -12,9 +12,15 @@ export WannierSymmetry
 # - `orbital_reps[isym]` store D(ĝ_isym): ĝ w_n = Σ_{n′} D_{n′n} w_{n′}(r - R_{n′})
 
 """
-Ensure the eigenvalue of representation matrices are integers when possible.
+Normalize isolated diagonal rows of a little-group representation.
+
+When a row is diagonal to numerical precision, preserve the phase of its
+diagonal entry while rounding its magnitude to the nearest nonzero integer.
+This is the legacy normalization required by some `.isym` data. It is not
+energy aware; callers that have IBZ eigenvalues should normally use
+[`clean_littlegroup_reps!`](@ref), which includes this stage.
 """
-function rescale(rep::LittleGroupRep)
+function _normalize_diagonal_littlegroup_rep(rep::LittleGroupRep)
     nbnd = size(rep.d, 1)
 
     d = zeros(eltype(rep.d), nbnd, nbnd)
@@ -30,8 +36,8 @@ function rescale(rep::LittleGroupRep)
     return LittleGroupRep{nbnd}(rep.ik_ibz, rep.isym, d)
 end
 
-function rescale_littlegroup_reps!(reps::AbstractVector{<:LittleGroupRep})
-    return reps .= rescale.(reps)
+function normalize_diagonal_littlegroup_reps!(reps::AbstractVector{<:LittleGroupRep})
+    return reps .= _normalize_diagonal_littlegroup_rep.(reps)
 end
 
 export clean_littlegroup_reps!, map_fbz_to_ibz
@@ -41,7 +47,12 @@ export clean_littlegroup_reps!, map_fbz_to_ibz
 
 Remove the numerical noise from little-group representation matrices.
 
-For energy multiplets fully inside a symmetry-closed window the matrices
+Cleaning first applies the phase-preserving diagonal normalization of
+`normalize_diagonal_littlegroup_reps!`, then uses `eig_ibz` to enforce the
+energy-block structure described below. Thus callers need only this one
+function; a separate normalization call is unnecessary.
+
+For energy multiplets fully inside a symmetry-closed window, the matrices
 `d(ĥ, k)` are *exactly* block-diagonal over degenerate multiplets (`ĥ`
 commutes with the Hamiltonian) and *exactly* unitary within each block; the
 `.isym` data carries them only to the accuracy of the generating DFT run
@@ -57,12 +68,13 @@ A block is unitarized only when it is already unitary to within
 `atol_unitary` (measured as `opnorm(B'B - I)`). Blocks with a larger deficit
 belong to multiplets the window genuinely truncates (or that the data
 genuinely breaks): their `d` entries are contractions, not noisy unitaries,
-and they are left untouched so the symmetry-broken-band masking of
+and they are left untouched after diagonal normalization so the
+symmetry-broken-band masking of
 [`SymmetryConstraint`](@ref) still detects them.
 
 `eig_ibz` are the IBZ eigenvalues (`n_bands × n_kpoints_ibz`, the `.ieig`
-data, ascending per kpoint). Apply after `rescale_littlegroup_reps!`. Cleaning is
-strictly opt-in: it moves quantities unfolded through the reps (e.g.
+data, ascending per kpoint). Cleaning is strictly opt-in: it moves quantities
+reconstructed through the reps (e.g.
 `reconstruct_overlaps`) by the size of the removed noise, so data cleaned
 here no longer reproduces reference files generated with the raw reps to
 better than that noise.
@@ -77,6 +89,7 @@ function clean_littlegroup_reps!(
     nbnd = size(reps[1].d, 1)
     size(eig_ibz, 1) == nbnd ||
         error("eig_ibz must have n_bands = $nbnd rows, got $(size(eig_ibz, 1))")
+    normalize_diagonal_littlegroup_reps!(reps)
     return reps .= map(reps) do rep
         E = view(eig_ibz, :, rep.ik_ibz)
         d0 = Matrix(rep.d)

@@ -40,8 +40,9 @@ function unfold(
     )
 
     isym = read_isym("$prefix.isym")
-    # TODO really needed?
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    # Preserve the legacy diagonal normalization without applying the optional,
+    # energy-informed representation cleaning.
+    Wannier.normalize_diagonal_littlegroup_reps!(isym.littlegroup_reps)
 
     kpoints_ibz = isym.kpoints_ibz
     symops = isym.symops

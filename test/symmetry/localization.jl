@@ -10,7 +10,7 @@
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    Wannier.normalize_diagonal_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
     sc = Wannier.SymmetryConstraint(kstencil, isym, centers)
 
@@ -58,7 +58,6 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     clean_littlegroup_reps!(isym.littlegroup_reps, Ei)
     centers = [p.center for p in nnkp["projections"]]
@@ -145,7 +144,7 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    Wannier.normalize_diagonal_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
     sc = Wannier.SymmetryConstraint(ks0, isym, centers)
     ks = Wannier.globalize_bvector_ordering(ks0)
@@ -202,7 +201,6 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     clean_littlegroup_reps!(isym.littlegroup_reps, Ei)
     centers = [p.center for p in nnkp["projections"]]
@@ -291,7 +289,7 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    Wannier.normalize_diagonal_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
     sc = Wannier.SymmetryConstraint(ks0, isym, centers)
 
@@ -354,7 +352,7 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    Wannier.normalize_diagonal_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
     sc = Wannier.SymmetryConstraint(ks0, isym, centers)
 
@@ -440,7 +438,7 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    Wannier.normalize_diagonal_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
 
@@ -479,8 +477,9 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
-    raw = [copy(Matrix(r.d)) for r in isym.littlegroup_reps]
+    normalized = read_isym(dataset"Si2_hse/Si2.isym")
+    Wannier.normalize_diagonal_littlegroup_reps!(normalized.littlegroup_reps)
+    normalized_matrices = [copy(Matrix(r.d)) for r in normalized.littlegroup_reps]
     Ei = read_eig(dataset"Si2_hse/Si2.ieig")
     atol_deg, atol_unit = 1.0e-4, 0.01
     clean_littlegroup_reps!(
@@ -488,9 +487,22 @@ end
         atol_degeneracy = atol_deg, atol_unitary = atol_unit,
     )
 
+    # A single cleaning call reproduces the former normalize-then-clean
+    # sequence; Si2_hse is the regression case where omitting normalization
+    # changes the result substantially.
+    clean_littlegroup_reps!(
+        normalized.littlegroup_reps, Ei;
+        atol_degeneracy = atol_deg, atol_unitary = atol_unit,
+    )
+    @test all(
+        isapprox(isym.littlegroup_reps[i].d, normalized.littlegroup_reps[i].d)
+            for i in eachindex(isym.littlegroup_reps)
+    )
+
     # per rep: exactly block-diagonal over energy multiplets; each block is
     # either exactly unitarized (was near-unitary up to data noise) or a
-    # genuinely truncated multiplet kept bit-identical to the raw data
+    # genuinely truncated multiplet kept bit-identical after the baseline
+    # diagonal normalization
     n_unitarized, n_kept = let n_unitarized = 0, n_kept = 0
         for (ir, rep) in enumerate(isym.littlegroup_reps)
             E = Ei[:, rep.ik_ibz]
@@ -509,7 +521,7 @@ end
                 if opnorm(B' * B - I) <= 1.0e-12
                     n_unitarized += 1
                 else
-                    @test B == raw[ir][blk, blk]         # left untouched
+                    @test B == normalized_matrices[ir][blk, blk] # left untouched
                     @test opnorm(B' * B - I) > atol_unit # a true contraction
                     n_kept += 1
                 end
@@ -524,7 +536,7 @@ end
     # still detects Si2_hse's truncated multiplets
     centers = [p.center for p in nnkp["projections"]]
     isym_raw = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym_raw.littlegroup_reps)
+    Wannier.normalize_diagonal_littlegroup_reps!(isym_raw.littlegroup_reps)
     sc_raw = Wannier.SymmetryConstraint(kstencil, isym_raw, centers)
     sc = Wannier.SymmetryConstraint(kstencil, isym, centers)
     @test sc.covariant_bands == sc_raw.covariant_bands
@@ -553,7 +565,7 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    Wannier.normalize_diagonal_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
     sc = Wannier.SymmetryConstraint(ks0, isym, centers)
     ks = Wannier.globalize_bvector_ordering(ks0)
@@ -630,7 +642,7 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    Wannier.normalize_diagonal_littlegroup_reps!(isym.littlegroup_reps)
     centers = [p.center for p in nnkp["projections"]]
     sc = Wannier.SymmetryConstraint(ks0, isym, centers)
     ks = Wannier.globalize_bvector_ordering(ks0)

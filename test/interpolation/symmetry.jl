@@ -7,7 +7,6 @@
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
     eigenvalues_ibz = read_eig(dataset"Si2_hse/Si2.ieig")
     clean_littlegroup_reps!(isym.littlegroup_reps, eigenvalues_ibz)
     centers = [projection.center for projection in nnkp["projections"]]

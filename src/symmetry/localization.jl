@@ -184,7 +184,7 @@ already-built tables positionally.
 # Arguments
 - `kstencil`: full-mesh k-space stencil (defines kpoints and the b shell).
 - `isym`: named tuple from `WannierIO.read_isym` (with `littlegroup_reps`
-  rescaled by [`rescale_littlegroup_reps!`](@ref) beforehand).
+  normalized by `normalize_diagonal_littlegroup_reps!` beforehand).
 - `centers`: WF centers in fractional coordinates (from the `.nnkp`
   projections), used for the orbital translation vectors.
 """

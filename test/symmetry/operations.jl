@@ -1,12 +1,13 @@
-@testitem "rescale" begin
+@testitem "normalize diagonal little-group representations" begin
     using WannierIO: LittleGroupRep
 
     d = [1.0 0.0; 0.0 1 - 1.0e-4]
     rep = LittleGroupRep{2}(1, 1, d)
-    r = Wannier.rescale(rep)
+    reps = [rep]
+    Wannier.normalize_diagonal_littlegroup_reps!(reps)
     ref = [1.0 0.0; 0.0 1.0]
 
-    @test isapprox(r.d, ref)
+    @test isapprox(only(reps).d, ref)
 end
 
 @testitem "map_fbz_to_ibz" begin
@@ -98,7 +99,7 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    Wannier.normalize_diagonal_littlegroup_reps!(isym.littlegroup_reps)
 
     centers = [p.center for p in nnkp["projections"]]
     Rs = Wannier.find_wf_symmetry_translations(centers, isym.symops, isym.orbital_reps)
@@ -121,7 +122,7 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    Wannier.normalize_diagonal_littlegroup_reps!(isym.littlegroup_reps)
     f2i = map_fbz_to_ibz(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
 
     centers = [p.center for p in nnkp["projections"]]
@@ -177,7 +178,7 @@ end
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
-    Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
+    Wannier.normalize_diagonal_littlegroup_reps!(isym.littlegroup_reps)
     f2i = map_fbz_to_ibz(kstencil.kpoints, isym.kpoints_ibz, isym.symops)
 
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")

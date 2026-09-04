@@ -19,7 +19,6 @@ ks0 = Wannier.KSpaceStencil(
 )
 isym = read_isym(joinpath(RERUN_DIR, "$prefix.isym"))
 Ei = read_eig(joinpath(RERUN_DIR, "$prefix.ieig"))
-Wannier.rescale_littlegroup_reps!(isym.littlegroup_reps)
 Wannier.clean_littlegroup_reps!(isym.littlegroup_reps, Ei)
 centers = [p.center for p in nnkp["projections"]]
 
