@@ -48,7 +48,7 @@ nested vectors of matrices:
 | `lattice` | `Mat3{T}` | `3 × 3`, columns are lattice vectors (Å) |
 | `atom_positions` | `Vector{Vec3{T}}` | length `n_atoms`, fractional |
 | `atom_labels` | `Vector{String}` | length `n_atoms` |
-| `kstencil` | `KspaceStencil{T}` | finite-difference ``\mathbf{b}``-vectors |
+| `kstencil` | `KSpaceStencil{T}` | finite-difference ``\mathbf{b}``-vectors |
 | `overlaps` | `Array{Complex{T},4}` | `n_bands × n_bands × n_bvectors × n_kpoints` |
 | `gauges` | `Array{Complex{T},3}` | `n_bands × n_wannier × n_kpoints` |
 | `eigenvalues` | `Matrix{T}` | `n_bands × n_kpoints` (eV) |

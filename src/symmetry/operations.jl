@@ -702,8 +702,8 @@ end
 
 function reconstruct_overlaps(
         M_ibz::AbstractArray{<:Complex, 4},
-        kstencil_ibz::KspaceStencil,
-        kstencil_fbz::KspaceStencil,
+        kstencil_ibz::KSpaceStencil,
+        kstencil_fbz::KSpaceStencil,
         fbz2ibz::AbstractVector,
         spinors::Bool,
         symops::AbstractVector{SymOp},
@@ -741,7 +741,7 @@ function reorder(
         M::AbstractArray{<:Complex, 4},
         kpb_k::AbstractMatrix{Int},
         kpb_G::AbstractMatrix,
-        kstencil::KspaceStencil,
+        kstencil::KSpaceStencil,
     )
     nbvec = n_bvectors(kstencil)
     nkpts = n_kpoints(kstencil)

@@ -8,12 +8,12 @@ Write `mmn` file.
 # Arguments
 - `filename`: filename of the `.mmn` file
 - `overlaps`: the overlap matrices
-- `kstencil`: the `KspaceStencil` struct
+- `kstencil`: the `KSpaceStencil` struct
 """
 function write_mmn(
         filename::AbstractString,
         overlaps::AbstractArray{<:Complex, 4},
-        kstencil::KspaceStencil;
+        kstencil::KSpaceStencil;
         kwargs...,
     )
     return write_mmn(filename, overlaps, kstencil.kpb_k, kstencil.kpb_G; kwargs...)

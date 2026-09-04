@@ -14,7 +14,7 @@ prefix = "Ge4Ru4"
 
 # ---- load & build ----------------------------------------------------------
 nnkp = read_nnkp(joinpath(RERUN_DIR, "$prefix.nnkp"))
-ks0 = Wannier.KspaceStencil(
+ks0 = Wannier.KSpaceStencil(
     nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
 )
 isym = read_isym(joinpath(RERUN_DIR, "$prefix.isym"))

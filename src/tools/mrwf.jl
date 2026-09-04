@@ -141,7 +141,7 @@ function mrwf(
         )
         # Just set weights to 0.0, they are not complete b-vectors
         weights = zeros(Float64, nbvecs)
-        kstencil_cubic = Wannier.KspaceStencil{Float64}(
+        kstencil_cubic = Wannier.KSpaceStencil{Float64}(
             reciprocal_lattice(model),
             kgrid_size(model),
             kpoints(model),

@@ -38,8 +38,8 @@ struct Model{T <: Real}
 
     """stencil for finite differences on the kpoint grid, also called
     ``\\mathbf{b}``-vectors. Should satisfy completeness condition, see
-    [`KspaceStencil`](@ref)"""
-    kstencil::KspaceStencil{T}
+    [`KSpaceStencil`](@ref)"""
+    kstencil::KSpaceStencil{T}
 
     """overlap matrices between neighboring wavefunctions, ``M_{\\bm{k},\\bm{b}}``.
     `n_bands × n_bands × n_bvectors × n_kpoints` array.
@@ -70,7 +70,7 @@ function Model(
         lattice::AbstractMatrix,
         atom_positions::AbstractVector,
         atom_labels::AbstractVector,
-        kstencil::KspaceStencil,
+        kstencil::KSpaceStencil,
         overlaps::AbstractArray{<:Complex, 4},
         gauges::AbstractArray{<:Complex, 3},
         eigenvalues::AbstractMatrix{<:Real},
@@ -121,12 +121,12 @@ end
 Construct a `Model` from an existing `Model`, reuse the lattice and atomic
 information, but change the `kstencil` and `overlaps`.
 
-For instance, use a cubic-6-neighbors `KspaceStencil` for
+For instance, use a cubic-6-neighbors `KSpaceStencil` for
 [`parallel_transport`](@ref).
 """
 function Model(
         model::Model,
-        kstencil::KspaceStencil,
+        kstencil::KSpaceStencil,
         overlaps::AbstractArray{<:Complex, 4},
         gauges::AbstractArray{<:Complex, 3} = model.gauges,
         eigenvalues::AbstractMatrix{<:Real} = model.eigenvalues,
@@ -154,48 +154,48 @@ CrystalBase.reciprocal_lattice(model::Model) = reciprocal_lattice(model.kstencil
 
 """
     kpoints(::Model)
-    kpoints(::KspaceStencil)
+    kpoints(::KSpaceStencil)
 
 Fractional coordinates of the kpoint grid.
 """
 kpoints(model::Model) = model.kstencil.kpoints
-kpoints(kstencil::KspaceStencil) = kstencil.kpoints
+kpoints(kstencil::KSpaceStencil) = kstencil.kpoints
 
 """
     kgrid_size(::Model)
-    kgrid_size(::KspaceStencil)
+    kgrid_size(::KSpaceStencil)
 
 Number of kpoints along the three reciprocal lattice vectors.
 """
 kgrid_size(model::Model) = model.kstencil.kgrid_size
-kgrid_size(kstencil::KspaceStencil) = kstencil.kgrid_size
+kgrid_size(kstencil::KSpaceStencil) = kstencil.kgrid_size
 
 """
     kpb_k(::Model)
-    kpb_k(::KspaceStencil)
+    kpb_k(::KSpaceStencil)
 
 Indices of ``\\mathbf{k+b}`` kpoints.
 """
 kpb_k(model::Model) = model.kstencil.kpb_k
-kpb_k(kstencil::KspaceStencil) = kstencil.kpb_k
+kpb_k(kstencil::KSpaceStencil) = kstencil.kpb_k
 
 """
     kpb_G(::Model)
-    kpb_G(::KspaceStencil)
+    kpb_G(::KSpaceStencil)
 
 Reciprocal lattice displacements for ``\\mathbf{k+b}`` kpoints.
 """
 kpb_G(model::Model) = model.kstencil.kpb_G
-kpb_G(kstencil::KspaceStencil) = kstencil.kpb_G
+kpb_G(kstencil::KSpaceStencil) = kstencil.kpb_G
 
 """
     bweights(::Model)
-    bweights(::KspaceStencil)
+    bweights(::KSpaceStencil)
 
 Weights of the ``\\mathbf{b}``-vectors.
 """
 bweights(model::Model) = model.kstencil.bweights
-bweights(kstencil::KspaceStencil) = kstencil.bweights
+bweights(kstencil::KSpaceStencil) = kstencil.bweights
 
 """
     $(SIGNATURES)

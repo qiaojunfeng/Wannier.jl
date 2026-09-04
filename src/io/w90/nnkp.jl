@@ -6,12 +6,12 @@ export read_nnkp_compute_bweights, write_nnkp
 Read the `nnkp` file.
 
 This function calls `WannierIO.read_nnkp` to parse the file, compute the bweights
-of b-vectors, and returns a [`KspaceStencil`](@ref) (while `WannierIO.read_nnkp` only
+of b-vectors, and returns a [`KSpaceStencil`](@ref) (while `WannierIO.read_nnkp` only
 returns a `NamedTuple`).
 """
 function read_nnkp_compute_bweights(filename::AbstractString)
     nnkp = WannierIO.read_nnkp(filename)
-    return KspaceStencil(nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"])
+    return KSpaceStencil(nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"])
 end
 
 """
@@ -44,7 +44,7 @@ function WannierIO.read_nnkp(
             error("length of weights does not match number of b-vectors")
     end
 
-    return KspaceStencil{Float64}(
+    return KSpaceStencil{Float64}(
         recip_lattice, kgrid_size, kpoints, bvectors, weights, kpb_k, kpb_G
     )
 end
@@ -56,7 +56,7 @@ Write nnkp that can be used by `pw2wannier90`.
 
 # Arguments
 - `filename`: the filename to write to
-- `kstencil`: a [`KspaceStencil`](@ref) object
+- `kstencil`: a [`KSpaceStencil`](@ref) object
 
 !!! tip
 
@@ -67,7 +67,7 @@ Write nnkp that can be used by `pw2wannier90`.
 
     For other keyword arguments, see [`WannierIO.write_nnkp`](@ref).
 """
-function write_nnkp(filename::AbstractString, kstencil::KspaceStencil; kwargs...)
+function write_nnkp(filename::AbstractString, kstencil::KSpaceStencil; kwargs...)
     params = OrderedDict{String, Any}(
         "lattice" => real_lattice(kstencil),
         "recip_lattice" => reciprocal_lattice(kstencil),
@@ -123,7 +123,7 @@ function has_cubic_neighbors(
     return true
 end
 
-function has_cubic_neighbors(kstencil::KspaceStencil; atol::AbstractFloat = 1.0e-6)
+function has_cubic_neighbors(kstencil::KSpaceStencil; atol::AbstractFloat = 1.0e-6)
     return has_cubic_neighbors(
         kstencil.kpoints, kstencil.kpb_k, kstencil.kpb_G; kstencil.kgrid_size, atol
     )
@@ -151,7 +151,7 @@ Write a nnkp file with 6 cubic neighbors. Useful for [`parallel_transport`](@ref
 function write_nnkp_cubic(filename::AbstractString, win::Union{NamedTuple, AbstractDict})
     recip_latt = reciprocal_lattice(win["unit_cell_cart"])
     kstencil = generate_kspace_stencil(
-        recip_latt, win["mp_grid"], win["kpoints"], Wannier.CubicNearestKspaceStencil()
+        recip_latt, win["mp_grid"], win["kpoints"], Wannier.CubicNearestKSpaceStencil()
     )
     return write_nnkp(
         filename,

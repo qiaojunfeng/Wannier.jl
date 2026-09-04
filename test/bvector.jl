@@ -20,7 +20,7 @@
         [-0.192835, -0.192835, -0.192835],
     ])
     ref_bweights = fill(3.361532, 8)
-    ref_kstencil = Wannier.KspaceStencil(
+    ref_kstencil = Wannier.KSpaceStencil(
         recip_lattice,
         vec3(win["mp_grid"]),
         win["kpoints"],
@@ -60,7 +60,7 @@ end
         0.397521
         0.397521
     ]
-    ref_kstencil = Wannier.KspaceStencil(
+    ref_kstencil = Wannier.KSpaceStencil(
         recip_lattice,
         vec3(win["mp_grid"]),
         win["kpoints"],
@@ -106,7 +106,7 @@ end
         0.000048,
         0.000048,
     ]
-    ref_kstencil = Wannier.KspaceStencil(
+    ref_kstencil = Wannier.KSpaceStencil(
         recip_lattice,
         vec3(win["mp_grid"]),
         win["kpoints"],

@@ -26,7 +26,7 @@ end
 """
 function TBHamiltonianPosition(
         Rspace::Union{WignerSeitzRspace, MDRSRspace},
-        kstencil::KspaceStencil,
+        kstencil::KSpaceStencil,
         overlaps::AbstractArray{<:Complex, 4},
         eigenvalues::AbstractMatrix,
         gauges::AbstractArray{<:Complex, 3},
@@ -106,7 +106,7 @@ end
 """
 function TBPositionHamiltonianPosition(
         Rspace::Union{WignerSeitzRspace, MDRSRspace},
-        kstencil::KspaceStencil,
+        kstencil::KSpaceStencil,
         uHu::AbstractVector,
         gauges::AbstractArray{<:Complex, 3};
         force_hermiticity = default_w90_berry_duHdu_force_hermiticity(),

@@ -35,7 +35,7 @@ function unfold(
         prefix::AbstractString, out_prefix::AbstractString = prefix; reorder_bvec::Bool = false
     )
     nnkp = read_nnkp("$prefix.nnkp")
-    kstencil = Wannier.KspaceStencil(
+    kstencil = Wannier.KSpaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
 
@@ -72,7 +72,7 @@ function unfold(
     # The b vectors of the IBZ mmn file is the same as that of the FBZ nnkp file
     # at the Γ point, and the b vectors of remaining kpoints are always the same
     # at each kpoint in the IBZ mmn file.
-    kstencil_ibz = Wannier.KspaceStencil(
+    kstencil_ibz = Wannier.KSpaceStencil(
         kstencil.recip_lattice, kstencil.kgrid_size, kpoints_ibz,
         get_bvectors(kstencil; fractional = true),
         kstencil.bweights, kpb_k_i, kpb_G_i

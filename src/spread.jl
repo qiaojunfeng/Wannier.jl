@@ -130,7 +130,7 @@ struct Workspace{T}
 end
 
 function Workspace(
-        bvectors::KspaceStencil{FT}, M::AbstractArray{<:Complex, 4},
+        bvectors::KSpaceStencil{FT}, M::AbstractArray{<:Complex, 4},
         U::AbstractArray{<:Complex, 3},
         frozen::AbstractMatrix{Bool} = falses(size(U, 1), size(U, 3)),
     ) where {FT}
@@ -197,7 +197,7 @@ function omega!(
         r::Vector{<:Vec3{FT}},
         UtMU::AbstractArray{<:Complex, 4},
         MU::AbstractArray{<:Complex, 4},
-        bvectors::KspaceStencil{FT},
+        bvectors::KSpaceStencil{FT},
         M;
         guide::AbstractVector{<:Vec3} = zeros(Vec3{FT}, length(r)),
     ) where {FT <: Real}
@@ -281,7 +281,7 @@ function omega!(
     return Spread(Ω, ΩI, ΩOD, ΩD, Ωtilde, ω, r)
 end
 
-function omega!(cache::Workspace, bvectors::KspaceStencil{FT}, M) where {FT <: Real}
+function omega!(cache::Workspace, bvectors::KSpaceStencil{FT}, M) where {FT <: Real}
     return omega!(cache.r, cache.UtMU, cache.MU, bvectors, M; guide = cache.guiding_centers)
 end
 
@@ -296,7 +296,7 @@ In case of the first `bvectors = model.bvectors` and `M = model.overlaps_updn`.
 spread(model::Model) = spread(model, model.gauges)
 spread(model::Model, gauges) = spread(model.kstencil, model.overlaps, gauges)
 
-function spread(bvectors::KspaceStencil, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3})
+function spread(bvectors::KSpaceStencil, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3})
     n_kpts = size(M, 4)
     n_bvecs = size(M, 3)
     n_bands = size(U, 1)
@@ -421,7 +421,7 @@ Size of output `dΩ/dU` = `n_bands * n_wann * n_kpts`.
 - `U`: `n_wann * n_wann * n_kpts` array
 - `r`: `3 * n_wann`, the current WF centers in cartesian coordinates
 """
-function omega_grad(penalty::Function, bvectors::KspaceStencil, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3})
+function omega_grad(penalty::Function, bvectors::KSpaceStencil, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3})
     n_kpts = size(M, 4)
     n_bvecs = size(M, 3)
     n_bands = size(U, 1)
@@ -434,7 +434,7 @@ function omega_grad(penalty::Function, bvectors::KspaceStencil, M::AbstractArray
     compute_MU_UtMU!(MU, UtMU, bvectors, M, U)
     return omega_grad!(penalty, G, r, UtMU, MU, bvectors, M)
 end
-omega_grad(bvectors::KspaceStencil, M, U) = omega_grad((r, _) -> r, bvectors, M, U)
+omega_grad(bvectors::KSpaceStencil, M, U) = omega_grad((r, _) -> r, bvectors, M, U)
 
 """
     center(bvectors, M, U)
@@ -446,7 +446,7 @@ Compute WF center in reciprocal space.
 - `M`: `n_bands * n_bands * * n_bvecs * n_kpts` overlap array
 - `U`: `n_wann * n_wann * n_kpts` array
 """
-function center(bvectors::KspaceStencil, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3})
+function center(bvectors::KSpaceStencil, M::AbstractArray{<:Complex, 4}, U::AbstractArray{<:Complex, 3})
     n_kpts = size(M, 4)
     n_bvecs = size(M, 3)
     n_bands = size(U, 1)
@@ -528,7 +528,7 @@ Compute WF postion operator matrix in reciprocal space.
 - `U`: `n_wann * n_wann * n_kpts` array
 """
 @views function position_operator(
-        bvectors::KspaceStencil{FT},
+        bvectors::KSpaceStencil{FT},
         M::AbstractArray{Complex{FT}, 4},
         U::AbstractArray{Complex{FT}, 3},
     ) where {FT <: Real}
@@ -604,7 +604,7 @@ Wannier-gauge Berry connection in kspace, WYSV Eq. 44 or MV Eq. C14
     MV1997 Eq. 31. wannier90 default is true.
 """
 function compute_berry_connection_kspace(
-        kstencil::KspaceStencil,
+        kstencil::KSpaceStencil,
         overlaps::AbstractArray{<:Complex, 4},
         gauges::AbstractArray{<:Complex, 3};
         imlog_diag::Bool = true,
@@ -670,7 +670,7 @@ Local part of the contribution to `r^2`.
 - `U`: `n_bands × n_wann × n_kpts` array
 """
 function omega_local(
-        bvectors::KspaceStencil{FT},
+        bvectors::KSpaceStencil{FT},
         M::AbstractArray{Complex{FT}, 4},
         U::AbstractArray{Complex{FT}, 3},
     ) where {FT <: Real}

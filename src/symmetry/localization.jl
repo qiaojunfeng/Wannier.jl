@@ -126,7 +126,7 @@ ordering of the first kpoint, i.e. `kpb_k[ib, ik]` is the kpoint index of
 [`SymmetryConstraint`](@ref) and the outputs of [`reconstruct_overlaps`](@ref)
 use this ordering, so full-mesh models built from them need this stencil.
 """
-function globalize_bvector_ordering(kstencil::KspaceStencil)
+function globalize_bvector_ordering(kstencil::KSpaceStencil)
     kpts = kstencil.kpoints
     bvecs = get_bvectors(kstencil; fractional = true)
     nk = length(kpts)
@@ -142,7 +142,7 @@ function globalize_bvector_ordering(kstencil::KspaceStencil)
         kpb_k[ib, ik] = ikpb
         kpb_G[ib, ik] = Vec3{Int}(round.(Int, G))
     end
-    return KspaceStencil(kstencil.recip_lattice, kpts, kpb_k, kpb_G)
+    return KSpaceStencil(kstencil.recip_lattice, kpts, kpb_k, kpb_G)
 end
 
 """
@@ -206,7 +206,7 @@ already-built tables positionally.
   projections), used for the orbital translation vectors.
 """
 function SymmetryConstraint(
-        kstencil::KspaceStencil{T},
+        kstencil::KSpaceStencil{T},
         isym,
         centers::AbstractVector;
         eig_ibz::Union{Nothing, AbstractMatrix{<:Real}} = nothing,

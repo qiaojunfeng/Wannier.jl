@@ -13,7 +13,7 @@ kpoints are sorted by their distance to the original kpoint, such that equal-dis
 # Fields
 $(FIELDS)
 """
-struct KspaceStencilShells{T <: Real}
+struct KSpaceStencilShells{T <: Real}
     """reciprocal lattice vectors, 3 * 3, each column is a reciprocal lattice
     vector in Å⁻¹ unit"""
     recip_lattice::Mat3{T}
@@ -42,28 +42,28 @@ struct KspaceStencilShells{T <: Real}
     bweights::Vector{T}
 end
 
-n_kpoints(shells::KspaceStencilShells) = length(shells.kpoints)
+n_kpoints(shells::KSpaceStencilShells) = length(shells.kpoints)
 """number of b-vector shells"""
-n_shells(shells::KspaceStencilShells) = length(shells.n_degens)
-n_bvectors(shells::KspaceStencilShells) = sum(shells.n_degens)
-CrystalBase.reciprocal_lattice(shells::KspaceStencilShells) = shell.recip_lattice
+n_shells(shells::KSpaceStencilShells) = length(shells.n_degens)
+n_bvectors(shells::KSpaceStencilShells) = sum(shells.n_degens)
+CrystalBase.reciprocal_lattice(shells::KSpaceStencilShells) = shells.recip_lattice
 
 """
     $(SIGNATURES)
 
-Convenience constructor of `KspaceStencilShells`, auto set `n_degens`.
+Convenience constructor of `KSpaceStencilShells`, auto set `n_degens`.
 
 # Arguments
-See the fields of [`KspaceStencilShells`](@ref) struct.
+See the fields of [`KSpaceStencilShells`](@ref) struct.
 """
-function KspaceStencilShells(recip_lattice, kgrid_size, kpoints, bvectors, bweights)
+function KSpaceStencilShells(recip_lattice, kgrid_size, kpoints, bvectors, bweights)
     n_degens = [length(bvecs) for bvecs in bvectors]
-    return KspaceStencilShells(
+    return KSpaceStencilShells(
         recip_lattice, Vec3(kgrid_size), kpoints, n_degens, bvectors, bweights
     )
 end
 
-function KspaceStencilShells(
+function KSpaceStencilShells(
         recip_lattice, kgrid_size, kpoints;
         atol = default_w90_kmesh_tol(),
     )
@@ -85,7 +85,7 @@ function KspaceStencilShells(
     return shells
 end
 
-function Base.show(io::IO, ::MIME"text/plain", shells::KspaceStencilShells)
+function Base.show(io::IO, ::MIME"text/plain", shells::KSpaceStencilShells)
     nshells = n_shells(shells)
     @printf(io, "                 [bx, by, bz] (Å⁻¹)\n")
     for (ish, (bvecs, w)) in enumerate(zip(shells.bvectors, shells.bweights))
@@ -115,7 +115,7 @@ Search bvector shells satisfing completeness condition.
 - `max_shells`: max number of nearest-neighbor shells
 
 # Return
-- a `KspaceStencilShells` struct, note the `bweights` are not computed yet, all zeros!
+- a `KSpaceStencilShells` struct, note the `bweights` are not computed yet, all zeros!
 
 !!! note
     To reproduce wannier90's behavior,
@@ -181,7 +181,7 @@ function search_shells(
     @debug "Found bvector shells" bvectors
 
     bweights = zeros(T, length(shells))
-    return KspaceStencilShells(recip_lattice, kgrid_size, kpoints, bvectors, bweights)
+    return KSpaceStencilShells(recip_lattice, kgrid_size, kpoints, bvectors, bweights)
 end
 
 """
@@ -272,9 +272,9 @@ end
 Check if shells having parallel bvectors.
 
 # Arguments
-- `shells`: `KspaceStencilShells` containing bvectors in each shell
+- `shells`: `KSpaceStencilShells` containing bvectors in each shell
 """
-function check_parallel(shells::KspaceStencilShells)
+function check_parallel(shells::KSpaceStencilShells)
     return check_parallel(shells.bvectors)
 end
 
@@ -290,10 +290,10 @@ Remove shells.
 # Arguments
 - `keep_shells`: indices of shells to keep
 """
-function delete_shells(shells::KspaceStencilShells, keep_shells)
+function delete_shells(shells::KSpaceStencilShells, keep_shells)
     bvectors = delete_shells(shells.bvectors, keep_shells)
     bweights = shells.bweights[keep_shells]
-    return KspaceStencilShells(
+    return KSpaceStencilShells(
         shells.recip_lattice, shells.kgrid_size, shells.kpoints, bvectors, bweights
     )
 end
@@ -305,7 +305,7 @@ Delete negetive bvectors for Γ-point calculation.
 
 Since bvectors are symmetric, this removes half of the bvectors.
 """
-function delete_shells_Γ(shells::KspaceStencilShells)
+function delete_shells_Γ(shells::KSpaceStencilShells)
     bvectors = map(shells.bvectors) do bvecs  # for each shell
         bvecs_new = filter(v -> all(v .>= 0), bvecs)
         if length(bvecs_new) != length(bvecs) // 2
@@ -314,7 +314,7 @@ function delete_shells_Γ(shells::KspaceStencilShells)
         bvecs_new
     end
     bweights = [2w for w in shells.bweights]
-    return KspaceStencilShells(
+    return KSpaceStencilShells(
         shells.recip_lattice, shells.kgrid_size, shells.kpoints, bvectors, bweights
     )
 end
@@ -326,7 +326,7 @@ Try to guess bvector bweights from MV1997 Eq. (B1).
 
 The input bvectors are overcomplete vectors found during shell search, i.e., from
 [`search_shells`](@ref). This function tries to find the minimum number of bvector
-shells that satisfy the B1 condition, and return the new `KspaceStencilShells` and bweights.
+shells that satisfy the B1 condition, and return the new `KSpaceStencilShells` and bweights.
 
 # Arguments
 - `bvectors`: vector of bvectors in each shell
@@ -397,7 +397,7 @@ end
 Try to guess bvector bweights from MV1997 Eq. (B1).
 
 # Arguments
-- `shells`: `KspaceStencilShells` containing bvectors in each shell
+- `shells`: `KSpaceStencilShells` containing bvectors in each shell
 
 # Keyword Arguments
 - `atol`: tolerance to satisfy B1 condition
@@ -407,17 +407,17 @@ Try to guess bvector bweights from MV1997 Eq. (B1).
     To reproduce wannier90's behavior,
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
-function compute_bweights(shells::KspaceStencilShells; atol = default_w90_kmesh_tol())
+function compute_bweights(shells::KSpaceStencilShells; atol = default_w90_kmesh_tol())
     return compute_bweights(shells.bvectors; atol)
 end
 
 """
     $(SIGNATURES)
 
-Check completeness (B1 condition) of `KspaceStencilShells`.
+Check completeness (B1 condition) of `KSpaceStencilShells`.
 
 # Arguments
-- `shells`: `KspaceStencilShells` containing bvectors in each shell
+- `shells`: `KSpaceStencilShells` containing bvectors in each shell
 
 # Keyword Arguments
 - `atol`: floating point tolerance
@@ -428,7 +428,7 @@ Check completeness (B1 condition) of `KspaceStencilShells`.
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
 function check_completeness(
-        shells::KspaceStencilShells{T}; atol = default_w90_kmesh_tol()
+        shells::KSpaceStencilShells{T}; atol = default_w90_kmesh_tol()
     ) where {T}
     M = zeros(T, 3, 3)
 
@@ -462,7 +462,7 @@ Unwrap nested shell vectors into a flattened vector.
 - `bvectors`: length-`n_bvectors` vector, each element is a `Vec3`
 - `bweights`: length-`n_bvectors` vector of bweights for each bvector
 """
-function flatten_shells(shells::KspaceStencilShells{T}) where {T}
+function flatten_shells(shells::KSpaceStencilShells{T}) where {T}
     nbvecs = n_bvectors(shells)
 
     bvectors = zeros(Vec3{T}, nbvecs)

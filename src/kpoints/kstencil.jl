@@ -16,7 +16,7 @@ $(FIELDS)
     file, we need to make sure we sort the bvectors in the same ordering as
     wannier90.
 """
-struct KspaceStencil{T <: Real}
+struct KSpaceStencil{T <: Real}
     """reciprocal lattice vectors, 3 * 3, each column is a reciprocal lattice
     vector in Å⁻¹ unit"""
     recip_lattice::Mat3{T}
@@ -56,11 +56,11 @@ struct KspaceStencil{T <: Real}
     kpb_G::Matrix{Vec3{Int}}
 end
 
-function KspaceStencil(recip_lattice, kpoints, kpb_k, kpb_G)
+function KSpaceStencil(recip_lattice, kpoints, kpb_k, kpb_G)
     bvectors = get_bvectors(recip_lattice, kpoints, kpb_k, kpb_G)
     bweights = compute_bweights(bvectors)
     kgrid_size = vec3(guess_kgrid_size(kpoints))
-    return KspaceStencil(
+    return KSpaceStencil(
         recip_lattice, kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G
     )
 end
@@ -104,7 +104,7 @@ function get_bvectors(
     return get_bvectors(mat3(I(3)), kpoints, kpb_k, kpb_G, ik)
 end
 
-function get_bvectors(kstencil::KspaceStencil, ik::Integer = 1; fractional::Bool = false)
+function get_bvectors(kstencil::KSpaceStencil, ik::Integer = 1; fractional::Bool = false)
     if fractional
         return get_bvectors(kstencil.kpoints, kstencil.kpb_k, kstencil.kpb_G, ik)
     else
@@ -114,12 +114,12 @@ function get_bvectors(kstencil::KspaceStencil, ik::Integer = 1; fractional::Bool
     end
 end
 
-n_kpoints(kstencil::KspaceStencil) = length(kstencil.kpoints)
-n_bvectors(kstencil::KspaceStencil) = length(kstencil.bvectors)
-CrystalBase.reciprocal_lattice(kstencil::KspaceStencil) = kstencil.recip_lattice
-CrystalBase.real_lattice(kstencil::KspaceStencil) = real_lattice(kstencil.recip_lattice)
+n_kpoints(kstencil::KSpaceStencil) = length(kstencil.kpoints)
+n_bvectors(kstencil::KSpaceStencil) = length(kstencil.bvectors)
+CrystalBase.reciprocal_lattice(kstencil::KSpaceStencil) = kstencil.recip_lattice
+CrystalBase.real_lattice(kstencil::KSpaceStencil) = real_lattice(kstencil.recip_lattice)
 
-function Base.show(io::IO, ::MIME"text/plain", kstencil::KspaceStencil)
+function Base.show(io::IO, ::MIME"text/plain", kstencil::KSpaceStencil)
     show_recip_lattice(io, kstencil.recip_lattice)
     println(io)
     @printf(io, "b-vectors:       [bx, by, bz] (Å⁻¹)          norm (Å⁻¹)  weight (Å²)")
@@ -135,9 +135,9 @@ end
 """
     $(SIGNATURES)
 
-Compare two `KspaceStencil` objects.
+Compare two `KSpaceStencil` objects.
 """
-function Base.isapprox(a::KspaceStencil, b::KspaceStencil; kwargs...)
+function Base.isapprox(a::KSpaceStencil, b::KSpaceStencil; kwargs...)
     return isapprox_struct(a, b; kwargs...)
 end
 
@@ -381,7 +381,7 @@ this is not needed. However, the `mmn` file is written in such order, so we need
 to sort bvectors and calculate bweights, since `nnkp` file has no section of bweights.
 
 # Arguments
-- `shells`: `KspaceStencilShells`
+- `shells`: `KSpaceStencilShells`
 
 # Keyword Arguments
 - `atol`: floating point tolerance
@@ -392,7 +392,7 @@ to sort bvectors and calculate bweights, since `nnkp` file has no section of bwe
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
 function sort_bvectors(
-        shells::KspaceStencilShells{T}; atol = default_w90_kmesh_tol()
+        shells::KSpaceStencilShells{T}; atol = default_w90_kmesh_tol()
     ) where {T}
     kpoints = shells.kpoints
     recip_lattice = shells.recip_lattice
@@ -435,30 +435,30 @@ function sort_bvectors(
     # Reset the order of `bvectors` by using the ordering of the 1st kpoint.
     # In principle, this is not needed -- our `kpb_k` and `kpb_G` already have
     # the same ordering as wannier90.
-    # However, this additional step can make sure the `KspaceStencil.bvectors` are
+    # However, this additional step can make sure the `KSpaceStencil.bvectors` are
     # exactly the same as the wannier90 wout file, so we can directly test
     # against the wout file.
     bvectors = map(zip(kpb_k[:, 1], kpb_G[:, 1])) do (ikpb, G)
         recip_lattice * (kpoints[ikpb] + G - kpoints[1])
     end
 
-    return KspaceStencil(
+    return KSpaceStencil(
         recip_lattice, shells.kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G
     )
 end
 
 """Abstract type for b-vector generation algorithms"""
-abstract type KspaceStencilAlgorithm end
+abstract type KSpaceStencilAlgorithm end
 
 """Generate b-vectors for first-order finite difference, i.e., MV1997 Eq. (B1)"""
-struct FirstOrderKspaceStencil <: KspaceStencilAlgorithm end
+struct FirstOrderKSpaceStencil <: KSpaceStencilAlgorithm end
 
-"""Similar to `FirstOrderKspaceStencil`, but only sort bvectors at Γ kpoint, and
+"""Similar to `FirstOrderKSpaceStencil`, but only sort bvectors at Γ kpoint, and
 bvectors of remaining kpoints use the same order."""
-struct UnsortedFirstOrderKspaceStencil <: KspaceStencilAlgorithm end
+struct UnsortedFirstOrderKSpaceStencil <: KSpaceStencilAlgorithm end
 
 """Generate b-vectors for 6 (cubic, ±x, ±y, ±z) nearest neighbors"""
-struct CubicNearestKspaceStencil <: KspaceStencilAlgorithm end
+struct CubicNearestKSpaceStencil <: KSpaceStencilAlgorithm end
 
 """
     generate_kspace_stencil()
@@ -472,19 +472,19 @@ Generate bvectors for all the kpoints.
 - `atol`: floating point tolerance
 
 # Return
-- a [`KspaceStencil`](@ref) struct
+- a [`KSpaceStencil`](@ref) struct
 
 !!! tip
 
-    The default algorithm is `FirstOrderKspaceStencil`, which generates bvectors
+    The default algorithm is `FirstOrderKSpaceStencil`, which generates bvectors
     same as wannier90, exactly in the same ordering.
     To fully reproduce wannier90's behavior,
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 
-    The `CubicNearestKspaceStencil` generates bvectors containing only 6 nearest
+    The `CubicNearestKSpaceStencil` generates bvectors containing only 6 nearest
     neighbors (cubic case). This is useful for [`parallel_transport`](@ref),
     since we only need overlap matrices between 6 nearest neighbors, and some
-    times the `FirstOrderKspaceStencil` does not contain those 6 nearest neighbors.
+    times the `FirstOrderKSpaceStencil` does not contain those 6 nearest neighbors.
 """
 function generate_kspace_stencil end
 
@@ -492,10 +492,10 @@ function generate_kspace_stencil(
         recip_lattice::Mat3,
         kgrid_size::AbstractVector,
         kpoints::AbstractVector,
-        ::FirstOrderKspaceStencil;
+        ::FirstOrderKSpaceStencil;
         atol = default_w90_kmesh_tol(),
     )
-    shells = KspaceStencilShells(recip_lattice, kgrid_size, kpoints; atol)
+    shells = KSpaceStencilShells(recip_lattice, kgrid_size, kpoints; atol)
     # generate bvectors for each kpoint
     return sort_bvectors(shells; atol)
 end
@@ -503,7 +503,7 @@ end
 """
 Reorder b vectors at remaining kpoints to be the same order as those at Γ kpoint.
 """
-function reorder(stencil::KspaceStencil)
+function reorder(stencil::KSpaceStencil)
     kpoints = stencil.kpoints
     inv_recip_lattice = inv(stencil.recip_lattice)
     bvectors_frac = map(stencil.bvectors) do b
@@ -519,7 +519,7 @@ function reorder(stencil::KspaceStencil)
         kpb_k[:, ik] .= ik_equiv
         kpb_G[:, ik] .= G_equiv
     end
-    return KspaceStencil(
+    return KSpaceStencil(
         stencil.recip_lattice, stencil.kgrid_size, stencil.kpoints,
         stencil.bvectors, stencil.bweights, kpb_k, kpb_G
     )
@@ -529,20 +529,20 @@ function generate_kspace_stencil(
         recip_lattice::Mat3,
         kgrid_size::AbstractVector,
         kpoints::AbstractVector,
-        ::UnsortedFirstOrderKspaceStencil;
+        ::UnsortedFirstOrderKSpaceStencil;
         atol = default_w90_kmesh_tol(),
     )
     # I still sort all the bvectors, since I want the bvector order
     # at Γ to be the same as wannier90
     stencil = generate_kspace_stencil(
-        recip_lattice, kgrid_size, kpoints, FirstOrderKspaceStencil(); atol
+        recip_lattice, kgrid_size, kpoints, FirstOrderKSpaceStencil(); atol
     )
     # now reorder
     return reorder(stencil)
 end
 
 """The same as wannier90's default algorithm"""
-default_kstencil_algo() = FirstOrderKspaceStencil()
+default_kstencil_algo() = FirstOrderKSpaceStencil()
 
 function generate_kspace_stencil(
         recip_lattice::Mat3, kgrid_size::AbstractVector, kpoints::AbstractVector; kwargs...
@@ -593,7 +593,7 @@ end
 See also [`index_bvector`](@ref).
 """
 function index_bvector(
-        kstencil::KspaceStencil, ik::Integer, ikpb::Integer, G::AbstractVector
+        kstencil::KSpaceStencil, ik::Integer, ikpb::Integer, G::AbstractVector
     )
     return index_bvector(kstencil.kpb_k, kstencil.kpb_G, ik, ikpb, G)
 end
@@ -619,7 +619,7 @@ function index_bvector(
     return findfirst(isapprox(b), bvecs)
 end
 
-function index_bvector(kstencil::KspaceStencil, ik::Integer, b::AbstractVector)
+function index_bvector(kstencil::KSpaceStencil, ik::Integer, b::AbstractVector)
     return index_bvector(kstencil.kpoints, kstencil.kpb_k, kstencil.kpb_G, ik, b)
 end
 
@@ -627,7 +627,7 @@ function generate_kspace_stencil(
         recip_lattice::Mat3,
         kgrid_size::AbstractVector,
         kpoints::AbstractVector,
-        ::CubicNearestKspaceStencil,
+        ::CubicNearestKSpaceStencil,
     )
     dkx, dky, dkz = 1 ./ kgrid_size
     T = eltype(recip_lattice)
@@ -660,7 +660,7 @@ function generate_kspace_stencil(
     bvectors = map(bvectors_frac) do b
         recip_lattice * b
     end
-    return KspaceStencil(
+    return KSpaceStencil(
         recip_lattice, kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G
     )
 end

@@ -71,7 +71,7 @@ Wannier.write_nnkp_cubic("TiO2_cubic.nnkp", "$path/TiO2/TiO2.win")
 #=
 Since the 6 neighbors are not complete bvectors, we won't be able to compute a
 proper weights for them. Therefore, we explicitly pass a `nothing` to the
-2nd argument of `read_nnkp`, to construct a `KspaceStencil` object with zero weights.
+2nd argument of `read_nnkp`, to construct a `KSpaceStencil` object with zero weights.
 =#
 kstencil_cubic = read_nnkp("$path/TiO2/inputs/TiO2_cubic.nnkp", nothing)
 # And we read the overlap matrices for the cubic neighbors
@@ -79,7 +79,7 @@ overlaps_cubic = read_mmn("$path/TiO2/TiO2_cubic.mmn")[1];
 #=
 Finally, we can construct a special `Model` that can be used for parallel transport.
 This model will reuse the lattice, atomic positions, and gauge matrices from the
-original model, only the `KspaceStencil` and the overlap matrices are changed.
+original model, only the `KSpaceStencil` and the overlap matrices are changed.
 =#
 model_cubic = Wannier.Model(model, kstencil_cubic, overlaps_cubic)
 

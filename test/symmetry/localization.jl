@@ -6,7 +6,7 @@
     using Wannier.Datasets
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
-    kstencil = Wannier.KspaceStencil(
+    kstencil = Wannier.KSpaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
@@ -50,7 +50,7 @@ end
     using Wannier.Datasets
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
-    kstencil = Wannier.KspaceStencil(
+    kstencil = Wannier.KSpaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
@@ -87,7 +87,7 @@ end
     using Wannier.Datasets
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
-    kstencil = Wannier.KspaceStencil(
+    kstencil = Wannier.KSpaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     gs = Wannier.globalize_bvector_ordering(kstencil)
@@ -137,7 +137,7 @@ end
     using Wannier.Datasets
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
-    ks0 = Wannier.KspaceStencil(
+    ks0 = Wannier.KSpaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
@@ -193,7 +193,7 @@ end
     using Wannier.Datasets
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
-    ks0 = Wannier.KspaceStencil(
+    ks0 = Wannier.KSpaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
@@ -261,7 +261,7 @@ end
     using Wannier.Datasets
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
-    ks0 = Wannier.KspaceStencil(
+    ks0 = Wannier.KSpaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
@@ -324,7 +324,7 @@ end
     using Wannier.Datasets
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
-    ks0 = Wannier.KspaceStencil(
+    ks0 = Wannier.KSpaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
@@ -410,7 +410,7 @@ end
     using Wannier.Datasets
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
-    ks0 = Wannier.KspaceStencil(
+    ks0 = Wannier.KSpaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
@@ -449,7 +449,7 @@ end
     using Wannier.Datasets
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
-    kstencil = Wannier.KspaceStencil(
+    kstencil = Wannier.KSpaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
@@ -523,7 +523,7 @@ end
     using Wannier.Datasets
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
-    ks0 = Wannier.KspaceStencil(
+    ks0 = Wannier.KSpaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
@@ -591,7 +591,7 @@ end
     using Wannier.Datasets
 
     nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
-    ks0 = Wannier.KspaceStencil(
+    ks0 = Wannier.KSpaceStencil(
         nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]
     )
     isym = read_isym(dataset"Si2_hse/Si2.isym")
