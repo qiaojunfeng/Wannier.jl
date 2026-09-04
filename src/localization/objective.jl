@@ -1,10 +1,10 @@
 export Variance, CenteredVariance, SpinCoupledVariance, CenteredSpinCoupledVariance
-export Problem, default_layout
+export Problem, default_layout, default_evaluation
 
 """
     CPU()
 
-Backend sentinel. `allocate_workspace(obj, model, layout; backend=CPU())`
+Backend sentinel. `allocate_workspace(obj, model, layout, evaluation; backend=CPU())`
 is the single abstraction point for swapping array storage; a future GPU
 backend (e.g. `CUDA()`) would dispatch `allocate_workspace` to return a
 `Workspace` parameterized on device arrays. No GPU implementation yet —
@@ -20,15 +20,17 @@ Each subtype implements one kernel,
 
     fg!(F, GU, obj, U, model, ws) :: Real
 
-plus two traits consumed when a [`Problem`](@ref) is built:
+plus three traits consumed when a [`Problem`](@ref) is built:
 
     default_layout(obj, model)             :: Layout
-    allocate_workspace(obj, model, layout) :: Workspace
+    default_evaluation(obj, model, layout)
+    allocate_workspace(obj, model, layout, evaluation) :: Workspace
 
 `fg!` works in **canonical coordinates** — it never sees the layout. Pulling
 the gradient back to layout-native parameters is [`pullback_gradient!`](@ref)'s job,
-which is what keeps the objective axis and the layout axis independent: a new
-objective works with every layout, and a new layout works with every objective.
+which keeps the objective and layout axes independent. An evaluation strategy,
+when a model provides more than one, selects the corresponding workspace
+without changing either interface.
 
 Finite-difference gradient checks for each subtype live in the test suite:
 `test/localization/disentangle.jl` (Variance),
@@ -63,14 +65,30 @@ when the manifold is isolated and `XYLayout()` when entangled.
 function default_layout end
 
 """
-    allocate_workspace(obj, model, layout; backend=CPU())
+    default_evaluation(obj, model, layout)
+
+Return the objective-evaluation strategy for `(obj, model, layout)`. Most
+models have only one evaluation and therefore return `nothing`.
+[`SymmetricModel`](@ref) instead defaults to
+[`IBZFactorizedEvaluation`](@ref), independently of its gauge `layout`.
+"""
+default_evaluation(::Objective, model, layout::Layout) = nothing
+
+"""
+    allocate_workspace(obj, model, layout, evaluation; backend=CPU())
 
 Construct the preallocated scratch [`Workspace`](@ref) used during
-optimization for `(obj, model, layout)`. `backend` is the single GPU
+optimization for `(obj, model, layout, evaluation)`. `backend` is the single GPU
 seam — a future device backend would dispatch here to return a workspace
 holding device arrays. No GPU implementation yet.
 """
 function allocate_workspace end
+
+# Most objectives have a single evaluation strategy. Keeping their existing
+# three-argument workspace methods behind this forwarding method makes the
+# extra Problem axis cost-free for those callers.
+allocate_workspace(obj::Objective, model, layout::Layout, ::Nothing; backend = CPU()) =
+    allocate_workspace(obj, model, layout; backend)
 
 # -------------------------------------------------------------------------
 # Variance (commit N): Marzari-Vanderbilt spread, max_localize / disentangle
@@ -196,44 +214,60 @@ function allocate_workspace(::CenteredSpinCoupledVariance, model::SpinModel, ::L
 end
 
 # -------------------------------------------------------------------------
-# Problem (commit Q): solver-agnostic bundle (objective, model, layout, ws)
+# Problem (commit Q): solver-agnostic run bundle
 # -------------------------------------------------------------------------
 
 """
     Problem(objective, model)
     Problem(objective, model, layout)
+    Problem(objective, model, layout; evaluation)
 
 Solver-agnostic bundle carrying one `Objective`, its `Model` (or
-`SpinModel`), the `Layout` dictating parameter packing, and the
-preallocated `Workspace`. Constructed per optimization run; reused across
-iterations but discarded once the run returns. No solver options inside —
-solver choice/tolerances/linesearch live on an
+`SpinModel`), the `Layout` implementing the gauge parameterization, the
+objective-evaluation strategy, and the preallocated `Workspace`. For models
+with only one evaluation strategy, `evaluation === nothing`.
+
+Constructed per optimization run; reused across iterations but discarded once
+the run returns. No solver options live inside: solver
+choice/tolerances/linesearch belong to an
 [`AbstractLocalizationSolver`](@ref) passed separately to `solve!`.
 """
-struct Problem{O <: Objective, M, L <: Layout, W}
+struct Problem{O <: Objective, M, L <: Layout, E, W}
     objective::O
     model::M
     layout::L
+    evaluation::E
     workspace::W
 end
 
-function Problem(objective::Objective, model, layout::Layout = default_layout(objective, model))
-    ws = allocate_workspace(objective, model, layout)
-    return Problem(objective, model, layout, ws)
+function Problem(
+        objective::Objective,
+        model,
+        layout::Layout = default_layout(objective, model);
+        evaluation = default_evaluation(objective, model, layout),
+    )
+    ws = allocate_workspace(objective, model, layout, evaluation)
+    return Problem(objective, model, layout, evaluation, ws)
 end
 
 # `WLayout` optimizes one rotation shared by all kpoints, which only makes sense
 # against a model whose gauge has been folded into the overlaps. Doing that here
 # rather than in `solve!` keeps every solver method generic, and leaves the
 # caller's model untouched.
-function Problem(objective::Objective, model::Model, layout::WLayout)
+function Problem(
+        objective::Objective,
+        model::Model,
+        layout::WLayout;
+        evaluation = default_evaluation(objective, model, layout),
+    )
     nw = n_wannier(model)
     n_bands(model) == nw ||
         error("WLayout needs n_bands == n_wannier; run disentanglement first")
     rotated = deepcopy(model)
     rotated.overlaps .= transform_gauge(rotated.overlaps, rotated.kstencil.kpb_k, rotated.gauges)
     rotated.gauges .= identity_gauge(eltype(rotated.gauges), n_kpoints(rotated), nw)
-    return Problem(objective, rotated, layout, allocate_workspace(objective, rotated, layout))
+    ws = allocate_workspace(objective, rotated, layout, evaluation)
+    return Problem(objective, rotated, layout, evaluation, ws)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", prob::Problem)
@@ -244,6 +278,7 @@ function Base.show(io::IO, ::MIME"text/plain", prob::Problem)
         " bands, ", n_wannier(prob.model), " WFs, ", n_kpoints(prob.model), " kpoints)"
     )
     println(io, "  layout     =  ", prob.layout)
+    isnothing(prob.evaluation) || println(io, "  evaluation =  ", prob.evaluation)
     return print(io, "  workspace  =  ", nameof(typeof(prob.workspace)))
 end
 

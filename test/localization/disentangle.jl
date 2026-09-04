@@ -10,6 +10,7 @@ end
 
 @testitem "compact XY layout" setup = [DisentangleEnv] begin
     layout = Wannier.XYLayout()
+    @test Wannier.Problem(Wannier.Variance(), model, layout).evaluation === nothing
     x = Wannier.initial_parameters(layout, model)
     U0 = Wannier.finalize_result(layout, x, model)
 

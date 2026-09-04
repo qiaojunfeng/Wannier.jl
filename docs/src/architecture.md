@@ -16,9 +16,9 @@ Wannier.jl separates *physics data* from *optimization machinery*.
 │                        │        │   objective :: Objective         │
 │  lattice               │        │   model                          │
 │  atom_positions        │        │   layout    :: Layout            │
-│  atom_labels           │        │   workspace :: Workspace         │
-│  kstencil              │        └────────────────┬─────────────────┘
-│  overlaps              │                         │
+│  atom_labels           │        │   evaluation                     │
+│  kstencil              │        │   workspace :: Workspace         │
+│  overlaps              │        └────────────────┬─────────────────┘
 │  gauges                │        ┌────────────────▼─────────────────┐
 │  eigenvalues           │        │ solve!(problem, solver)          │
 │  frozen_bands          │        │   initial parameters → optimize  │
@@ -114,12 +114,13 @@ so every one can hand-order its fused value+gradient sweep:
 | [`SpinCoupledVariance`](@ref Wannier.SpinCoupledVariance) | ``\Omega_\uparrow + \Omega_\downarrow + \lambda_s \Omega_{\uparrow\downarrow}`` | `SpinModel` |
 | [`CenteredSpinCoupledVariance`](@ref Wannier.CenteredSpinCoupledVariance) | co-optimization + center penalty | `SpinModel` |
 
-Each subtype supplies one kernel and two traits:
+Each subtype supplies one kernel and three traits:
 
 ```julia
-fg!(F, GU, obj, U, model, ws)          # fused value + gradient
-default_layout(obj, model)             # → Layout
-allocate_workspace(obj, model, layout) # → Workspace
+fg!(F, GU, obj, U, model, ws)                      # fused value + gradient
+default_layout(obj, model)                         # → Layout
+default_evaluation(obj, model, layout)             # → evaluation strategy
+allocate_workspace(obj, model, layout, evaluation) # → Workspace
 ```
 
 `fg!` works in **canonical coordinates**: `U` is the gauge array (or the
@@ -182,16 +183,18 @@ by the co-optimization objectives.
 ```julia
 Problem(objective, model)                 # layout via default_layout
 Problem(objective, model, layout)         # explicit layout
+Problem(objective, model, layout; evaluation) # independent evaluation strategy
 ```
 
-Construction resolves the layout, allocates the workspace, and stores the four
-pieces. That is all it does — a `Problem` is solver-agnostic. (`WLayout` is the
+Construction resolves the layout and evaluation, allocates the corresponding
+workspace, and stores the five pieces. That is all it does — a `Problem` is
+solver-agnostic. (`WLayout` is the
 one exception: because a shared rotation only makes sense against a model whose
 gauge has been folded into the overlaps, its constructor does that transform on
 a copy, leaving your model untouched.)
 
-Because the two axes compose rather than multiply, one bridge serves every
-combination:
+Because the objective, layout, and evaluation choices compose, one bridge
+serves every combination after construction has selected the workspace:
 
 ```julia
 function _optimizer_callback(prob::Problem)
@@ -245,22 +248,29 @@ keyword arguments forward to the solver.
 ### Symmetry-adapted WFs ride the same rails
 
 Symmetry-constrained (SAWF) localization is not a separate driver — it is the
-same `Objective` × `Layout` × solver composition on a different model bundle.
+same `Objective` × `Layout` × evaluation × solver composition on a different
+model bundle.
 A [`SymmetricModel`](@ref Wannier.SymmetricModel) wraps a full-mesh `Model` (global-b stencil,
 overlaps reconstructed from the IBZ) together with the
 [`SymmetryConstraint`](@ref Wannier.SymmetryConstraint) tables and the IBZ overlaps; the
-optimization variables live at the IBZ kpoints only. `Variance` dispatches to
-the IBZ transport kernels (`_fg_transport_core!`, `path = :transport`) by default, and the layout
-owns the constraint handling: [`SymmetricXYLayout`](@ref Wannier.SymmetricXYLayout) assembles through the
+optimization variables live at the IBZ kpoints only. The evaluation strategy
+selects either [`IBZFactorizedEvaluation`](@ref Wannier.IBZFactorizedEvaluation),
+which keeps the band-dimensional algebra on the IBZ, or
+[`FullMeshEvaluation`](@ref Wannier.FullMeshEvaluation), which reconstructs the
+gauge and runs the reference full-mesh kernels. Independently, the layout owns
+the parameterization and constraint handling:
+[`SymmetricXYLayout`](@ref Wannier.SymmetricXYLayout) assembles through the
 covariance projector (and pulls the gradient back through its adjoint), while
 [`SchurLayout`](@ref Wannier.SchurLayout) parameterizes the covariant gauges exactly by their
 per-irrep Schur blocks — fewer real parameters, no projector calls. Because
-the composition is the standard one, every solver backend and future
-objective works with both layouts unchanged:
+these axes are separate, either layout can use either evaluation:
 
 ```julia
-U_fbz, U_ibz = localize(sm)                                # Variance + SymmetricXYLayout (transport path)
-U_fbz, U_ibz = localize(Variance(), sm, SchurLayout())     # Schur block parameters
+U_fbz, U_ibz = localize(sm) # SymmetricXYLayout + IBZFactorizedEvaluation
+U_fbz, U_ibz = localize(Variance(), sm, SchurLayout())
+U_fbz, U_ibz = localize(
+    Variance(), sm, SchurLayout(); evaluation = FullMeshEvaluation()
+)
 U_fbz, U_ibz = solve!(Problem(Variance(), sm), OptimLBFGS(; max_iter = 300))
 ```
 
@@ -302,10 +312,11 @@ elementwise against finite differences of the same value function.
 
 | You want to… | Do this |
 |---|---|
-| add a new functional (symmetry, custom penalty, …) | define a new `Objective` subtype with one `fg!` method plus `default_layout` and `allocate_workspace`. It then works with every layout and every solver backend |
+| add a new functional (symmetry, custom penalty, …) | define a new `Objective` subtype with one `fg!` method plus `default_layout`, `default_evaluation`, and `allocate_workspace`. It then works with every compatible layout, evaluation, and solver backend |
 | add a new parameterization | define a new `Layout` with `initial_parameters` / `assemble_gauge!` / `pullback_gradient!` / `finalize_result` / `manifold`. It then works with every objective |
+| add a symmetry evaluation strategy | define a `SymmetricEvaluation` subtype and its `allocate_workspace` methods; layouts and solvers remain unchanged |
 | add a new optimizer backend | define `S <: AbstractLocalizationSolver` and `solve!(::Problem, ::S)` |
-| run on a device (GPU) | dispatch `allocate_workspace(obj, model, layout; backend)` to return device arrays |
+| run on a device (GPU) | dispatch `allocate_workspace(obj, model, layout, evaluation; backend)` to return device arrays |
 
 The `backend` keyword on `allocate_workspace` is the single seam where array
 storage is chosen; `CPU()` is the only backend implemented today. Kernels are

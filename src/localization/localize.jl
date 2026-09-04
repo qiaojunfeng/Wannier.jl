@@ -3,7 +3,7 @@ export localize
 """
     localize(model; kwargs...)
     localize(sm::SpinModel; λ_spin=1.0, kwargs...)
-    localize(sm::SymmetricModel; kwargs...)
+    localize(sm::SymmetricModel; evaluation=IBZFactorizedEvaluation(), kwargs...)
     localize(obj::Objective, model; kwargs...)
     localize(obj::Objective, model, layout::Layout; kwargs...)
     localize(pt::ParallelTransport, model)
@@ -15,7 +15,7 @@ dispatch paths live here:
   [`SpinCoupledVariance`](@ref), [`CenteredSpinCoupledVariance`](@ref)) minimize a
   scalar spread functional; the call routes through [`Problem`](@ref) +
   [`solve!`](@ref) with [`OptimLBFGS`](@ref). `kwargs` forward to the
-  solver. The four-argument form picks the packing [`Layout`](@ref)
+  solver. The explicit-layout form picks the packing [`Layout`](@ref)
   explicitly (e.g. `WLayout()` for opt-rotate-style single-W
   optimization).
 - [`ParallelTransport`](@ref) is a closed-form geometric construction —
@@ -25,7 +25,8 @@ dispatch paths live here:
 The no-method forms default to [`Variance`](@ref) on a `Model` and
 [`SpinCoupledVariance`](@ref) on a `SpinModel`. A [`SymmetricModel`](@ref) routes
 to `Variance` with the symmetry-constrained [`SymmetricXYLayout`](@ref) and returns
-the `(U_fbz, U_ibz)` gauge pair.
+the `(U_fbz, U_ibz)` gauge pair. Its `evaluation` keyword independently
+selects [`IBZFactorizedEvaluation`](@ref) or [`FullMeshEvaluation`](@ref).
 """
 localize(model::Model; kwargs...) = localize(Variance(), model; kwargs...)
 localize(sm::SpinModel; λ_spin::Real = 1.0, kwargs...) =

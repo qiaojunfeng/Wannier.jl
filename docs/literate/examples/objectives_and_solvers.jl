@@ -113,7 +113,7 @@ frozen mask or assembles a `Stiefel` product by hand.
 ## Problem: bundling one run
 
 A [`Problem`](@ref Wannier.Problem) ties the pieces together. Construction resolves the
-layout and allocates the scratch buffers:
+layout and evaluation strategy, then allocates the scratch buffers:
 =#
 prob = Problem(objective, model)
 
@@ -123,7 +123,7 @@ Its `workspace` holds the preallocated buffers (`MU`, `UtMU`, the gradient
 accumulator, assembled gauges) that are reused across optimizer iterations
 instead of being rebuilt each time:
 =#
-(layout = prob.layout, workspace = nameof(typeof(prob.workspace)))
+(layout = prob.layout, evaluation = prob.evaluation, workspace = nameof(typeof(prob.workspace)))
 
 #=
 You can override the layout when you want something other than the default:

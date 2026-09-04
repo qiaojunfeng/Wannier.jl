@@ -10,12 +10,11 @@ export SymmetryConstraint
 # Implements the design of `unfold/ibz_variational_sawf.tex`: the gauge is
 # optimized only at IBZ kpoints, subject to the little-group covariance
 # constraint (enforced by the projector 𝒫 = `project_covariant!`), and the
-# spread functional is evaluated either by
-#   :fullmesh — expanding the gauge to the full mesh and running the standard
-#            full-mesh kernels, then pulling the gradient back to the IBZ, or
-#   :transport — keeping every band-dimension product on the IBZ and reaching the
-#            star members through precomputed nw×nw orbital transports
-#            (`Rmat`, `Lmat`) and phases — the "transport theorem".
+# spread functional is evaluated either by `FullMeshEvaluation`—expanding the
+# gauge to the full mesh, running the standard kernels, and pulling the gradient
+# back to the IBZ—or by `IBZFactorizedEvaluation`, which keeps every
+# band-dimensional product on the IBZ and reaches star members through
+# precomputed nw×nw orbital transports (`Rmat`, `Lmat`) and phases.
 #
 # Conventions follow src/symmetry/operations.jl (standard Seitz; `unfold_gauge`,
 # `reconstruct_overlaps`, `compose_symops`). Time-reversal (antiunitary) operations
@@ -100,7 +99,7 @@ struct SymmetryConstraint{T <: Real}
     # Transport-path star tables, per (ibf, ikf): b index at the IBZ source, the
     # unfolding phase (± sign of compose_symops folded in), the orbital
     # transport R, and the band-space d(ĥ, kb) with its conjugation flag
-    # (needed to reconstruct full M^{(kf,bf)}; the transport path itself only needs R)
+    # (needed to reconstruct full M^{(kf,bf)}; IBZ-factorized evaluation itself only needs R)
     # `trev_dmat[ibf, ikf]` is the conjugation flag of the `dmat` table (a
     # different table from the pass-0 one above): it flags whether d(ĥ, kb)
     # passes through an antiunitary operation and must be conjugated.

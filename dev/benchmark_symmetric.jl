@@ -1,5 +1,5 @@
 # Benchmark of symmetry-constrained (SAWF) localization: full-mesh baseline
-# versus the :fullmesh (expand + pull back) and :transport (IBZ transport) paths.
+# versus FullMeshEvaluation and IBZFactorizedEvaluation.
 #
 # Uses the Ge4Ru4 dataset (IBZ .iamn/.immn/.ieig + .isym); point RERUN_DIR at
 # a directory with these files. The full-mesh overlaps are reconstructed from the
@@ -56,8 +56,11 @@ fgfull = Wannier._optimizer_callback(prob_full)
 x0full = Wannier.initial_parameters(prob_full.layout, model)
 Gfull = zero(x0full)
 
-prob_l1 = Wannier.Problem(Wannier.Variance(), sm, Wannier.SymmetricXYLayout(:fullmesh))
-prob_l2 = Wannier.Problem(Wannier.Variance(), sm)   # default: SymmetricXYLayout(:transport)
+prob_l1 = Wannier.Problem(
+    Wannier.Variance(), sm, Wannier.SymmetricXYLayout();
+    evaluation = Wannier.FullMeshEvaluation(),
+)
+prob_l2 = Wannier.Problem(Wannier.Variance(), sm) # default: IBZFactorizedEvaluation
 fg1 = Wannier._optimizer_callback(prob_l1)
 fg2 = Wannier._optimizer_callback(prob_l2)
 xy = Wannier.initial_parameters(prob_l2.layout, sm)   # both levels share the XY packing
@@ -82,10 +85,10 @@ t_sch_f = mintime(() -> fg_schur!(1.0, nothing, xs))
 
 println("per-evaluation wall time (min of 20):")
 @printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "full-mesh (unconstrained)", 1.0e3 * t_full_fg, 1.0e3 * t_full_f)
-@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", ":fullmesh (constrained)", 1.0e3 * t_l1_fg, 1.0e3 * t_l1_f)
-@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", ":transport (constrained)", 1.0e3 * t_l2_fg, 1.0e3 * t_l2_f)
-@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", ":transport + Schur blocks", 1.0e3 * t_sch_fg, 1.0e3 * t_sch_f)
-@printf("  :transport speedup: %.2fx vs full mesh, %.2fx vs :fullmesh\n", t_full_fg / t_l2_fg, t_l1_fg / t_l2_fg)
+@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "full-mesh evaluation", 1.0e3 * t_l1_fg, 1.0e3 * t_l1_f)
+@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "IBZ-factorized evaluation", 1.0e3 * t_l2_fg, 1.0e3 * t_l2_f)
+@printf("  %-28s %8.1f ms   value-only %8.1f ms\n", "IBZ-factorized + Schur", 1.0e3 * t_sch_fg, 1.0e3 * t_sch_f)
+@printf("  IBZ-factorized speedup: %.2fx vs full mesh, %.2fx vs reference evaluation\n", t_full_fg / t_l2_fg, t_l1_fg / t_l2_fg)
 @printf("  Schur speedup:   %.2fx vs full mesh\n", t_full_fg / t_sch_fg)
 @printf(
     "  parameters: XY %d real (%d complex), Schur %d real (%.1fx fewer; basis setup %.1fs)\n",
@@ -127,7 +130,10 @@ nderived = count(
 NITER = parse(Int, get(ENV, "NITER", "100"))
 ts = @elapsed (Us, Usi) = Wannier.localize(Wannier.Variance(), sm, Wannier.SchurLayout(); max_iter = NITER)
 t2 = @elapsed (U2, U2i) = Wannier.localize(sm; max_iter = NITER)
-t1 = @elapsed (U1, _) = Wannier.localize(Wannier.Variance(), sm, Wannier.SymmetricXYLayout(:fullmesh); max_iter = NITER)
+t1 = @elapsed (U1, _) = Wannier.localize(
+    Wannier.Variance(), sm, Wannier.SymmetricXYLayout();
+    evaluation = Wannier.FullMeshEvaluation(), max_iter = NITER,
+)
 t0 = @elapsed U0 = Wannier.localize(model; max_iter = NITER)
 
 s2 = Wannier.spread(model.kstencil, model.overlaps, U2)
@@ -136,10 +142,10 @@ s0 = Wannier.spread(model.kstencil, model.overlaps, U0)
 
 println("optimization ($NITER LBFGS iterations):")
 @printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "full-mesh MLWF", s0.Ω, t0)
-@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF :fullmesh", s1.Ω, t1)
-@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF :transport", s2.Ω, t2)
+@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF full-mesh eval.", s1.Ω, t1)
+@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF IBZ-factorized", s2.Ω, t2)
 ss = Wannier.spread(model.kstencil, model.overlaps, Us)
-@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF :transport + Schur", ss.Ω, ts)
+@printf("  %-28s Ω = %.6f Å²   %6.1f s\n", "SAWF IBZ + Schur", ss.Ω, ts)
 @printf(
     "  covariance residual: L2 %.2e, Schur %.2e\n\n",
     Wannier.covariance_residual(U2i, sc), Wannier.covariance_residual(Usi, sc)

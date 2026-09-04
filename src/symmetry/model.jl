@@ -1,11 +1,12 @@
 export SymmetricModel, SymmetricXYLayout, SchurLayout
+export SymmetricEvaluation, FullMeshEvaluation, IBZFactorizedEvaluation
 
 # -----------------------------------------------------------------------------
 # Framework integration of symmetry-constrained (SAWF) localization.
 #
 # `SymmetricModel` bundles everything the IBZ-constrained problem needs; the
-# two layouts below pack its IBZ variables; and the `Variance` objective
-# methods delegate to the existing full-mesh/transport kernels of
+# two layouts below pack its IBZ variables; the evaluation objects select
+# between the existing full-mesh and IBZ-factorized kernels of
 # src/symmetry/localization.jl. This file is plumbing only — all numerics
 # live in the kernels it reuses.
 # -----------------------------------------------------------------------------
@@ -118,7 +119,34 @@ end
 # -----------------------------------------------------------------------------
 
 """
-    SymmetricXYLayout(path = :transport)
+Evaluation strategy for a symmetry-constrained localization problem.
+
+The strategy is independent of the gauge [`Layout`](@ref): it changes how the
+objective and canonical gauge gradient are evaluated, without changing the
+optimizer variables or the map from those variables to the IBZ gauge.
+"""
+abstract type SymmetricEvaluation end
+
+"""
+    FullMeshEvaluation()
+
+Reference evaluation that reconstructs the gauge on the full Brillouin-zone
+mesh, applies the ordinary full-mesh objective, and pulls its canonical gauge
+gradient back to the irreducible mesh.
+"""
+struct FullMeshEvaluation <: SymmetricEvaluation end
+
+"""
+    IBZFactorizedEvaluation()
+
+Production evaluation that keeps every band-dimensional product on the
+irreducible mesh and evaluates full-mesh star contributions through the
+symmetry-reconstruction identities.
+"""
+struct IBZFactorizedEvaluation <: SymmetricEvaluation end
+
+"""
+    SymmetricXYLayout()
 
 [`Layout`](@ref) for [`SymmetricModel`](@ref): `x` packs the `(X, Y)`
 disentanglement blocks at the IBZ kpoints as one contiguous vector. Every
@@ -126,19 +154,17 @@ disentanglement blocks at the IBZ kpoints as one contiguous vector. Every
 `(n_bands-n_frozen) × (n_wannier-n_frozen)` block. Gauge assembly applies
 the covariance projector [`project_covariant!`](@ref); gradient pullback
 applies the (self-adjoint) projector before the compact `XY` chain rule.
-
-`path` selects the objective evaluation the workspace is sized for:
-`:transport` (default) keeps every band-dimension product on the IBZ;
-`:fullmesh` reconstructs the gauge on the full mesh each iteration. The two
-paths implement the same objective with different computational costs.
 """
-struct SymmetricXYLayout <: Layout
-    path::Symbol
-    function SymmetricXYLayout(path::Symbol = :transport)
-        path in (:fullmesh, :transport) ||
-            error("path must be :fullmesh or :transport, got :$path")
-        return new(path)
-    end
+struct SymmetricXYLayout <: Layout end
+
+function SymmetricXYLayout(path::Symbol)
+    throw(
+        ArgumentError(
+            "SymmetricXYLayout no longer selects the evaluation strategy; " *
+                "use SymmetricXYLayout() with evaluation=FullMeshEvaluation() or " *
+                "evaluation=IBZFactorizedEvaluation() (received :$path)",
+        )
+    )
 end
 
 function initial_parameters(::SymmetricXYLayout, sm::SymmetricModel)
@@ -194,12 +220,13 @@ elements) by construction; optimized on the [`SchurManifold`](@ref).
 struct SchurLayout <: Layout end
 
 """
-Workspace for the [`SchurLayout`](@ref): the transport-path scratch plus a copy of
-the current parameter vector, stashed by `assemble_gauge!` because the Schur gradient
+Workspace for the [`SchurLayout`](@ref): the scratch space selected by the
+independent [`SymmetricEvaluation`](@ref), plus a copy of the current parameter
+vector. The latter is stashed by `assemble_gauge!` because the Schur-gradient
 pullback needs the parameters again.
 """
-struct SchurWorkspace{T}
-    inner::SymmetricTransportWorkspace{T}
+struct SchurWorkspace{T, W}
+    inner::W
     x::Vector{T}
 end
 
@@ -237,20 +264,30 @@ _canonical_gradient(ws::SchurWorkspace) = ws.inner.G_ibz
 
 default_layout(::Union{Variance, CenteredVariance}, ::SymmetricModel) = SymmetricXYLayout()
 
+default_evaluation(
+    ::Union{Variance, CenteredVariance}, ::SymmetricModel,
+    ::Layout,
+) = IBZFactorizedEvaluation()
+
 function allocate_workspace(
         ::Union{Variance, CenteredVariance}, sm::SymmetricModel,
-        layout::SymmetricXYLayout; backend = CPU(),
+        ::SymmetricXYLayout, ::FullMeshEvaluation; backend = CPU(),
     )
-    layout.path === :fullmesh &&
-        return SymmetricFullMeshWorkspace(sm.model, sm.constraint)
+    return SymmetricFullMeshWorkspace(sm.model, sm.constraint)
+end
+
+function allocate_workspace(
+        ::Union{Variance, CenteredVariance}, sm::SymmetricModel,
+        ::SymmetricXYLayout, ::IBZFactorizedEvaluation; backend = CPU(),
+    )
     return SymmetricTransportWorkspace(sm.model.eigenvalues, sm.model.frozen_bands, sm.constraint)
 end
 
 function allocate_workspace(
-        ::Union{Variance, CenteredVariance}, sm::SymmetricModel{<:Any, T},
-        ::SchurLayout; backend = CPU(),
+        obj::Union{Variance, CenteredVariance}, sm::SymmetricModel{<:Any, T},
+        ::SchurLayout, evaluation::SymmetricEvaluation; backend = CPU(),
     ) where {T}
-    inner = SymmetricTransportWorkspace(sm.model.eigenvalues, sm.model.frozen_bands, sm.constraint)
+    inner = allocate_workspace(obj, sm, SymmetricXYLayout(), evaluation; backend)
     return SchurWorkspace(inner, zeros(T, schur_basis(sm).nx))
 end
 
@@ -320,13 +357,42 @@ function fg!(
 end
 
 """
-    localize(sm::SymmetricModel; kwargs...)
+    localize(sm::SymmetricModel; evaluation=IBZFactorizedEvaluation(), kwargs...)
 
 Symmetry-constrained (SAWF) localization: minimize the MV spread over
 covariant gauges parameterized at the IBZ kpoints only, via [`Variance`](@ref)
-+ [`SymmetricXYLayout`](@ref) (transport path). Returns `(U_fbz, U_ibz)`. `kwargs` forward
-to [`OptimLBFGS`](@ref). Pass a layout explicitly for the other variants,
-e.g. `localize(Variance(), sm, SchurLayout())` or
-`localize(Variance(), sm, SymmetricXYLayout(:fullmesh))`.
++ [`SymmetricXYLayout`](@ref), evaluated with
+[`IBZFactorizedEvaluation`](@ref) by default. Returns `(U_fbz, U_ibz)`.
+`kwargs` forward to [`OptimLBFGS`](@ref). The layout and evaluation can be
+selected independently, for example
+`localize(Variance(), sm, SchurLayout())` or
+`localize(Variance(), sm, SymmetricXYLayout(); evaluation=FullMeshEvaluation())`.
 """
-localize(sm::SymmetricModel; kwargs...) = localize(Variance(), sm; kwargs...)
+function localize(
+        sm::SymmetricModel;
+        evaluation::SymmetricEvaluation = IBZFactorizedEvaluation(),
+        kwargs...,
+    )
+    return localize(Variance(), sm; evaluation, kwargs...)
+end
+
+function localize(
+        objective::Union{Variance, CenteredVariance},
+        sm::SymmetricModel;
+        evaluation::SymmetricEvaluation = IBZFactorizedEvaluation(),
+        kwargs...,
+    )
+    layout = default_layout(objective, sm)
+    return localize(objective, sm, layout; evaluation, kwargs...)
+end
+
+function localize(
+        objective::Union{Variance, CenteredVariance},
+        sm::SymmetricModel,
+        layout::Layout;
+        evaluation::SymmetricEvaluation = default_evaluation(objective, sm, layout),
+        kwargs...,
+    )
+    problem = Problem(objective, sm, layout; evaluation)
+    return solve!(problem, OptimLBFGS(; kwargs...))
+end

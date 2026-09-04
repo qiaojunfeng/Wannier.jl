@@ -2,7 +2,7 @@
 
 `localize(...)` has two independent dispatch paths that share no supertype:
 
-- **Gradient-based** — pass a concrete [`Objective`](@ref) (`Variance`, `CenteredVariance`, `SpinCoupledVariance`, `CenteredSpinCoupledVariance`). `Objective` is a scalar functional (mathematical); the call bundles `(objective, model, layout, workspace)` into a [`Problem`](@ref) and hands it to [`solve!`](@ref) with an [`AbstractLocalizationSolver`](@ref Wannier.AbstractLocalizationSolver) backend (`OptimLBFGS` by default; additional backends like `Manopt.jl` plug in here). `Layout` (`ULayout`, `XYLayout`, `ProductLayout`, `WLayout`) picks the parameter packing on the Stiefel manifold.
+- **Gradient-based** — pass a concrete [`Objective`](@ref) (`Variance`, `CenteredVariance`, `SpinCoupledVariance`, `CenteredSpinCoupledVariance`). `Objective` is a scalar functional (mathematical); the call bundles `(objective, model, layout, evaluation, workspace)` into a [`Problem`](@ref) and hands it to [`solve!`](@ref) with an [`AbstractLocalizationSolver`](@ref Wannier.AbstractLocalizationSolver) backend (`OptimLBFGS` by default; additional backends like `Manopt.jl` plug in here). `Layout` (`ULayout`, `XYLayout`, `ProductLayout`, `WLayout`) implements the gauge parameterization and parameter packing. For a `SymmetricModel`, `evaluation` independently selects full-mesh or IBZ-factorized objective evaluation.
 - **Closed-form** — pass a [`ParallelTransport`](@ref). This routes through [`parallel_transport`](@ref) directly; there is no functional, no `Problem`, no solver.
 
 `Objective` and `ParallelTransport` live at different abstraction levels (a scalar functional versus a whole gauge-construction recipe), so there is no common ancestor. `localize` just dispatches on whichever the caller hands in.
@@ -28,6 +28,12 @@ U_up, U_dn = localize(sm; λ_spin = 1.0)
 
 # Rotation-only refinement (single W matrix)
 W = localize(Variance(), model, WLayout())
+
+# Symmetry-constrained localization: choose parameterization and evaluation independently
+U_fbz, U_ibz = localize(
+    Variance(), symmetric_model, SchurLayout();
+    evaluation = IBZFactorizedEvaluation(),
+)
 
 # Closed-form parallel-transport construction (no solver, no scalar functional)
 U = localize(ParallelTransport(), model)
@@ -60,9 +66,12 @@ U    = solve!(prob, ManoptLBFGS(; g_tol = 1e-8, max_iter = 500))
 max_localize(model; …)                     localize(model; …)
 disentangle(model; …)                      localize(model; …)
 disentangle(model, r0, λ; …)               localize(CenteredVariance(r0, λ), model; …)
-coopt(sm; λ_spin=1.0, …)                       localize(sm; λ_spin=1.0, …)
-constrain_center_coopt(sm, r0, λ; λ_spin, …)   localize(CenteredSpinCoupledVariance(r0, λ, λ_spin), sm; …)
-opt_rotate(model; …)                       localize(Variance(), model, WLayout(); …)
+coopt(sm; λ_spin=1.0, …)                    localize(sm; λ_spin=1.0, …)
+constrain_center_coopt(sm, r0, λ; λ_spin, …) localize(CenteredSpinCoupledVariance(r0, λ, λ_spin), sm; …)
+opt_rotate(model; …)                            localize(Variance(), model, WLayout(); …)
+
+# Symmetric evaluation formerly selected through the layout constructor:
+SymmetricXYLayout(:fullmesh)                    SymmetricXYLayout(); evaluation=FullMeshEvaluation()
 
 get_fg!_disentangle(model)                 fg! = Wannier._optimizer_callback(Problem(Variance(), model))
 get_fg!_maxloc(model)                      fg! = Wannier._optimizer_callback(Problem(Variance(), model))
@@ -144,7 +153,10 @@ Pages   = ["localization/gauge.jl"]
 Symmetry-constrained localization on the irreducible Brillouin zone composes
 with the framework through [`SymmetricModel`](@ref Wannier.SymmetricModel)
 and the [`SymmetricXYLayout`](@ref Wannier.SymmetricXYLayout) /
-[`SchurLayout`](@ref Wannier.SchurLayout) layouts; see
+[`SchurLayout`](@ref Wannier.SchurLayout) layouts. The independent
+[`FullMeshEvaluation`](@ref Wannier.FullMeshEvaluation) and
+[`IBZFactorizedEvaluation`](@ref Wannier.IBZFactorizedEvaluation) strategies
+select how the objective is evaluated; see
 [Architecture](@ref) for the design.
 
 ```@autodocs

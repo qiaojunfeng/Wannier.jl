@@ -162,7 +162,8 @@ end
 
     sm = Wannier.SymmetricModel(model, sc, mmn_i.M)
     prob = Wannier.Problem(
-        Wannier.Variance(), sm, Wannier.SymmetricXYLayout(:fullmesh)
+        Wannier.Variance(), sm, Wannier.SymmetricXYLayout();
+        evaluation = Wannier.FullMeshEvaluation(),
     )
     fg! = Wannier._optimizer_callback(prob)
     x = Wannier.initial_parameters(prob.layout, sm)
@@ -219,10 +220,12 @@ end
 
     sm = Wannier.SymmetricModel(model, sc, mmn_i.M)
     prob1 = Wannier.Problem(
-        Wannier.Variance(), sm, Wannier.SymmetricXYLayout(:fullmesh)
+        Wannier.Variance(), sm, Wannier.SymmetricXYLayout();
+        evaluation = Wannier.FullMeshEvaluation(),
     )
     prob2 = Wannier.Problem(
-        Wannier.Variance(), sm, Wannier.SymmetricXYLayout(:transport)
+        Wannier.Variance(), sm, Wannier.SymmetricXYLayout();
+        evaluation = Wannier.IBZFactorizedEvaluation(),
     )
     fg1! = Wannier._optimizer_callback(prob1)
     fg2! = Wannier._optimizer_callback(prob2)
@@ -237,6 +240,25 @@ end
     # ~1e-5 would floor the agreement at ~1e-7 / ~1e-8).
     @test isapprox(Ω1, Ω2; atol = 1.0e-10)
     @test norm(G1 - G2) / norm(G1) < 1.0e-11
+
+    # Evaluation and parameterization are independent: the same comparison
+    # also works with the exact Schur parameterization.
+    schur1 = Wannier.Problem(
+        Wannier.Variance(), sm, Wannier.SchurLayout();
+        evaluation = Wannier.FullMeshEvaluation(),
+    )
+    schur2 = Wannier.Problem(
+        Wannier.Variance(), sm, Wannier.SchurLayout();
+        evaluation = Wannier.IBZFactorizedEvaluation(),
+    )
+    xs = Wannier.initial_parameters(schur2.layout, sm)
+    GS1, GS2 = zero(xs), zero(xs)
+    ΩS1 = Wannier._optimizer_callback(schur1)(1.0, GS1, xs)
+    ΩS2 = Wannier._optimizer_callback(schur2)(1.0, GS2, xs)
+    # The comparison is limited by the numerical Schur-basis construction,
+    # whose reconstructed gauge is covariant to about this data floor.
+    @test isapprox(ΩS1, ΩS2; atol = 2.0e-7)
+    @test norm(GS1 - GS2) / norm(GS1) < 3.0e-8
 
     # transport identity for the Wannier-gauge overlaps themselves:
     # M̃(kf, bf) = phase · K_f[L† M̃_i R] versus the full-mesh product
@@ -552,7 +574,11 @@ end
     @test Wannier.n_kpoints(sm) == sc.nk_fbz
     @test Wannier.n_kpoints_ibz(sm) == sc.nk_ibz
     @test default_layout(Variance(), sm) == SymmetricXYLayout()
-    @test SymmetricXYLayout().path == :transport
+    @test fieldcount(SymmetricXYLayout) == 0
+    @test_throws ArgumentError SymmetricXYLayout(:fullmesh)
+    @test default_evaluation(Variance(), sm, SymmetricXYLayout()) ==
+        IBZFactorizedEvaluation()
+    @test Problem(Variance(), sm).evaluation == IBZFactorizedEvaluation()
 
     # framework path (Problem + solve! under the hood), a few LBFGS iterations
     niter = 5
@@ -561,7 +587,8 @@ end
     @test Wannier.covariance_residual(U_ibz, sc) < 1.0e-3
     @test U_fbz ≈ Wannier.reconstruct_gauges(U_ibz, sc)
 
-    # hard-coded 5-iteration regression anchor (SymmetricXYLayout, transport path)
+    # hard-coded 5-iteration regression anchor
+    # (SymmetricXYLayout + IBZFactorizedEvaluation)
     Ω = Wannier.spread(model.kstencil, model.overlaps, U_fbz).Ω
     @test isapprox(Ω, 22.43757274472156; atol = 1.0e-7)
 
@@ -579,8 +606,12 @@ end
     Ωs = Wannier.spread(model.kstencil, model.overlaps, Us_fbz).Ω
     @test isapprox(Ωs, 22.07929818239718; atol = 1.0e-7)
 
-    # full-mesh path through the layout: same variables, same optimum as transport
-    U1_fbz, _ = localize(Variance(), sm, SymmetricXYLayout(:fullmesh); max_iter = niter)
+    # Full-mesh evaluation with the same layout: same variables and optimum as
+    # the default IBZ-factorized evaluation.
+    U1_fbz, _ = localize(
+        Variance(), sm, SymmetricXYLayout();
+        evaluation = FullMeshEvaluation(), max_iter = niter,
+    )
     Ω1 = Wannier.spread(model.kstencil, model.overlaps, U1_fbz).Ω
     @test isapprox(Ω1, 22.43757275126563; atol = 1.0e-7)
     @test isapprox(Ω1, Ω; atol = 1.0e-5)
@@ -622,8 +653,10 @@ end
     λ = 1.0
     obj = CenteredVariance(r0, λ)
 
-    prob2 = Problem(obj, sm)                    # default: SymmetricXYLayout (transport path)
-    prob1 = Problem(obj, sm, SymmetricXYLayout(:fullmesh))
+    prob2 = Problem(obj, sm) # default: SymmetricXYLayout + IBZ-factorized evaluation
+    prob1 = Problem(
+        obj, sm, SymmetricXYLayout(); evaluation = FullMeshEvaluation()
+    )
     fg2 = Wannier._optimizer_callback(prob2)
     fg1 = Wannier._optimizer_callback(prob1)
     x = Wannier.initial_parameters(prob2.layout, sm)
@@ -632,7 +665,8 @@ end
     Ω2 = fg2(1.0, g2, x)
 
     # the full-mesh path equals the full-mesh penalized spread of the expanded covariant
-    # gauge exactly; the transport path agrees to the isym data noise (as for Variance)
+    # gauge exactly; IBZ-factorized evaluation agrees to the isym data noise
+    # (as for Variance)
     Uf, _ = Wannier.finalize_result(prob2.layout, x, sm)
     Ωt_ref = Wannier.omega_center(model.kstencil, model.overlaps, Uf; r0, λ).Ωt
     @test isapprox(Ω1, Ωt_ref; atol = 1.0e-10)
