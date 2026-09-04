@@ -23,8 +23,9 @@ function _w90_real_space_selection(
     )
 end
 
-function _interpolation_model_from_w90_hamiltonian(
-        hamiltonian,
+function _interpolation_model_from_w90_operators(
+        operator_coefficients::NamedTuple,
+        descriptions::NamedTuple,
         lattice,
         vectors,
         degeneracies;
@@ -36,6 +37,13 @@ function _interpolation_model_from_w90_hamiltonian(
     )
     isnothing(symmetry) || symmetry isa WannierSymmetry ||
         throw(ArgumentError("symmetry must be a WannierSymmetry or nothing"))
+    keys(operator_coefficients) == keys(descriptions) || throw(
+        ArgumentError("Wannier90 operator coefficients and descriptions differ"),
+    )
+    haskey(operator_coefficients, :hamiltonian) || throw(
+        ArgumentError("Wannier90 interpolation data require a Hamiltonian"),
+    )
+    hamiltonian = operator_coefficients.hamiltonian
     number_wannier = size(hamiltonian, 1)
     size(hamiltonian, 2) == number_wannier ||
         throw(DimensionMismatch("the Hamiltonian matrix dimensions must be equal"))
@@ -45,15 +53,19 @@ function _interpolation_model_from_w90_hamiltonian(
     selection = _w90_real_space_selection(
         vectors, degeneracies, number_wannier, wsvec
     )
-    selected_hamiltonian = _apply_real_space_selection(selection, hamiltonian)
-    descriptions = (;
-        hamiltonian = (;
-            law = Scalar(time_reversal = Even()),
-            hermitian = true,
-        ),
-    )
+    for (name, coefficients) in pairs(operator_coefficients)
+        size(coefficients, 1) == number_wannier &&
+            size(coefficients, 2) == number_wannier || throw(
+            DimensionMismatch("Wannier90 operator :$name has the wrong matrix shape"),
+        )
+        size(coefficients, ndims(coefficients)) == length(vectors) || throw(
+            DimensionMismatch("Wannier90 operator :$name has the wrong R-vector count"),
+        )
+    end
+    selected_coefficients = map(operator_coefficients) do coefficients
+        _apply_real_space_selection(selection, coefficients)
+    end
     representative_vectors = _representative_vectors(selection)
-    selected_coefficients = (selected_hamiltonian,)
     if !isnothing(symmetry)
         n_wannier(symmetry) == number_wannier || throw(
             DimensionMismatch("Hamiltonian and Wannier symmetry have different basis sizes"),
@@ -70,6 +82,53 @@ function _interpolation_model_from_w90_hamiltonian(
         fractional_centers, number_wannier, eltype(crystal.lattice)
     )
     return InterpolationModel(crystal, basis, domain, operators, symmetry)
+end
+
+function _interpolation_model_from_w90_hamiltonian(
+        hamiltonian,
+        lattice,
+        vectors,
+        degeneracies;
+        kwargs...,
+    )
+    coefficients = (; hamiltonian)
+    descriptions = (;
+        hamiltonian = (;
+            law = Scalar(time_reversal = Even()),
+            hermitian = true,
+        ),
+    )
+    return _interpolation_model_from_w90_operators(
+        coefficients, descriptions, lattice, vectors, degeneracies; kwargs...
+    )
+end
+
+function _tb_position(tbdat::WannierIO.TbDat)
+    number_wannier = WannierIO.n_wannier(tbdat)
+    number_vectors = WannierIO.n_Rvectors(tbdat)
+    T = promote_type(eltype(tbdat.rx), eltype(tbdat.ry), eltype(tbdat.rz))
+    position = Array{T}(undef, number_wannier, number_wannier, 3, number_vectors)
+    view(position, :, :, 1, :) .= tbdat.rx
+    view(position, :, :, 2, :) .= tbdat.ry
+    view(position, :, :, 3, :) .= tbdat.rz
+    return position
+end
+
+function _tb_fractional_centers(tbdat::WannierIO.TbDat)
+    origin_index = findfirst(==(Vec3(0, 0, 0)), tbdat.Rvectors)
+    isnothing(origin_index) && throw(
+        ArgumentError("cannot infer Wannier centers: tb.dat has no R = 0 block"),
+    )
+    degeneracy = tbdat.Rdegens[origin_index]
+    inverse_lattice = inv(tbdat.lattice)
+    return map(axes(tbdat.H, 1)) do band_index
+        cartesian = Vec3(
+            real(tbdat.rx[band_index, band_index, origin_index]),
+            real(tbdat.ry[band_index, band_index, origin_index]),
+            real(tbdat.rz[band_index, band_index, origin_index]),
+        ) / degeneracy
+        inverse_lattice * cartesian
+    end
 end
 
 """
@@ -134,18 +193,32 @@ file data. The lattice is read from `tbdat`; other behavior matches the
 """
 function InterpolationModel(
         tbdat::WannierIO.TbDat;
-        fractional_centers::AbstractVector,
+        fractional_centers::Union{Nothing, AbstractVector} = nothing,
         wsvec::Union{Nothing, WannierIO.WsvecDat} = nothing,
         atom_positions::AbstractVector = Vec3{Float64}[],
         atom_labels::AbstractVector = String[],
         symmetry = nothing,
     )
-    return _interpolation_model_from_w90_hamiltonian(
-        tbdat.H,
+    centers = isnothing(fractional_centers) ?
+        _tb_fractional_centers(tbdat) : fractional_centers
+    operator_coefficients = (;
+        hamiltonian = tbdat.H,
+        berry_connection = _tb_position(tbdat),
+    )
+    descriptions = (;
+        hamiltonian = (;
+            law = Scalar(time_reversal = Even()),
+            hermitian = true,
+        ),
+        berry_connection = _operator_description(BerryConnection()),
+    )
+    return _interpolation_model_from_w90_operators(
+        operator_coefficients,
+        descriptions,
         tbdat.lattice,
         tbdat.Rvectors,
         tbdat.Rdegens;
-        fractional_centers,
+        fractional_centers = centers,
         wsvec,
         atom_positions,
         atom_labels,

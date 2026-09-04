@@ -88,9 +88,12 @@ Phase 0 numerical references are covered by the existing interpolation tests
 and benchmark entry point; finer per-stage timing remains to be recorded. The
 Phase 5 has started: adaptive Fermi-energy refinement and the Fermi-surface
 BXSF workflow now consume `InterpolationModel` and `BandEnergy` results, and
-their tutorials no longer construct `HamiltonianInterpolator`. The next step
-is the remaining Wannier90 I/O migration followed by deletion of legacy
-interpolator and R-space types.
+their tutorials no longer construct `HamiltonianInterpolator`. High-level
+Wannier90 `tb.dat`, `hr.dat`, and combined `tb.dat`/`chk`/`spn` readers now
+construct `InterpolationModel` directly; matching writers consume that model
+and preserve its expanded common domain. The next step is deletion of legacy
+interpolator and R-space types and migration of the remaining tests and
+examples that intentionally exercise them.
 
 ## Goals
 
@@ -775,7 +778,7 @@ source-data symmetry noise from interpolation error.
 - [x] Dense-grid readiness tests confirm that intermediate storage scales with
       batch size and that observable assembly accepts destination views.
 - [x] Existing physical quantities migrated.
-- [ ] Wannier90 I/O migrated.
+- [x] Wannier90 I/O migrated.
 - [ ] Old interpolation Interface deleted with no compatibility wrappers.
 - [ ] Focused and full test suites pass.
 - [ ] Documentation build passes.

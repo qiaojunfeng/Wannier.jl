@@ -116,23 +116,41 @@ Wannier.WannierSymmetry
 
 ## Wannier90 real-space data
 
-Already constructed Wannier90 Hamiltonians enter the same model without a
-legacy tight-binding wrapper. Supply the parsed `HrDat` or `TbDat`, fractional
-Wannier centers, and the matching `WsvecDat` when it is available:
+Already constructed Wannier90 operators enter the same model without a legacy
+tight-binding wrapper. The high-level readers absorb the optional `wsvec.dat`
+automatically:
 
 ```julia
-hrdat = read_w90_hr_dat(prefix * "_hr.dat")
-wsvec = read_w90_wsvec_dat(prefix * "_wsvec.dat")
-interpolation_model = InterpolationModel(
-    hrdat,
+interpolation_model = read_w90_tb(prefix)
+
+hamiltonian_model = read_w90_hr(
+    prefix,
     lattice;
     fractional_centers,
-    wsvec,
 )
 ```
 
+`read_w90_tb` constructs both `:hamiltonian` and `:berry_connection` and can
+infer fractional Wannier centers from the diagonal `R = 0` position elements.
+`hr.dat` contains no position data, so its reader requires explicit centers.
 The file degeneracies and minimum-distance translations are absorbed directly
-into the common `RealSpaceDomain` representation during construction.
+into the common `RealSpaceDomain` representation during construction. The
+lower-level `InterpolationModel(::HrDat, ...)` and
+`InterpolationModel(::TbDat, ...)` adapters remain available when the data
+have already been parsed.
+
+Writers consume the common model as well:
+
+```julia
+write_w90_hr(prefix, interpolation_model)
+write_w90_tb(prefix, interpolation_model)
+```
+
+They write the already-expanded packed domain with unit degeneracies and an
+optional non-MDRS `wsvec.dat`, so reading the result does not reconstruct a
+second real-space representation. `read_w90_tb_chk_spn` similarly combines
+`tb.dat`, `chk`, and `spn` directly into a model with a shared `:spin`
+primitive.
 
 ## General operators
 
@@ -275,6 +293,9 @@ Modules = [Wannier]
 Pages = [
     "interpolation/types.jl",
     "io/w90/interpolation.jl",
+    "io/w90/tb.jl",
+    "io/w90/hr.jl",
+    "io/w90/spn.jl",
     "interpolation/planning.jl",
     "interpolation/observables/band_energy.jl",
     "interpolation/observables/band_velocity.jl",

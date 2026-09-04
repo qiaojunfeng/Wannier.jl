@@ -1,91 +1,61 @@
-export read_chk_spn, read_w90_tb_chk_spn
+export read_w90_tb_chk_spn
 
 """
-    $(SIGNATURES)
+    read_w90_tb_chk_spn(prefix; chk=prefix*".chk", spn=prefix*".spn",
+                        fractional_centers=nothing, atom_positions=[],
+                        atom_labels=[], symmetry=nothing)
 
-Read `prefix.chk` and `prefix.spn` to construct Wannier-gauge k-space spin operator.
-
-# Arguments
-- `prefix`: the prefix of `prefix.chk` and `prefix.spn`
-
-# Return
-- `kpoints`: fractional kpoint coordinates
-- `S`: Wannier-gauge spin operator in k-space
+Read Wannier90 `tb.dat`, optional `wsvec.dat`, `chk`, and `spn` data directly
+into one [`InterpolationModel`](@ref). The returned model contains
+`:hamiltonian`, `:berry_connection`, and `:spin` primitives on a common packed
+real-space domain.
 """
-function read_chk_spn(prefix::AbstractString; chk = "$prefix.chk", spn = "$prefix.spn")
-    spn_dat = read_spn(spn)
-    nkpts = size(spn_dat.Sx, 3)
-    spin_vecs = [
-        MVec3.(view(spn_dat.Sx, :, :, ik), view(spn_dat.Sy, :, :, ik), view(spn_dat.Sz, :, :, ik))
-            for ik in 1:nkpts
-    ]
-    # spn file is in Bloch gauge, need to read chk to convert to Wannier gauge
-    chk = read_chk(chk)
-    gauges = WannierIO.gauge_matrices(chk)
-    S = map(1:nkpts) do ik
-        Uₖ = view(gauges, :, :, ik)
-        Uₖ' * spin_vecs[ik] * Uₖ
-    end
-    return chk.kpoints, S
-end
+function read_w90_tb_chk_spn(
+        prefix::AbstractString;
+        chk::AbstractString = prefix * ".chk",
+        spn::AbstractString = prefix * ".spn",
+        fractional_centers::Union{Nothing, AbstractVector} = nothing,
+        atom_positions::AbstractVector = Vec3{Float64}[],
+        atom_labels::AbstractVector = String[],
+        symmetry = nothing,
+    )
+    tbdat = read_w90_tb_dat(prefix * "_tb.dat")
+    chkdat = read_chk(chk)
+    gauges = WannierIO.gauge_matrices(chkdat)
+    spin_input = BlochOperator(read_spn(spn))
+    _validate_bloch_operator(
+        :spin, spin_input, size(gauges, 1), size(gauges, 3)
+    )
+    spin_kspace = _transform_bloch_operator(spin_input, gauges)
+    phase_type = promote_type(eltype(spin_kspace), eltype(tbdat.H))
+    phase = _quotient_fourier_phase(chkdat.kpoints, tbdat.Rvectors, phase_type)
+    spin_coefficients = _quotient_fourier_coefficients(spin_kspace, phase)
 
-"""
-    $(SIGNATURES)
-
-Read `prefix.chk` and `prefix.spn` to construct tight-binding models.
-
-# Arguments
-- `Rspace`: R-space domain
-
-# Return
-- `spin`: spin operator in R-space
-
-!!! note
-    This will call [`simplify`](@ref) to absorb the R-vector degeneracies and
-    T-vectors into the operator, leading to faster interpolations.
-"""
-function read_chk_spn(prefix::AbstractString, Rspace::AbstractRspace; kwargs...)
-    kpoints, S_k = read_chk_spn(prefix; kwargs...)
-    # fourier transform to Rspace
-    S_R = fourier(kpoints, S_k, Rspace)
-    bare_Rspace, bare_spin = simplify(Rspace, S_R)
-    spin = TBSpin(bare_Rspace, bare_spin)
-    return spin
-end
-
-"""
-    $(SIGNATURES)
-
-Read `prefix_tb.dat`, `prefix_wsvec.dat`, `prefix.chk` and `prefix.spn` to
-construct tight-binding models.
-
-# Arguments
-- `prefix`: the prefix of `prefix_tb.dat` and `prefix_wsvec.dat`
-
-# Keyword Arguments
-- `chk`: the path to `prefix.chk`, default is `"\$prefix.chk"`
-- `spn`: the path to `prefix.spn`, default is `"\$prefix.spn"`
-
-# Return
-- a [`TBHamiltonian`](@ref)
-- a [`TBPosition`](@ref)
-- a [`TBSpin`](@ref)
-
-!!! note
-    This will call [`simplify`](@ref) to absorb the R-vector degeneracies and
-    T-vectors into the operator, leading to faster interpolations.
-"""
-function read_w90_tb_chk_spn(prefix::AbstractString; kwargs...)
-    dat = _raw_read_w90_tb(prefix)
-    Rspace = dat.Rspace
-    H = _array3_to_vector(dat.hamiltonian)
-    pos = _combine_position(dat.rx, dat.ry, dat.rz)
-
-    bare_Rspace, bare_H, bare_pos = simplify(Rspace, H, pos)
-    hamiltonian = TBHamiltonian(bare_Rspace, bare_H)
-    position = TBPosition(bare_Rspace, bare_pos)
-
-    spin = read_chk_spn(prefix, Rspace; kwargs...)
-
-    return (; hamiltonian, position, spin)
+    centers = isnothing(fractional_centers) ?
+        _tb_fractional_centers(tbdat) : fractional_centers
+    operator_coefficients = (;
+        hamiltonian = tbdat.H,
+        berry_connection = _tb_position(tbdat),
+        spin = spin_coefficients,
+    )
+    descriptions = (;
+        hamiltonian = (;
+            law = Scalar(time_reversal = Even()),
+            hermitian = true,
+        ),
+        berry_connection = _operator_description(BerryConnection()),
+        spin = _operator_description(spin_input),
+    )
+    return _interpolation_model_from_w90_operators(
+        operator_coefficients,
+        descriptions,
+        tbdat.lattice,
+        tbdat.Rvectors,
+        tbdat.Rdegens;
+        fractional_centers = centers,
+        wsvec = _read_optional_wsvec(prefix),
+        atom_positions,
+        atom_labels,
+        symmetry,
+    )
 end
