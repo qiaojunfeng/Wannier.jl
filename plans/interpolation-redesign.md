@@ -19,10 +19,19 @@ The following interface decisions are fixed:
   `MinimumDistance()`. "Real-space realization" can remain mathematical
   terminology in the documentation, but `Realization` is not part of the public
   interface.
+- The persistent data type is `InterpolationModel`; there is no separate
+  `Interpolator` wrapper.
+- `KspaceStencil` and `KspaceStencilShells` are renamed to `KSpaceStencil` and
+  `KSpaceStencilShells`.
+- One `RealSpaceDomain` is shared by every primitive operator in an
+  `InterpolationModel`.
 - Supplying symmetry means that the constructed real-space operators have
   symmetry-closed support and symmetry-projected coefficients. There is no public
   Boolean that merely promises symmetry.
-- A new physical quantity does not add a field or a subtype of `Interpolator`.
+- Physical component axes retain their logical tensor shape in stored arrays and
+  results. They are flattened only inside numerical kernels.
+- A new physical quantity does not add a field or a subtype of
+  `InterpolationModel`.
   It adds an observable recipe and, only when physically necessary, a primitive
   real-space operator.
 
@@ -40,7 +49,7 @@ The following interface decisions are fixed:
    rotations across simultaneously requested observables.
 6. Use packed, strided storage suitable for BLAS and future accelerator kernels.
 7. Make extension with a new general operator or observable local: the core
-   `Interpolator` definition and unrelated observables must not change.
+   `InterpolationModel` definition and unrelated observables must not change.
 
 ## Non-goals
 
@@ -58,22 +67,22 @@ The following interface decisions are fixed:
 ### Ordinary band interpolation
 
 ```julia
-interpolator = Interpolator(model; real_space = MinimumDistance())
+interpolation_model = InterpolationModel(model; real_space = MinimumDistance())
 
-result = interpolate(interpolator, kpoints, BandEnergy())
+result = interpolate(interpolation_model, kpoints, BandEnergy())
 result.band_energy
 
-bands = band_structure(interpolator, kpath)
+bands = band_structure(interpolation_model, kpath)
 ```
 
-`Interpolator(model, ...)` automatically constructs the Hamiltonian from the
-model eigenvalues and gauge. Internally this follows the same `BlochOperator` path
-as every other lattice-periodic operator.
+`InterpolationModel(model, ...)` automatically constructs the Hamiltonian from
+the model eigenvalues and gauge. Internally this follows the same `BlochOperator`
+path as every other lattice-periodic operator.
 
 ### Symmetry-preserving interpolation
 
 ```julia
-interpolator = Interpolator(
+interpolation_model = InterpolationModel(
     model;
     real_space = MinimumDistance(),
     symmetry = wannier_symmetry,
@@ -95,7 +104,7 @@ spin = BlochOperator(
     hermitian = true,
 )
 
-interpolator = Interpolator(
+interpolation_model = InterpolationModel(
     model;
     operators = (; spin),
     real_space = MinimumDistance(),
@@ -116,7 +125,7 @@ behavior.
 
 ```julia
 result = interpolate(
-    interpolator,
+    interpolation_model,
     kpoints,
     (
         BandEnergy(),
@@ -159,7 +168,7 @@ to it.
 The interpolation subsystem becomes one deep Module. Its external Seam consists
 of:
 
-- construction with `Interpolator` and `BlochOperator`;
+- construction with `InterpolationModel` and `BlochOperator`;
 - selection of `WignerSeitz()` or `MinimumDistance()` through `real_space`;
 - pointwise calculation through `interpolate`;
 - path workflows through `band_structure` and, later, `fermi_surface`.
@@ -184,25 +193,32 @@ placing each mathematical rule in one implementation.
 
 ```julia
 struct RealSpaceDomain{T}
-    lattice::Mat3{T}
     vectors::Vector{Vec3{Int}}
+    cartesian_vectors::Vector{Vec3{T}}
+    vector_index::Dict{Vec3{Int},Int}
 end
 ```
 
-This is only the final support used for evaluation. It does not remember whether
-it arose from Wigner--Seitz or minimum-distance selection. An internal lookup from
-`Vec3{Int}` to index can be cached during construction or planning; it is not part
-of the public invariant.
+This is the common finite domain on which every primitive operator in one
+`InterpolationModel` is represented. It does not remember whether it arose from
+Wigner--Seitz or minimum-distance selection. It owns canonical ordering,
+fractional/Cartesian consistency, uniqueness, and R-vector-to-index lookup. The
+crystal lattice remains owned by `InterpolationModel` rather than being duplicated
+here.
 
-Equal domains should be interned or grouped by the evaluation planner so that
-their phase matrices are computed once. Operators are not forced onto a global
-union domain when doing so would introduce excessive zeros.
+All operators are remapped onto the union of the R vectors required by their
+real-space scheme, symmetry closure, and Hermitian partners. An individual
+operator may therefore contain zero coefficient blocks on part of the common
+domain. This shared-domain invariant is preferred because it makes the R axis
+uniform and permits one phase matrix for every requested operator. If a future
+benchmark demonstrates pathological zero padding, multiple domain groups may be
+introduced as a hidden implementation optimization without changing the public
+Interface.
 
 ### `RealSpaceOperator`
 
 ```julia
-struct RealSpaceOperator{T,A,L}
-    domain::RealSpaceDomain{T}
+struct RealSpaceOperator{A,L}
     coefficients::A
     law::L
 end
@@ -211,13 +227,32 @@ end
 The canonical coefficient layout is
 
 ```text
-n_wannier x n_wannier x n_components x n_Rvectors
+n_wannier x n_wannier x component_shape... x n_Rvectors
 ```
 
-with a dense strided `Array{Complex{T},4}` in the initial implementation. The two
-matrix axes are contiguous within each component/R block. The first three axes can
-be flattened to `(n_wannier^2 * n_components) x n_Rvectors` for multiplication by
-an `n_Rvectors x n_kpoints` phase matrix.
+with a dense strided `Array{Complex{T},N}` in the initial implementation. The first
+two axes are always Wannier matrix indices, zero or more following axes retain the
+logical physical-component shape, and the final axis is the common
+`RealSpaceDomain`. Thus a scalar, vector, and rank-two Cartesian tensor use,
+respectively,
+
+```text
+coefficients[m, n, iR]
+coefficients[m, n, alpha, iR]
+coefficients[m, n, alpha, beta, iR]
+```
+
+The component shape is derived without redundant metadata:
+
+```julia
+component_shape(operator) = size(operator.coefficients)[3:(end - 1)]
+```
+
+For evaluation, all axes except the last are reshaped without copying to
+`(n_wannier^2 * prod(component_shape)) x n_Rvectors` and multiplied by the common
+`n_Rvectors x n_kpoints` phase matrix. Outputs are reshaped back to their logical
+component axes. A general operator law supplies and validates its component shape;
+it is not restricted to Cartesian tensors or powers of three.
 
 Do not store `Vector{Matrix}` or matrices whose entries are `StaticVector`s.
 Static vectors remain appropriate for lattice vectors and small symmetry tensors,
@@ -226,12 +261,13 @@ not for bulk operator coefficients.
 The operator's identity comes from its key in the containing `NamedTuple`; remove
 the mutable semantic role currently played by `TBOperator.name::String`.
 
-### `Interpolator`
+### `InterpolationModel`
 
 ```julia
-struct Interpolator{C,B,O,S}
+struct InterpolationModel{C,B,D,O,S}
     crystal::C
     basis::B
+    real_space::D
     operators::O
     symmetry::S
 end
@@ -241,11 +277,13 @@ The exact internal types can evolve, but the following invariants are required:
 
 - `operators` is an extensible typed collection, not one field per possible
   physical property;
+- `real_space` is the one common `RealSpaceDomain` indexing the final axis of every
+  primitive operator;
 - `hamiltonian` is one entry in that collection;
 - an instance stores only primitive operators supplied or constructed for it;
 - derived quantities and temporary buffers are not stored permanently;
 - adding an operator changes the collection's value/type, not the definition of
-  `Interpolator`.
+  `InterpolationModel`.
 
 Arrays are heap-backed, so a typed collection of array-owning operator records does
 not make the inline struct proportional to the coefficient data. If compilation
@@ -270,9 +308,9 @@ Both schemes then enter the same symmetry/Hermiticity closure and packing path.
 The minimum-distance implementation must preserve its orbital-pair dependence:
 candidate translations and weights are determined from
 `R + tau_n - tau_m`. Equal-distance replicas are retained together. The packed
-final representation may use a global R list for an operator, with zeros for
-matrix elements that do not use a particular representative; pair-dependent
-selection must not leak into the evaluation Interface.
+final representation uses the model's common R list, with zeros for matrix
+elements that do not use a particular representative; pair-dependent selection
+must not leak into the evaluation Interface.
 
 Remove the current staged distinction among `WignerSeitzRspace`, `MDRSRspace`, and
 `BareRspace`. There is no public `generate_Rspace` or `simplify` step.
@@ -284,10 +322,12 @@ Remove the current staged distinction among `WignerSeitzRspace`, `MDRSRspace`, a
 Normalize all primitive input to an internal shape
 
 ```text
-n_bands x n_bands x n_components x n_kpoints
+n_bands x n_bands x component_shape... x n_kpoints
 ```
 
-without necessarily materializing diagonal inputs. The Hamiltonian Adapter views
+The physical component axes are preserved for natural indexing and flattened only
+inside transformation/evaluation kernels. Diagonal inputs need not be
+materialized. The Hamiltonian Adapter views
 `model.eigenvalues` as a diagonal scalar operator, declares it Hermitian,
 time-reversal even, and scalar under spatial operations, and then invokes exactly
 the same gauge-transform/Fourier/scheme/closure pipeline as a user operator.
@@ -299,7 +339,8 @@ Construction stages are:
 3. compute coefficients on the finite quotient lattice;
 4. select weighted infinite-lattice representatives with the real-space scheme;
 5. close and project symmetry/Hermitian orbits when symmetry is present;
-6. merge equal R vectors and pack a `RealSpaceOperator`.
+6. form the union of all required R vectors as one `RealSpaceDomain`;
+7. remap and pack every `RealSpaceOperator` onto that common domain.
 
 No stage returns a public intermediate object.
 
@@ -343,12 +384,14 @@ by localization.
 Closure acts on coefficient labels
 
 ```text
-(component, m, n, R)
+(component_indices..., m, n, R)
 ```
 
 and not on `R` alone. A transformed lattice vector depends on the spatial action
 and on the center shifts of the transported input/output orbitals; a tensor law
-may also mix components.
+may also mix arbitrary tuples of component indices. The symmetry kernel may
+linearize that tuple internally, but the stored operator and returned results
+retain the logical component axes.
 
 For each primitive operator:
 
@@ -373,15 +416,17 @@ off-mesh points.
 
 ### Fourier kernel
 
-For each group of operators sharing a `RealSpaceDomain`, form the phase block
+For the model's common `RealSpaceDomain`, form the phase block once
 
 ```math
 P_{Rk} = exp(i 2 pi k . R)
 ```
 
-and evaluate packed coefficients with `mul!`. Process k points in blocks so the
-phase matrix and outputs have bounded memory. A single-k method uses the same
-kernel with a one-column block or an allocation-free matrix-vector specialization.
+and evaluate every requested operator's packed coefficients with `mul!`. Process k
+points in blocks so the phase matrix and outputs have bounded memory. Operators
+with different logical component ranks are reshaped to two-dimensional packed
+views without copying. A single-k method uses the same kernel with a one-column
+block or an allocation-free matrix-vector specialization.
 
 Derivatives are requested from the same operator rather than stored as separate
 `TBHamiltonianGradient` and `TBHamiltonianHessian` objects. Their phase factors are
@@ -403,7 +448,7 @@ are not. The planner:
 
 1. validates that required primitive operators are present;
 2. unions and topologically orders intermediate requirements;
-3. groups Fourier work by domain;
+3. constructs one phase block for the common real-space domain;
 4. requests only needed derivative orders;
 5. schedules exactly one Hamiltonian eigendecomposition per k point;
 6. reuses eigenvectors and gauge rotations for every requested observable;
@@ -420,9 +465,9 @@ Initial observable recipes replace the current implementations:
 - `BerryCurvature` and its supported formulations;
 - `OrbitalMagnetization`, including Fermi energy as recipe data.
 
-Formulation choices belong inside the relevant recipe, not in new interpolator
-types. For example, two Berry-curvature formulas share the same public observable
-concept and declare different internal dependencies.
+Formulation choices belong inside the relevant recipe, not in new
+observable-specific model types. For example, two Berry-curvature formulas share
+the same public observable concept and declare different internal dependencies.
 
 ### Diagonalization
 
@@ -433,9 +478,9 @@ kernels.
 
 ## Workflows
 
-`band_structure(interpolator, kpath)` calls `interpolate` with `BandEnergy()` and
-returns a `BandStructure` containing path coordinates, labels, k points, and band
-energy. Plotting remains in the Makie extension.
+`band_structure(interpolation_model, kpath)` calls `interpolate` with
+`BandEnergy()` and returns a `BandStructure` containing path coordinates, labels,
+k points, and band energy. Plotting remains in the Makie extension.
 
 `fermi_surface` and density-of-states calculations can later be migrated onto the
 same Interface. They choose a sampling geometry and consume pointwise observable
@@ -469,8 +514,9 @@ implemented once, symmetry closure is implemented once, and observable files
 contain formulas rather than storage/evaluation infrastructure.
 
 Update Wannier90 readers to be construction Adapters for `RealSpaceOperator` and
-`Interpolator`. Delete, rather than wrap, the old public files/types after all
-callers have moved.
+`InterpolationModel`. Readers whose operators contain different R-vector lists
+must construct their union and remap them onto one `RealSpaceDomain`. Delete,
+rather than wrap, the old public files/types after all callers have moved.
 
 ## Implementation sequence
 
@@ -496,14 +542,16 @@ exist.
 
 ### Phase 1: core types and ordinary Hamiltonian path
 
+- Rename `KspaceStencil` and `KspaceStencilShells` to `KSpaceStencil` and
+  `KSpaceStencilShells`, including constructors, accessors, tests, and docs.
 - Implement `RealSpaceDomain`, `RealSpaceOperator`, the two real-space schemes,
-  and packed coefficient storage.
+  the common-domain invariant, and logical tensor-shaped coefficient storage.
 - Implement the general Bloch-to-Wannier gauge transformation and quotient Fourier
   coefficient construction.
 - Implement the Hamiltonian input Adapter through the general operator path.
 - Implement the packed blocked Fourier kernel.
-- Add `Interpolator`, `BandEnergy`, `interpolate`, and `band_structure` using the
-  new path.
+- Add `InterpolationModel`, `BandEnergy`, `interpolate`, and `band_structure`
+  using the new path.
 - Test Wigner--Seitz and minimum-distance results against the Phase 0 references.
 
 Exit criterion: ordinary band interpolation and Wannier90 Hamiltonian input work
@@ -555,7 +603,7 @@ Exit criterion: every currently supported physical quantity is accessible throug
 - Convert `read_w90_hr`, `read_w90_tb`, `read_w90_spn`, and related readers to the
   new data model.
 - Convert writers to consume `RealSpaceOperator` or the relevant operator from an
-  `Interpolator`.
+  `InterpolationModel`.
 - Migrate Fermi-energy and Fermi-surface tools to consume `interpolate` results.
 - Remove old exports and implementations: `TBOperator`, `AbstractTBInterpolator`,
   `HamiltonianInterpolator`, `SpinInterpolator`,
@@ -598,7 +646,8 @@ source-data symmetry noise from interpolation error.
 
 - Steady-state internal `interpolate!` performs no per-k-point heap allocation;
   output arrays and eigensolver workspaces are preallocated.
-- Operators sharing a domain use one phase matrix per k-point block.
+- All requested operators use one phase matrix for the model's common
+  `RealSpaceDomain` per k-point block.
 - A combined observable request performs one Hamiltonian eigendecomposition per
   k point.
 - Hamiltonian derivatives are generated from R factors and are not duplicated in
@@ -615,8 +664,11 @@ source-data symmetry noise from interpolation error.
 ## Completion checklist
 
 - [ ] New public Interface implemented and documented.
+- [ ] `KSpaceStencil` naming is used consistently in source, tests, and docs.
 - [ ] Hamiltonian uses the general operator construction path.
-- [ ] Both real-space schemes emit the common packed representation.
+- [ ] Both real-space schemes emit one common `RealSpaceDomain` for all operators.
+- [ ] Scalar, vector, matrix, and higher-rank component axes remain logical in
+      storage/results and are flattened only in kernels.
 - [ ] Symmetry-closed R support and coefficient projection implemented.
 - [ ] Unitary, antiunitary, scalar, polar-vector, axial-vector, and general tensor
       tests pass.
