@@ -596,7 +596,7 @@ end
         IBZFactorizedEvaluation()
     @test Problem(Variance(), sm).evaluation == IBZFactorizedEvaluation()
 
-    # framework path (Problem + solve! under the hood), a few LBFGS iterations
+    # framework path (Problem + solve under the hood), a few LBFGS iterations
     niter = 5
     U_fbz, U_ibz = localize(sm; max_iter = niter)
     # the optimized gauge is covariant to the data floor and consistently reconstructed
@@ -614,9 +614,12 @@ end
         opnorm(U_ibz[:, :, k]' * U_ibz[:, :, k] - I) for k in 1:sc.nk_ibz
     ) < 1.0e-4
 
-    # Schur layout through the explicit Problem + solve! route
+    # Schur layout through the explicit Problem + solve route
     prob = Problem(Variance(), sm, SchurLayout())
-    Us_fbz, Us_ibz = solve!(prob, OptimLBFGS(; max_iter = niter))
+    schur_result = solve(prob, OptimLBFGS(; max_iter = niter, store_trace = true))
+    Us_fbz, Us_ibz = schur_result.solution
+    @test schur_result.iterations == niter
+    @test !isempty(schur_result.trace)
     @test Wannier.covariance_residual(Us_ibz, sc) < 1.0e-3
     # hard-coded 5-iteration regression anchor (SchurLayout)
     Ωs = Wannier.spread(model.kstencil, model.overlaps, Us_fbz).Ω

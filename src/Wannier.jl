@@ -82,6 +82,7 @@ include("symmetry/operations.jl")
 include("interpolation/symmetry.jl")
 include("symmetry/localization.jl")
 include("symmetry/model.jl")
+include("io/w90/symmetry.jl")
 
 # Some convenience functions for users
 include("tools/Tools.jl")

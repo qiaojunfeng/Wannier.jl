@@ -2,6 +2,7 @@ module WannierManoptExt
 
 using Wannier
 using Wannier: Problem, Variance, ULayout, ManoptLBFGS, Model
+using Wannier: LocalizationResult, LocalizationTraceEntry
 using Wannier: n_bands, n_wannier, n_kpoints, _optimizer_callback
 using Manopt
 using Manifolds
@@ -17,8 +18,10 @@ using LinearAlgebra: norm
 # between cost/grad calls to minimize allocations.
 # -------------------------------------------------------------------------
 
-function Wannier.solve!(
-        prob::Problem{<:Variance, <:Model, <:ULayout}, solver::ManoptLBFGS
+function Wannier.solve(
+        prob::Problem{<:Variance, <:Model, <:ULayout},
+        solver::ManoptLBFGS;
+        warmup::Bool = false,
     )
     model = prob.model
     nb = n_bands(model)
@@ -59,20 +62,67 @@ function Wannier.solve!(
     # Initial point: current model gauges, copied into nested form.
     p0 = [collect(view(model.gauges, :, :, ik)) for ik in 1:nk]
 
+    if warmup
+        cost(M, p0)
+        grad(M, p0)
+    end
+
     stop = StopWhenGradientNormLess(solver.g_tol) |
         StopAfterIteration(solver.max_iter)
 
-    pmin = quasi_Newton(
+    record = solver.store_trace ? [:Iteration, :Cost, :GradientNorm] : missing
+    debug = if solver.show_every > 0
+        [
+            :Iteration,
+            " | f = ",
+            :Cost,
+            " | |g| = ",
+            :GradientNorm,
+            "\n",
+            solver.show_every,
+        ]
+    else
+        missing
+    end
+    start_time = time_ns()
+    state = quasi_Newton(
         M, cost, grad, p0;
         memory_size = solver.memory_size,
         stopping_criterion = stop,
+        record,
+        debug,
+        return_state = true,
     )
+    elapsed_seconds = (time_ns() - start_time) / 1.0e9
+    pmin = get_solver_result(state)
 
     Umin = zeros(T, nb, nw, nk)
     @inbounds for ik in 1:nk
         view(Umin, :, :, ik) .= pmin[ik]
     end
-    return Umin
+    trace = if solver.store_trace
+        [
+            LocalizationTraceEntry(Int(iteration), Float64(value), Float64(gradient_norm)) for
+                (iteration, value, gradient_norm) in get_record(state)
+        ]
+    else
+        LocalizationTraceEntry{Float64}[]
+    end
+    objective_value = Float64(cost(M, pmin))
+    gradient_norm = Float64(norm(M, pmin, get_gradient(state)))
+    converged = has_converged(state)
+    termination_reason = converged ? :gradient_tolerance : :iteration_limit
+    iterations = get_count(get_state(state), :Iterations)
+    return LocalizationResult(
+        Umin,
+        objective_value,
+        gradient_norm,
+        iterations,
+        converged,
+        termination_reason,
+        elapsed_seconds,
+        trace,
+    )
 end
 
 # Other Problem variants (XYLayout / ProductLayout / WLayout) fall through

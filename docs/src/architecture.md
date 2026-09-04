@@ -20,7 +20,7 @@ Wannier.jl separates *physics data* from *optimization machinery*.
 │  kstencil              │        │   workspace :: Workspace         │
 │  overlaps              │        └────────────────┬─────────────────┘
 │  gauges                │        ┌────────────────▼─────────────────┐
-│  eigenvalues           │        │ solve!(problem, solver)          │
+│  eigenvalues           │        │ solve(problem, solver)           │
 │  frozen_bands          │        │   initial parameters → optimize  │
 │  entangled_bands       │        │   assemble → fg! → pullback      │
 └────────────────────────┘        │   solver :: AbstractLocalization…│
@@ -33,7 +33,7 @@ interpolation, real-space evaluation, post-processing. It carries no solver
 state and no scratch buffers.
 
 A [`Problem`](@ref Wannier.Problem) is *ephemeral*. It bundles everything one optimization run
-needs, is consumed by [`solve!`](@ref Wannier.solve!), and is discarded afterwards. It holds
+needs, is consumed by [`solve`](@ref Wannier.solve), and is discarded afterwards. It holds
 no solver options — those live on the solver object passed separately.
 
 ## Data layer
@@ -266,7 +266,7 @@ function _optimizer_callback(prob::Problem)
 end
 ```
 
-and one `solve!` drives it for every objective and layout. There is no
+and one `solve` drives it for every objective and layout. There is no
 per-combination method to write.
 
 Solvers are pluggable behind `AbstractLocalizationSolver`:
@@ -279,14 +279,16 @@ Solvers are pluggable behind `AbstractLocalizationSolver`:
 The solver owns tolerances, iteration limits, linesearch, and history size:
 
 ```julia
-U = solve!(Problem(Variance(), model), OptimLBFGS(; g_tol = 1e-8, max_iter = 500))
+result = solve(Problem(Variance(), model), OptimLBFGS(; g_tol = 1e-8, max_iter = 500))
+U = result.solution
 ```
 
 `ManoptLBFGS` lives in a package extension, so the main package does not
 depend on Manopt.jl; `using Manopt, Manifolds` activates it.
 
-`solve!` returns the optimized gauge and does **not** mutate `prob.model` —
-the model you passed in is still the input you started with.
+`solve` returns a [`LocalizationResult`](@ref Wannier.LocalizationResult) and does
+**not** mutate `prob.model`. The result keeps backend-independent convergence
+diagnostics while `result.solution` holds the optimized gauge.
 
 ### The `localize` driver
 
@@ -300,7 +302,7 @@ localize(Variance(), model, WLayout())           # explicit layout
 localize(ParallelTransport(), model)             # closed-form, no solver
 ```
 
-Objective calls expand to `solve!(Problem(obj, model, layout), OptimLBFGS(; kwargs...))`;
+Objective calls expand to `solve(Problem(obj, model, layout), OptimLBFGS(; kwargs...)).solution`;
 keyword arguments forward to the solver.
 
 ### Symmetry-adapted WFs ride the same rails
@@ -329,7 +331,7 @@ U_fbz, U_ibz = localize(Variance(), sm, SchurLayout())
 U_fbz, U_ibz = localize(
     Variance(), sm, SchurLayout(); evaluation = FullMeshEvaluation()
 )
-U_fbz, U_ibz = solve!(Problem(Variance(), sm), OptimLBFGS(; max_iter = 300))
+U_fbz, U_ibz = solve(Problem(Variance(), sm), OptimLBFGS(; max_iter = 300)).solution
 ```
 
 `SymmetricModel` is parametric on the wrapped model (`SymmetricModel{M}`,
@@ -373,7 +375,7 @@ elementwise against finite differences of the same value function.
 | add a new functional (symmetry, custom penalty, …) | define a new `Objective` subtype with one `fg!` method plus `default_layout`, `default_evaluation`, and `allocate_workspace`. It then works with every compatible layout, evaluation, and solver backend |
 | add a new parameterization | define a new `Layout` with `initial_parameters` / `assemble_gauge!` / `pullback_gradient!` / `finalize_result` / `manifold`. It then works with every objective |
 | add a symmetry evaluation strategy | define a `SymmetricEvaluation` subtype and its `allocate_workspace` methods; layouts and solvers remain unchanged |
-| add a new optimizer backend | define `S <: AbstractLocalizationSolver` and `solve!(::Problem, ::S)` |
+| add a new optimizer backend | define `S <: AbstractLocalizationSolver` and `solve(::Problem, ::S)` returning `LocalizationResult` |
 | run on a device (GPU) | dispatch `allocate_workspace(obj, model, layout, evaluation; backend)` to return device arrays |
 
 The `backend` keyword on `allocate_workspace` is the single seam where array

@@ -28,7 +28,7 @@ The wrapper is parametric on the wrapped model type (`SymmetricModel{M}`,
 today `M = Model`); see the comment on the struct for the composition plan
 and its physics caveat.
 
-Works with [`localize`](@ref) / [`Problem`](@ref) + [`solve!`](@ref) like any
+Works with [`localize`](@ref) / [`Problem`](@ref) + [`solve`](@ref) like any
 other model; the optimization variables are the gauges at the IBZ kpoints
 only, and the returned gauge is the `(U_fbz, U_ibz)` pair of the optimized
 covariant gauge reconstructed on the full mesh plus its IBZ representative.
@@ -391,8 +391,9 @@ function localize(
         sm::SymmetricModel,
         layout::Layout;
         evaluation::SymmetricEvaluation = default_evaluation(objective, sm, layout),
+        warmup::Bool = false,
         kwargs...,
     )
     problem = Problem(objective, sm, layout; evaluation)
-    return solve!(problem, OptimLBFGS(; kwargs...))
+    return solve(problem, OptimLBFGS(; kwargs...); warmup).solution
 end

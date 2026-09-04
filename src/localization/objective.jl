@@ -230,7 +230,7 @@ with only one evaluation strategy, `evaluation === nothing`.
 Constructed per optimization run; reused across iterations but discarded once
 the run returns. No solver options live inside: solver
 choice/tolerances/linesearch belong to an
-[`AbstractLocalizationSolver`](@ref) passed separately to `solve!`.
+[`AbstractLocalizationSolver`](@ref) passed separately to [`solve`](@ref).
 """
 struct Problem{O <: Objective, M, L <: Layout, E, W}
     objective::O
@@ -252,7 +252,7 @@ end
 
 # `WLayout` optimizes one rotation shared by all kpoints, which only makes sense
 # against a model whose gauge has been folded into the overlaps. Doing that here
-# rather than in `solve!` keeps every solver method generic, and leaves the
+# rather than in `solve` keeps every solver method generic, and leaves the
 # caller's model untouched.
 function Problem(
         objective::Objective,

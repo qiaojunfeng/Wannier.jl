@@ -59,6 +59,7 @@ Pages   = [
     "io/w90/chk.jl",
     "io/w90/model.jl",
     "io/w90/nnkp.jl",
+    "io/w90/symmetry.jl",
     "io/w90/tb.jl",
 ]
 ```

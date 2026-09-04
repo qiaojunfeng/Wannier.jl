@@ -46,3 +46,34 @@ end
     @test isapprox(Ω.ΩOD, 0.380441928; atol = 1.0e-7)
     @test isapprox(Ω.Ωtilde, 0.3804419269999997; atol = 1.0e-7)
 end
+
+@testitem "localization result" setup = [MaxlocEnv] begin
+    problem = Wannier.Problem(Wannier.Variance(), model)
+    result = solve(
+        problem,
+        OptimLBFGS(; max_iter = 2, store_trace = true, show_every = 0);
+        warmup = true,
+    )
+
+    @test result isa LocalizationResult
+    @test size(result.solution) == size(model.gauges)
+    @test result.objective_value isa Float64
+    @test result.gradient_norm >= 0
+    @test result.iterations <= 2
+    @test result.termination_reason in (
+        :gradient_tolerance,
+        :objective_tolerance,
+        :parameter_tolerance,
+        :iteration_limit,
+        :line_search_failure,
+        :unknown,
+    )
+    @test result.elapsed_seconds >= 0
+    @test !isempty(result.trace)
+    @test all(entry -> entry isa LocalizationTraceEntry, result.trace)
+    @test localize(Wannier.Variance(), model; max_iter = 2) ≈ result.solution
+    @test_throws ArgumentError OptimLBFGS(; show_every = -1)
+
+    rendered = sprint(show, MIME"text/plain"(), result)
+    @test occursin("termination_reason", rendered)
+end

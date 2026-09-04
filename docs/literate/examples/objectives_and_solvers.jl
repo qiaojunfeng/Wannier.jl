@@ -139,17 +139,18 @@ iteration limits, linesearch, and history size:
 =#
 solver = OptimLBFGS(; max_iter = 4, g_tol = 1.0e-6)
 
-# Keep a copy of the starting gauge, so we can see what `solve!` touches:
+# Keep a copy of the starting gauge, so we can see what `solve` touches:
 gauges_before = copy(model.gauges);
 
-# [`solve!`](@ref Wannier.solve!) runs it and returns the optimized gauge:
-U = solve!(prob, solver);
+# [`solve`](@ref Wannier.solve) runs it and returns diagnostics together with the solution:
+result = solve(prob, solver);
+U = result.solution;
 
 # The spread went down,
 spread(model, U)
 
 #=
-and — worth emphasizing — `solve!` did **not** touch the model you passed in.
+and — worth emphasizing — `solve` did **not** touch the model you passed in.
 The model still holds the gauge it started with:
 =#
 model.gauges == gauges_before
@@ -168,13 +169,13 @@ model.gauges .= U
 `localize` is exactly the composition of the above:
 
 ```julia
-localize(obj, model; kwargs...)  ==  solve!(Problem(obj, model), OptimLBFGS(; kwargs...))
+localize(obj, model; kwargs...)  ==  solve(Problem(obj, model), OptimLBFGS(; kwargs...)).solution
 ```
 
 so these two are the same computation:
 =#
 U_driver = localize(model; max_iter = 4, g_tol = 1.0e-6)
-U_manual = solve!(Problem(Variance(), model), OptimLBFGS(; max_iter = 4, g_tol = 1.0e-6))
+U_manual = solve(Problem(Variance(), model), OptimLBFGS(; max_iter = 4, g_tol = 1.0e-6)).solution
 U_driver ≈ U_manual
 
 #=
@@ -214,7 +215,7 @@ extension built on Manopt.jl and Manifolds.jl:
 
 ```julia
 using Manopt, Manifolds        # activates the extension
-U = solve!(Problem(Variance(), model), ManoptLBFGS(; g_tol = 1e-8, max_iter = 500))
+U = solve(Problem(Variance(), model), ManoptLBFGS(; g_tol = 1e-8, max_iter = 500)).solution
 ```
 
 It currently implements the `Variance` + `ULayout` combination; the other

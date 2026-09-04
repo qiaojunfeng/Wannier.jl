@@ -14,7 +14,7 @@ dispatch paths live here:
 - `Objective` methods ([`Variance`](@ref), [`CenteredVariance`](@ref),
   [`SpinCoupledVariance`](@ref), [`CenteredSpinCoupledVariance`](@ref)) minimize a
   scalar spread functional; the call routes through [`Problem`](@ref) +
-  [`solve!`](@ref) with [`OptimLBFGS`](@ref). `kwargs` forward to the
+  [`solve`](@ref) with [`OptimLBFGS`](@ref). `kwargs` forward to the
   solver. The explicit-layout form picks the packing [`Layout`](@ref)
   explicitly (e.g. `WLayout()` for opt-rotate-style single-W
   optimization).
@@ -32,11 +32,15 @@ localize(model::Model; kwargs...) = localize(Variance(), model; kwargs...)
 localize(sm::SpinModel; λ_spin::Real = 1.0, kwargs...) =
     localize(SpinCoupledVariance(float(λ_spin)), sm; kwargs...)
 
-localize(obj::Objective, model; kwargs...) =
-    solve!(Problem(obj, model), OptimLBFGS(; kwargs...))
+function localize(obj::Objective, model; warmup::Bool = false, kwargs...)
+    return solve(Problem(obj, model), OptimLBFGS(; kwargs...); warmup).solution
+end
 
-localize(obj::Objective, model, layout::Layout; kwargs...) =
-    solve!(Problem(obj, model, layout), OptimLBFGS(; kwargs...))
+function localize(
+        obj::Objective, model, layout::Layout; warmup::Bool = false, kwargs...
+    )
+    return solve(Problem(obj, model, layout), OptimLBFGS(; kwargs...); warmup).solution
+end
 
 function localize(pt::ParallelTransport, model::Model; kwargs...)
     U, _ = parallel_transport(model; use_U = pt.use_U, log_interp = pt.log_interp)

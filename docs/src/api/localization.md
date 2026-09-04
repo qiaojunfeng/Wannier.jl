@@ -2,7 +2,7 @@
 
 `localize(...)` has two independent dispatch paths that share no supertype:
 
-- **Gradient-based** — pass a concrete [`Objective`](@ref) (`Variance`, `CenteredVariance`, `SpinCoupledVariance`, `CenteredSpinCoupledVariance`). `Objective` is a scalar functional (mathematical); the call bundles `(objective, model, layout, evaluation, workspace)` into a [`Problem`](@ref) and hands it to [`solve!`](@ref) with an [`AbstractLocalizationSolver`](@ref Wannier.AbstractLocalizationSolver) backend (`OptimLBFGS` by default; additional backends like `Manopt.jl` plug in here). `Layout` (`ULayout`, `XYLayout`, `ProductLayout`, `WLayout`) implements the gauge parameterization and parameter packing. For a `SymmetricModel`, `evaluation` independently selects full-mesh or IBZ-factorized objective evaluation.
+- **Gradient-based** — pass a concrete [`Objective`](@ref) (`Variance`, `CenteredVariance`, `SpinCoupledVariance`, `CenteredSpinCoupledVariance`). `Objective` is a scalar functional (mathematical); the call bundles `(objective, model, layout, evaluation, workspace)` into a [`Problem`](@ref) and hands it to [`solve`](@ref) with an [`AbstractLocalizationSolver`](@ref Wannier.AbstractLocalizationSolver) backend (`OptimLBFGS` by default; additional backends like `Manopt.jl` plug in here). `Layout` (`ULayout`, `XYLayout`, `ProductLayout`, `WLayout`) implements the gauge parameterization and parameter packing. For a `SymmetricModel`, `evaluation` independently selects full-mesh or IBZ-factorized objective evaluation.
 - **Closed-form** — pass a [`ParallelTransport`](@ref). This routes through [`parallel_transport`](@ref) directly; there is no functional, no `Problem`, no solver.
 
 `Objective` and `ParallelTransport` live at different abstraction levels (a scalar functional versus a whole gauge-construction recipe), so there is no common ancestor. `localize` just dispatches on whichever the caller hands in.
@@ -43,16 +43,30 @@ U = localize(ParallelTransport(; use_U = true, log_interp = true), model)
 Objective calls expand to
 
 ```julia
-solve!(Problem(objective, model, layout), OptimLBFGS(; kwargs...))
+solve(Problem(objective, model, layout), OptimLBFGS(; kwargs...)).solution
 ```
 
-To swap the solver, construct a `Problem` explicitly and call `solve!` with the backend of choice:
+Construct a `Problem` explicitly when you need convergence diagnostics, an
+iteration trace, timing, or another backend:
 
 ```julia
-using Manopt, Manifolds        # activates the WannierManoptExt extension
 prob = Problem(Variance(), model)
-U    = solve!(prob, ManoptLBFGS(; g_tol = 1e-8, max_iter = 500))
+result = solve(
+    prob,
+    OptimLBFGS(; g_tol = 1e-8, max_iter = 500, store_trace = true);
+    warmup = true,
+)
+U = result.solution
+@show result.objective_value result.gradient_norm result.iterations
+
+using Manopt, Manifolds        # activates the WannierManoptExt extension
+manopt_result = solve(prob, ManoptLBFGS(; g_tol = 1e-8, max_iter = 500))
 ```
+
+`show_every=0` keeps a solver quiet; a positive value prints every requested
+iteration. `store_trace` controls whether scalar trace entries are retained,
+independently of printing. `warmup=true` performs one untimed value-and-gradient
+evaluation before the solver timer starts.
 
 `ParallelTransport` calls expand to [`parallel_transport`](@ref) directly.
 
@@ -77,7 +91,7 @@ get_fg!_disentangle(model)                 fg! = Wannier._optimizer_callback(Pro
 get_fg!_maxloc(model)                      fg! = Wannier._optimizer_callback(Problem(Variance(), model))
 ```
 
-The legacy symbol-keyed `LocalizationProblem(:disentangle, …)` / `build_fg!` / `_build_fg_*` / `AbstractLocalizationTerm` / `VarianceTerm` / `CenterConstraintTerm` / `omega(terms, …)` surface no longer exists — every driver now routes through `Problem` + `solve!`.
+The legacy symbol-keyed `LocalizationProblem(:disentangle, …)` / `build_fg!` / `_build_fg_*` / `AbstractLocalizationTerm` / `VarianceTerm` / `CenterConstraintTerm` / `omega(terms, …)` surface no longer exists — every gradient-based driver now routes through `Problem` + `solve`.
 
 ## Contents
 
@@ -98,6 +112,12 @@ Pages = ["localization.md"]
 Modules = [Wannier]
 Pages   = ["localization/localize.jl"]
 ```
+
+For a symmetry-adapted Wannier90 interface, `read_w90_ibz(prefix)` reads the
+`.nnkp`, `.isym`, `.ieig`, `.immn`, `.iamn`, and `.win` files and returns a
+localization-ready `SymmetricModel`. Exact centers or fixed frozen-band indices
+can be supplied as keywords when they are more appropriate than the rounded
+projection centers or energy thresholds stored in the interface files.
 
 ## Gauge method
 
