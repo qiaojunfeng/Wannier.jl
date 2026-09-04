@@ -9,10 +9,18 @@
     # fig, ax, p = bandplot(kpath, eigenvals; label="Wan")
 
     δ = 0.2
-    eigenvals2 = map(x -> x .+ δ, eigenvals)
-    kwargs1 = (; label = "Wan1", fermi_energy = win["fermi_energy"], shift_fermi = true)
-    kwargs2 = (; kwargs1..., label = "Wan2")
-    fig, ax, p = Wannier.get_bandplot(kpath, eigenvals, eigenvals2; kwargs1, kwargs2)
+    eigenvals2 = collect(eachcol(reduce(hcat, eigenvals) .+ δ))
+    kwargs1 = (; label = "Wan1")
+    kwargs2 = (; label = "Wan2")
+    fig, ax, p = Wannier.get_bandplot(
+        kpath,
+        eigenvals,
+        eigenvals2;
+        kwargs1,
+        kwargs2,
+        fermi_energy = win["fermi_energy"],
+        shift_fermi = true,
+    )
 
     @test all(x -> x isa Plot{Wannier.bandplot}, ax.scene.plots)
     @test p.attributes[:fermi_energy][] == win["fermi_energy"]

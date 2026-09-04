@@ -163,7 +163,7 @@ This is a bit hacky: the recipe only works with the Plot, but we want to
 set the ylabel of the Axis, etc. Therefore, we need this wrapper function.
 =#
 function Wannier.get_bandplot(
-    kpath::Wannier.KPath, eigenvals::E; kwargs...
+        kpath::Wannier.KPath, eigenvals::E; kwargs...
     ) where {E <: AbstractVector{<:AbstractVector{<:Real}}}
     fig, ax = fig_ax_bandplot(kpath; kwargs...)
     p = bandplot!(ax, kpath, eigenvals; kwargs...)
@@ -171,8 +171,18 @@ function Wannier.get_bandplot(
 end
 
 function Wannier.get_bandplot(
-    kpath::Wannier.KPath, eigenvals1::E, eigenvals2::E; kwargs1 = (;), kwargs2 = (;)
-    ) where {E <: AbstractVector{<:AbstractVector{<:Real}}}
+        kpath::Wannier.KPath,
+        eigenvals1::E1,
+        eigenvals2::E2;
+        kwargs1 = (;),
+        kwargs2 = (;),
+        kwargs...,
+    ) where {
+        E1 <: AbstractVector{<:AbstractVector{<:Real}},
+        E2 <: AbstractVector{<:AbstractVector{<:Real}},
+    }
+    kwargs1 = (; kwargs..., kwargs1...)
+    kwargs2 = (; kwargs..., kwargs2...)
     fig, ax = fig_ax_bandplot(kpath; kwargs1...)
 
     color1 = get(kwargs1, :linecolor, :black)
