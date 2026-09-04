@@ -1,54 +1,33 @@
-export BandEnergy, interpolate
-
-"""Request interpolated band energies, in eV."""
-struct BandEnergy end
-
-function _band_energy!(destination::AbstractMatrix, hamiltonian::AbstractArray{<:Complex, 3})
-    size(destination, 2) == size(hamiltonian, 3) ||
-        throw(DimensionMismatch("destination and Hamiltonian batch sizes differ"))
-    for batch_index in axes(hamiltonian, 3)
-        matrix = Hermitian(view(hamiltonian, :, :, batch_index))
-        destination[:, batch_index] .= eigvals(matrix)
-    end
-    return destination
-end
+export BandEnergy
 
 """
-    interpolate(model, kpoints, BandEnergy())
+    BandEnergy()
 
-Interpolate band energies at fractional-coordinate `kpoints`. The returned named
-result has one field, `band_energy`, whose layout is
-`n_wannier × n_kpoints` and whose unit is eV.
+Request interpolated band energies in eV. The `band_energy` result field has
+layout `n_wannier × n_kpoints`.
 """
-function interpolate(
-        model::InterpolationModel,
-        kpoints::AbstractVector,
+struct BandEnergy <: Observable end
+
+result_name(::BandEnergy) = :band_energy
+requirements(::BandEnergy) = _ObservableRequirements(
+    (:hamiltonian,), (:eigensystem,)
+)
+
+function _allocate_observable_result(
         ::BandEnergy,
+        model::InterpolationModel,
+        number_kpoints::Integer,
     )
-    number_kpoints = length(kpoints)
-    number_kpoints > 0 || throw(ArgumentError("kpoints cannot be empty"))
-    hamiltonian = model.operators.hamiltonian
-    energy_type = typeof(real(zero(eltype(hamiltonian.coefficients))))
-    band_energy = Matrix{energy_type}(undef, n_wannier(model), number_kpoints)
-
-    batch_size = _interpolation_batch_size(model, number_kpoints)
-    for first_index in 1:batch_size:number_kpoints
-        kpoint_range = first_index:min(first_index + batch_size - 1, number_kpoints)
-        hamiltonian_batch = _evaluate_real_space_operator(
-            hamiltonian, model.real_space, kpoints, kpoint_range
-        )
-        _band_energy!(view(band_energy, :, kpoint_range), hamiltonian_batch)
-    end
-    return (; band_energy)
+    T = typeof(real(zero(eltype(model.operators.hamiltonian.coefficients))))
+    return Matrix{T}(undef, n_wannier(model), number_kpoints)
 end
 
-function interpolate(
-        model::InterpolationModel,
-        kpoints::AbstractVector,
-        observables::Tuple,
+function _assemble_observable!(
+        destination::AbstractMatrix,
+        ::BandEnergy,
+        intermediates,
+        workspace,
     )
-    length(observables) == 1 && only(observables) isa BandEnergy || throw(
-        ArgumentError("this implementation slice supports only BandEnergy()"),
-    )
-    return interpolate(model, kpoints, only(observables))
+    copyto!(destination, intermediates.eigenvalues)
+    return destination
 end

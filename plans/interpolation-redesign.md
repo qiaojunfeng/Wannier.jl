@@ -43,12 +43,21 @@ produce packed operators on one common `RealSpaceDomain`, and ordinary
 `BandEnergy`/`band_structure` evaluation is blocked over k points. Wannier90
 `HrDat` and `TbDat` file data enter through direct construction Adapters rather
 than legacy R-space or interpolator objects. The legacy interpolation types
-remain only for observables awaiting migration in Phases 2--5.
+remain only for observables awaiting migration in Phases 3--5.
+
+Phase 2 is also complete for the migrated observables. A typed internal plan
+unions observable requirements, reuses one phase block and one Hermitian
+eigendecomposition sweep, and requests Cartesian Hamiltonian derivatives only
+when needed. Its allocation-reusing `interpolate!` path has fixed per-batch
+bookkeeping (measured at 1200 bytes for batches from 1 to 64 k points), rather
+than per-k-point temporary arrays. On the `Si2_valence` reference mesh, a
+combined `BandEnergy`/`BandVelocity` request is about 1.8 times faster than two
+separate requests in a single-threaded warm benchmark.
 
 Phase 0 numerical references are covered by the existing interpolation tests
 and benchmark entry point; finer per-stage timing remains to be recorded. The
-next implementation step is Phase 2: internal dependency planning, reusable
-Fourier/eigensolver workspaces, Hamiltonian derivatives, and `BandVelocity`.
+next implementation step is Phase 3: extract reusable Wannier symmetry data and
+close/project real-space operator orbits.
 
 ## Goals
 

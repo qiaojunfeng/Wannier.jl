@@ -81,6 +81,33 @@ Genuine fields (`model.overlaps`, `model.gauges`, `model.eigenvalues`,
 syntax. The same accessor functions are defined for `SpinModel`, so code
 written against them works unchanged for both.
 
+### InterpolationModel
+
+[`InterpolationModel`](@ref Wannier.InterpolationModel) is the long-lived data
+model for pointwise Wannier interpolation. Its primitive operators are a typed
+named collection on one common real-space domain; the Hamiltonian is the
+`:hamiltonian` entry rather than a special storage type. Construction from a
+`Model`, `HrDat`, or `TbDat` absorbs Wigner--Seitz or minimum-distance weights
+before evaluation.
+
+The external seam stays small:
+
+```julia
+interpolation_model = InterpolationModel(model; real_space = MinimumDistance())
+result = interpolate(
+    interpolation_model, kpoints, (BandEnergy(), BandVelocity())
+)
+```
+
+Observable recipes declare primitive operators and derived intermediates. An
+internal typed plan unions those requirements, then each k-point batch shares
+one Fourier phase block, Hamiltonian evaluation, derivative evaluation, and
+Hermitian eigendecomposition. The allocation-reusing `Wannier.interpolate!`
+implementation writes into views whose final axis is the current k-point
+batch; only the public result arrays scale with the complete request. Adding an
+observable therefore extends the recipe interface without adding fields to
+`InterpolationModel` or creating another observable-specific interpolator.
+
 ### SpinModel
 
 [`SpinModel`](@ref Wannier.SpinModel) is a pair of `Model`s plus the Bloch-basis ``\uparrow\downarrow``

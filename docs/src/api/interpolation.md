@@ -17,6 +17,24 @@ result.band_energy
 k-point index on its final axis; `band_energy` therefore has shape
 `n_wannier × n_kpoints` and is measured in eV.
 
+Several observables can be requested together:
+
+```julia
+result = interpolate(
+    interpolation_model,
+    kpoints,
+    (BandEnergy(), BandVelocity()),
+)
+result.band_energy
+result.band_velocity
+```
+
+The combined calculation shares its Fourier phase block, Hamiltonian
+derivatives, and eigendecomposition. `band_velocity` stores
+``\hbar \mathbf{v}_n = \partial\varepsilon_n/\partial\mathbf{k}`` in eV Å,
+with shape `3 × n_wannier × n_kpoints`; the leading axis contains Cartesian
+components.
+
 For a labeled `KPath`, [`band_structure`](@ref) also retains the linear
 path coordinate and high-symmetry labels:
 
@@ -100,7 +118,9 @@ Modules = [Wannier]
 Pages = [
     "interpolation/types.jl",
     "io/w90/interpolation.jl",
+    "interpolation/planning.jl",
     "interpolation/observables/band_energy.jl",
+    "interpolation/observables/band_velocity.jl",
     "interpolation/workflows/band_structure.jl",
 ]
 ```

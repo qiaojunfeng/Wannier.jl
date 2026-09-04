@@ -1,12 +1,38 @@
 const _DEFAULT_INTERPOLATION_MEMORY = 64 * 1024 * 1024
 const _MAXIMUM_INTERPOLATION_BATCH = 4096
 
-function _interpolation_batch_size(model::InterpolationModel, number_kpoints::Integer)
+function _interpolation_batch_size(
+        model::InterpolationModel,
+        number_kpoints::Integer;
+        hamiltonian_derivative_order::Integer = 0,
+    )
     number_kpoints > 0 || return 0
     T = eltype(model.operators.hamiltonian.coefficients)
-    bytes_per_kpoint = sizeof(T) * (n_Rvectors(model) + n_wannier(model)^2)
+    number_wannier = n_wannier(model)
+    number_vectors = n_Rvectors(model)
+    number_complex_values = number_vectors + 2number_wannier^2
+    if hamiltonian_derivative_order >= 1
+        number_complex_values += number_vectors + 3number_wannier^2
+    end
+    bytes_per_kpoint = sizeof(T) * number_complex_values
     memory_limited = max(1, _DEFAULT_INTERPOLATION_MEMORY ÷ max(1, bytes_per_kpoint))
     return min(number_kpoints, memory_limited, _MAXIMUM_INTERPOLATION_BATCH)
+end
+
+function _fourier_phase_block!(
+        phase::AbstractMatrix{T},
+        real_space::RealSpaceDomain,
+        kpoints::AbstractVector,
+    ) where {T <: Complex}
+    size(phase) == (length(real_space), length(kpoints)) ||
+        throw(DimensionMismatch("phase block has the wrong shape"))
+    for (batch_index, kpoint) in enumerate(kpoints)
+        length(kpoint) == 3 || throw(ArgumentError("each k point must have length three"))
+        for (vector_index, vector) in enumerate(real_space.vectors)
+            phase[vector_index, batch_index] = cis(2π * dot(kpoint, vector))
+        end
+    end
+    return phase
 end
 
 function _fourier_phase_block(
@@ -16,14 +42,27 @@ function _fourier_phase_block(
         ::Type{T},
     ) where {T <: Complex}
     phase = Matrix{T}(undef, length(real_space), length(kpoint_range))
-    for (batch_index, kpoint_index) in enumerate(kpoint_range)
-        kpoint = kpoints[kpoint_index]
-        length(kpoint) == 3 || throw(ArgumentError("each k point must have length three"))
-        for (vector_index, vector) in enumerate(real_space.vectors)
-            phase[vector_index, batch_index] = cis(2π * dot(kpoint, vector))
-        end
-    end
-    return phase
+    return _fourier_phase_block!(phase, real_space, view(kpoints, kpoint_range))
+end
+
+function _evaluate_real_space_operator!(
+        destination::AbstractArray,
+        operator::RealSpaceOperator,
+        phase::AbstractMatrix,
+    )
+    coefficients = operator.coefficients
+    number_vectors = size(coefficients, ndims(coefficients))
+    size(phase, 1) == number_vectors ||
+        throw(DimensionMismatch("operator and phase-block domains differ"))
+    size(destination)[1:(end - 1)] == size(coefficients)[1:(end - 1)] ||
+        throw(DimensionMismatch("operator and destination value shapes differ"))
+    size(destination, ndims(destination)) == size(phase, 2) ||
+        throw(DimensionMismatch("destination and phase-block batch sizes differ"))
+
+    packed_coefficients = reshape(coefficients, :, number_vectors)
+    packed_destination = reshape(destination, :, size(phase, 2))
+    mul!(packed_destination, packed_coefficients, phase)
+    return destination
 end
 
 function _evaluate_real_space_operator(
@@ -33,18 +72,52 @@ function _evaluate_real_space_operator(
         kpoint_range::AbstractUnitRange,
     )
     coefficients = operator.coefficients
-    number_vectors = size(coefficients, ndims(coefficients))
-    number_vectors == length(real_space) ||
-        throw(DimensionMismatch("operator and real-space domains differ"))
-
     T = eltype(coefficients)
     phase = _fourier_phase_block(real_space, kpoints, kpoint_range, T)
-    packed_coefficients = reshape(coefficients, :, number_vectors)
-    packed_values = Matrix{T}(
-        undef, size(packed_coefficients, 1), length(kpoint_range)
+    values = Array{T}(
+        undef, size(coefficients)[1:(end - 1)]..., length(kpoint_range)
     )
-    mul!(packed_values, packed_coefficients, phase)
-    return reshape(
-        packed_values, size(coefficients)[1:(end - 1)]..., length(kpoint_range)
+    return _evaluate_real_space_operator!(values, operator, phase)
+end
+
+function _evaluate_hamiltonian_gradient!(
+        destination::AbstractArray{<:Complex, 4},
+        operator::RealSpaceOperator,
+        real_space::RealSpaceDomain,
+        phase::AbstractMatrix,
+        derivative_phase::AbstractMatrix,
+        derivative_values::AbstractMatrix,
     )
+    component_shape(operator) == () ||
+        throw(ArgumentError("Hamiltonian derivatives require a scalar operator"))
+    number_wannier = n_wannier(operator)
+    number_vectors = n_Rvectors(operator)
+    number_kpoints = size(phase, 2)
+    size(destination) == (number_wannier, number_wannier, 3, number_kpoints) ||
+        throw(DimensionMismatch("Hamiltonian-gradient destination has the wrong shape"))
+    size(derivative_phase) == size(phase) ||
+        throw(DimensionMismatch("derivative and ordinary phase blocks differ"))
+    size(derivative_values) == (number_wannier^2, number_kpoints) ||
+        throw(DimensionMismatch("Hamiltonian-gradient buffer has the wrong shape"))
+
+    packed_coefficients = reshape(operator.coefficients, number_wannier^2, number_vectors)
+    for cartesian_component in 1:3
+        for kpoint_index in 1:number_kpoints, vector_index in 1:number_vectors
+            derivative_phase[vector_index, kpoint_index] =
+                im * real_space.cartesian_vectors[vector_index][cartesian_component] *
+                phase[vector_index, kpoint_index]
+        end
+        mul!(
+            derivative_values,
+            packed_coefficients,
+            derivative_phase,
+        )
+        component_destination = view(destination, :, :, cartesian_component, :)
+        copyto!(
+            component_destination, reshape(
+                derivative_values, number_wannier, number_wannier, number_kpoints
+            )
+        )
+    end
+    return destination
 end

@@ -15,11 +15,24 @@ module BenchInterpolation
     # Warm up the complete public path before BenchmarkTools measures it.
     interpolate(wigner_seitz_model, kpoints, BandEnergy())
     interpolate(minimum_distance_model, kpoints, BandEnergy())
+    interpolate(
+        minimum_distance_model, kpoints, (BandEnergy(), BandVelocity())
+    )
 
     SUITE["band energy"]["Wigner-Seitz"] =
         @benchmarkable interpolate($wigner_seitz_model, $kpoints, BandEnergy())
     SUITE["band energy"]["minimum distance"] =
         @benchmarkable interpolate($minimum_distance_model, $kpoints, BandEnergy())
+
+    SUITE["band energy and velocity"]["combined"] = @benchmarkable interpolate(
+        $minimum_distance_model,
+        $kpoints,
+        (BandEnergy(), BandVelocity()),
+    )
+    SUITE["band energy and velocity"]["separate"] = @benchmarkable begin
+        interpolate($minimum_distance_model, $kpoints, BandEnergy())
+        interpolate($minimum_distance_model, $kpoints, BandVelocity())
+    end
 
 end  # module
 
