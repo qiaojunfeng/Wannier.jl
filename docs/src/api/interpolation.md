@@ -45,6 +45,26 @@ n_wannier × n_wannier × component_shape... × n_Rvectors
 so scalar, vector, and rank-two operators retain their natural physical axes.
 Only numerical kernels flatten these axes.
 
+## Wannier90 real-space data
+
+Already constructed Wannier90 Hamiltonians enter the same model without a
+legacy tight-binding wrapper. Supply the parsed `HrDat` or `TbDat`, fractional
+Wannier centers, and the matching `WsvecDat` when it is available:
+
+```julia
+hrdat = read_w90_hr_dat(prefix * "_hr.dat")
+wsvec = read_w90_wsvec_dat(prefix * "_wsvec.dat")
+interpolation_model = InterpolationModel(
+    hrdat,
+    lattice;
+    fractional_centers,
+    wsvec,
+)
+```
+
+The file degeneracies and minimum-distance translations are absorbed directly
+into the common `RealSpaceDomain` representation during construction.
+
 ## General operators
 
 Additional lattice-periodic operators are supplied in Bloch space:
@@ -79,6 +99,7 @@ CurrentModule = Wannier
 Modules = [Wannier]
 Pages = [
     "interpolation/types.jl",
+    "io/w90/interpolation.jl",
     "interpolation/observables/band_energy.jl",
     "interpolation/workflows/band_structure.jl",
 ]

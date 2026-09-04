@@ -1,4 +1,4 @@
-export BlochOperator, InterpolationModel, RealSpaceDomain, RealSpaceOperator
+export BlochOperator, InterpolationModel
 export WignerSeitz, MinimumDistance
 export Even, Odd, Scalar, PolarVector, AxialVector, CartesianTensor
 export component_shape
@@ -194,7 +194,7 @@ Base.iterate(real_space::RealSpaceDomain, state...) = iterate(real_space.vectors
 n_Rvectors(real_space::RealSpaceDomain) = length(real_space)
 
 """
-    RealSpaceOperator(coefficients, law, real_space)
+    RealSpaceOperator(coefficients, law, real_space; hermitian)
 
 A primitive Wannier-basis operator on a [`RealSpaceDomain`](@ref). Coefficients
 use the layout `n_wannier × n_wannier × component_shape... × n_Rvectors`.
@@ -202,13 +202,15 @@ use the layout `n_wannier × n_wannier × component_shape... × n_Rvectors`.
 struct RealSpaceOperator{A <: AbstractArray, L <: OperatorLaw}
     coefficients::A
     law::L
+    hermitian::Bool
 
     function RealSpaceOperator(
             coefficients::A,
             law::L,
+            hermitian::Bool,
             ::Val{:validated},
         ) where {A <: AbstractArray, L <: OperatorLaw}
-        return new{A, L}(coefficients, law)
+        return new{A, L}(coefficients, law, hermitian)
     end
 end
 
@@ -216,6 +218,8 @@ function RealSpaceOperator(
         coefficients::AbstractArray{<:Number},
         law::OperatorLaw,
         real_space::RealSpaceDomain,
+        ;
+        hermitian::Bool,
     )
     ndims(coefficients) >= 3 ||
         throw(ArgumentError("real-space coefficients must have at least three dimensions"))
@@ -236,7 +240,7 @@ function RealSpaceOperator(
     else
         complex.(coefficients)
     end
-    return RealSpaceOperator(stored_coefficients, law, Val(:validated))
+    return RealSpaceOperator(stored_coefficients, law, hermitian, Val(:validated))
 end
 
 component_shape(operator::RealSpaceOperator) = Tuple(size(operator.coefficients)[3:(end - 1)])

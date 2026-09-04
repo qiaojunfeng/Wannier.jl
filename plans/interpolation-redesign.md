@@ -35,6 +35,21 @@ The following interface decisions are fixed:
   It adds an observable recipe and, only when physically necessary, a primitive
   real-space operator.
 
+## Implementation progress
+
+As of September 2026, Phase 1 is complete. `InterpolationModel` constructs the
+Hamiltonian through the general `BlochOperator` path, both real-space schemes
+produce packed operators on one common `RealSpaceDomain`, and ordinary
+`BandEnergy`/`band_structure` evaluation is blocked over k points. Wannier90
+`HrDat` and `TbDat` file data enter through direct construction Adapters rather
+than legacy R-space or interpolator objects. The legacy interpolation types
+remain only for observables awaiting migration in Phases 2--5.
+
+Phase 0 numerical references are covered by the existing interpolation tests
+and benchmark entry point; finer per-stage timing remains to be recorded. The
+next implementation step is Phase 2: internal dependency planning, reusable
+Fourier/eigensolver workspaces, Hamiltonian derivatives, and `BandVelocity`.
+
 ## Goals
 
 1. Present one small, coherent Interface for Hamiltonian and general-operator
@@ -706,9 +721,9 @@ source-data symmetry noise from interpolation error.
 ## Completion checklist
 
 - [ ] New public Interface implemented and documented.
-- [ ] `KSpaceStencil` naming is used consistently in source, tests, and docs.
-- [ ] Hamiltonian uses the general operator construction path.
-- [ ] Both real-space schemes emit one common `RealSpaceDomain` for all operators.
+- [x] `KSpaceStencil` naming is used consistently in source, tests, and docs.
+- [x] Hamiltonian uses the general operator construction path.
+- [x] Both real-space schemes emit one common `RealSpaceDomain` for all operators.
 - [ ] Scalar, vector, matrix, and higher-rank component axes remain logical in
       storage/results and are flattened only in kernels.
 - [ ] Symmetry-closed R support and coefficient projection implemented.

@@ -107,33 +107,6 @@ function _quotient_fourier_coefficients(values::AbstractArray, phase::AbstractMa
     return reshape(packed_coefficients, size(values)[1:(end - 1)]..., size(phase, 2))
 end
 
-function _reduce_real_space_coefficients(reducer, coefficients::AbstractArray)
-    number_dimensions = ndims(coefficients)
-    number_wannier = size(coefficients, 1)
-    number_vectors = size(coefficients, number_dimensions)
-    components = Tuple(size(coefficients)[3:(end - 1)])
-    number_components = prod(components; init = 1)
-    packed = reshape(
-        coefficients, number_wannier, number_wannier, number_components, number_vectors
-    )
-
-    number_reduced_vectors = length(reducer.Rvectors)
-    reduced = Array{eltype(coefficients)}(
-        undef, number_wannier, number_wannier, number_components, number_reduced_vectors
-    )
-    for component_index in 1:number_components
-        reduced[:, :, component_index, :] .=
-            reducer(view(packed, :, :, component_index, :))
-    end
-    return reshape(
-        reduced,
-        number_wannier,
-        number_wannier,
-        components...,
-        number_reduced_vectors,
-    )
-end
-
 function _canonical_vector_order(real_space::RealSpaceDomain, vectors::AbstractVector)
     input_index = Dict(Vec3{Int}(vector) => index for (index, vector) in enumerate(vectors))
     return map(real_space.vectors) do vector
@@ -148,37 +121,46 @@ function _reorder_vector_axis(coefficients::AbstractArray, order::AbstractVector
     return coefficients[indices...]
 end
 
-function _legacy_real_space(
-        model::Model,
-        scheme::WignerSeitz,
-        fractional_centers,
+function _pack_real_space_operators(
+        lattice,
+        selection,
+        operator_descriptions::NamedTuple,
+        selected_coefficients,
     )
-    return WignerSeitzRspace(
-        model.lattice,
-        kgrid_size(model);
-        atol = scheme.atol,
-        max_cell = scheme.max_cell,
+    representative_vectors = _representative_vectors(selection)
+    domain = RealSpaceDomain(lattice, representative_vectors)
+    order = _canonical_vector_order(domain, representative_vectors)
+    real_space_operators = map(
+        selected_coefficients, values(operator_descriptions)
+    ) do coefficients, description
+        sorted_coefficients = _reorder_vector_axis(coefficients, order)
+        RealSpaceOperator(
+            sorted_coefficients,
+            description.law,
+            domain;
+            hermitian = description.hermitian,
+        )
+    end
+    return domain, NamedTuple{keys(operator_descriptions)}(real_space_operators)
+end
+
+function _interpolation_crystal(lattice, atom_positions, atom_labels)
+    length(atom_positions) == length(atom_labels) ||
+        throw(DimensionMismatch("atom-position and atom-label counts differ"))
+    T = float(eltype(lattice))
+    return InterpolationCrystal{T}(
+        Mat3{T}(lattice), Vector{Vec3{T}}(atom_positions), String.(atom_labels)
     )
 end
 
-function _legacy_real_space(
-        model::Model,
-        scheme::MinimumDistance,
-        fractional_centers,
+function _wannier_basis(fractional_centers, number_wannier::Integer, ::Type{T}) where {T}
+    length(fractional_centers) == number_wannier || throw(
+        DimensionMismatch(
+            "expected $number_wannier fractional Wannier centers, " *
+                "got $(length(fractional_centers))",
+        ),
     )
-    wigner_seitz = WignerSeitzRspace(
-        model.lattice,
-        kgrid_size(model);
-        atol = scheme.atol,
-        max_cell = scheme.max_cell,
-    )
-    return MDRSRspace(
-        wigner_seitz,
-        kgrid_size(model),
-        fractional_centers;
-        atol = scheme.atol,
-        max_cell = scheme.max_cell,
-    )
+    return WannierBasis{T}(Vector{Vec3{T}}(fractional_centers))
 end
 
 function InterpolationModel(
@@ -211,34 +193,30 @@ function InterpolationModel(
     fractional_centers = map(center(model)) do cartesian_center
         Vec3(inverse_lattice * cartesian_center)
     end
-    selected_real_space = _legacy_real_space(model, real_space, fractional_centers)
-    reducer = RvectorReducer(selected_real_space)
+    selection = _real_space_selection(
+        real_space, model.lattice, kgrid_size(model), fractional_centers
+    )
 
     transformed_operators = map(values(bloch_operators)) do operator
         _transform_bloch_operator(operator, model.gauges)
     end
     coefficient_type = promote_type(map(eltype, transformed_operators)...)
     phase = _quotient_fourier_phase(
-        kpoints(model), selected_real_space.Rvectors, coefficient_type
+        kpoints(model), _quotient_vectors(selection), coefficient_type
     )
-    reduced_coefficients = map(transformed_operators) do values
+    selected_coefficients = map(transformed_operators) do values
         quotient_coefficients = _quotient_fourier_coefficients(values, phase)
-        _reduce_real_space_coefficients(reducer, quotient_coefficients)
+        _apply_real_space_selection(selection, quotient_coefficients)
     end
 
-    domain = RealSpaceDomain(model.lattice, reducer.Rvectors)
-    order = _canonical_vector_order(domain, reducer.Rvectors)
-    real_space_operators = map(reduced_coefficients, values(bloch_operators)) do coefficients, input
-        sorted_coefficients = _reorder_vector_axis(coefficients, order)
-        RealSpaceOperator(sorted_coefficients, input.law, domain)
-    end
-    operator_names = keys(bloch_operators)
-    operator_tuple = NamedTuple{operator_names}(real_space_operators)
-
-    T = eltype(model.lattice)
-    crystal = InterpolationCrystal{T}(
-        model.lattice, copy(model.atom_positions), copy(model.atom_labels)
+    domain, operator_tuple = _pack_real_space_operators(
+        model.lattice, selection, bloch_operators, selected_coefficients
     )
-    basis = WannierBasis{T}(Vector{Vec3{T}}(fractional_centers))
+    crystal = _interpolation_crystal(
+        model.lattice, model.atom_positions, model.atom_labels
+    )
+    basis = _wannier_basis(
+        fractional_centers, n_wannier(model), eltype(crystal.lattice)
+    )
     return InterpolationModel(crystal, basis, domain, operator_tuple, symmetry)
 end
