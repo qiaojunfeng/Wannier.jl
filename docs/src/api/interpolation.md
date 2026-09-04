@@ -21,6 +21,32 @@ result.band_energy
 k-point index on its final axis; `band_energy` therefore has shape
 `n_wannier × n_kpoints` and is measured in eV.
 
+## Interface at a glance
+
+The public interface separates persistent construction from inexpensive
+evaluation:
+
+| Task | Interface |
+|:-----|:----------|
+| Construct from a Wannier model | `InterpolationModel(model; operators, real_space, symmetry)` |
+| Construct from Wannier90 real-space data | `read_w90_hr`, `read_w90_tb`, or `read_w90_tb_chk_spn` |
+| Evaluate one or several observables | `interpolate(interpolation_model, kpoints, observable_or_tuple)` |
+| Retain labeled path metadata | `band_structure(interpolation_model, kpath)` |
+| Compute a Fermi energy | `compute_fermi_energy(grid_size, interpolation_model, ...)` |
+
+Query points are length-three fractional reciprocal coordinates and need not
+belong to the source mesh. The currently supported result contracts are:
+
+| Observable | Result field and shape | Units |
+|:-----------|:-----------------------|:------|
+| `BandEnergy()` | `band_energy`: `n_wannier × n_kpoints` | eV |
+| `BandVelocity()` | `band_velocity`: `3 × n_wannier × n_kpoints` | eV Å (``\hbar\mathbf v``) |
+| `SpinExpectation()` | `spin_expectation`: `3 × n_wannier × n_kpoints` | primitive-dependent |
+| `SpinExpectation(direction)` | `spin_expectation`: `n_wannier × n_kpoints` | primitive-dependent |
+| `BerryCurvature(fermi_energy)` | `berry_curvature`: `3 × 3 × n_kpoints` | Å² |
+| `BerryCurvature(; formulation = WYSV06BandResolved())` | `berry_curvature`: `3 × 3 × n_wannier × n_kpoints` | Å² |
+| `OrbitalMagnetization(fermi_energy)` | `orbital_magnetization`: `3 × 3 × n_kpoints` | eV Å² |
+
 Several observables can be requested together:
 
 ```julia
@@ -69,6 +95,12 @@ Wannier.Tools.fermisurf(
 Adaptive refinement evaluates only each newly created k-point batch through
 `interpolate`. The Fermi-surface workflow writes a periodic WannierIO `Bxsf`
 grid with `BandEnergy()` on its final interpolation mesh.
+
+Evaluation is internally divided into bounded k-point batches. The returned
+arrays still contain the complete query, but Fourier phases, operator values,
+derivatives, and eigensolver workspaces are reused one batch at a time. A
+multi-observable request also shares those intermediates, so it should be
+preferred to separate calls when observables are needed at the same points.
 
 ## Real-space scheme
 
@@ -185,6 +217,28 @@ Full input matrices have layout
 operator may instead use `n_bands × n_kpoints`. The operator law and Hermiticity
 are explicit so symmetry closure can apply the correct transformation to
 every matrix and physical-component index.
+
+Choose the law according to how the physical components transform:
+
+| Law | Component shape | Spatial behavior | Default time-reversal parity |
+|:----|:----------------|:-----------------|:-----------------------------|
+| `Scalar()` | `()` | unchanged by rotations | `Even()` |
+| `PolarVector()` | `(3,)` | ordinary Cartesian vector | `Even()` |
+| `AxialVector()` | `(3,)` | gains a determinant sign under improper rotations | `Odd()` |
+| `CartesianTensor(rank; axial)` | `(3, ..., 3)` | one Cartesian rotation per index, optionally axial | `Even()` |
+
+Pass `time_reversal = Odd()` or `Even()` explicitly when the physical operator
+differs from the default. `hermitian = true` declares that each component is a
+Hermitian matrix; it is not inferred from sampled numerical values.
+
+Construction validates this contract before performing a Fourier transform.
+In particular, every entry of `operators` must be a `BlochOperator` with an
+explicit law or a supported construction recipe; the two leading full-matrix
+axes must match the model's band count, component axes must match the law, and
+the final axis must match the source k-point count. The name `:hamiltonian` is
+reserved because it is constructed from `model.eigenvalues`. Evaluation checks
+the primitive dependencies of each observable and reports both the observable
+and missing operator, for example `SpinExpectation` and `:spin`.
 
 The spin primitive is consumed by [`SpinExpectation`](@ref). Without an axis,
 the result has shape `3 × n_wannier × n_kpoints`; supplying a Cartesian axis

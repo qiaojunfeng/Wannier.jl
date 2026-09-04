@@ -74,7 +74,9 @@ component_shape(law::CartesianTensor) = ntuple(_ -> 3, law.rank)
 Matrix elements of a lattice-periodic operator on the source k-point mesh.
 Full matrix elements use the layout
 `n_bands × n_bands × component_shape... × n_kpoints`. A scalar operator that is
-diagonal in the input Bloch basis may instead use `n_bands × n_kpoints`.
+diagonal in the input Bloch basis may instead use `n_bands × n_kpoints`. The
+transformation `law` and the `hermitian` flag are required explicitly because
+they determine symmetry closure and storage.
 """
 struct BlochOperator{A <: AbstractArray, L <: OperatorLaw}
     values::A
@@ -96,8 +98,11 @@ end
 
 function BlochOperator(
         values::AbstractArray{<:Number};
-        law::OperatorLaw,
+        law::Union{Nothing, OperatorLaw} = nothing,
         hermitian::Bool,
+    )
+    isnothing(law) && throw(
+        ArgumentError("BlochOperator requires an explicit transformation law"),
     )
     return BlochOperator(values, law, hermitian)
 end

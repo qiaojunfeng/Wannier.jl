@@ -1,7 +1,9 @@
 # Interpolation API Simplification + Performance Plan
 
-> Historical design note. This proposal was superseded by
-> [`plans/interpolation-redesign.md`](../plans/interpolation-redesign.md).
+> Historical design note. The interpolation redesign described here has been
+> implemented. See the [interpolation API](../docs/src/api/interpolation.md) and
+> [Fourier-interpolation theory](../docs/src/theory/fourier.md) for the current
+> interface and conventions.
 
 Companion to [dev/plan.md](plan.md) (localization rewrite). Scope: `src/interpolation/*` only.
 

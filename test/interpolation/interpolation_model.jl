@@ -100,6 +100,86 @@ end
     )
 end
 
+@testitem "InterpolationModel operator validation" begin
+    using Wannier.Datasets
+
+    model = load_dataset("Si2_valence")
+    number_bands = n_bands(model)
+    number_kpoints = n_kpoints(model)
+    scalar_even = Scalar(time_reversal = Even())
+
+    explicit_hamiltonian = BlochOperator(
+        model.eigenvalues; law = scalar_even, hermitian = true
+    )
+    interpolation_model = InterpolationModel(
+        model;
+        operators = (; explicit_hamiltonian),
+        real_space = WignerSeitz(),
+    )
+    @test interpolation_model.operators.hamiltonian.coefficients ==
+        interpolation_model.operators.explicit_hamiltonian.coefficients
+
+    missing_law_error = try
+        BlochOperator(model.eigenvalues; hermitian = true)
+        nothing
+    catch error
+        error
+    end
+    @test missing_law_error isa ArgumentError
+    @test occursin("explicit transformation law", sprint(showerror, missing_law_error))
+
+    untyped_operator_error = try
+        InterpolationModel(model; operators = (; spin = zeros(number_bands, number_kpoints)))
+        nothing
+    catch error
+        error
+    end
+    @test untyped_operator_error isa ArgumentError
+    @test occursin(":spin", sprint(showerror, untyped_operator_error))
+    @test occursin("explicit transformation law", sprint(showerror, untyped_operator_error))
+
+    wrong_band_dimension = BlochOperator(
+        zeros(ComplexF64, number_bands - 1, number_bands - 1, number_kpoints);
+        law = scalar_even,
+        hermitian = true,
+    )
+    band_dimension_error = try
+        InterpolationModel(model; operators = (; wrong_band_dimension))
+        nothing
+    catch error
+        error
+    end
+    @test band_dimension_error isa ArgumentError
+    @test occursin(":wrong_band_dimension", sprint(showerror, band_dimension_error))
+    @test occursin("leading band axes", sprint(showerror, band_dimension_error))
+
+    wrong_components = BlochOperator(
+        zeros(ComplexF64, number_bands, number_bands, 2, number_kpoints);
+        law = PolarVector(),
+        hermitian = true,
+    )
+    component_error = try
+        InterpolationModel(model; operators = (; wrong_components))
+        nothing
+    catch error
+        error
+    end
+    @test component_error isa ArgumentError
+    @test occursin(":wrong_components", sprint(showerror, component_error))
+    @test occursin("requires (3,)", sprint(showerror, component_error))
+
+    energy_model = InterpolationModel(model)
+    dependency_error = try
+        interpolate(energy_model, [Vec3(0.1, 0.2, 0.3)], SpinExpectation())
+        nothing
+    catch error
+        error
+    end
+    @test dependency_error isa ArgumentError
+    @test occursin("SpinExpectation", sprint(showerror, dependency_error))
+    @test occursin(":spin", sprint(showerror, dependency_error))
+end
+
 @testitem "Wannier90 file-data Hamiltonian adapters" begin
     using Wannier.Datasets
 

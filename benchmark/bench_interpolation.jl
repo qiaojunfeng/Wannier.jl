@@ -19,10 +19,23 @@ module BenchInterpolation
         minimum_distance_model, kpoints, (BandEnergy(), BandVelocity())
     )
 
+    path_kpoints = [
+        Vec3(t, 0.5t, 0.25t) for t in range(-0.5, 0.5; length = 256)
+    ]
+    dense_kpoints = [
+        Vec3(i / 32, j / 32, k / 32) for k in 0:31 for j in 0:31 for i in 0:31
+    ]
+    interpolate(minimum_distance_model, path_kpoints, BandEnergy())
+    interpolate(minimum_distance_model, dense_kpoints, BandEnergy())
+
     SUITE["band energy"]["Wigner-Seitz"] =
         @benchmarkable interpolate($wigner_seitz_model, $kpoints, BandEnergy())
     SUITE["band energy"]["minimum distance"] =
         @benchmarkable interpolate($minimum_distance_model, $kpoints, BandEnergy())
+    SUITE["band energy"]["path 256 minimum distance"] =
+        @benchmarkable interpolate($minimum_distance_model, $path_kpoints, BandEnergy())
+    SUITE["band energy"]["dense 32^3 minimum distance"] =
+        @benchmarkable interpolate($minimum_distance_model, $dense_kpoints, BandEnergy())
 
     SUITE["band energy and velocity"]["combined"] = @benchmarkable interpolate(
         $minimum_distance_model,

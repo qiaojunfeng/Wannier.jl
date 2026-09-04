@@ -2,10 +2,12 @@
 
 ## Status and dependency
 
-This is a follow-on to
-[`interpolation-redesign.md`](interpolation-redesign.md). Implement it only after
-the redesigned `InterpolationModel`, common `RealSpaceDomain`, observable recipes,
-and batch-oriented primitive/assembly flow are working and tested.
+The core redesign is complete; its current interface is documented in the
+[interpolation API](../docs/src/api/interpolation.md) and
+[Fourier-interpolation theory](../docs/src/theory/fourier.md). This follow-on
+adds regular-grid, streaming, and FFT capabilities to the implemented
+`InterpolationModel`, common `RealSpaceDomain`, observable recipes, and
+batch-oriented primitive/assembly flow.
 
 The core redesign deliberately keeps dense-grid concerns out of its public
 Interface. It must, however, satisfy the dense-grid readiness contract in that
@@ -532,7 +534,7 @@ implementations. These controls remain qualified and unexported.
 
 ## Completion checklist
 
-- [ ] Core interpolation redesign and dense-grid readiness contract complete.
+- [x] Core interpolation redesign and dense-grid readiness contract complete.
 - [ ] Lazy `KPointGrid` implemented and documented.
 - [ ] Automatic memory estimation and batch sizing implemented.
 - [ ] Public `interpolate!` supports ordinary and memory-mapped arrays.

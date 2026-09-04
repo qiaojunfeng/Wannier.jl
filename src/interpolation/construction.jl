@@ -200,7 +200,8 @@ function InterpolationModel(
             _validate_operator_input, name, operator, number_bands, number_kpoints
         ) || throw(
             ArgumentError(
-                "operator :$name must be a BlochOperator or a supported construction recipe",
+                "operator :$name must be a BlochOperator with an explicit " *
+                    "transformation law or a supported construction recipe",
             ),
         )
         _validate_operator_input(name, operator, number_bands, number_kpoints)
