@@ -1,6 +1,8 @@
 using LinearAlgebra
 using WannierIO: SymOp, OrbitalRep, LittleGroupRep
 
+export WannierSymmetry
+
 # All symmetry operations are in the standard (ITA) Seitz convention as
 # returned by `WannierIO.read_isym` (see `WannierIO.standardize`):
 # - real space (fractional): ĝ r = W r + v
@@ -291,6 +293,82 @@ function find_wf_symmetry_translations(
         end
     end
     return Rs
+end
+
+"""
+    WannierSymmetry(isym, centers)
+
+Symmetry data intrinsic to a Wannier basis. `centers` are the prescribed
+Wannier centers in fractional crystal coordinates. The object stores the
+space-group operations, their Wannier-orbital representations, and the
+integer cell shifts induced on the orbitals.
+
+Unlike [`SymmetryConstraint`](@ref), this object contains no k-mesh,
+little-group, overlap, or localization-parameterization tables, so it can be
+shared by localization and interpolation.
+"""
+struct WannierSymmetry{T <: Real, N}
+    symops::Vector{SymOp}
+    centers::Vector{Vec3{T}}
+    orbital_reps::Vector{OrbitalRep{N}}
+    translations::Vector{Vector{Vec3{Int}}}
+end
+
+function WannierSymmetry(
+        symops::AbstractVector{SymOp},
+        orbital_reps::AbstractVector{<:OrbitalRep{N}},
+        centers::AbstractVector,
+    ) where {N}
+    isempty(symops) && throw(ArgumentError("Wannier symmetry needs at least one operation"))
+    length(symops) == length(orbital_reps) || throw(
+        DimensionMismatch("symmetry-operation and orbital-representation counts differ"),
+    )
+    length(centers) == N || throw(
+        DimensionMismatch("expected $N Wannier centers, got $(length(centers))"),
+    )
+    all(length(center) == 3 for center in centers) ||
+        throw(ArgumentError("Wannier centers must have three fractional coordinates"))
+    all(operation.isym == index for (index, operation) in enumerate(symops)) ||
+        throw(ArgumentError("symmetry operations must be stored in isym order"))
+    all(representation.isym == index for (index, representation) in enumerate(orbital_reps)) ||
+        throw(ArgumentError("orbital representations must be stored in isym order"))
+
+    T = float(promote_type(map(eltype, centers)...))
+    stored_centers = Vector{Vec3{T}}(centers)
+    stored_symops = Vector{SymOp}(symops)
+    stored_representations = Vector{OrbitalRep{N}}(orbital_reps)
+    translations = find_wf_symmetry_translations(
+        stored_centers, stored_symops, stored_representations
+    )
+    return WannierSymmetry{T, N}(
+        stored_symops, stored_centers, stored_representations, translations
+    )
+end
+
+WannierSymmetry(isym, centers::AbstractVector) =
+    WannierSymmetry(isym.symops, isym.orbital_reps, centers)
+
+n_wannier(::WannierSymmetry{<:Any, N}) where {N} = N
+
+"""
+Wannier-space expansion matrix for the operation `symmetry.symops[isym]` at
+fractional momentum `k`. If that operation maps `k` to `k′`, covariant gauges
+obey `U(k′) = K[U(k) * A]`, where `K` is complex conjugation for an
+antiunitary operation.
+"""
+function _expansion_matrix(
+        isym::Integer,
+        k::AbstractVector,
+        symmetry::WannierSymmetry,
+    )
+    operation_inverse = symmetry.symops[isym].isym_inv
+    mismatch = inverse_translation_mismatch(symmetry.symops, isym)
+    representation = symmetry.orbital_reps[operation_inverse].D
+    phases = [
+        exp(-im * 2π * dot(k, translation - mismatch))
+            for translation in symmetry.translations[operation_inverse]
+    ]
+    return Matrix{ComplexF64}(representation .* transpose(phases))
 end
 
 """

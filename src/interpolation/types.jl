@@ -258,11 +258,14 @@ struct WannierBasis{T <: Real}
 end
 
 """
-    InterpolationModel(model; operators = (;), real_space = MinimumDistance())
+    InterpolationModel(model; operators = (;), real_space = MinimumDistance(),
+                       symmetry = nothing)
 
 A persistent set of primitive real-space operators ready for Wannier
 interpolation. All operators share `real_space`, so one Fourier phase block can
-be reused throughout a calculation.
+be reused throughout a calculation. Supplying a [`WannierSymmetry`](@ref)
+closes and projects the operators in real space during construction, after
+which ordinary Fourier evaluation is covariant at arbitrary k points.
 """
 struct InterpolationModel{C, B, D, O <: NamedTuple, S}
     crystal::C
@@ -301,6 +304,24 @@ function InterpolationModel(
             throw(ArgumentError("operator :$name has a different Wannier dimension"))
         n_Rvectors(operator) == length(real_space) ||
             throw(ArgumentError("operator :$name does not use the common real-space domain"))
+    end
+    if !isnothing(symmetry)
+        symmetry isa WannierSymmetry ||
+            throw(ArgumentError("symmetry must be a WannierSymmetry or nothing"))
+        n_wannier(symmetry) == nwann || throw(
+            DimensionMismatch("operators and Wannier symmetry have different basis sizes"),
+        )
+        if basis isa WannierBasis
+            all(
+                isapprox(center - prescribed, round.(center - prescribed); atol = 1.0e-8)
+                    for (center, prescribed) in
+                    zip(basis.fractional_centers, symmetry.centers)
+            ) || throw(
+                ArgumentError(
+                    "interpolation-basis centers do not match the Wannier symmetry centers",
+                ),
+            )
+        end
     end
     return InterpolationModel(
         crystal, basis, real_space, operators, symmetry, Val(:validated)

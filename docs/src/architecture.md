@@ -108,6 +108,15 @@ batch; only the public result arrays scale with the complete request. Adding an
 observable therefore extends the recipe interface without adding fields to
 `InterpolationModel` or creating another observable-specific interpolator.
 
+When symmetry is supplied, [`WannierSymmetry`](@ref Wannier.WannierSymmetry)
+is the shared basis-level object: it owns space-group operations, prescribed
+Wannier centers, orbital representations, and orbital cell shifts. Construction
+uses it to close and project the real-space coefficient orbits once. The hot
+interpolation path is unchanged and needs no per-query group average.
+`SymmetryConstraint` contains the same object but separately owns the
+IBZ/FBZ, little-group, overlap-transport, and parameterization tables needed by
+localization.
+
 ### SpinModel
 
 [`SpinModel`](@ref Wannier.SpinModel) is a pair of `Model`s plus the Bloch-basis ``\uparrow\downarrow``

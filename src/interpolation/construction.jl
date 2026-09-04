@@ -123,11 +123,10 @@ end
 
 function _pack_real_space_operators(
         lattice,
-        selection,
+        representative_vectors,
         operator_descriptions::NamedTuple,
         selected_coefficients,
     )
-    representative_vectors = _representative_vectors(selection)
     domain = RealSpaceDomain(lattice, representative_vectors)
     order = _canonical_vector_order(domain, representative_vectors)
     real_space_operators = map(
@@ -169,11 +168,8 @@ function InterpolationModel(
         real_space::RealSpaceScheme = MinimumDistance(),
         symmetry = nothing,
     )
-    isnothing(symmetry) || throw(
-        ArgumentError(
-            "symmetry-closed real-space construction is not implemented in this first redesign slice",
-        ),
-    )
+    isnothing(symmetry) || symmetry isa WannierSymmetry ||
+        throw(ArgumentError("symmetry must be a WannierSymmetry or nothing"))
     haskey(operators, :hamiltonian) &&
         throw(ArgumentError(":hamiltonian is constructed from model.eigenvalues"))
 
@@ -189,9 +185,16 @@ function InterpolationModel(
         _validate_bloch_operator(name, operator, number_bands, number_kpoints)
     end
 
-    inverse_lattice = inv(model.lattice)
-    fractional_centers = map(center(model)) do cartesian_center
-        Vec3(inverse_lattice * cartesian_center)
+    fractional_centers = if isnothing(symmetry)
+        inverse_lattice = inv(model.lattice)
+        map(center(model)) do cartesian_center
+            Vec3(inverse_lattice * cartesian_center)
+        end
+    else
+        n_wannier(symmetry) == n_wannier(model) || throw(
+            DimensionMismatch("model and Wannier symmetry have different basis sizes"),
+        )
+        symmetry.centers
     end
     selection = _real_space_selection(
         real_space, model.lattice, kgrid_size(model), fractional_centers
@@ -209,8 +212,19 @@ function InterpolationModel(
         _apply_real_space_selection(selection, quotient_coefficients)
     end
 
+    representative_vectors = _representative_vectors(selection)
+    if !isnothing(symmetry)
+        representative_vectors, selected_coefficients = _close_real_space_operators(
+            model.lattice,
+            representative_vectors,
+            bloch_operators,
+            selected_coefficients,
+            symmetry,
+        )
+    end
+
     domain, operator_tuple = _pack_real_space_operators(
-        model.lattice, selection, bloch_operators, selected_coefficients
+        model.lattice, representative_vectors, bloch_operators, selected_coefficients
     )
     crystal = _interpolation_crystal(
         model.lattice, model.atom_positions, model.atom_labels

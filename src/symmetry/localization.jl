@@ -50,6 +50,10 @@ struct SymmetryConstraint{T <: Real}
     nwann::Int
     nbands::Int
 
+    # Wannier-basis symmetry shared with real-space interpolation. Everything
+    # below this field is specific to IBZ-constrained localization.
+    wannier_symmetry::WannierSymmetry{T}
+
     # ikf -> (iki, isym) with kf = g₀(kf) ki, g₀(kf) = symops[isym]
     fbz2ibz::Vector{Tuple{Int, Int}}
     # iki -> ikf with kpoints_fbz[ikf] == kpoints_ibz[iki] (identity map member)
@@ -144,26 +148,6 @@ function globalize_bvector_ordering(kstencil::KSpaceStencil)
     return KSpaceStencil(kstencil.recip_lattice, kpts, kpb_k, kpb_G)
 end
 
-"""
-Expansion matrix ``A(g_{isym}, k)`` such that the gauge at ``k_f = g_{isym} k``
-is `Uf = 𝒦[Ui * A]` (conjugated when the operation is antiunitary): the
-matrix `D(g⁻¹) .* transpose(phases)` of `unfold_gauge`, with the
-stored-inverse lattice mismatch folded into the translations.
-"""
-function _expansion_matrix(
-        isym::Integer,
-        k::AbstractVector,
-        symops::AbstractVector{SymOp},
-        orbital_reps::AbstractVector{<:OrbitalRep},
-        Rs::AbstractVector,
-    )
-    isinv = symops[isym].isym_inv
-    L = inverse_translation_mismatch(symops, isym)
-    D = orbital_reps[isinv].D
-    phases = [exp(-im * 2π * dot(k, Ri - L)) for Ri in Rs[isinv]]
-    return Matrix{ComplexF64}(D .* transpose(phases))
-end
-
 _kconj(A::AbstractArray, trev::Bool) = trev ? conj.(A) : A
 _kconj(a::Number, trev::Bool) = trev ? conj(a) : a
 
@@ -211,10 +195,11 @@ function SymmetryConstraint(
         eig_ibz::Union{Nothing, AbstractMatrix{<:Real}} = nothing,
         atol_degeneracy::Real = 1.0e-4,
     ) where {T}
-    symops = isym.symops
+    wannier_symmetry = WannierSymmetry(isym, centers)
+    symops = wannier_symmetry.symops
     kpts_ibz = isym.kpoints_ibz
     kpts_fbz = kstencil.kpoints
-    orbital_reps = isym.orbital_reps
+    orbital_reps = wannier_symmetry.orbital_reps
     littlegroup_reps = isym.littlegroup_reps
     spinors = isym.spinors
 
@@ -223,7 +208,7 @@ function SymmetryConstraint(
     nwann = size(orbital_reps[1].D, 1)
     nbands = size(littlegroup_reps[1].d, 1)
 
-    Rs = find_wf_symmetry_translations(centers, symops, orbital_reps)
+    Rs = wannier_symmetry.translations
     f2i_raw = map_fbz_to_ibz(kpts_fbz, kpts_ibz, symops)
     fbz2ibz = [Tuple(x) for x in f2i_raw]
 
@@ -264,7 +249,7 @@ function SymmetryConstraint(
             ih = ikisym2ih[iki][isym]
             isnothing(ih) && continue
             d = Matrix{CT}(littlegroup_reps[ih].d)
-            A = _expansion_matrix(isym, kpts_ibz[iki], symops, orbital_reps, Rs)
+            A = _expansion_matrix(isym, kpts_ibz[iki], wannier_symmetry)
             push!(entries, (d, A, op.time_reversal))
         end
         # Bands whose multiplet is cut by the window have non-unit row/column
@@ -326,7 +311,7 @@ function SymmetryConstraint(
     for ikf in 1:nk_fbz
         iki, isym = fbz2ibz[ikf]
         Lmat[ikf] = droptol!(
-            sparse(_expansion_matrix(isym, kpts_ibz[iki], symops, orbital_reps, Rs)),
+            sparse(_expansion_matrix(isym, kpts_ibz[iki], wannier_symmetry)),
             1.0e-12,
         )
         trev_f[ikf] = symops[isym].time_reversal
@@ -373,9 +358,9 @@ function SymmetryConstraint(
             end
 
             # orbital transport R = 𝒦_bi[ Aib† · 𝒦_h[ A_h† · A_bf ] ]
-            A_h = _expansion_matrix(isym_h, kb, symops, orbital_reps, Rs)
-            A_bi = _expansion_matrix(isym_kbi, kb, symops, orbital_reps, Rs)
-            A_bf = _expansion_matrix(isym_kbf, kb, symops, orbital_reps, Rs)
+            A_h = _expansion_matrix(isym_h, kb, wannier_symmetry)
+            A_bi = _expansion_matrix(isym_kbi, kb, wannier_symmetry)
+            A_bf = _expansion_matrix(isym_kbf, kb, wannier_symmetry)
             inner = _kconj(A_h' * A_bf, symops[isym_h].time_reversal)
             R = _kconj(A_bi' * inner, symops[isym_kbi].time_reversal)
 
@@ -410,6 +395,7 @@ function SymmetryConstraint(
 
     return SymmetryConstraint{T}(
         nk_fbz, nk_ibz, nbvecs, nwann, nbands,
+        wannier_symmetry,
         fbz2ibz, ibz2fbz, stars,
         projector, covariant_bands, projector_iterations,
         Lmat, trev_f,

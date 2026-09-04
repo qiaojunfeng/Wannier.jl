@@ -73,6 +73,23 @@ end
     end
 end
 
+@testitem "WannierSymmetry owns basis-intrinsic data" begin
+    using WannierIO, Wannier.Datasets
+
+    nnkp = read_nnkp(dataset"Si2_hse/outputs/Si2.nnkp")
+    isym = read_isym(dataset"Si2_hse/Si2.isym")
+    centers = [projection.center for projection in nnkp["projections"]]
+    symmetry = WannierSymmetry(isym, centers)
+
+    @test Wannier.n_wannier(symmetry) == length(centers)
+    @test symmetry.centers == centers
+    @test symmetry.symops == isym.symops
+    @test symmetry.orbital_reps == isym.orbital_reps
+    @test symmetry.translations == Wannier.find_wf_symmetry_translations(
+        centers, isym.symops, isym.orbital_reps
+    )
+end
+
 @testitem "symmetrize_gauges" begin
     using WannierIO, Wannier.Datasets
 

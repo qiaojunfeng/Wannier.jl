@@ -14,6 +14,10 @@
     centers = [p.center for p in nnkp["projections"]]
     sc = Wannier.SymmetryConstraint(kstencil, isym, centers)
 
+    @test sc.wannier_symmetry isa WannierSymmetry
+    @test sc.wannier_symmetry.centers == centers
+    @test sc.wannier_symmetry.symops == isym.symops
+
     # stars partition the FBZ mesh
     @test sort(vcat(sc.stars...)) == 1:sc.nk_fbz
     @test all(iki -> sc.fbz2ibz[sc.ibz2fbz[iki]][1] == iki, 1:sc.nk_ibz)

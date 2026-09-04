@@ -63,6 +63,36 @@ n_wannier × n_wannier × component_shape... × n_Rvectors
 so scalar, vector, and rank-two operators retain their natural physical axes.
 Only numerical kernels flatten these axes.
 
+## Symmetry closure
+
+Construct [`WannierSymmetry`](@ref) from standardized `.isym` data and the
+prescribed fractional Wannier centers, then pass it to the interpolation-model
+constructor:
+
+```julia
+symmetry = WannierSymmetry(isym, fractional_centers)
+interpolation_model = InterpolationModel(
+    model;
+    real_space = MinimumDistance(),
+    symmetry,
+)
+```
+
+Construction completes the real-space support under unitary, antiunitary, and
+Hermitian partners and applies the symmetry projector once. Subsequent queries
+remain ordinary Fourier sums while satisfying off-mesh covariance. Scalar,
+polar-vector, axial-vector, and general Cartesian-tensor laws are supported;
+their time-reversal parity is part of the operator law. Minimum-distance ties
+are transported with their orbital-pair-dependent cell shifts and weights.
+
+`SymmetryConstraint` used by SAWF localization contains this same
+`WannierSymmetry` as `constraint.wannier_symmetry`; its remaining tables are
+specific to the IBZ optimization.
+
+```@docs
+Wannier.WannierSymmetry
+```
+
 ## Wannier90 real-space data
 
 Already constructed Wannier90 Hamiltonians enter the same model without a
@@ -104,7 +134,7 @@ interpolation_model = InterpolationModel(
 Full input matrices have layout
 `n_bands × n_bands × component_shape... × n_kpoints`. A diagonal scalar
 operator may instead use `n_bands × n_kpoints`. The operator law and Hermiticity
-are explicit so later symmetry closure can apply the correct transformation to
+are explicit so symmetry closure can apply the correct transformation to
 every matrix and physical-component index.
 
 ```@meta

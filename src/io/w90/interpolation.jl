@@ -34,11 +34,8 @@ function _interpolation_model_from_w90_hamiltonian(
         atom_labels,
         symmetry,
     )
-    isnothing(symmetry) || throw(
-        ArgumentError(
-            "symmetry-closed real-space construction is not implemented in this redesign slice",
-        ),
-    )
+    isnothing(symmetry) || symmetry isa WannierSymmetry ||
+        throw(ArgumentError("symmetry must be a WannierSymmetry or nothing"))
     number_wannier = size(hamiltonian, 1)
     size(hamiltonian, 2) == number_wannier ||
         throw(DimensionMismatch("the Hamiltonian matrix dimensions must be equal"))
@@ -55,8 +52,18 @@ function _interpolation_model_from_w90_hamiltonian(
             hermitian = true,
         ),
     )
+    representative_vectors = _representative_vectors(selection)
+    selected_coefficients = (selected_hamiltonian,)
+    if !isnothing(symmetry)
+        n_wannier(symmetry) == number_wannier || throw(
+            DimensionMismatch("Hamiltonian and Wannier symmetry have different basis sizes"),
+        )
+        representative_vectors, selected_coefficients = _close_real_space_operators(
+            lattice, representative_vectors, descriptions, selected_coefficients, symmetry
+        )
+    end
     domain, operators = _pack_real_space_operators(
-        lattice, selection, descriptions, (selected_hamiltonian,)
+        lattice, representative_vectors, descriptions, selected_coefficients
     )
     crystal = _interpolation_crystal(lattice, atom_positions, atom_labels)
     basis = _wannier_basis(

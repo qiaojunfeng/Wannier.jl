@@ -90,6 +90,7 @@ include("interpolation/fermi_energy.jl")
 # include("interpolation/magmom.jl")
 
 include("symmetry/operations.jl")
+include("interpolation/symmetry.jl")
 include("symmetry/localization.jl")
 include("symmetry/model.jl")
 

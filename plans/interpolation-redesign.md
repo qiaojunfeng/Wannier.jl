@@ -54,10 +54,23 @@ than per-k-point temporary arrays. On the `Si2_valence` reference mesh, a
 combined `BandEnergy`/`BandVelocity` request is about 1.8 times faster than two
 separate requests in a single-threaded warm benchmark.
 
+Phase 3's reusable symmetry and closure machinery is implemented.
+`WannierSymmetry` now owns only basis-intrinsic operations, centers, orbital
+representations, and cell shifts, and `SymmetryConstraint` references it while
+retaining localization-specific tables. Construction closes and projects
+Hermitian scalar, polar-vector, axial-vector, and arbitrary-rank Cartesian
+tensor operators, including antiunitary parity and minimum-distance replicas.
+The ordinary Fourier evaluation of closed Si2 HSE operators agrees with an
+independent per-query projector and satisfies random off-mesh covariance at
+roughly `3e-14`; sampled-mesh changes remain at the cleaned `.isym` data floor.
+The symmetry-closed Si2 Hamiltonian also recovers its two cubic triplets at
+Gamma to `1e-14`, closing the Phase 3 exit criterion. The planned graphene
+dataset remains a separate end-to-end interpolation demonstration.
+
 Phase 0 numerical references are covered by the existing interpolation tests
 and benchmark entry point; finer per-stage timing remains to be recorded. The
-next implementation step is Phase 3: extract reusable Wannier symmetry data and
-close/project real-space operator orbits.
+next implementation step is the Phase 4 observable migration, beginning with
+spin expectation.
 
 ## Goals
 
@@ -733,13 +746,13 @@ source-data symmetry noise from interpolation error.
 - [x] `KSpaceStencil` naming is used consistently in source, tests, and docs.
 - [x] Hamiltonian uses the general operator construction path.
 - [x] Both real-space schemes emit one common `RealSpaceDomain` for all operators.
-- [ ] Scalar, vector, matrix, and higher-rank component axes remain logical in
+- [x] Scalar, vector, matrix, and higher-rank component axes remain logical in
       storage/results and are flattened only in kernels.
-- [ ] Symmetry-closed R support and coefficient projection implemented.
-- [ ] Unitary, antiunitary, scalar, polar-vector, axial-vector, and general tensor
+- [x] Symmetry-closed R support and coefficient projection implemented.
+- [x] Unitary, antiunitary, scalar, polar-vector, axial-vector, and general tensor
       tests pass.
-- [ ] Observable dependency planning shares all expensive intermediates.
-- [ ] Dense-grid readiness tests confirm that intermediate storage scales with
+- [x] Observable dependency planning shares all expensive intermediates.
+- [x] Dense-grid readiness tests confirm that intermediate storage scales with
       batch size and that observable assembly accepts destination views.
 - [ ] Existing physical quantities migrated.
 - [ ] Wannier90 I/O migrated.
