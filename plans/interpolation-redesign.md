@@ -157,11 +157,53 @@ measurable. Do not expose it preemptively.
 An internal allocation-reusing form is required:
 
 ```julia
-Wannier.interpolate!(result, plan, kpoints, workspace)
+Wannier.interpolate!(result_view, plan, kpoint_batch, workspace)
 ```
 
-It is qualified and unexported initially. The allocating public method delegates
-to it.
+It is qualified and unexported initially. It operates on one k-point batch and a
+matching view of the destination; it must not allocate or retain arrays sized by
+the total number of requested k points. The allocating public method delegates to
+it.
+
+## Dense-grid readiness contract
+
+Million-point grids, streamed output, symmetry-reduced sampling, and FFT execution
+are implemented in the follow-on plan
+[`dense-grid-interpolation.md`](dense-grid-interpolation.md). The present redesign
+does not expose those additional Interface elements, but it must establish the
+following invariants so that the follow-on work replaces no core data structure or
+observable formula.
+
+1. **No full-mesh intermediates.** Only a final collected result may scale with
+   the total number of requested k points. Fourier phases, primitive operator
+   values, derivatives, eigensystems, and observable intermediates scale with an
+   internal batch size.
+2. **Abstract k-point input.** `interpolate` accepts an indexable
+   `AbstractVector`-like collection and accesses it by ranges. It never calls
+   `collect` on the complete input. A lazy regular-grid type can therefore satisfy
+   the same Interface later.
+3. **Batch-oriented implementation.** The internal flow is k-point batch to
+   primitive-operator batch to shared eigensystem/intermediates to observable
+   batch to destination view. Observable formulas do not own Fourier loops.
+4. **Destination-independent assembly.** Observable assembly writes into result
+   views for a supplied k-point range. It does not assume that the complete result
+   is an in-memory `Array`.
+5. **Final k-point axis.** Every result places the k-point index last, so one batch
+   maps to a natural slice such as `result.berry_curvature[:, :, k_range]`.
+6. **Arbitrary real-space domain.** Fourier kernels make no rectangular-grid or
+   fundamental-cell assumption about `RealSpaceDomain`; minimum-distance and
+   symmetry-generated R vectors remain valid.
+7. **Separated primitive evaluation and assembly.** The direct Fourier kernel
+   produces a primitive-operator batch consumed by observable assembly. A later
+   FFT implementation can produce the same batch representation without changing
+   any observable recipe.
+8. **Configurable batching.** Batch size is an internal plan parameter rather than
+   a constant or a function of the total k-point count. The follow-on plan will
+   derive it from an explicit memory limit.
+
+These are implementation invariants, not additional public concepts. They deepen
+the interpolation Module by preserving one observable Interface across small
+paths, arbitrary point clouds, and future dense-grid execution.
 
 ## Module shape
 
@@ -673,6 +715,8 @@ source-data symmetry noise from interpolation error.
 - [ ] Unitary, antiunitary, scalar, polar-vector, axial-vector, and general tensor
       tests pass.
 - [ ] Observable dependency planning shares all expensive intermediates.
+- [ ] Dense-grid readiness tests confirm that intermediate storage scales with
+      batch size and that observable assembly accepts destination views.
 - [ ] Existing physical quantities migrated.
 - [ ] Wannier90 I/O migrated.
 - [ ] Old interpolation Interface deleted with no compatibility wrappers.
