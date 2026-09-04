@@ -86,11 +86,12 @@ qe_bands = QuantumEspressoIO.read_band_dat(dataset"Cu/outputs/qe_bands.dat");
 using Spglib
 kpath = KPath(KSegment(model), default_w90_kpath_num_points())
 
-H = TBHamiltonian(model)
-interp = HamiltonianInterpolator(H)
+interpolation_model = InterpolationModel(model)
 
 # interpolate band structure; E_mat is n_bands × n_kpoints
-E_mat, V = interp(collect(kpath));
+E_mat = interpolate(
+    interpolation_model, collect(kpath), BandEnergy()
+).band_energy;
 E = collect(eachcol(E_mat))
 
 # plot band difference against QE reference
@@ -108,7 +109,7 @@ Interpolate eigenvalues on a uniform ``30 \times 30 \times 30`` mesh.
 `Wannier.fermisurf` handles the endpoint convention (bxsf needs the last kpoint
 to be the periodic image of the first, so the actual grid is ``31^3``).
 =#
-Wannier.Tools.fermisurf(dataset"Cu/outputs/MDRS/Cu"; nk = 30, ef = εF, outprefix = "Cu")
+Wannier.Tools.fermisurf(interpolation_model; nk = 30, ef = εF, outprefix = "Cu")
 
 #=
 The output `Cu.bxsf` can be visualised with e.g. FermiSurfer or VESTA.

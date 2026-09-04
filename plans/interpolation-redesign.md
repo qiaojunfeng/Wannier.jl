@@ -86,7 +86,11 @@ legacy observable-specific interpolators remain for Phase 5.
 
 Phase 0 numerical references are covered by the existing interpolation tests
 and benchmark entry point; finer per-stage timing remains to be recorded. The
-next implementation step is Phase 5 caller migration and deletion.
+Phase 5 has started: adaptive Fermi-energy refinement and the Fermi-surface
+BXSF workflow now consume `InterpolationModel` and `BandEnergy` results, and
+their tutorials no longer construct `HamiltonianInterpolator`. The next step
+is the remaining Wannier90 I/O migration followed by deletion of legacy
+interpolator and R-space types.
 
 ## Goals
 

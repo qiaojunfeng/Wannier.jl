@@ -254,6 +254,14 @@ function AdaptiveKgrid(kpoints::AbstractVector, eigenvalues::AbstractVector)
     return AdaptiveKgrid(kvoxels, eigenvalues)
 end
 
+function _interpolated_band_energy(
+        model::InterpolationModel,
+        kpoints::AbstractVector,
+    )
+    energy = interpolate(model, kpoints, BandEnergy()).band_energy
+    return [collect(view(energy, :, kpoint_index)) for kpoint_index in axes(energy, 2)]
+end
+
 """
 Compute Fermi energy by recursively refining the kgrid when interpolating the Hamiltonian.
 
@@ -262,18 +270,18 @@ Compute Fermi energy by recursively refining the kgrid when interpolating the Ha
 """
 function compute_fermi_energy(
         kgrid::AbstractVector,
-        interp::HamiltonianInterpolator,
+        model::InterpolationModel,
         n_electrons::Real,
         kBT::Real,
         smearing::SmearingFunction;
         kwargs...,
     )
     kpoints = get_kpoints(kgrid)
-    eigenvals, _ = interp(kpoints)
-    eigenvals_v = eigenvals isa AbstractMatrix ?
-        [collect(view(eigenvals, :, ik)) for ik in axes(eigenvals, 2)] : eigenvals
-    adpt_kgrid = AdaptiveKgrid(kpoints, eigenvals_v)
-    return compute_fermi_energy!(adpt_kgrid, interp, n_electrons, kBT, smearing; kwargs...)
+    eigenvalues = _interpolated_band_energy(model, kpoints)
+    adaptive_grid = AdaptiveKgrid(kpoints, eigenvalues)
+    return compute_fermi_energy!(
+        adaptive_grid, model, n_electrons, kBT, smearing; kwargs...
+    )
 end
 
 @doc raw"""
@@ -282,7 +290,7 @@ Compute Fermi energy by recursively refining the kgrid when interpolating the Ha
 # Arguments
 - `adpt_kgrid`: on input, usually a uniformally-spaced kpoint grid and its eigenvalues;
     on output, it is modified and contains the refined kgrid and eigenvalues.
-- `interp`: interpolator for Hamiltonian
+- `model`: interpolation model
 - `n_electrons`: number of electrons
 - `kBT`: smearing with in eV
 - `smearing`: type of Smearing
@@ -302,7 +310,7 @@ Compute Fermi energy by recursively refining the kgrid when interpolating the Ha
 """
 function compute_fermi_energy!(
         adpt_kgrid::AdaptiveKgrid,
-        interp::HamiltonianInterpolator,
+        model::InterpolationModel,
         n_electrons::Real,
         kBT::Real,
         smearing::SmearingFunction;
@@ -340,12 +348,8 @@ function compute_fermi_energy!(
         # I should iterate odd grid 1st, otherwise it seems the graphene
         # case could still stuck at wrong εF with [8, 8, 1] kgrid
         n_subvoxels = iter % 2 == 0 ? 2 : 3
-        interp_fun = function (x)
-            e = interp(x)[1]
-            return e isa AbstractMatrix ?
-                [collect(view(e, :, ik)) for ik in 1:size(e, 2)] : e
-        end
-        refine!(adpt_kgrid, refine_iks, interp_fun; n_subvoxels, axes)
+        interpolation = kpoints -> _interpolated_band_energy(model, kpoints)
+        refine!(adpt_kgrid, refine_iks, interpolation; n_subvoxels, axes)
 
         εF_prev = εF
         εF = compute_fermi_energy(

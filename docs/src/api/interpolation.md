@@ -45,6 +45,27 @@ bands.symmetry_point_labels
 bands.band_energy
 ```
 
+Adaptive Fermi-energy refinement and Fermi-surface export consume the same
+model rather than constructing a separate Hamiltonian interpolator:
+
+```julia
+fermi_energy = compute_fermi_energy(
+    [12, 12, 12],
+    interpolation_model,
+    number_electrons,
+    kBT,
+    ColdSmearing(),
+)
+
+Wannier.Tools.fermisurf(
+    interpolation_model; nk = 50, ef = fermi_energy, outprefix = "bands"
+)
+```
+
+Adaptive refinement evaluates only each newly created k-point batch through
+`interpolate`. The Fermi-surface workflow writes a periodic WannierIO `Bxsf`
+grid with `BandEnergy()` on its final interpolation mesh.
+
 ## Real-space scheme
 
 [`MinimumDistance`](@ref) is the default and selects the nearest periodic image

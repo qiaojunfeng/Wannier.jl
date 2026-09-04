@@ -1,9 +1,9 @@
 """
 Interpolate Fermi surface.
 
-# Args
+# Arguments
 
-- `prefix`: prefix of `prefix_tb.dat`/`prefix_wsvec.dat` files
+- `model`: interpolation model
 
 # Options
 
@@ -21,12 +21,15 @@ Interpolate Fermi surface.
 - `--outprefix`: output prefix for bxsf. Default is `wjl`
 """
 function fermisurf(
-    prefix::String; nk::Int=50, dk::Float64=-0.04, ef::Float64=0.0, outprefix::String="wjl"
-)
+        model::InterpolationModel;
+        nk::Int = 50,
+        dk::Float64 = -0.04,
+        ef::Float64 = 0.0,
+        outprefix::String = "wjl",
+    )
     @printf("* Fermi surface interpolation started on %s\n", string(now()))
 
-    hamiltonian, _ = read_w90_tb(prefix)
-    recip_latt = reciprocal_lattice(real_lattice(hamiltonian))
+    recip_latt = reciprocal_lattice(model)
 
     if dk > 0
         nk = map(eachcol(recip_latt)) do b
@@ -38,10 +41,9 @@ function fermisurf(
     @printf("Interpolation grid: %d %d %d\n", nks...)
 
     # kpoints are in fractional coordinates
-    kpoints = get_kpoints(nks; endpoint=true)
+    kpoints = Wannier.get_kpoints(nks; endpoint = true)
 
-    interp = HamiltonianInterpolator(hamiltonian)
-    eigenvalues, _ = interp(kpoints)
+    eigenvalues = interpolate(model, kpoints, BandEnergy()).band_energy
 
     # kpoints = reshape(kpoints, 3, n_kz, n_ky, n_kx)
     # E = reshape(E, nwann, n_kz, n_ky, n_kx)
@@ -50,7 +52,7 @@ function fermisurf(
     # E = permutedims(E, (1, 4, 3, 2))
 
     # reshape eigenvalues to a nwann * nkx * nky * nkz array
-    E = zeros(n_wannier(hamiltonian), nks...)
+    E = zeros(n_wannier(model), nks...)
     # The kz increase the fastest in kpoints
     counter = 1
     for i in 1:nks[1]
@@ -62,8 +64,15 @@ function fermisurf(
         end
     end
 
-    origin = zeros(3)
-    WannierIO.write_bxsf("$outprefix.bxsf", ef, origin, recip_latt, E)
+    coordinates = map(size -> collect(range(0.0, 1.0; length = size)), nks)
+    bxsf = WannierIO.Bxsf(
+        ef,
+        Vec3(0.0, 0.0, 0.0),
+        recip_latt,
+        coordinates...,
+        E,
+    )
+    WannierIO.write_bxsf("$outprefix.bxsf", bxsf)
 
     @printf("* Fermi surface interpolation finished on %s\n", string(now()))
     return nothing

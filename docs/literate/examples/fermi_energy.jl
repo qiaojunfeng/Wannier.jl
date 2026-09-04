@@ -4,11 +4,12 @@ using LinearAlgebra
 using Wannier
 using Wannier.Datasets
 
-prefix = dataset"Fe_soc/outputs/MDRS/Fe"
-hamiltonian, _ = read_w90_tb(prefix)
-interp = HamiltonianInterpolator(hamiltonian)
+model = read_w90_with_chk(
+    dataset"Fe_soc/Fe", dataset"Fe_soc/outputs/Fe.chk"
+)
+interpolation_model = InterpolationModel(model)
 
-lattice = real_lattice(interp)
+lattice = real_lattice(interpolation_model)
 recip_lattice = reciprocal_lattice(lattice)
 kdistance = 0.08
 kgrid = round.(Int, [norm(b) for b in eachcol(recip_lattice)] ./ kdistance)
@@ -17,7 +18,7 @@ kbT = 0.01  # eV
 # For NoneSmearing, usually need a larger tolerance, otherwise cannot bisect Fermi energy
 # smearing = Wannier.NoneSmearing()
 # tol_n_electrons = 1e-4
-# εF, adpt_kgrid = Wannier.compute_fermi_energy(kgrid, interp, num_electrons, kbT, smearing, tol_n_electrons)
+# εF = Wannier.compute_fermi_energy(kgrid, interpolation_model, num_electrons, kbT, smearing)
 
 n_electrons = 8
 # This is a TB Hamiltonian from a SOC calculation
@@ -31,14 +32,15 @@ tol_εF = 5.0e-3  # convergence tolerance for Fermi energy in eV
 
 # You can directly compute Fermi energy by
 εF = Wannier.compute_fermi_energy(
-    kgrid, interp, n_electrons, kbT, smearing; prefactor, tol_εF
+    kgrid, interpolation_model, n_electrons, kbT, smearing; prefactor, tol_εF
 )
 
 # But here we will separate it into two steps, 1st construct the adaptive kgrid,
 # which is actually a uniformlly-spaced grid on input, but the [`AdaptiveKgrid`](@ref)
 # data structure allows it to be iteratively refined on selected kpoints later on.
 kpoints = get_kpoints(kgrid)
-eigenvalues = interp(kpoints)[1]
+energy = interpolate(interpolation_model, kpoints, BandEnergy()).band_energy
+eigenvalues = collect.(eachcol(energy))
 adpt_kgrid = Wannier.AdaptiveKgrid(kpoints, eigenvalues)
 
 # note one can also store the initial uniform grid to a `bxsf` file
@@ -72,9 +74,17 @@ function to_periodic_vals(adpt_kgrid::Wannier.AdaptiveKgrid)
     E[:, end, :, :] .= E[:, 1, :, :]
     return E
 end
-origin = zeros(3)
 E = to_periodic_vals(adpt_kgrid)
-WannierIO.write_bxsf("Fe_soc.bxsf", εF, origin, recip_lattice, E)
+nks = size(E)[2:end]
+coordinates = map(size -> collect(range(0.0, 1.0; length = size)), nks)
+bxsf = WannierIO.Bxsf(
+    εF,
+    Vec3(0.0, 0.0, 0.0),
+    recip_lattice,
+    coordinates...,
+    E,
+)
+WannierIO.write_bxsf("Fe_soc.bxsf", bxsf)
 # or construct the initial uniform grid from a `bxsf` file
 """
 Remove the replica of the last kpoint, and construct an `AdaptiveKgrid` that
@@ -105,7 +115,7 @@ adpt_kgrid_bxsf = to_adpt_kgrid(E)
 
 # then compute Fermi energy
 εF = Wannier.compute_fermi_energy!(
-    adpt_kgrid, interp, n_electrons, kbT, smearing; prefactor, tol_εF
+    adpt_kgrid, interpolation_model, n_electrons, kbT, smearing; prefactor, tol_εF
 )
 # The `Wannier.compute_fermi_energy!` function is a lower-level function,
 # will modify the input `adpt_kgrid`, and from `adpt_kgrid` we can retrieve
