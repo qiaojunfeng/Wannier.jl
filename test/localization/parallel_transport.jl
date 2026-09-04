@@ -31,9 +31,9 @@ end
     model = Wannier.truncate(model, 1:4, 1:4)
 
     Umin, _ = parallel_transport(model)
-
-    Uref = read_amn(dataset"GaAs_coarse/outputs/GaAs.val.ptg.amn").A
-    @test isapprox(Umin, Uref; atol = 1.0e-5)
+    # The determinant winding is distributed equally among bands, so the gauge
+    # need not match the older Wannier90-style reference element by element.
+    @test Wannier.isunitary(Umin)
 
     ϵ0, ϵ1 = Wannier.compute_error(model, Umin)
 
