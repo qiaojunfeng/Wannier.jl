@@ -67,22 +67,25 @@ The symmetry-closed Si2 Hamiltonian also recovers its two cubic triplets at
 Gamma to `1e-14`, closing the Phase 3 exit criterion. The planned graphene
 dataset remains a separate end-to-end interpolation demonstration.
 
-Phase 4 now includes `SpinExpectation`, `BerryConnection`, and
-`BerryCurvature`. The planner evaluates arbitrary required primitive operators
-and their requested first derivatives on its shared phase block, while band
-energy, velocity, spin, and Berry curvature reuse one Hamiltonian eigensystem.
+Phase 4 now includes `SpinExpectation`, `BerryConnection`, `BerryCurvature`,
+and `OrbitalMagnetization`. The planner evaluates arbitrary required primitive
+operators and their requested first derivatives on its shared phase block,
+while band energy, velocity, spin, Berry curvature, and orbital magnetization
+reuse one Hamiltonian eigensystem.
 A direct `BlochOperator(::WannierIO.Spn)` adapter supplies the axial,
 time-reversal-odd spin primitive. The dedicated Berry-connection construction
 recipe preserves its logical vector axis without pretending that a connection
 has a homogeneous pointwise operator law. WYSV06, band-resolved WYSV06, and
-LVTS12 curvature recipes match the existing Fe SOC/postw90 references. The
-inhomogeneous symmetry closure of the connection and orbital-magnetization
-migration remain to complete Phase 4.
+LVTS12 curvature recipes match the existing Fe SOC/postw90 references.
+Hamiltonian-weighted position-moment construction recipes and the orbital
+magnetization integrand also match that reference. The inhomogeneous symmetry
+closure of the connection and moment recipes, plus deletion of the legacy
+observable-specific interpolators, remain to complete Phases 4 and 5.
 
 Phase 0 numerical references are covered by the existing interpolation tests
 and benchmark entry point; finer per-stage timing remains to be recorded. The
-next implementation step is the remaining Phase 4 orbital-magnetization and
-connection-symmetry work.
+next implementation step is the remaining inhomogeneous connection/moment
+symmetry work followed by Phase 5 migration and deletion.
 
 ## Goals
 

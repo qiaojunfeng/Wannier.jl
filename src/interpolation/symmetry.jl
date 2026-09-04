@@ -47,6 +47,11 @@ _time_reversal_sign(::Odd) = -1
 
 _time_reversal_parity(law::OperatorLaw) = law.time_reversal
 
+_supports_homogeneous_symmetry_closure(::OperatorLaw) = true
+_supports_homogeneous_symmetry_closure(::_BerryConnectionLaw) = false
+_supports_homogeneous_symmetry_closure(::_HamiltonianPositionLaw) = false
+_supports_homogeneous_symmetry_closure(::_PositionHamiltonianPositionLaw) = false
+
 function _cartesian_rotation(operation::SymOp, lattice::AbstractMatrix)
     rotation = lattice * operation.W * inv(lattice)
     return real.(rotation)
@@ -164,10 +169,11 @@ function _close_real_space_operator(
         symmetry::WannierSymmetry,
         lattice::AbstractMatrix,
     )
-    description.law isa _BerryConnectionLaw && throw(
+    _supports_homogeneous_symmetry_closure(description.law) || throw(
         ArgumentError(
-            "symmetry closure of Berry connections requires its dedicated " *
-                "inhomogeneous transformation law and is not implemented yet",
+            "symmetry closure of $(nameof(typeof(description.law))) requires " *
+                "its dedicated inhomogeneous transformation law and is not " *
+                "implemented yet",
         ),
     )
     size(coefficients, 1) == n_wannier(symmetry) || throw(

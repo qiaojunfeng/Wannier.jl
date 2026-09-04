@@ -79,10 +79,7 @@ struct _BerryCurvatureWorkspace{T <: Complex}
     product::Matrix{T}
 end
 
-function _allocate_observable_workspace(
-        ::BerryCurvature,
-        model::InterpolationModel,
-    )
+function _allocate_berry_curvature_workspace(model::InterpolationModel)
     number_wannier = n_wannier(model)
     T = promote_type(
         eltype(model.operators.hamiltonian.coefficients),
@@ -103,6 +100,9 @@ function _allocate_observable_workspace(
         Matrix{T}(undef, number_wannier, number_wannier),
     )
 end
+
+_allocate_observable_workspace(::BerryCurvature, model::InterpolationModel) =
+    _allocate_berry_curvature_workspace(model)
 
 function _rotate_from_band_basis!(
         destination::AbstractMatrix,

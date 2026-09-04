@@ -120,7 +120,11 @@ Most primitives enter as `BlochOperator`s with homogeneous transformation
 laws. `BerryConnection` instead owns its construction from overlaps because a
 connection transforms inhomogeneously. Keeping this distinction at the
 construction seam prevents the generic Cartesian-tensor machinery from making
-an incorrect symmetry promise.
+an incorrect symmetry promise. `HamiltonianPosition` and
+`PositionHamiltonianPosition` follow the same recipe seam for the additional
+moments consumed by `OrbitalMagnetization`; the latter owns the external `uHu`
+neighbor-pair data while `InterpolationModel` stores only its packed
+real-space result.
 
 When symmetry is supplied, [`WannierSymmetry`](@ref Wannier.WannierSymmetry)
 is the shared basis-level object: it owns space-group operations, prescribed

@@ -213,6 +213,33 @@ occupied-manifold formulation. Berry curvature shares the Hamiltonian,
 Fourier phases, eigensystem, and the requested Hamiltonian and connection
 derivatives with other observables in the same call.
 
+Orbital magnetization additionally needs the two Hamiltonian-weighted position
+moments derived from a Wannier90 `uHu` file:
+
+```julia
+uHu = read_uHu(prefix * ".uHu").uHu
+interpolation_model = InterpolationModel(
+    model;
+    operators = (;
+        berry_connection = BerryConnection(; imlog_diag = false),
+        hamiltonian_position = HamiltonianPosition(),
+        position_hamiltonian_position = PositionHamiltonianPosition(uHu),
+    ),
+    real_space = MinimumDistance(),
+)
+
+result = interpolate(
+    interpolation_model,
+    kpoints,
+    OrbitalMagnetization(fermi_energy),
+)
+```
+
+`result.orbital_magnetization` is the antisymmetric Cartesian integrand with
+shape `3 × 3 × n_kpoints` and units eV Å². The two moment recipes, like the
+Berry connection, have dedicated inhomogeneous transformation laws whose
+symmetry closure remains to be implemented.
+
 ```@meta
 CurrentModule = Wannier
 ```
@@ -229,13 +256,16 @@ Pages = [
     "interpolation/observables/band_velocity.jl",
     "interpolation/observables/spin_expectation.jl",
     "interpolation/operators/berry_connection.jl",
+    "interpolation/operators/orbital_magnetization.jl",
     "interpolation/observables/berry_curvature.jl",
+    "interpolation/observables/orbital_magnetization.jl",
     "interpolation/workflows/band_structure.jl",
 ]
 ```
 
 ## Migration status
 
-The operator-specific `TBOperator` and interpolator types remain available while
-the other observables are migrated to the common model. New code should use
-`InterpolationModel` and `interpolate`.
+The operator-specific `TBOperator` and interpolator types remain temporarily as
+reference paths while callers are migrated. All currently supported pointwise
+physical quantities are available through `InterpolationModel` and
+`interpolate`; new code should use this interface.

@@ -101,4 +101,37 @@ end
 
     M = interp(kpoints)
     @test all(isapprox.(M, ref_M; atol = 5.0e-7))
+
+    interpolation_model = InterpolationModel(
+        model;
+        operators = (;
+            berry_connection = BerryConnection(; imlog_diag = false),
+            hamiltonian_position = HamiltonianPosition(),
+            position_hamiltonian_position = PositionHamiltonianPosition(uHu),
+        ),
+        real_space = MinimumDistance(),
+    )
+    result = interpolate(
+        interpolation_model,
+        kpoints,
+        OrbitalMagnetization(win["fermi_energy"]),
+    )
+    @test all(
+        isapprox(
+                view(result.orbital_magnetization, :, :, index), ref_M[index];
+                atol = 5.0e-7,
+            )
+            for index in eachindex(kpoints)
+    )
+
+    combined = interpolate(
+        interpolation_model,
+        kpoints,
+        (
+            BandEnergy(),
+            BerryCurvature(win["fermi_energy"]),
+            OrbitalMagnetization(win["fermi_energy"]),
+        ),
+    )
+    @test combined.orbital_magnetization == result.orbital_magnetization
 end
