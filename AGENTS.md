@@ -75,9 +75,10 @@ projected overlap matrix"). Renames of public names require prior approval.
   `d(ĥ, k) = ⟨ψ_m|ĥ ψ_n⟩` (`littlegroup_reps`)
 - `a2b` — a mapping from index space `a` to index space `b`, indexed by
   `a` (`fbz2ibz`, `ibz2fbz`, `b2b`, `ikisym2ih`); read it as "a to b"
-- `TB` / `MDRS` — tight-binding operator on an R-space (`TBHamiltonian`,
-  `read_w90_tb`) and w90's minimal-distance replica selection R-space
-  (`MDRSRspace`), the two Fourier interpolation schemes
+- `interpolation_model` — persistent `InterpolationModel` with all primitive
+  operators on one common real-space domain
+- `WS` / `MDRS` — Wigner--Seitz and minimum-distance replica selection,
+  exposed as the `WignerSeitz()` and `MinimumDistance()` construction schemes
 - w90 file stems (`mmn`, `amn`, `eig`, `nnkp`, `chk`, `spn`, `uHu`) and
   their IBZ variants (`immn`, `iamn`, `ieig`, `isym`)
 

@@ -10,11 +10,10 @@ CurrentModule = Wannier
 In this tutorial, we will Wannierize a single isolated band of CuBr2,
 by constructing the parallel transport gauge (PTG).
 
-!!! warning "Interpolation snippets pending update"
-    The `Wannier.Model(...)` reconstruction and the `Wannier.InterpModel` /
-    `Wannier.interpolate` cells below reference the pre-rewrite API surfaces
-    (bvectors, 3D field access, old reducer) and need a separate migration pass.
-    Treat those cells as sketches until this tutorial is updated.
+!!! warning "Model reconstruction uses low-level fields"
+    The `Wannier.Model(...)` reconstruction below deliberately exposes the
+    overlap-stencil fields because replacing that stencil is the subject of this
+    tutorial. Ordinary interpolation does not require those details.
 
 However, the CuBr2 system has a special set of b-vectors: some nearest neighbors
 are not included. This breaks the requirement of the PTG, since it needs the
@@ -164,12 +163,12 @@ ef = 4.6459
 win = read_win(dataset"CuBr2/CuBr2.win")
 kpath = Wannier.get_kpath(win.unit_cell, win.kpoint_path)
 
-interp_model = Wannier.InterpModel(model; kpath = kpath)
+interpolation_model = InterpolationModel(model)
 
 # interpolate band structure
 # the QE bands use 50 points per segment, so we use 50 here as well
 kpi = Wannier.generate_w90_kpoint_path(kpath, 50)
-E = Wannier.interpolate(interp_model, kpi)
+E = interpolate(interpolation_model, kpi, BandEnergy()).band_energy
 
 # plot band difference
 fig = plot_band_diff(kpi, E_qe, E; fermi_energy = ef)

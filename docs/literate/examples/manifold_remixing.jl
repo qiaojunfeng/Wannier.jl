@@ -10,11 +10,6 @@ CurrentModule = Wannier
 In the previous tutorial, we have seen how to use the `parallel_transport` function
 to automate the construction of WFs for isolated manifold.
 
-!!! warning "Interpolation snippets pending update"
-    The `Wannier.InterpModel` / `interpolate` cells below reference the
-    pre-rewrite interpolation API and need a separate migration pass. The
-    localization section is current; treat the interpolation cells as
-    sketches.
 In this tutorial, we will again use this technique, combined with disentanglement,
 to Wannierize the valence and conduction manifolds of silicon, separately.
 
@@ -154,33 +149,36 @@ Finally, let's compare band interpolation,
 =#
 # Auto-generate kpath from Si crystal structure
 using Spglib
+import Brillouin
 kseg = KSegment(model)
-kpath = KPath(kseg, default_w90_kpath_num_points())
+kpath = KPath(kseg, 100)
 kpoints = collect(kpath)
 
 # the valence + conduction,
-H = TBHamiltonian(model)
-E_mat, _ = HamiltonianInterpolator(H)(kpoints)
-E = collect(eachcol(E_mat))
+interpolation_model = InterpolationModel(model)
+E_mat = interpolate(interpolation_model, kpoints, BandEnergy()).band_energy
+E = collect.(eachcol(E_mat))
 
 # the valence,
-Hv = TBHamiltonian(model_v)
-Ev_mat, _ = HamiltonianInterpolator(Hv)(kpoints)
-Ev = collect(eachcol(Ev_mat))
+interpolation_model_v = InterpolationModel(model_v)
+Ev_mat = interpolate(interpolation_model_v, kpoints, BandEnergy()).band_energy
+Ev = collect.(eachcol(Ev_mat))
 
 # the conduction,
-Hc = TBHamiltonian(model_c)
-Ec_mat, _ = HamiltonianInterpolator(Hc)(kpoints)
-Ec = collect(eachcol(Ec_mat))
+interpolation_model_c = InterpolationModel(model_c)
+Ec_mat = interpolate(interpolation_model_c, kpoints, BandEnergy()).band_energy
+Ec = collect.(eachcol(Ec_mat))
 
 # compare valence vs total,
-fig, ax, plt = get_bandplot(kpath, E, Ev;
+fig, ax, plt = Wannier.get_bandplot(
+    kpath, E, Ev;
     kwargs1 = (label = "val+cond",),
     kwargs2 = (label = "valence", linestyle = :dash),
 )
 fig
 # compare conduction vs total,
-fig, ax, plt = get_bandplot(kpath, E, Ec;
+fig, ax, plt = Wannier.get_bandplot(
+    kpath, E, Ec;
     kwargs1 = (label = "val+cond",),
     kwargs2 = (label = "conduction", linestyle = :dash),
 )

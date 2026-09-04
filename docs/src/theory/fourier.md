@@ -1,85 +1,102 @@
-# Fourier transforms
+# Wannier interpolation
 
-The Fourier-space frequencies for Wannier interpolation, also called
-``\\mathbf{R}``-vectors.
+```@meta
+CurrentModule = Wannier
+```
 
-The Wannier interpolation is a Fourier transform of a (theoretically continuous
-periodic function (Bloch wavefunction) into a Fourier series.
-However, since the wavefunctions are discretized in ``\\mathbf{k}``-space on
-a grid, the Fourier series of a coutinuous functionis turns into
-a discrete-time Fourier transform (DTFT).
-For the usual DTFT, the signal is transformed from time domain to frequency
-domain. Here, the time domain is the ``\\mathbf{k}``-space, while the
-frequency domain is the ``\\mathbf{R}``-space.
+Wannier interpolation represents a smooth, lattice-periodic Bloch-space
+operator by a finite set of real-space matrix elements. In Wannier.jl,
+[`InterpolationModel`](@ref) owns these matrix elements and [`interpolate`](@ref)
+is the single pointwise evaluation interface.
 
-To improve interpolation accuracy, the frequencies (often they are called the
-``\\mathbf{R}``-vectors, since they live in 3D space) are not chosen inside
-a parallelepiped, but inside a Wigner-Seitz cell to make sure most of the
-large-magnitude interactions (e.g., Hamiltonian ``H(\\mathbf{R})``) are
-included. Therefore, we have some special algorithms to generate the
-``\\mathbf{R}``-space domain.
+## From the sampled mesh to real space
 
-Th function [`generate_Rspace`] can generate two kinds of R-space domains, by providing an argument
-of type [`WannierInterpolationAlgorithm`](@ref):
-- [`WSInterpolation`](@ref): Wigner-Seitz interpolation,
-    returns a [`WignerSeitzRspace`](@ref)
-- [`MDRSInterpolation`](@ref): minimal-distance replica selection interpolation,
-    returns a [`MDRSRspace`](@ref)
-
-However, the details of how to place the R-vectors and setting their degeneracies
-are irrelevant to the Fourier / inverse Fourier transforms, therefore, we
-provide a function [`simplify`](@ref) that can convert each kind of RspaceDomain
-to a [`BareRspace`](@ref), enabling faster Fourier transforms.
-
-Depending on the type of RspaceDomain, there are three kinds of Fourier transform:
-- `BareRspace`: simple Fourier sum
-    ```math
-    O_{mn}(\\mathbf{R}) = \\frac{1}{N_{\\mathbf{k}}}
-    \\sum_{\\mathbf{k}} \\exp(-i {\\mathbf{k}} \\mathbf{R}) O_{mn}(\\mathbf{k}),
-    ```
-- `WignerSeitzRspace`: Wigner-Seitz interpolation, the forward Fourier transform
-    is the same as `BareRspace`,
-- `MDRSRspace`: minimal-distance replica selection interpolation
-    ```math
-    O_{mn}(\\widetilde{ \\mathbf{R} }) =
-    \\sum_{ \\mathbf{R} } \\frac{1}{\\mathcal{N}_{\\mathbf{R}} \\mathcal{N}_{mn \\mathbf{R}}}
-    O_{mn}(\\mathbf{R})
-    \\sum_{i=1}^{\\mathcal{N}_{mn \\mathbf{R}}}
-    \\delta_{ \\widetilde{\\mathbf{R}}, \\mathbf{R} + \\mathbf{T}_{mn \\mathbf{R}}^{(i)} },
-    ```
-
-where
-- ``N_{\\mathbf{k}}``: the total number of kpoints
-- ``\\mathcal{N}_{\\mathbf{R}}``: the degeneracy of R-vectors
-- ``\\mathcal{N}_{mn \\mathbf{R}}`` is the degeneracy of ``\\mathbf{T}_{mn \\mathbf{R}}`` vectors
-
-
-## invfourier
-### WS
+Let ``O^{\mathrm B}(\mathbf{k})`` be an operator on the uniform source mesh and
+``U(\mathbf{k})`` the Wannier gauge. Its Wannier-gauge matrix is
 
 ```math
-O_{mn}(\\mathbf{k}) = \\sum_{\\mathbf{R}} \\frac{1}{\\mathcal{N}_{\\mathbf{R}}}
-\\exp(i \\mathbf{k} \\mathbf{R}) O_{mn}(\\mathbf{R}),
+O^{\mathrm W}(\mathbf{k}) =
+U^\dagger(\mathbf{k}) O^{\mathrm B}(\mathbf{k}) U(\mathbf{k}).
 ```
-where ``\\mathcal{N}_{\\mathbf{R}}`` is the degeneracy of R vectors (not the total number of R vectors).
 
-
-### MDRS
-
+For an operator diagonal in the input eigenstate basis, such as the
+Hamiltonian, the middle factor is simply the diagonal matrix of sampled
+eigenvalues. The quotient-lattice coefficients are
 
 ```math
-X_{mn}(\\mathbf{k}) = \\sum_{\\mathbf{R}}
-\\frac{1}{ \\mathcal{N}_{mn \\mathbf{R}} } X_{mn}(\\mathbf{R})
-\\sum_{j=1}^{\\mathcal{N}_{ mn \\mathbf{R} }}
-\\exp\left( i \\mathbf{k} \cdot \left( \\mathbf{R} + \\mathbf{T}_{ mn \\mathbf{R} }^{(j)} \right) \right)
+\widehat O^{\mathrm W}_{mn}(\mathbf R) =
+\frac{1}{N_k}\sum_{\mathbf k}
+e^{-2\pi i\,\mathbf k\cdot\mathbf R}
+O^{\mathrm W}_{mn}(\mathbf k).
 ```
-where ``\\mathcal{N}_{\\mathbf{R}}`` is the degeneracy of R vectors (not the total number of R vectors),
-and ``\\mathcal{N}_{ mn \\mathbf{R} }`` is the degeneracy of ``\\mathbf{T}_{ mn \\mathbf{R} }`` vectors.
 
+Here both ``\mathbf k`` and the integer lattice vector ``\mathbf R`` use
+fractional coordinates. Vectors that differ by a vector of the real-space
+superlattice dual to the sampling mesh represent the same discrete Fourier
+coefficient, so a real-space selection rule chooses finite representatives and
+assigns their weights.
 
-#### MDRSv2
+[`WignerSeitz`](@ref) selects representatives in the Wigner--Seitz cell of the
+sampling superlattice and divides boundary coefficients among equidistant
+representatives. [`MinimumDistance`](@ref), the default, selects the nearest
+periodic representatives separately for every pair of Wannier centers. The
+latter usually reduces phase errors for off-mesh interpolation. Both schemes
+are construction choices:
+
+```julia
+ws_model = InterpolationModel(model; real_space = WignerSeitz())
+md_model = InterpolationModel(model; real_space = MinimumDistance())
+```
+
+All primitive operators in an interpolation model are remapped onto one common
+finite [`Wannier.RealSpaceDomain`](@ref). Callers therefore do not manipulate
+scheme-specific real-space containers or degeneracy tables.
+
+## Evaluation
+
+After representative selection, every primitive operator has coefficients
+``O^{\mathrm W}_{mn}(\mathbf R)`` and is evaluated by the ordinary Fourier sum
 
 ```math
-X_{mn}(\\mathbf{k}) = \\sum_{ \\widetilde{\\mathbf{R}} }
-\\exp\left( i \\mathbf{k} \\widetilde{ \\mathbf{R} } \right) \\widetilde{X}_{mn}(\\widetilde{\\mathbf{R}})
+O^{\mathrm W}_{mn}(\mathbf k) =
+\sum_{\mathbf R} e^{2\pi i\,\mathbf k\cdot\mathbf R}
+O^{\mathrm W}_{mn}(\mathbf R).
 ```
+
+One phase matrix is shared by all operators requested in the same call. The
+Hamiltonian is diagonalized once, and observables reuse its eigensystem. For
+example,
+
+```julia
+result = interpolate(
+    interpolation_model,
+    kpoints,
+    (BandEnergy(), BandVelocity(), SpinExpectation()),
+)
+```
+
+Cartesian derivatives do not require a separate interpolation object. They
+follow by differentiating the phase,
+
+```math
+\frac{\partial O^{\mathrm W}(\mathbf k)}{\partial k_\alpha}
+= i\sum_{\mathbf R} R_\alpha
+e^{i\mathbf k\cdot\mathbf R} O^{\mathrm W}(\mathbf R),
+```
+
+where the last expression uses Cartesian ``\mathbf k`` and ``\mathbf R``.
+The planner computes these derivative sums only for observables that need them.
+
+## Symmetry-preserving construction
+
+Supplying `symmetry` to [`InterpolationModel`](@ref) is a strong guarantee. At
+construction time, the real-space support is closed under the symmetry group
+and Hermitian conjugation, and each coefficient orbit is projected according
+to the operator's scalar, vector, or tensor transformation law. Ordinary
+Fourier evaluation then obeys the requested covariance at arbitrary off-mesh
+points; no group average is performed for each query.
+
+The Hamiltonian is only the time-reversal-even scalar instance of this general
+operator construction. Position, spin, and Hamiltonian-weighted moments use the
+same real-space domain and evaluation kernel, while their observable recipes
+assemble Berry curvature, orbital magnetization, and other derived quantities.

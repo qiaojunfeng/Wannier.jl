@@ -31,13 +31,6 @@ as the starting guess (computed by QE).
 5. localize with both WF center and overlap constraints —
     `localize(CenteredSpinCoupledVariance(r0, λc, λ_spin), sm)`
 
-!!! warning "Interpolation snippets pending update"
-    The interpolation/chk/plot cells below still reference the pre-rewrite
-    `Wannier.InterpModel` / `Wannier.interpolate` / `Wannier.rotate_gauge`
-    API. Use [`TBHamiltonian`](@ref) + [`HamiltonianInterpolator`](@ref)
-    from the current interpolation section until this tutorial is
-    migrated.
-
 !!! tip
 
     This is a HTML version of the tutorial, you can download corresponding
@@ -115,17 +108,20 @@ In our case, the projection-only WFs are `Cr:4s,3d` and `I:5s,5p` orbitals
 centered on atoms. We will use Wannier interpolation for band structures,
 and compare them with QE bands.
 
-We first construct two [`InterpModel`](@ref)s for spin-up and spin-down channels,
-using the `kpoint_path` from `win` file (otherwise, by default the `InterpModel`
-will use `Brillouin.jl` to auto generate a kpath, which might be different
-from user's input)
+We first construct two [`InterpolationModel`](@ref)s for the spin-up and
+spin-down channels. The path is supplied separately when the band energy is
+requested.
 =#
-interpModel_up = Wannier.InterpModel(model_up; kpath = kpath)
-interpModel_dn = Wannier.InterpModel(model_dn; kpath = kpath)
+interpolation_model_up_projection = InterpolationModel(model_up)
+interpolation_model_dn_projection = InterpolationModel(model_dn)
 
 # then interpolate eigenvalues
-E_up_projonly = Wannier.interpolate(interpModel_up, kpi)
-E_dn_projonly = Wannier.interpolate(interpModel_dn, kpi)
+E_up_projonly = interpolate(
+    interpolation_model_up_projection, kpi, BandEnergy()
+).band_energy
+E_dn_projonly = interpolate(
+    interpolation_model_dn_projection, kpi, BandEnergy()
+).band_energy
 
 # and plot the spin-up bands compared with QE
 P = plot_band_diff(kpi, qe.E_up, E_up_projonly; fermi_energy = qe.fermi_energy)
@@ -181,15 +177,14 @@ U_up_mlwf = localize(model_up);
 # and WF centers and spreads
 spread(model_up, U_up_mlwf)
 
-# For band interpolations, we explicitly construct [`InterpModel`](@ref)s by
-# reusing previous ``\bm{R}`` vectors, and compute Hamiltonian ``H(\bm{R})``.
-# This skips ``\bm{R}`` vector generation, a bit faster
-interpModel_up_mlwf = Wannier.InterpModel(
-    interpModel_up.kRvectors,
-    interpModel_up.kpath,
-    fourier(interpModel_up.kRvectors, Wannier.rotate_gauge(model_up.E, U_up_mlwf)),
-)
-E_up_mlwf = Wannier.interpolate(interpModel_up_mlwf, kpi)
+# For band interpolation, place the optimized gauge on a copy of the sampled
+# model and construct its real-space operators.
+model_up_mlwf = deepcopy(model_up)
+model_up_mlwf.gauges .= U_up_mlwf
+interpolation_model_up_mlwf = InterpolationModel(model_up_mlwf)
+E_up_mlwf = interpolate(
+    interpolation_model_up_mlwf, kpi, BandEnergy()
+).band_energy
 
 # Now the MLWF bands are very accurate, much better than projection-only
 P = plot_band_diff(kpi, qe.E_up, E_up_mlwf; fermi_energy = qe.fermi_energy)
@@ -200,12 +195,12 @@ U_dn_mlwf = localize(model_dn);
 # and WF centers and spreads
 spread(model_dn, U_dn_mlwf)
 # and the interpolated bands
-interpModel_dn_mlwf = Wannier.InterpModel(
-    interpModel_dn.kRvectors,
-    interpModel_dn.kpath,
-    fourier(interpModel_dn.kRvectors, Wannier.rotate_gauge(model_dn.E, U_dn_mlwf)),
-)
-E_dn_mlwf = Wannier.interpolate(interpModel_dn_mlwf, kpi)
+model_dn_mlwf = deepcopy(model_dn)
+model_dn_mlwf.gauges .= U_dn_mlwf
+interpolation_model_dn_mlwf = InterpolationModel(model_dn_mlwf)
+E_dn_mlwf = interpolate(
+    interpolation_model_dn_mlwf, kpi, BandEnergy()
+).band_energy
 P = plot_band_diff(kpi, qe.E_dn, E_dn_mlwf; fermi_energy = qe.fermi_energy)
 Main.HTMLPlot(P, 500)  # hide
 
@@ -328,18 +323,14 @@ map one-by-one to each spin-down WF (all `<↑|↓>` > 0.98).
 
 Finally, we check the interpolated bands.
 =#
-interpModel_up = Wannier.InterpModel(
-    interpModel_up.kRvectors,
-    interpModel_up.kpath,
-    fourier(interpModel_up.kRvectors, Wannier.rotate_gauge(model_up.E, U_up)),
-)
-interpModel_dn = Wannier.InterpModel(
-    interpModel_dn.kRvectors,
-    interpModel_dn.kpath,
-    fourier(interpModel_dn.kRvectors, Wannier.rotate_gauge(model_dn.E, U_dn)),
-)
-E_up = Wannier.interpolate(interpModel_up, kpi);
-E_dn = Wannier.interpolate(interpModel_dn, kpi);
+model_up_cooptimized = deepcopy(model_up)
+model_up_cooptimized.gauges .= U_up
+model_dn_cooptimized = deepcopy(model_dn)
+model_dn_cooptimized.gauges .= U_dn
+interpolation_model_up = InterpolationModel(model_up_cooptimized)
+interpolation_model_dn = InterpolationModel(model_dn_cooptimized)
+E_up = interpolate(interpolation_model_up, kpi, BandEnergy()).band_energy;
+E_dn = interpolate(interpolation_model_dn, kpi, BandEnergy()).band_energy;
 
 # and compare the up bands against QE
 P = plot_band_diff(kpi, qe.E_up, E_up; fermi_energy = qe.fermi_energy)

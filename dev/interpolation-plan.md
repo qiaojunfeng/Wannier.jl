@@ -1,5 +1,8 @@
 # Interpolation API Simplification + Performance Plan
 
+> Historical design note. This proposal was superseded by
+> [`plans/interpolation-redesign.md`](../plans/interpolation-redesign.md).
+
 Companion to [dev/plan.md](plan.md) (localization rewrite). Scope: `src/interpolation/*` only.
 
 ## Priorities

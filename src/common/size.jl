@@ -43,8 +43,9 @@ Number of Wannier functions.
 function n_wannier end
 
 """
-    n_Rvectors(::AbstractRspace)
-    n_Rvectors(::TBOperator)
+    n_Rvectors(::RealSpaceDomain)
+    n_Rvectors(::RealSpaceOperator)
+    n_Rvectors(::InterpolationModel)
 
 Number of ``\\mathbf{R}``-vectors.
 """

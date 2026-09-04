@@ -51,7 +51,7 @@ eigendecomposition sweep, and requests Cartesian Hamiltonian derivatives only
 when needed. Its allocation-reusing `interpolate!` path has fixed per-batch
 bookkeeping (measured at 1200 bytes for batches from 1 to 64 k points), rather
 than per-k-point temporary arrays. On the `Si2_valence` reference mesh, a
-combined `BandEnergy`/`BandVelocity` request is about 1.8 times faster than two
+combined `BandEnergy`/`BandVelocity` request is about 1.65 times faster than two
 separate requests in a single-threaded warm benchmark.
 
 Phase 3's reusable symmetry and closure machinery is implemented.
@@ -81,19 +81,31 @@ Hamiltonian-weighted position-moment construction recipes and the orbital
 magnetization integrand also match that reference. Connection and
 Hamiltonian-weighted moment closure now use the centered polar-vector and
 rank-two-tensor laws derived in the manuscript; random off-mesh tests satisfy
-covariance at `1e-11` or better. Migrating remaining callers and deleting the
-legacy observable-specific interpolators remain for Phase 5.
+covariance at `1e-11` or better.
 
-Phase 0 numerical references are covered by the existing interpolation tests
-and benchmark entry point; finer per-stage timing remains to be recorded. The
-Phase 5 has started: adaptive Fermi-energy refinement and the Fermi-surface
-BXSF workflow now consume `InterpolationModel` and `BandEnergy` results, and
-their tutorials no longer construct `HamiltonianInterpolator`. High-level
-Wannier90 `tb.dat`, `hr.dat`, and combined `tb.dat`/`chk`/`spn` readers now
-construct `InterpolationModel` directly; matching writers consume that model
-and preserve its expanded common domain. The next step is deletion of legacy
-interpolator and R-space types and migration of the remaining tests and
-examples that intentionally exercise them.
+Phase 5 implementation is complete. Adaptive Fermi-energy refinement and the
+Fermi-surface BXSF workflow consume `InterpolationModel` and `BandEnergy`
+results. High-level Wannier90 `tb.dat`, `hr.dat`, and combined
+`tb.dat`/`chk`/`spn` readers construct `InterpolationModel` directly; matching
+writers consume that model and preserve its expanded common domain. The legacy
+operator-specific R-space containers, derivative operators, and interpolator
+wrappers have been deleted, and their tests, examples, documentation, and
+benchmarks now exercise the new interface. Phase 0 numerical references remain
+covered by the focused interpolation suite. On the `Si2_valence` mesh, warm
+single-thread stage benchmarks measure about 1.98 ms for phase construction,
+0.19 ms for the Hamiltonian Fourier sum, and 1.00 ms for batched
+diagonalization; those kernels allocate 0, 48, and 0 bytes, respectively.
+Against the pre-redesign commit `fadd2e1`, minimum-distance Hamiltonian-only
+evaluation on that mesh falls from 8.89 ms, 27.38 MB, and 162,515 allocations
+to 3.64 ms, 1.43 MB, and 81 allocations.
+With one Julia and one BLAS thread, combined `BandEnergy`/`BandVelocity`
+evaluation takes 5.28 ms and 2.97 MB instead of 8.69 ms and 4.39 MB for
+separate requests; combined Fe SOC band-energy/Berry-curvature/spin evaluation
+takes 27.77 ms and 12.50 MB instead of 42.07 ms and 14.83 MB. Repeating with
+four Julia threads and BLAS pinned to one thread gives 5.38 versus 8.34 ms and
+33.02 versus 39.94 ms, respectively. The interpolation kernels are currently
+serial, so the threaded run is an oversubscription check rather than a claimed
+parallel speedup.
 
 ## Goals
 
@@ -759,7 +771,7 @@ source-data symmetry noise from interpolation error.
 - Hamiltonian-only interpolation is no slower than the Phase 0 implementation for
   representative path and dense-grid sizes.
 - Combined Berry-curvature/spin/band calculations materially reduce time and
-  allocations relative to invoking the old interpolators separately.
+  allocations relative to invoking the same observable recipes separately.
 - Benchmark both single-threaded and package-standard threaded execution, avoiding
   nested task/BLAS oversubscription.
 
@@ -779,10 +791,10 @@ source-data symmetry noise from interpolation error.
       batch size and that observable assembly accepts destination views.
 - [x] Existing physical quantities migrated.
 - [x] Wannier90 I/O migrated.
-- [ ] Old interpolation Interface deleted with no compatibility wrappers.
-- [ ] Focused and full test suites pass.
-- [ ] Documentation build passes.
-- [ ] Performance acceptance criteria recorded in benchmark output.
+- [x] Old interpolation Interface deleted with no compatibility wrappers.
+- [x] Focused and full test suites pass.
+- [x] Documentation build passes.
+- [x] Performance acceptance criteria recorded in benchmark output.
 
 Final verification:
 

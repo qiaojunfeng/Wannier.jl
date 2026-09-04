@@ -7,12 +7,12 @@ CurrentModule = Wannier
 =#
 
 #=
-In this tutorial, we will use Wananier interpolation to compute the band structure
+In this tutorial, we will use Wannier interpolation to compute the band structure
 of silicon valence + conduction bands. A bit different from previous tutorials, we will
 
 1. Construct a [`Model`](@ref) by reading the `win`, `mmn`, `eig`, and `chk` files
-2. Construct a [`TBHamiltonian`](@ref) from the `Model`
-3. Run [`HamiltonianInterpolator`](@ref) to compute band structure
+2. Construct an [`InterpolationModel`](@ref) from the `Model`
+3. Request [`BandEnergy`](@ref) through [`interpolate`](@ref)
 4. Read wannier90 interpolated `band.dat` and compare with our interpolated bands
 =#
 
@@ -32,21 +32,18 @@ model = read_w90_with_chk(dataset"Si2/Si2", dataset"Si2/outputs/Si2.chk")
 # and check the spread to make sure our `Model` is sensible
 spread(model)
 
-# Now construct a tight-binding Hamiltonian, the [`TBHamiltonian`](@ref) function
-# returns a [`TBOperator`](@ref) struct, which contains the ``\mathbf{R}``-space
-# Wannier Hamiltonian, ``H(\mathbf{R})``.
-H = TBHamiltonian(model)
+# Construct the persistent interpolation model. This transforms the Hamiltonian
+# into a compact real-space representation once; subsequent observable requests
+# reuse it.
+interpolation_model = InterpolationModel(model)
 
 #=
 !!! tip
 
-    To avoid a bloated `Model` that contains everything, and to
-    ["Do One Thing And Do It Well"](https://en.wikipedia.org/wiki/Unix_philosophy#Do_One_Thing_and_Do_It_Well),
-    we separate on purpose the `Model` that is solely for Wannierization, and
-    the `TBOperator`, that is only used for Wannier interpolation of
-    tight-binding operators.
-    This is also convenient for developers to focus on the the Wannierization or
-    interpolation algorithm without being distracted by one or the other.
+    `Model` stores the sampled quantities needed for Wannierization, whereas
+    `InterpolationModel` stores the resulting real-space operators. Additional
+    physical operators can be constructed on the same real-space domain and
+    evaluated together without changing either data model.
 
 ## Band-structure kpoint path
 
@@ -61,9 +58,9 @@ win = read_win(dataset"Si2/Si2.win")
 #
 # Then generate a `KPath` based on crystal structure and `kpoint_path` block:
 # `KSegment` holds the segment definitions, `KPath` samples the kpoints on them.
-# Passing `default_w90_kpath_num_points()` (=100) matches Wannier90's spacing.
+# Passing 100 points per segment matches Wannier90's default spacing.
 kseg = KSegment(reciprocal_lattice(win["unit_cell_cart"]), win["kpoint_path"])
-kpath = KPath(kseg, default_w90_kpath_num_points())
+kpath = KPath(kseg, 100)
 
 #=
 ### Auto generate kpath from lattice
@@ -72,25 +69,22 @@ Another approach is to auto-generate a kpath from the crystal structure
 stored in the `Model` (uses spacegroup symmetry via `Brillouin.jl` and `Spglib.jl`):
 =#
 using Spglib
-kpath_auto = KPath(KSegment(model), default_w90_kpath_num_points())
+import Brillouin
+kpath_auto = KPath(KSegment(model), 100)
 
 #=
 ## Band interpolation
 
-Computing band structure is very easy, we first construct a
-[`HamiltonianInterpolator`](@ref) from the Hamiltonian,
+Request the band energy at all points on the path:
 =#
-interp = HamiltonianInterpolator(H)
+result = interpolate(interpolation_model, collect(kpath), BandEnergy())
 
 #=
-the returned `interp` is a functor that accepts a vector of fractional kpoint
-coordinates and returns `(eigenvalues, eigenvectors)`.
-`collect(kpath)` materialises the `KPath` into that vector.
-The eigenvalues matrix has shape `n_bands × n_kpoints`; `eachcol` converts it
-to the `Vector{Vector{Float64}}` format expected by plotting and IO functions.
+The named result keeps k point as its final axis. Here `result.band_energy` has
+shape `n_bands × n_kpoints`; `eachcol` converts it to the
+`Vector{Vector{Float64}}` format expected by plotting and IO functions.
 =#
-E_mat, V = interp(collect(kpath))
-E = collect(eachcol(E_mat))
+E = collect.(eachcol(result.band_energy))
 
 #=
 ## Plotting band structure
@@ -113,13 +107,13 @@ i.e., written files are
 ### Visualization in the Julia world
 
 Instead of saving, you can also plot the band structure using the
-[`get_bandplot`](@ref) function, which is activated by loading any
+[`Wannier.get_bandplot`](@ref) function, which is activated by loading any
 Makie backend:
 =#
 using WGLMakie
 
 # then plot the band structure by
-fig, ax, plt = get_bandplot(kpath, E; fermi_energy = win["fermi_energy"])
+fig, ax, plt = Wannier.get_bandplot(kpath, E; fermi_energy = win["fermi_energy"])
 fig
 
 #=
@@ -136,9 +130,10 @@ kpath_w90, E_w90 = read_w90_band(dataset"Si2/outputs/MDRS/Si2", reciprocal_latti
     `(KPath, Vector{Vector{Float64}})` pair ready for plotting.
     Without it, the function returns verbose raw data.
 
-The two-argument form of [`get_bandplot`](@ref) overlays both band structures:
+The two-argument form of [`Wannier.get_bandplot`](@ref) overlays both band structures:
 =#
-fig, ax, plt = get_bandplot(kpath_w90, E_w90, E;
+fig, ax, plt = Wannier.get_bandplot(
+    kpath_w90, E_w90, E;
     kwargs1 = (label = "Wannier90",),
     kwargs2 = (label = "Wannier.jl", linestyle = :dash),
 )
@@ -147,7 +142,8 @@ fig
 # Finally, compare with DFT bands from the QE XML output
 using QuantumEspressoIO
 qe = QuantumEspressoIO.read_pw_xml(dataset"Si2/outputs/qe_bands.xml")
-fig, ax, plt = get_bandplot(kpath_w90, qe.eigenvalues, E;
+fig, ax, plt = Wannier.get_bandplot(
+    kpath_w90, qe.eigenvalues, E;
     kwargs1 = (label = "QE DFT",),
     kwargs2 = (label = "Wannier.jl", linestyle = :dash),
 )

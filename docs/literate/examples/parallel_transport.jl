@@ -167,16 +167,13 @@ kpath = Wannier.generate_kpath(
 kpi = Wannier.generate_w90_kpoint_path(kpath)
 
 model.gauges .= U;
-H = TBHamiltonian(model)
-interp = HamiltonianInterpolator(H)
-E = interp(kpi)[1]
+interpolation_model = InterpolationModel(model)
+E = interpolate(interpolation_model, kpi, BandEnergy()).band_energy
 
 # and top valence band,
 model_val.gauges .= U4;
-H_val = TBHamiltonian(model_val)
-interp_val = HamiltonianInterpolator(H_val)
-
-E_val = interp_val(kpi)[1]
+interpolation_model_val = InterpolationModel(model_val)
+E_val = interpolate(interpolation_model_val, kpi, BandEnergy()).band_energy
 # and plot the band structure
 P = plot_band_diff(kpi, E, E_val)
 Main.HTMLPlot(P, 500)  # hide
@@ -211,9 +208,8 @@ model_top.gauges .= U_top;
 U_top2 = localize(model_top)
 spread(model_top, U_top2)
 # and band interpolation
-H_top = TBHamiltonian(model_top)
-interp_top = HamiltonianInterpolator(H_top)
-E_top = interp_top(kpi)[1]
+interpolation_model_top = InterpolationModel(model_top)
+E_top = interpolate(interpolation_model_top, kpi, BandEnergy()).band_energy
 # and compare
 P = plot_band_diff(kpi, E, E_top)
 Main.HTMLPlot(P, 500)  # hide

@@ -1,5 +1,9 @@
 # Interpolation
 
+```@meta
+CurrentModule = Wannier
+```
+
 Wannier interpolation starts by constructing one persistent
 [`InterpolationModel`](@ref):
 
@@ -282,10 +286,6 @@ legs. Their centered polar-vector and rank-two-tensor coefficients are closed
 and projected jointly with the Hamiltonian before the conventional uncentered
 moments are restored.
 
-```@meta
-CurrentModule = Wannier
-```
-
 ## Public interface
 
 ```@autodocs
@@ -293,7 +293,6 @@ Modules = [Wannier]
 Pages = [
     "interpolation/types.jl",
     "io/w90/interpolation.jl",
-    "io/w90/tb.jl",
     "io/w90/hr.jl",
     "io/w90/spn.jl",
     "interpolation/planning.jl",
@@ -310,7 +309,6 @@ Pages = [
 
 ## Migration status
 
-The operator-specific `TBOperator` and interpolator types remain temporarily as
-reference paths while callers are migrated. All currently supported pointwise
-physical quantities are available through `InterpolationModel` and
-`interpolate`; new code should use this interface.
+The former operator-specific real-space containers and interpolator wrappers
+have been removed. All supported pointwise physical quantities use
+`InterpolationModel`, observable recipes, and `interpolate`.

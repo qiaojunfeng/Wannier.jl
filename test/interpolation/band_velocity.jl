@@ -19,12 +19,19 @@
     @test combined.band_energy == energy_only.band_energy
     @test combined.band_velocity == velocity_only.band_velocity
 
-    legacy_velocity = Wannier.VelocityInterpolator(TBHamiltonian(model))(kpoints)
-    for kpoint_index in eachindex(kpoints), band_index in 1:n_wannier(model)
+    reciprocal = reciprocal_lattice(model)
+    step = 1.0e-5
+    for cartesian_component in 1:3
+        direction = Vec3(inv(reciprocal)[:, cartesian_component])
+        forward_kpoints = map(kpoint -> kpoint + step * direction, kpoints)
+        backward_kpoints = map(kpoint -> kpoint - step * direction, kpoints)
+        forward = interpolate(interpolation_model, forward_kpoints, BandEnergy())
+        backward = interpolate(interpolation_model, backward_kpoints, BandEnergy())
+        finite_difference = (forward.band_energy - backward.band_energy) / (2step)
         @test isapprox(
-            combined.band_velocity[:, band_index, kpoint_index],
-            legacy_velocity[kpoint_index][band_index];
-            atol = 3.0e-14,
+            combined.band_velocity[cartesian_component, :, :],
+            finite_difference;
+            atol = 2.0e-8,
         )
     end
 

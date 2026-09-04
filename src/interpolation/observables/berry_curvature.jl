@@ -1,5 +1,36 @@
 export BerryCurvature, WYSV06, WYSV06BandResolved, LVTS12
 
+abstract type AbstractBerryCurvatureInterpolationAlgorithm end
+
+"""Wang--Yates--Souza--Vanderbilt occupied-manifold formulation."""
+struct WYSV06 <: AbstractBerryCurvatureInterpolationAlgorithm end
+
+"""Band-resolved Wang--Yates--Souza--Vanderbilt formulation."""
+struct WYSV06BandResolved <: AbstractBerryCurvatureInterpolationAlgorithm end
+
+"""Lopez--Vanderbilt--Thonhauser--Souza occupied-manifold formulation."""
+struct LVTS12 <: AbstractBerryCurvatureInterpolationAlgorithm end
+
+"""Convert a three-component axial vector to an antisymmetric Cartesian tensor."""
+function axialvector_to_antisymmetrictensor(vector::AbstractVector)
+    length(vector) == 3 || throw(DimensionMismatch("an axial vector must have length three"))
+    x, y, z = vector
+    return MMat3(
+        [
+            0 z -y
+            -z 0 x
+            y -x 0
+        ],
+    )
+end
+
+"""Convert a `3 × 3` antisymmetric Cartesian tensor to its axial vector."""
+function antisymmetrictensor_to_axialvector(tensor::AbstractMatrix)
+    size(tensor) == (3, 3) ||
+        throw(DimensionMismatch("an antisymmetric Cartesian tensor must be 3 × 3"))
+    return MVec3(tensor[2, 3], -tensor[1, 3], tensor[1, 2])
+end
+
 """
     BerryCurvature(fermi_energy; formulation = LVTS12(), degen_tol = 1e-4)
     BerryCurvature(; formulation = WYSV06BandResolved(), degen_tol = 1e-4)
@@ -379,22 +410,22 @@ function _occupied_berry_curvature!(
                 value +=
                     workspace.occupation_wannier[row, column] *
                     workspace.curvature_wannier[
-                        column, row, first_component, second_component,
-                    ]
+                    column, row, first_component, second_component,
+                ]
                 correction +=
                     connection_wannier[row, column, first_component] *
                     workspace.gauge_connection_plus[
-                        column, row, second_component,
-                    ] +
+                    column, row, second_component,
+                ] +
                     workspace.gauge_connection_minus[
-                        row, column, first_component,
-                    ] *
+                    row, column, first_component,
+                ] *
                     (
-                        connection_wannier[column, row, second_component] +
-                            workspace.gauge_connection[
-                                column, row, second_component,
-                            ]
-                    )
+                    connection_wannier[column, row, second_component] +
+                        workspace.gauge_connection[
+                        column, row, second_component,
+                    ]
+                )
             end
             destination[first_component, second_component, kpoint_index] =
                 real(value) - 2imag(correction)
@@ -417,10 +448,10 @@ function _assemble_observable!(
     observable.formulation isa WYSV06 &&
         return _occupied_berry_curvature!(
         destination, observable, intermediates, berry_workspace
-        )
+    )
     observable.formulation isa LVTS12 &&
         return _occupied_berry_curvature!(
-            destination, observable, intermediates, berry_workspace
-        )
+        destination, observable, intermediates, berry_workspace
+    )
     error("unsupported Berry-curvature formulation $(typeof(observable.formulation))")
 end

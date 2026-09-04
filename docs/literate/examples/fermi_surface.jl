@@ -84,7 +84,8 @@ qe_bands = QuantumEspressoIO.read_band_dat(dataset"Cu/outputs/qe_bands.dat");
 # Auto-generate kpath from Cu crystal structure (requires Spglib + Brillouin).
 # Cu.win only has a Monkhorst-Pack grid, no explicit kpoint_path block.
 using Spglib
-kpath = KPath(KSegment(model), default_w90_kpath_num_points())
+import Brillouin
+kpath = KPath(KSegment(model), 100)
 
 interpolation_model = InterpolationModel(model)
 
@@ -92,10 +93,11 @@ interpolation_model = InterpolationModel(model)
 E_mat = interpolate(
     interpolation_model, collect(kpath), BandEnergy()
 ).band_energy;
-E = collect(eachcol(E_mat))
+E = collect.(eachcol(E_mat))
 
 # plot band difference against QE reference
-fig, ax, plt = get_bandplot(kpath, qe_bands.eigenvalues, E;
+fig, ax, plt = Wannier.get_bandplot(
+    kpath, qe_bands.eigenvalues, E;
     kwargs1 = (label = "QE",),
     kwargs2 = (label = "Wannier.jl", linestyle = :dash),
     fermi_energy = εF,
@@ -106,7 +108,7 @@ fig
 ## Fermi surface
 
 Interpolate eigenvalues on a uniform ``30 \times 30 \times 30`` mesh.
-`Wannier.fermisurf` handles the endpoint convention (bxsf needs the last kpoint
+`Wannier.Tools.fermisurf` handles the endpoint convention (bxsf needs the last kpoint
 to be the periodic image of the first, so the actual grid is ``31^3``).
 =#
 Wannier.Tools.fermisurf(interpolation_model; nk = 30, ef = εF, outprefix = "Cu")
@@ -114,7 +116,7 @@ Wannier.Tools.fermisurf(interpolation_model; nk = 30, ef = εF, outprefix = "Cu"
 #=
 The output `Cu.bxsf` can be visualised with e.g. FermiSurfer or VESTA.
 =#
-bxsf = read_bxsf("Cu.bxsf")
+bxsf = WannierIO.read_bxsf("Cu.bxsf")
 
 #=
 !!! note
