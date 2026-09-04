@@ -105,6 +105,26 @@ function InterpolationModel(
 end
 
 """
+    BlochOperator(spn::WannierIO.Spn)
+
+Construct the Hermitian axial-vector, time-reversal-odd Bloch operator stored
+in a Wannier90 `spn` file. Its logical layout is
+`n_bands × n_bands × 3 × n_kpoints`.
+"""
+function BlochOperator(spn::WannierIO.Spn)
+    number_bands, _, number_kpoints = size(spn.Sx)
+    values = Array{eltype(spn.Sx)}(
+        undef, number_bands, number_bands, 3, number_kpoints
+    )
+    view(values, :, :, 1, :) .= spn.Sx
+    view(values, :, :, 2, :) .= spn.Sy
+    view(values, :, :, 3, :) .= spn.Sz
+    return BlochOperator(
+        values; law = AxialVector(time_reversal = Odd()), hermitian = true
+    )
+end
+
+"""
     InterpolationModel(tbdat; fractional_centers, wsvec=nothing,
                        atom_positions=[], atom_labels=[])
 

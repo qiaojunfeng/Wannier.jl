@@ -131,11 +131,41 @@ interpolation_model = InterpolationModel(
 )
 ```
 
+Wannier90 spin matrices have a direct adapter:
+
+```julia
+spin = BlochOperator(read_spn(prefix * ".spn"))
+```
+
 Full input matrices have layout
 `n_bands × n_bands × component_shape... × n_kpoints`. A diagonal scalar
 operator may instead use `n_bands × n_kpoints`. The operator law and Hermiticity
 are explicit so symmetry closure can apply the correct transformation to
 every matrix and physical-component index.
+
+The spin primitive is consumed by [`SpinExpectation`](@ref). Without an axis,
+the result has shape `3 × n_wannier × n_kpoints`; supplying a Cartesian axis
+returns its projection with shape `n_wannier × n_kpoints`:
+
+```julia
+result = interpolate(
+    interpolation_model,
+    kpoints,
+    (
+        BandEnergy(),
+        SpinExpectation(),
+    ),
+)
+
+spin_z = interpolate(
+    interpolation_model,
+    kpoints,
+    SpinExpectation([0, 0, 1]),
+)
+```
+
+Both requests reuse the Hamiltonian eigensystem. Spin values inherit the units
+of the primitive operator and are dimensionless for Wannier90 `spn` data.
 
 ```@meta
 CurrentModule = Wannier
@@ -151,6 +181,7 @@ Pages = [
     "interpolation/planning.jl",
     "interpolation/observables/band_energy.jl",
     "interpolation/observables/band_velocity.jl",
+    "interpolation/observables/spin_expectation.jl",
     "interpolation/workflows/band_structure.jl",
 ]
 ```

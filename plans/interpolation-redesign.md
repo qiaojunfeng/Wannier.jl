@@ -67,6 +67,13 @@ The symmetry-closed Si2 Hamiltonian also recovers its two cubic triplets at
 Gamma to `1e-14`, closing the Phase 3 exit criterion. The planned graphene
 dataset remains a separate end-to-end interpolation demonstration.
 
+Phase 4 has started with `SpinExpectation`. The planner now evaluates arbitrary
+required primitive operators on its shared phase block, while band energy,
+velocity, and spin expectation reuse one Hamiltonian eigensystem. A direct
+`BlochOperator(::WannierIO.Spn)` adapter supplies the axial, time-reversal-odd
+spin primitive; full Cartesian expectations and normalized-axis projections
+match the existing Fe SOC/postw90 references.
+
 Phase 0 numerical references are covered by the existing interpolation tests
 and benchmark entry point; finer per-stage timing remains to be recorded. The
 next implementation step is the Phase 4 observable migration, beginning with

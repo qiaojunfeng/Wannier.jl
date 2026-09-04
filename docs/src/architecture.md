@@ -107,6 +107,9 @@ implementation writes into views whose final axis is the current k-point
 batch; only the public result arrays scale with the complete request. Adding an
 observable therefore extends the recipe interface without adding fields to
 `InterpolationModel` or creating another observable-specific interpolator.
+For example, `BandEnergy`, `BandVelocity`, and `SpinExpectation` share the
+Hamiltonian eigensystem; the spin recipe alone adds evaluation of the `:spin`
+primitive on the already-computed Fourier phase block.
 
 When symmetry is supplied, [`WannierSymmetry`](@ref Wannier.WannierSymmetry)
 is the shared basis-level object: it owns space-group operations, prescribed

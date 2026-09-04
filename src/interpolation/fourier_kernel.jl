@@ -5,6 +5,7 @@ function _interpolation_batch_size(
         model::InterpolationModel,
         number_kpoints::Integer;
         hamiltonian_derivative_order::Integer = 0,
+        operator_names::Tuple = (:hamiltonian,),
     )
     number_kpoints > 0 || return 0
     T = eltype(model.operators.hamiltonian.coefficients)
@@ -13,6 +14,11 @@ function _interpolation_batch_size(
     number_complex_values = number_vectors + 2number_wannier^2
     if hamiltonian_derivative_order >= 1
         number_complex_values += number_vectors + 3number_wannier^2
+    end
+    for operator_name in operator_names
+        operator_name == :hamiltonian && continue
+        operator = getproperty(model.operators, operator_name)
+        number_complex_values += prod(size(operator.coefficients)[1:(end - 1)])
     end
     bytes_per_kpoint = sizeof(T) * number_complex_values
     memory_limited = max(1, _DEFAULT_INTERPOLATION_MEMORY ÷ max(1, bytes_per_kpoint))

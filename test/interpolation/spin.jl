@@ -31,4 +31,45 @@
 
     Sz = interp(kpoints)
     @test all(isapprox.(Sz, ref_dat.extras; atol = 5.0e-5))
+
+    model = read_w90_with_chk(
+        dataset"Fe_soc_coarse/Fe", dataset"Fe_soc_coarse/outputs/Fe.chk"
+    )
+    spin_operator = BlochOperator(read_spn(dataset"Fe_soc_coarse/Fe.spn"))
+    interpolation_model = InterpolationModel(
+        model;
+        operators = (; spin = spin_operator),
+        real_space = MinimumDistance(),
+    )
+    combined = interpolate(
+        interpolation_model,
+        kpoints,
+        (BandEnergy(), SpinExpectation([0.0, 0.0, 1.0]; truncate = true)),
+    )
+    plan = Wannier._plan_interpolation(
+        interpolation_model,
+        (BandEnergy(), SpinExpectation([0.0, 0.0, 1.0])),
+        length(kpoints),
+    )
+    workspace = Wannier._allocate_interpolation_workspace(plan)
+    @test plan.primitive_operators == (:hamiltonian, :spin)
+    @test keys(workspace.primitive_values) == (:spin,)
+    @test all(
+        norm(view(combined.band_energy, :, index) - ref_dat.eigenvalues[index]) < 2.0e-6
+            for index in axes(combined.band_energy, 2)
+    )
+    @test all(isapprox.(eachcol(combined.spin_expectation), ref_dat.extras; atol = 5.0e-5))
+
+    components = interpolate(interpolation_model, kpoints, SpinExpectation())
+    projected = interpolate(
+        interpolation_model, kpoints, SpinExpectation([0.0, 0.0, 1.0])
+    )
+    @test view(components.spin_expectation, 3, :, :) ≈ projected.spin_expectation
+
+    separate = interpolate(
+        interpolation_model, kpoints, SpinExpectation([0.0, 0.0, 1.0]; truncate = true)
+    )
+    @test separate.spin_expectation == combined.spin_expectation
+    @test_throws ArgumentError SpinExpectation([0.0, 0.0])
+    @test_throws ArgumentError SpinExpectation(zeros(3))
 end
