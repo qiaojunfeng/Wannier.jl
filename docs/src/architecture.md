@@ -322,7 +322,14 @@ the parameterization and constraint handling:
 [`SymmetricXYLayout`](@ref Wannier.SymmetricXYLayout) assembles through the
 covariance projector (and pulls the gradient back through its adjoint), while
 [`SchurLayout`](@ref Wannier.SchurLayout) parameterizes the covariant gauges exactly by their
-per-irrep Schur blocks — fewer real parameters, no projector calls. Because
+per-irrep Schur blocks — fewer real parameters, no projector calls.
+Its setup extracts irrep copies using a random Hermitian commutant, but
+matches them deterministically: character inner products identify equivalent
+copies and an SVD solves their intertwining equations. Numerical residuals
+are checked against representation accuracy. Failed magnetic-corepresentation
+classification raises an error with the IBZ point and class indices; the
+solver does not fall back to a linear average, which could violate
+semiunitarity and frozen-state inclusion. Because
 these axes are separate, either layout can use either evaluation:
 
 ```julia

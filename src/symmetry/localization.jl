@@ -942,9 +942,9 @@ end
 # The flat parameter vector `x` is therefore REAL: unconstrained blocks
 # store re/im pairs, real-type blocks store real entries, quaternionic
 # blocks store the (a, b) components of q = [a b; -conj(b) conj(a)].
-# Anti-unitary covariance is exact by construction wherever the numerical
-# classification succeeds; on any failure a class falls back to the soft
-# 2-term coset average `_aavg` during gauge assembly.
+# Anti-unitary covariance is encoded in the classified blocks. Failed
+# classification is an error: linear averaging would violate the nonlinear
+# semiunitarity and frozen-subspace constraints.
 # -----------------------------------------------------------------------------
 
 using Random: MersenneTwister, randn!
@@ -953,8 +953,8 @@ using Random: MersenneTwister, randn!
 How a Schur block carries the anti-unitary part of the little group
 (assigned by `_classify_aop`):
 
-- `ANTIUNITARY_NONE`: not classified; gauge assembly falls back to the soft
-  2-term coset average `_aavg`.
+- `ANTIUNITARY_NONE`: purely unitary little group, or an unclassified
+  intermediate block (rejected for magnetic little groups).
 - `ANTIUNITARY_PAIRING_SOURCE`: pairing source — the block keeps its free
   parameters and its partner class is derived from them.
 - `ANTIUNITARY_PAIRING_DERIVED`: pairing derived — no parameters of its own
@@ -990,21 +990,12 @@ SchurBlock{T}(dim, mb, mo, mf, Bb, Bo) where {T} =
     SchurBlock{T}(dim, mb, mo, mf, Bb, Bo, ANTIUNITARY_NONE, 0)
 
 """
-Schur-adapted bases for all IBZ kpoints, plus the anti-unitary coset
-representative (band rep, orbital matrix) where the little group is magnetic
-and some class needs the soft coset-average fallback. `nx` counts REAL
-parameters (see `_block_nparams`).
+Schur-adapted bases for all IBZ kpoints. Every magnetic block must have a
+verified corepresentation classification. `nx` counts REAL parameters
+(see `_block_nparams`).
 """
 struct SchurBasis{T}
     blocks::Vector{Vector{SchurBlock{T}}}
-    # `aop` = â₀, the anti-unitary coset representative of the magnetic little
-    # group G_ki = H_ki ⊔ â₀ H_ki (H_ki the unitary halving subgroup), stored
-    # per IBZ kpoint as the pair (band rep d_a, orbital matrix A_a) whose
-    # action is ρ(â₀)[U] = d_a · conj(U A_a) — the notation of the
-    # corepresentation block above and of `unfold/ibz_variational_sawf.tex`.
-    # `nothing` where the little group is non-magnetic or every class was
-    # classified exactly (no soft coset average needed).
-    aop::Vector{Union{Nothing, Tuple{Matrix{Complex{T}}, Matrix{Complex{T}}}}}
     nx::Int
 end
 
@@ -1056,18 +1047,50 @@ function _irrep_copies(ρs::Vector{Matrix{CT}}, rng; max_attempts = 8) where {CT
     error("failed to separate irreducible copies after $max_attempts commutant draws")
 end
 
-# Schur intertwiner test/alignment: S = mean(ρQ Z ρref†). Returns the unitary
-# aligner (Q ← Q·u makes ρQ ≡ ρref) or nothing if inequivalent.
-function _align_to(ρQ::Vector{Matrix{CT}}, ρref::Vector{Matrix{CT}}, Z) where {CT}
-    d = size(Z, 1)
-    (size(ρQ[1], 1) == d && size(ρref[1], 1) == d) || return nothing
-    S = zeros(CT, d, d)
-    for (a, b) in zip(ρQ, ρref)
-        S .+= a * Z * b'
+# SM, "Constructing the adapted bases": character orthogonality decides
+# equivalence; the one-dimensional nullspace of a*S - S*b gives the aligner.
+# Both irreps must use the same ordered group and projective factor system.
+# `rtol` measures representation noise, not the size of a random probe.
+function _align_to(
+        ρQ::Vector{Matrix{CT}}, ρref::Vector{Matrix{CT}}; rtol::Real = 1.0e-3
+    ) where {CT}
+    0 < rtol < 0.5 || throw(ArgumentError("irrep alignment requires 0 < rtol < 0.5"))
+    isempty(ρQ) && throw(ArgumentError("cannot align an empty representation"))
+    length(ρQ) == length(ρref) || throw(DimensionMismatch("representation group sizes differ"))
+    d = size(ρQ[1], 1)
+    size(ρref[1], 1) == d || return nothing
+    for ρ in (ρQ, ρref)
+        abs(_character_norm(ρ) - 1) <= rtol ||
+            error("irrep character norm is inconsistent with irreducibility; check representation accuracy")
     end
-    S ./= length(ρQ)
-    norm(S) < 1.0e-2 * norm(Z) && return nothing
-    return lowdin_orthonormalize(S)
+    c = sum(conj(tr(a)) * tr(b) for (a, b) in zip(ρQ, ρref)) / length(ρQ)
+    abs(c) <= rtol && return nothing
+    abs(c - 1) <= rtol ||
+        error("ambiguous irrep character overlap $c; check representation accuracy")
+
+    # Column-major vec(a*S - S*b) = (I ⊗ a - transpose(b) ⊗ I) vec(S).
+    # Dividing by sqrt(2|H|) gives exact singular values 0 (once) and 1
+    # for equivalent unitary irreps, providing a fixed residual scale.
+    identity = Matrix{CT}(I, d, d)
+    L = reduce(
+        vcat, [
+            kron(identity, a) - kron(transpose(b), identity) for (a, b) in zip(ρQ, ρref)
+        ]
+    ) / sqrt(2 * length(ρQ))
+    F = svd(L)
+    last(F.S) <= rtol ||
+        error("equivalent characters but no accurate intertwiner; residual $(last(F.S))")
+    (d == 1 || F.S[end - 1] > rtol) ||
+        error("intertwiner nullspace is not one-dimensional; check irrep decomposition")
+    S = reshape(F.V[:, end], d, d)
+    # For an irreducible pair, a unit-Frobenius-norm intertwiner obeys
+    # S†S = I/d. Reject a spurious or rank-deficient null vector before polar.
+    norm(d * S' * S - I) / sqrt(d) <= rtol ||
+        error("intertwiner is not proportional to a unitary; check representation accuracy")
+    u = lowdin_orthonormalize(S)
+    residual = maximum(norm(a * u - u * b) for (a, b) in zip(ρQ, ρref)) / sqrt(d)
+    residual <= rtol || error("irrep alignment residual $residual exceeds tolerance $rtol")
+    return u
 end
 
 # Kronecker factors of an irrep-class intertwiner T ≈ kron(R, S), with R
@@ -1204,8 +1227,8 @@ end
 # constraint conj(C̃) = J_b C̃ J_o† (`ANTIUNITARY_WIGNER_QUATERNIONIC`).
 #
 # Every derived identity is verified numerically (tolerance `rtol`, loose
-# enough for noisy isym data); on any failure the classes fall back to
-# `ANTIUNITARY_NONE` (soft coset average).
+# enough for noisy isym data); failures leave `ANTIUNITARY_NONE`, which
+# the Schur-basis constructor rejects before optimization.
 function _classify_aop(
         blks::Vector{SchurBlock{T}}, da::Matrix{Complex{T}},
         Aa::Matrix{Complex{T}}, rng; rtol = 1.0e-3,
@@ -1352,23 +1375,25 @@ Build the Schur-adapted bases for every IBZ kpoint. `frozen_ibz` is the
 frozen-band mask at the IBZ kpoints. Errors when the frozen window cuts a
 degenerate multiplet (the frozen subspace must be little-group invariant) or
 when the feasibility counts `m_f ≤ m_o ≤ m_b` fail for some irrep.
+The relative tolerance `rtol` controls the character, normalized intertwiner,
+and corepresentation checks for numerical representation data (default
+`1e-3`). Irrep matching uses characters and SVD, not random probes. Failed
+magnetic classification or omitted frozen states cause an error; no coset
+average is applied to the assembled gauge.
 """
 function schur_basis(
-        sc::SymmetryConstraint{T}, frozen_ibz::AbstractMatrix{Bool}
+        sc::SymmetryConstraint{T}, frozen_ibz::AbstractMatrix{Bool}; rtol::Real = 1.0e-3
     ) where {T}
     CT = Complex{T}
     rng = MersenneTwister(20260819)
     arng = MersenneTwister(20260820)   # separate stream: keep `rng` draws stable
     nb, nw = sc.nbands, sc.nwann
     blocks = Vector{Vector{SchurBlock{T}}}(undef, sc.nk_ibz)
-    aop = Vector{Union{Nothing, Tuple{Matrix{CT}, Matrix{CT}}}}(undef, sc.nk_ibz)
 
     for iki in 1:sc.nk_ibz
         entries = sc.projector[iki]
         uidx = findall(e -> !e[3], entries)
         aidx = findall(e -> e[3], entries)
-        aop[iki] = isempty(aidx) ? nothing :
-            (Matrix(entries[aidx[1]][1]), Matrix(entries[aidx[1]][2]))
 
         # orbital representation W(ĥ) = A(ĥ)†
         Wo = [Matrix(entries[i][2])' for i in uidx]
@@ -1390,7 +1415,7 @@ function schur_basis(
         for (Q, ρQ) in ocopies
             matched = false
             for cl in classes
-                u = _align_to(ρQ, cl[1], randn(rng, CT, size(Q, 2), size(Q, 2)))
+                u = _align_to(ρQ, cl[1]; rtol)
                 if u !== nothing
                     push!(cl[2], Q * u)
                     matched = true
@@ -1408,7 +1433,7 @@ function schur_basis(
                 Q = zeros(CT, nb, size(Qs, 2))
                 Q[idx, :] .= Qs
                 for (ci, cl) in enumerate(classes)
-                    u = _align_to(ρQ, cl[1], randn(rng, CT, size(Qs, 2), size(Qs, 2)))
+                    u = _align_to(ρQ, cl[1]; rtol)
                     if u !== nothing
                         if is_froz
                             insert!(cl[3], cl[4] + 1, Q * u)
@@ -1436,16 +1461,23 @@ function schur_basis(
             Bb = [hcat((Q[:, j] for Q in Qbs)...) for j in 1:dλ]
             push!(blks, SchurBlock{T}(dλ, mb, mo, mf, Bb, Bo))
         end
-        if aop[iki] !== nothing
-            blks = _classify_aop(blks, aop[iki][1], aop[iki][2], arng)
-            # drop the soft coset average where every class is exact
-            all(b.akind != ANTIUNITARY_NONE for b in blks) && (aop[iki] = nothing)
+        sum(b.dim * b.mf for b in blks) == count(frozen_ibz[:, iki]) ||
+            error("Schur basis omits frozen states at IBZ kpoint $iki; check symmetry compatibility")
+        if !isempty(aidx)
+            da, Aa, _ = entries[first(aidx)]
+            blks = _classify_aop(blks, Matrix(da), Matrix(Aa), arng; rtol)
+            failed = findall(b -> b.akind == ANTIUNITARY_NONE, blks)
+            isempty(failed) || error(
+                "corepresentation classification failed at IBZ kpoint $iki for classes $failed; " *
+                    "check representation accuracy and antiunitary closure. " *
+                    "Schur parameterization cannot use a coset average without violating gauge constraints"
+            )
         end
         blocks[iki] = blks
     end
 
     nx = sum(sum(_block_nparams(blk)) for blks in blocks for blk in blks)
-    return SchurBasis{T}(blocks, aop, nx)
+    return SchurBasis{T}(blocks, nx)
 end
 
 # REAL parameter counts (nX, nY) of a block: complex entries as re/im pairs
@@ -1516,12 +1548,6 @@ end
 _schur_getX(x, blk, rX) = _schur_getM(x, blk, rX, blk.mo, blk.mo)
 _schur_getY(x, blk, rY) = _schur_getM(x, blk, rY, blk.mb - blk.mf, blk.mo - blk.mf)
 
-# anti-unitary coset average and its real-inner-product adjoint
-_aavg(U, ::Nothing) = U
-_aavg(U, da_Aa) = (U .+ da_Aa[1] * conj.(U * da_Aa[2])) ./ 2
-_aavg_adj(G, ::Nothing) = G
-_aavg_adj(G, da_Aa) = (G .+ transpose(da_Aa[1]) * conj.(G) * da_Aa[2]') ./ 2
-
 """
     $(SIGNATURES)
 
@@ -1546,9 +1572,6 @@ function assemble_gauge!(
             end
         end
     end
-    for iki in axes(U_ibz, 3)
-        view(U_ibz, :, :, iki) .= _aavg(U_ibz[:, :, iki], sb.aop[iki])
-    end
     return U_ibz
 end
 
@@ -1562,19 +1585,18 @@ function pullback_gradient!(
         g::AbstractVector{<:Real}, G_ibz::AbstractArray{<:Complex, 3},
         x::AbstractVector{<:Real}, sb::SchurBasis,
     )
-    Ga = [_aavg_adj(G_ibz[:, :, iki], sb.aop[iki]) for iki in axes(G_ibz, 3)]
     for (iki, blk, rX, rY) in _schur_ranges(sb)
         X = _schur_getX(x, blk, rX)
         Y = _schur_getY(x, blk, rY)
         GC = zeros(eltype(G_ibz), blk.mb, blk.mo)
         for j in 1:blk.dim
-            mul!(GC, blk.Bb[j]', Ga[iki] * blk.Bo[j], true, true)
+            mul!(GC, blk.Bb[j]', view(G_ibz, :, :, iki) * blk.Bo[j], true, true)
         end
         if blk.akind == ANTIUNITARY_PAIRING_SOURCE
             pb = sb.blocks[iki][blk.partner]
             GCp = zeros(eltype(G_ibz), blk.mb, blk.mo)
             for j in 1:pb.dim
-                mul!(GCp, pb.Bb[j]', Ga[iki] * pb.Bo[j], true, true)
+                mul!(GCp, pb.Bb[j]', view(G_ibz, :, :, iki) * pb.Bo[j], true, true)
             end
             GC .+= conj.(GCp)
         end

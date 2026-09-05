@@ -216,6 +216,9 @@ of per-(IBZ kpoint, irrep class) Schur block parameters (see
 [`schur_basis`](@ref)). Fewer parameters than [`SymmetricXYLayout`](@ref), no
 projector calls, and exact little-group covariance (including anti-unitary
 elements) by construction; optimized on the [`SchurManifold`](@ref).
+Irrep matching is deterministic. Inconsistent representation data or failed
+magnetic-corepresentation classification raise an error during setup; no
+linear-averaging fallback is used to bypass the gauge constraints.
 """
 struct SchurLayout <: Layout end
 

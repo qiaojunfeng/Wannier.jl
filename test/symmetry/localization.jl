@@ -401,9 +401,13 @@ end
     Ud = zeros(ComplexF64, sc.nbands, sc.nwann, sc.nk_ibz)
     Wannier.assemble_gauge!(Ud, x0, sb)
     @test Wannier.covariance_residual(Ud, sc) < 1.0e-3
-    # semi-unitarity of the assembly is limited by the isym data noise through
-    # the anti-unitary coset average (1.9e-12 on the clean Ge4Ru4 data)
-    @test maximum(opnorm(Ud[:, :, k]'Ud[:, :, k] - I) for k in 1:sc.nk_ibz) < 1.0e-5
+    # Representation noise limits covariance, but cannot authorize a linear
+    # average that leaves the semiunitary/frozen manifold.
+    @test maximum(opnorm(Ud[:, :, k]'Ud[:, :, k] - I) for k in 1:sc.nk_ibz) < 1.0e-9
+    for k in 1:sc.nk_ibz
+        Uf = Ud[frozen_ibz[:, k], :, k]
+        @test norm(Uf * Uf' - I) < 1.0e-9
+    end
 
     mmn_i = read_mmn(dataset"Si2_hse/Si2.immn")
     ws2 = Wannier.SymmetricTransportWorkspace(Ef, frozen, sc)
@@ -427,6 +431,14 @@ end
         an = real(sum(conj.(g) .* dx))
         @test isapprox(fd, an; rtol = 1.0e-3)
     end
+
+    # A broken antiunitary action must fail at construction, not silently
+    # enable a coset average that invalidates the gauge constraints.
+    iki = findfirst(entries -> any(e -> e[3], entries), sc.projector)
+    for (d, _, trev) in sc.projector[iki]
+        trev && (d .*= 0.5)
+    end
+    @test_throws r"corepresentation classification failed at IBZ kpoint" Wannier.schur_basis(sc, frozen_ibz)
 end
 
 @testitem "irrep-copy decomposition retries accidental eigenvalue collisions" begin
@@ -437,6 +449,60 @@ end
     copies = Wannier._irrep_copies(representation, MersenneTwister(2370))
     @test length(copies) == dim
     @test all(size(Q, 2) == 1 for (Q, _) in copies)
+end
+
+@testitem "irrep alignment does not discard an equivalent copy with zero probe overlap" begin
+    using LinearAlgebra
+
+    # Projective two-dimensional irrep of the four-element Pauli quotient.
+    # Its commutant consists of scalar matrices: a traceless probe projects
+    # to zero even when matching the representation to itself.
+    identity = Matrix{ComplexF64}(I, 2, 2)
+    x = ComplexF64[0 1; 1 0]
+    z = ComplexF64[1 0; 0 -1]
+    representation = [identity, x, z, x * z]
+    u = Wannier._align_to(representation, representation)
+    @test u !== nothing
+    if u !== nothing
+        @test u' * u ≈ identity
+        @test all(a * u ≈ u * a for a in representation)
+    end
+end
+
+@testitem "deterministic irrep alignment and noisy representation diagnostics" begin
+    using LinearAlgebra
+
+    identity = Matrix{ComplexF64}(I, 2, 2)
+    x = ComplexF64[0 1; 1 0]
+    z = ComplexF64[1 0; 0 -1]
+    reference = [identity, x, z, x * z]
+    v = ComplexF64[1 im; im 1] / sqrt(2)
+    rotated = [v * a * v' for a in reference]
+    u = Wannier._align_to(rotated, reference)
+    @test u !== nothing
+    @test norm(u' * u - I) < 1.0e-12
+    @test all(norm(a * u - u * b) < 1.0e-12 for (a, b) in zip(rotated, reference))
+    # Same input has no RNG dependence; one arbitrary common phase is allowed.
+    @test Wannier._align_to(rotated, reference) ≈ u
+
+    trivial = [ones(ComplexF64, 1, 1), ones(ComplexF64, 1, 1)]
+    odd = [ones(ComplexF64, 1, 1), -ones(ComplexF64, 1, 1)]
+    @test Wannier._align_to(trivial, odd) === nothing
+    @test abs(only(Wannier._align_to(trivial, trivial))) ≈ 1
+    @test Wannier._align_to(reference, repeat(trivial, 2)) === nothing
+    @test_throws DimensionMismatch Wannier._align_to(reference, reference[1:2])
+
+    noisy = copy(rotated)
+    noisy[2] = cis(1.0e-6) * noisy[2]
+    un = Wannier._align_to(noisy, reference; rtol = 1.0e-4)
+    @test norm(un' * un - I) < 1.0e-12
+    @test all(norm(a * un - un * b) < 1.0e-4 for (a, b) in zip(noisy, reference))
+
+    # Characters alone do not certify inconsistent/noisy input matrices.
+    broken = copy(rotated)
+    broken[2] = cis(0.1) * broken[2]
+    @test_throws r"no accurate intertwiner" Wannier._align_to(broken, reference)
+    @test_throws r"irreducibility" Wannier._align_to([identity], [identity])
 end
 
 @testitem "energy masking and breaking force" begin
