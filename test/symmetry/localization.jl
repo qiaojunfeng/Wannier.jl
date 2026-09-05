@@ -429,6 +429,16 @@ end
     end
 end
 
+@testitem "irrep-copy decomposition retries accidental eigenvalue collisions" begin
+    using LinearAlgebra, Random
+
+    dim = 56
+    representation = [Matrix{ComplexF64}(I, dim, dim)]
+    copies = Wannier._irrep_copies(representation, MersenneTwister(2370))
+    @test length(copies) == dim
+    @test all(size(Q, 2) == 1 for (Q, _) in copies)
+end
+
 @testitem "energy masking and breaking force" begin
     using WannierIO, LinearAlgebra
     using Wannier.Datasets

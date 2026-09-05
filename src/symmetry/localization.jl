@@ -1023,25 +1023,37 @@ function _cluster(E::AbstractVector{<:Real}; rtol = 1.0e-4)
     return groups
 end
 
-# irrep copies of the unitary representation ρs (list of dim×dim matrices):
-# eigenspaces of a generic commutant element. Returns (Q, ρQ) pairs.
-function _irrep_copies(ρs::Vector{Matrix{CT}}, rng) where {CT}
+# One for an irreducible representation; an integer greater than one for a
+# reducible sum (character orthogonality, allowing for noisy input matrices).
+function _character_norm(ρs)
+    return sum(abs2(tr(ρ)) for ρ in ρs) / length(ρs)
+end
+
+# Irrep copies of the unitary representation ρs (list of dim×dim matrices):
+# eigenspaces of a generic commutant element. A rare accidental collision of
+# distinct commutant eigenvalues can merge copies, so validate the resulting
+# blocks by character orthogonality and redraw in that case.
+function _irrep_copies(ρs::Vector{Matrix{CT}}, rng; max_attempts = 8) where {CT}
     dim = size(ρs[1], 1)
-    H = randn(rng, CT, dim, dim)
-    H = Matrix(Hermitian(H + H'))
-    Hc = zeros(CT, dim, dim)
-    for ρ in ρs
-        Hc .+= ρ * H * ρ'
+    for _ in 1:max_attempts
+        H = randn(rng, CT, dim, dim)
+        H = Matrix(Hermitian(H + H'))
+        Hc = zeros(CT, dim, dim)
+        for ρ in ρs
+            Hc .+= ρ * H * ρ'
+        end
+        Hc ./= length(ρs)
+        E, V = eigen(Hermitian((Hc + Hc') / 2))
+        copies = Tuple{Matrix{CT}, Vector{Matrix{CT}}}[]
+        for g in _cluster(E)
+            Q = V[:, g]
+            ρQ = [Q' * ρ * Q for ρ in ρs]
+            push!(copies, (Q, ρQ))
+        end
+        all(abs(_character_norm(ρQ) - 1) < 0.25 for (_, ρQ) in copies) &&
+            return copies
     end
-    Hc ./= length(ρs)
-    E, V = eigen(Hermitian((Hc + Hc') / 2))
-    copies = Tuple{Matrix{CT}, Vector{Matrix{CT}}}[]
-    for g in _cluster(E)
-        Q = V[:, g]
-        ρQ = [Q' * ρ * Q for ρ in ρs]
-        push!(copies, (Q, ρQ))
-    end
-    return copies
+    error("failed to separate irreducible copies after $max_attempts commutant draws")
 end
 
 # Schur intertwiner test/alignment: S = mean(ρQ Z ρref†). Returns the unitary
