@@ -32,5 +32,5 @@ Pages   = ["src/model.jl"]  # explicitly add "src/" to avoid matching InterpMode
 
 ```@autodocs
 Modules = [Wannier]
-Pages   = ["spread.jl"]
+Pages   = ["spread.jl", "spread_stengel_spaldin.jl"]
 ```

@@ -1,6 +1,6 @@
 using Optim: Optim
 
-export max_localize
+export max_localize, spread_penalty
 
 """
     get_fg!_maxloc(model::Model)
@@ -98,4 +98,34 @@ function max_localize(
     return Umin_vec
 end
 
-max_localize(model::Model; kwargs...) = max_localize(SpreadPenalty(), model; kwargs...)
+"""
+    $(SIGNATURES)
+
+Maximally localize a [`Model`](@ref) with the chosen spread functional.
+
+# Keyword arguments
+- `functional`: `:MarzariVanderbilt` (default) or `:StengelSpaldin`. See
+    [`Spread`](@ref) and [`StengelSpaldinPenalty`](@ref). Both converge to the
+    same result on a fine enough kpoint grid, but only Stengel-Spaldin is size
+    consistent.
+- others: see [`max_localize`](@ref)
+"""
+function max_localize(
+        model::Model; functional::Symbol = :MarzariVanderbilt, kwargs...
+    )
+    return max_localize(spread_penalty(functional, model), model; kwargs...)
+end
+
+"""
+    $(SIGNATURES)
+
+The penalty implementing the spread functional named by `functional`.
+"""
+function spread_penalty(functional::Symbol, model::Model)
+    functional === :MarzariVanderbilt && return SpreadPenalty()
+    functional === :StengelSpaldin && return StengelSpaldinPenalty(model)
+    return error(
+        "unknown spread functional $(repr(functional)), " *
+        "expected :MarzariVanderbilt or :StengelSpaldin"
+    )
+end

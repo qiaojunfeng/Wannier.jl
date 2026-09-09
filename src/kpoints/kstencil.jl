@@ -608,20 +608,31 @@ Get the index of b vector.
 - `kpb_G`
 - `ik`
 - `b`: fractional coordinates
+
+# Keyword Arguments
+- `atol`: tolerance to compare fractional coordinates. The `k+b` vectors are
+    reconstructed from `kpoints`, whose coordinates carry only the precision of
+    the file they were read from, so the same `b` can differ between kpoints by
+    much more than `isapprox`'s default relative tolerance.
 """
 function index_bvector(
         kpoints::AbstractVector,
         kpb_k::AbstractVector,
         kpb_G::AbstractVector,
         ik::Integer,
-        b::AbstractVector,
+        b::AbstractVector;
+        atol = 1.0e-6,
     )
     bvecs = get_bvectors(kpoints, kpb_k, kpb_G, ik)
-    return findfirst(isapprox(b), bvecs)
+    return findfirst(x -> isapprox(x, b; atol), bvecs)
 end
 
-function index_bvector(kstencil::KspaceStencil, ik::Integer, b::AbstractVector)
-    return index_bvector(kstencil.kpoints, kstencil.kpb_k, kstencil.kpb_G, ik, b)
+function index_bvector(
+        kstencil::KspaceStencil, ik::Integer, b::AbstractVector; kwargs...
+    )
+    return index_bvector(
+        kstencil.kpoints, kstencil.kpb_k, kstencil.kpb_G, ik, b; kwargs...
+    )
 end
 
 function generate_kspace_stencil(
