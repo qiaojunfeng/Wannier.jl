@@ -26,6 +26,8 @@ From MV:
 - `Ω̃`: Ω̃ = ΩOD + ΩD, unit Å²
 - `ω`: Ω of each WF, unit Å², `length(ω) = n_wann`
 - `r`: WF center, Cartesian coordinates, unit Å, `3 * n_wann`
+- `method`: which spread functional produced it, `:MarzariVanderbilt` or
+    `:StengelSpaldin`
 """
 struct Spread{T <: Real} <: AbstractSpread
     # Total spread, unit Å², Ω = ΩI + Ω̃
@@ -48,6 +50,9 @@ struct Spread{T <: Real} <: AbstractSpread
 
     # WF center, Cartesian! coordinates, unit Å, n_wann of Vec3
     r::Vector{Vec3{T}}
+
+    # which spread functional produced it, see the docstring
+    method::Symbol
 
     # frozen_weight::T
     # fix_centers :: Array{Float64,2} #3 x nwannier
@@ -360,7 +365,7 @@ function omega!(cache::Cache, bvectors::KspaceStencil{FT}, M) where {FT <: Real}
     # ΩD = Ω̃ - ΩOD
     Ω = ΩI + Ω̃
 
-    return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r)
+    return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, :MarzariVanderbilt)
     # return Spread(Ω, ΩI, ΩOD, ΩD, Ω̃, ω, r, w_froz)
 end
 
@@ -393,7 +398,7 @@ function Base.show(io::IO, ::MIME"text/plain", Ω::Spread)
         @printf(io, "%4d %11.5f %11.5f %11.5f %11.5f\n", i, Ω.r[i]..., Ω.ω[i])
     end
 
-    @printf(io, "Sum spread: Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n")
+    @printf(io, "Sum spread (%s): Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD\n", Ω.method)
     @printf(io, "   ΩI  = %11.5f\n", Ω.ΩI)
     @printf(io, "   Ω̃   = %11.5f\n", Ω.Ω̃)
     @printf(io, "   ΩOD = %11.5f\n", Ω.ΩOD)

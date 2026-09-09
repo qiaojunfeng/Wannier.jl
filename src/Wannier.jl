@@ -27,6 +27,7 @@ include("kpoints/kstencil.jl")
 
 include("model.jl")
 include("spread.jl")
+include("spread_stengel_spaldin.jl")
 
 include("io/w90/nnkp.jl")
 include("io/w90/amn.jl")

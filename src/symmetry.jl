@@ -630,7 +630,9 @@ Reorder the overlap matrices according to the b vector ordering in the stencil.
 - `kstencil`: k-space stencil defining the desired b vector ordering and kpoints.
 
 # Return
-- `M`: reordered overlap matrices at each kpoint.
+- `M`: reordered overlap matrices at each kpoint. The blocks are the *same*
+    matrices as in the input, only permuted, so mutating the result mutates
+    the input as well.
 """
 function reorder(
         M::AbstractVector, kpb_k::AbstractVector, kpb_G::AbstractVector, kstencil::KspaceStencil
@@ -638,18 +640,20 @@ function reorder(
     nbvec = n_bvectors(kstencil)
     nkpts = n_kpoints(kstencil)
     nkpts == length(kpb_k) || error("Mismatch in number of kpoints")
-    nbvec == length(kpb_k[1]) || error("Mismatch in number of b vectors")
+    nkpts == length(M) || error("Mismatch in number of kpoints")
+    all(length(Mk) == nbvec for Mk in kpb_k) ||
+        error("Mismatch in number of b vectors")
 
-    M_new = zeros_overlap(eltype(M[1]), nkpts, nbvec, size(M[1], 1))
-
-    for ik in 1:nkpts
+    return map(1:nkpts) do ik
         bvecs = get_bvectors(kstencil, ik; fractional = true)
-        for (ib, b) in enumerate(bvecs)
+        perm = map(enumerate(bvecs)) do (ib, b)
             ib0 = index_bvector(kstencil.kpoints, kpb_k, kpb_G, ik, b)
             isnothing(ib0) && error("No matching bvector found for ik=$ik ib=$ib")
-            M_new[ik][ib] = M[ik][ib0]
+            return ib0
         end
+        # `findfirst` would happily return the same slot twice, which would
+        # duplicate one b-vector and drop another
+        isperm(perm) || error("bvector mapping at ik=$ik is not a permutation: $perm")
+        return M[ik][perm]
     end
-
-    return M_new
 end

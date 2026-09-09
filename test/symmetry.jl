@@ -193,3 +193,36 @@ end
     @test kpb_k_f == kpb_k_ref
     @test kpb_G_f == kpb_G_ref
 end
+
+@testitem "reorder overlaps" begin
+    using Wannier.Datasets
+    model = load_dataset("Si2_valence")
+    kstencil = model.kstencil
+
+    # `reorder(::KspaceStencil)` puts every kpoint on the Γ-point b-ordering;
+    # `reorder(M, ...)` permutes the overlaps to match.
+    global_stencil = Wannier.reorder(kstencil)
+    M = Wannier.reorder(
+        model.overlaps, kstencil.kpb_k, kstencil.kpb_G, global_stencil
+    )
+
+    @test length(M) == Wannier.n_kpoints(kstencil)
+    @test all(length(Mk) == Wannier.n_bvectors(kstencil) for Mk in M)
+
+    # slot ib denotes the same b-vector at every kpoint after the reorder
+    for ik in 1:Wannier.n_kpoints(global_stencil)
+        bvecs = Wannier.get_bvectors(global_stencil, ik)
+        @test all(
+            isapprox(bvecs[ib], global_stencil.bvectors[ib]; atol = 1.0e-6)
+                for ib in eachindex(bvecs)
+        )
+    end
+
+    # the pair is a relabelling, so every gauge-independent quantity is
+    # untouched
+    Ω = omega(kstencil, model.overlaps, model.gauges)
+    Ω_reordered = omega(global_stencil, M, model.gauges)
+    @test Ω_reordered.Ω ≈ Ω.Ω
+    @test Ω_reordered.ΩI ≈ Ω.ΩI
+    @test all(isapprox.(Ω_reordered.r, Ω.r; atol = 1.0e-9))
+end
