@@ -12,8 +12,21 @@ Read `win` and `mmn` files, and read `amn`/`eig` files if they exist.
 - use_mmn_bvecs: use the b-vectors in `mmn` file instead of regenerating them.
 - kstencil_algo: algorithm to generate `KspaceStencil` if `use_mmn_bvecs` is `false`.
     Default is `generate_kspace_stencil`.
+- order: order of the finite-difference formula for the b-vector weights,
+    i.e. wannier90's `higher_order_n`. `order = 1` is wannier90's default;
+    `order = n` gives weights satisfying the completeness condition on every
+    even moment up to `2n`. Must match the `higher_order_n` the `mmn` was
+    generated with: on the `use_mmn_bvecs = true` path the weights are recovered
+    from the b-vector list, which is ill-posed at the wrong order and errors.
+    See [`compute_bweights`](@ref) and [`replicate_shells`](@ref).
 """
-function read_w90(prefix::AbstractString; ortho_amn::Bool = true, use_mmn_bvecs::Bool = true, kstencil_algo::KspaceStencilAlgorithm = default_kstencil_algo())
+function read_w90(
+        prefix::AbstractString;
+        ortho_amn::Bool = true,
+        use_mmn_bvecs::Bool = true,
+        kstencil_algo::KspaceStencilAlgorithm = default_kstencil_algo(),
+        order::Int = 1,
+    )
     win = read_win(prefix * ".win")
     nbands = win["num_bands"]
     nwann = win["num_wann"]
@@ -32,11 +45,11 @@ function read_w90(prefix::AbstractString; ortho_amn::Bool = true, use_mmn_bvecs:
     @assert (nbands, nbands) == size(overlaps[1][1]) "different n_bands in mmn and win files"
 
     if use_mmn_bvecs
-        kstencil = KspaceStencil(recip_lattice, win["kpoints"], kpb_k, kpb_G)
+        kstencil = KspaceStencil(recip_lattice, win["kpoints"], kpb_k, kpb_G; order)
     else
         atol = get(win, "kmesh_tol", default_w90_kmesh_tol())
         kstencil = generate_kspace_stencil(
-            recip_lattice, win["mp_grid"], win["kpoints"], kstencil_algo; atol
+            recip_lattice, win["mp_grid"], win["kpoints"], kstencil_algo; atol, order
         )
         @assert n_bvectors(kstencil) == nbvecs "different n_bvectors in mmn and win files"
         @assert kstencil.kpb_k == kpb_k "auto generated kpb_k are different from mmn file"

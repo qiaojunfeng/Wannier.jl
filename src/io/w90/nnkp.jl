@@ -9,9 +9,11 @@ This function calls `WannierIO.read_nnkp` to parse the file, compute the bweight
 of b-vectors, and returns a [`KspaceStencil`](@ref) (while `WannierIO.read_nnkp` only
 returns a `NamedTuple`).
 """
-function read_nnkp_compute_bweights(filename::AbstractString)
+function read_nnkp_compute_bweights(filename::AbstractString; order::Int = 1)
     nnkp = WannierIO.read_nnkp(filename)
-    return KspaceStencil(nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"])
+    return KspaceStencil(
+        nnkp["recip_lattice"], nnkp["kpoints"], nnkp["kpb_k"], nnkp["kpb_G"]; order
+    )
 end
 
 """

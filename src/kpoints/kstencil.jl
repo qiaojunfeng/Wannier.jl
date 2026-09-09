@@ -59,9 +59,9 @@ struct KspaceStencil{T <: Real}
     kpb_G::Vector{Vector{Vec3{Int}}}
 end
 
-function KspaceStencil(recip_lattice, kpoints, kpb_k, kpb_G)
+function KspaceStencil(recip_lattice, kpoints, kpb_k, kpb_G; order::Int = 1)
     bvectors = get_bvectors(recip_lattice, kpoints, kpb_k, kpb_G)
-    bweights = compute_bweights(bvectors)
+    bweights = compute_bweights(bvectors; order)
     kgrid_size = vec3(guess_kgrid_size(kpoints))
     return KspaceStencil(
         recip_lattice, kgrid_size, kpoints, bvectors, bweights, kpb_k, kpb_G
@@ -163,7 +163,9 @@ Compute bvector bweights from MV1997 Eq. (B1).
     To reproduce wannier90's behavior,
     - `atol` should be set to wannier90's input parameter `kmesh_tol`
 """
-function compute_bweights(bvectors::Vector{Vec3{T}}; atol = default_w90_kmesh_tol()) where {T}
+function compute_bweights(
+        bvectors::Vector{Vec3{T}}; atol = default_w90_kmesh_tol(), order::Int = 1
+    ) where {T}
     # assume the bvectors are correct: they should be able to be nested into
     # a shell structure
     bvectors_norm = map(norm, bvectors)
@@ -189,7 +191,7 @@ function compute_bweights(bvectors::Vector{Vec3{T}}; atol = default_w90_kmesh_to
         push!(shells, eqnorm_idxs)
         ib += length(eqnorm_idxs)
     end
-    keep_shells, bweights = compute_bweights(bvectors_nested; atol)
+    keep_shells, bweights = compute_bweights(bvectors_nested; atol, order)
     @assert keep_shells == 1:length(bvectors_nested) "compute_bweights should be " *
         " idempotent to the bvectors, maybe the input bvectors are not complete?"
 
@@ -497,8 +499,9 @@ function generate_kspace_stencil(
         kpoints::AbstractVector,
         ::FirstOrderKspaceStencil;
         atol = default_w90_kmesh_tol(),
+        order::Int = 1,
     )
-    shells = KspaceStencilShells(recip_lattice, kgrid_size, kpoints; atol)
+    shells = KspaceStencilShells(recip_lattice, kgrid_size, kpoints; atol, order)
     # generate bvectors for each kpoint
     return sort_bvectors(shells; atol)
 end
@@ -532,11 +535,12 @@ function generate_kspace_stencil(
         kpoints::AbstractVector,
         ::UnsortedFirstOrderKspaceStencil;
         atol = default_w90_kmesh_tol(),
+        order::Int = 1,
     )
     # I still sort all the bvectors, since I want the bvector order
     # at Γ to be the same as wannier90
     stencil = generate_kspace_stencil(
-        recip_lattice, kgrid_size, kpoints, FirstOrderKspaceStencil(); atol
+        recip_lattice, kgrid_size, kpoints, FirstOrderKspaceStencil(); atol, order
     )
     # now reorder
     return reorder(stencil)
