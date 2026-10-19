@@ -39,7 +39,7 @@ WannierMakieExt = "Makie"
 [compat]
 Artifacts = "1"
 CrystalBase = "0.2"
-DocStringExtensions = "0.9"
+DocStringExtensions = "0.9, 0.10"
 FastLapackInterface = "2"
 LazyArtifacts = "1"
 LazyGrids = "0.4, 0.5, 1"
